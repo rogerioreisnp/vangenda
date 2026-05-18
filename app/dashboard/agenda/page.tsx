@@ -446,18 +446,14 @@ function FormAgendamento({ data, rotas, onFechar, onSalvo }: {
         </Campo>
       </div>
 
-     </div>
-
-      {/* Botão salvar */}
-      <div style={{ position: 'fixed', bottom: '70px', left: 0, right: 0, padding: '0 16px 8px', background: '#f0f0ec' }}>
+      {/* Botão salvar fixo acima da navegação */}
+      <div style={{ position: 'fixed', bottom: '64px', left: 0, right: 0, padding: '8px 16px', background: 'white', borderTop: '1px solid #e5e7eb', zIndex: 40 }}>
         <button onClick={salvar} disabled={saving || !form.nome_passageiro || !form.parada_origem || !form.parada_destino || !form.valor}
           className="w-full py-3.5 rounded-xl text-white text-sm font-semibold transition-opacity disabled:opacity-40"
           style={{ background: '#1D9E75' }}>
           {saving ? 'Salvando...' : '✓ Salvar passageiro'}
         </button>
       </div>
-
-      <div>
 
       <style jsx>{`
         .campo-input {
