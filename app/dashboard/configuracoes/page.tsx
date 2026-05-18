@@ -93,8 +93,7 @@ export default function ConfiguracoesPage() {
   }
 
   function removerParada(idx: number) {
-    if (idx === 0 || idx === paradas.length - 1) return // Não remove terminais
-    const novas = paradas.filter((_, i) => i !== idx).map((p, i) => ({ ...p, ordem: i }))
+   const novas = paradas.filter((_, i) => i !== idx).map((p, i) => ({ ...p, ordem: i }))
     setParadas(novas)
     gerarPrecos(novas)
   }
