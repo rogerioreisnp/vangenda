@@ -12,12 +12,17 @@ export default function ConfiguracoesPage() {
   const [saving, setSaving] = useState(false)
   const [savedMsg, setSavedMsg] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [motorista, setMotorista] = useState<any>(null)
+  const [linkCopiado, setLinkCopiado] = useState(false)
 
   useEffect(() => { carregarDados() }, [])
 
   async function carregarDados() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
+
+    const { data: mot } = await supabase.from('motoristas').select('*').eq('id', user.id).single()
+    if (mot) setMotorista(mot)
 
     const { data: rts } = await supabase.from('rotas').select('*').eq('motorista_id', user.id).limit(1).single()
 
@@ -28,9 +33,9 @@ export default function ConfiguracoesPage() {
       if (pars) setParadas(pars)
       if (prs) setPrecos(prs)
     } else {
-      // Cria rota padrão se não existir
+      const { data: { user: u } } = await supabase.auth.getUser()
       const { data: novaRota } = await supabase.from('rotas').insert({
-        motorista_id: user.id,
+        motorista_id: u!.id,
         nome: 'Minha Rota',
         horario_ida: '05:00',
         horario_volta: '14:00',
@@ -49,7 +54,6 @@ export default function ConfiguracoesPage() {
       horario_volta: rota.horario_volta,
     }).eq('id', rota.id)
 
-    // Salva paradas
     await supabase.from('paradas').delete().eq('rota_id', rota.id)
     if (paradas.length > 0) {
       await supabase.from('paradas').insert(
@@ -57,7 +61,6 @@ export default function ConfiguracoesPage() {
       )
     }
 
-    // Salva precos
     await supabase.from('precos').delete().eq('rota_id', rota.id)
     const precosValidos = precos.filter(p => p.valor > 0)
     if (precosValidos.length > 0) {
@@ -71,6 +74,14 @@ export default function ConfiguracoesPage() {
       )
     }
 
+    if (motorista) {
+      await supabase.from('motoristas').update({
+        pix_tipo: motorista.pix_tipo,
+        pix_chave: motorista.pix_chave,
+        pagamento_obrigatorio: motorista.pagamento_obrigatorio,
+      }).eq('id', motorista.id)
+    }
+
     setSaving(false)
     setSavedMsg(true)
     setTimeout(() => setSavedMsg(false), 2000)
@@ -80,7 +91,6 @@ export default function ConfiguracoesPage() {
     if (!novaParada.trim()) return
     const ultima = paradas.length - 1
     const novas = [...paradas]
-    // Insere antes da última parada (terminal final)
     if (novas.length >= 2) {
       novas.splice(ultima, 0, { nome: novaParada.trim(), ordem: ultima })
     } else {
@@ -88,12 +98,11 @@ export default function ConfiguracoesPage() {
     }
     setParadas(novas.map((p, i) => ({ ...p, ordem: i })))
     setNovaParada('')
-    // Atualiza precos com novas combinações
     gerarPrecos(novas)
   }
 
   function removerParada(idx: number) {
-   const novas = paradas.filter((_, i) => i !== idx).map((p, i) => ({ ...p, ordem: i }))
+    const novas = paradas.filter((_, i) => i !== idx).map((p, i) => ({ ...p, ordem: i }))
     setParadas(novas)
     gerarPrecos(novas)
   }
@@ -119,6 +128,13 @@ export default function ConfiguracoesPage() {
     ))
   }
 
+  function copiarLink() {
+    const link = `${window.location.origin}/agendar/${motorista?.slug || motorista?.id}`
+    navigator.clipboard.writeText(link)
+    setLinkCopiado(true)
+    setTimeout(() => setLinkCopiado(false), 2000)
+  }
+
   async function sair() {
     await supabase.auth.signOut()
     router.push('/')
@@ -130,20 +146,83 @@ export default function ConfiguracoesPage() {
     </div>
   )
 
+  const linkPublico = typeof window !== 'undefined'
+    ? `${window.location.origin}/agendar/${motorista?.slug || motorista?.id}`
+    : ''
+
   return (
     <div>
       <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-4">
         <p style={{ color: '#E1F5EE' }} className="text-base font-semibold">Configurações</p>
-        <p style={{ color: '#5DCAA5' }} className="text-xs mt-0.5">Rota e tabela de preços</p>
+        <p style={{ color: '#5DCAA5' }} className="text-xs mt-0.5">Rota, preços e pagamento</p>
       </div>
 
       <div className="px-4 py-4 flex flex-col gap-4">
+
+        {/* Link público */}
+        <Secao titulo="🔗 Link de agendamento para clientes">
+          <p className="text-xs text-gray-400 mb-3">Compartilhe este link no WhatsApp para os clientes agendarem.</p>
+          <div className="bg-gray-50 rounded-xl p-3 flex items-center gap-2 mb-2">
+            <p className="text-xs text-gray-600 flex-1 break-all">{linkPublico}</p>
+          </div>
+          <button onClick={copiarLink}
+            className="w-full py-2.5 rounded-xl text-sm font-medium"
+            style={{ background: linkCopiado ? '#E1F5EE' : '#0F6E56', color: linkCopiado ? '#0F6E56' : '#fff' }}>
+            {linkCopiado ? '✓ Link copiado!' : '📋 Copiar link'}
+          </button>
+        </Secao>
+
+        {/* Pix */}
+        <Secao titulo="💰 Pagamento via Pix">
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between py-2">
+              <div>
+                <p className="text-sm font-medium text-gray-700">Exigir pagamento ao agendar</p>
+                <p className="text-xs text-gray-400 mt-0.5">Cliente paga o Pix antes de confirmar</p>
+              </div>
+              <button
+                onClick={() => setMotorista((m: any) => ({ ...m, pagamento_obrigatorio: !m?.pagamento_obrigatorio }))}
+                className="relative w-12 h-6 rounded-full transition-colors flex-shrink-0"
+                style={{ background: motorista?.pagamento_obrigatorio ? '#1D9E75' : '#e5e7eb' }}>
+                <div className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all"
+                  style={{ left: motorista?.pagamento_obrigatorio ? '26px' : '2px' }} />
+              </button>
+            </div>
+
+            {motorista?.pagamento_obrigatorio && (
+              <>
+                <Campo label="Tipo da chave Pix">
+                  <select value={motorista?.pix_tipo || 'telefone'}
+                    onChange={e => setMotorista((m: any) => ({ ...m, pix_tipo: e.target.value }))}
+                    className="campo-input">
+                    <option value="telefone">Telefone</option>
+                    <option value="cpf">CPF</option>
+                    <option value="email">E-mail</option>
+                    <option value="aleatoria">Chave aleatória</option>
+                  </select>
+                </Campo>
+                <Campo label="Chave Pix">
+                  <input value={motorista?.pix_chave || ''}
+                    onChange={e => setMotorista((m: any) => ({ ...m, pix_chave: e.target.value }))}
+                    placeholder="Ex: (95) 99999-9999"
+                    className="campo-input" />
+                </Campo>
+                <div style={{ background: '#E1F5EE' }} className="rounded-xl p-3">
+                  <p className="text-xs" style={{ color: '#085041' }}>
+                    ✓ Quando ativado, o cliente verá um QR Code Pix ao agendar e deverá enviar o comprovante pelo WhatsApp.
+                  </p>
+                </div>
+              </>
+            )}
+          </div>
+        </Secao>
+
         {/* Dados da rota */}
         <Secao titulo="🛣️ Dados da rota">
           <div className="flex flex-col gap-3">
             <Campo label="Nome da rota">
               <input value={rota?.nome || ''} onChange={e => setRota((r: any) => ({ ...r, nome: e.target.value }))}
-                placeholder="Ex: Caracaraí → Boa Vista" className="campo-input" />
+                placeholder="Ex: Rorainópolis → Boa Vista" className="campo-input" />
             </Campo>
             <div className="grid grid-cols-2 gap-2">
               <Campo label="Saída ida">
@@ -162,7 +241,7 @@ export default function ConfiguracoesPage() {
 
         {/* Paradas */}
         <Secao titulo="📍 Paradas da rota">
-          <p className="text-xs text-gray-400 mb-3">A primeira e a última são os terminais.</p>
+          <p className="text-xs text-gray-400 mb-3">Adicione na ordem do trajeto — primeira é a origem, última é o destino.</p>
           <div className="flex flex-col">
             {paradas.map((p, i) => (
               <div key={i} className="flex items-center gap-2 mb-2">
@@ -172,12 +251,10 @@ export default function ConfiguracoesPage() {
                   {i < paradas.length - 1 && <div className="w-0.5 h-5 mt-0.5" style={{ background: '#9FE1CB' }} />}
                 </div>
                 <span className="flex-1 text-sm text-gray-800 font-medium">{p.nome}</span>
-             {(
-                  <button onClick={() => removerParada(i)}
-                    className="text-xs px-2 py-1 rounded-lg" style={{ background: '#FCEBEB', color: '#A32D2D' }}>
-                    ✕
-                  </button>
-                )}
+                <button onClick={() => removerParada(i)}
+                  className="text-xs px-2 py-1 rounded-lg" style={{ background: '#FCEBEB', color: '#A32D2D' }}>
+                  ✕
+                </button>
               </div>
             ))}
           </div>
@@ -217,14 +294,12 @@ export default function ConfiguracoesPage() {
           )}
         </Secao>
 
-        {/* Botão salvar */}
         <button onClick={salvarRota} disabled={saving}
           className="w-full py-3.5 rounded-xl text-white text-sm font-semibold transition-opacity disabled:opacity-40"
           style={{ background: '#1D9E75' }}>
           {saving ? 'Salvando...' : savedMsg ? '✓ Salvo!' : '💾 Salvar configurações'}
         </button>
 
-        {/* Sair */}
         <button onClick={sair}
           className="w-full py-3 rounded-xl text-sm font-medium mt-2"
           style={{ background: '#FCEBEB', color: '#A32D2D' }}>
