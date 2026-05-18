@@ -447,7 +447,7 @@ function FormAgendamento({ data, rotas, onFechar, onSalvo }: {
       </div>
 
       {/* Botão salvar */}
-      <div className="px-4 py-4 bg-white border-t border-gray-100">
+      className="flex-1 overflow-y-auto px-4 py-4 pb-24 flex flex-col gap-3"
         <button onClick={salvar} disabled={saving || !form.nome_passageiro || !form.parada_origem || !form.parada_destino || !form.valor}
           className="w-full py-3.5 rounded-xl text-white text-sm font-semibold transition-opacity disabled:opacity-40"
           style={{ background: '#1D9E75' }}>
