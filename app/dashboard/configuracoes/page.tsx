@@ -173,7 +173,7 @@ export default function ConfiguracoesPage() {
                   {i < paradas.length - 1 && <div className="w-0.5 h-5 mt-0.5" style={{ background: '#9FE1CB' }} />}
                 </div>
                 <span className="flex-1 text-sm text-gray-800 font-medium">{p.nome}</span>
-                {i !== 0 && i !== paradas.length - 1 && (
+             {(
                   <button onClick={() => removerParada(i)}
                     className="text-xs px-2 py-1 rounded-lg" style={{ background: '#FCEBEB', color: '#A32D2D' }}>
                     ✕
