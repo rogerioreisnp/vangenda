@@ -68,7 +68,7 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
     const { data: mot } = await supabase
       .from('motoristas')
       .select('*')
-      .eq('slug', params.slug)
+    .eq('id', params.slug)
       .single()
 
     if (!mot) { setLoading(false); return }
