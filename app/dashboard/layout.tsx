@@ -18,7 +18,7 @@ const PLANOS = [
     preco: 'R$ 49,90',
     periodo: '/mês',
     destaque: false,
-    kiwifyUrl: 'https://kiwify.com.br/seu-link-mensal', // substituir pelo link real
+    kiwifyUrl: 'https://pay.kiwify.com.br/XcKd7Q0',
   },
   {
     id: 'semestral',
@@ -27,7 +27,7 @@ const PLANOS = [
     periodo: '/mês',
     economia: 'Economia de 30%',
     destaque: true,
-    kiwifyUrl: 'https://kiwify.com.br/seu-link-semestral', // substituir pelo link real
+    kiwifyUrl: 'https://pay.kiwify.com.br/xg8cesy',
   },
   {
     id: 'anual',
@@ -36,7 +36,7 @@ const PLANOS = [
     periodo: '/mês',
     economia: 'Economia de 50%',
     destaque: false,
-    kiwifyUrl: 'https://kiwify.com.br/seu-link-anual', // substituir pelo link real
+    kiwifyUrl: 'https://pay.kiwify.com.br/HjK0cEC',
   },
 ]
 
