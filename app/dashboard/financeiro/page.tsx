@@ -15,6 +15,7 @@ type Despesa = {
 type Receita = {
   id: string
   descricao: string
+  categoria: string
   valor: number
   data_receita: string
 }
@@ -27,7 +28,16 @@ type AgendamentoReceita = {
   parada_destino: string
 }
 
-const categorias = [
+const categoriasReceita = [
+  { value: 'rota_diaria', label: 'Rota diária', emoji: '🚐' },
+  { value: 'passagens_avulsas', label: 'Passagens avulsas', emoji: '💵' },
+  { value: 'frete_empresarial', label: 'Frete empresarial', emoji: '🏢' },
+  { value: 'tour_passeio', label: 'Tour / Passeio', emoji: '🎉' },
+  { value: 'entrega', label: 'Entrega', emoji: '📦' },
+  { value: 'outros', label: 'Outros', emoji: '➕' },
+]
+
+const categoriasDespesa = [
   { value: 'combustivel', label: 'Combustível', emoji: '⛽' },
   { value: 'manutencao', label: 'Manutenção', emoji: '🔧' },
   { value: 'pedagio', label: 'Pedágio', emoji: '🛣️' },
@@ -85,9 +95,14 @@ export default function FinanceiroPage() {
   const totalDespesas = despesas.reduce((s, d) => s + d.valor, 0)
   const lucro = totalReceitas - totalDespesas
 
-  const despPorCategoria = categorias.map(c => ({
+  const despPorCategoria = categoriasDespesa.map(c => ({
     ...c,
     total: despesas.filter(d => d.categoria === c.value).reduce((s, d) => s + d.valor, 0)
+  })).filter(c => c.total > 0)
+
+  const recPorCategoria = categoriasReceita.map(c => ({
+    ...c,
+    total: receitasManuais.filter(r => r.categoria === c.value).reduce((s, r) => s + r.valor, 0)
   })).filter(c => c.total > 0)
 
   const filtros: { key: Filtro, label: string }[] = [
@@ -162,6 +177,31 @@ export default function FinanceiroPage() {
           <p className="text-center text-gray-400 text-sm py-10">Carregando...</p>
         ) : (
           <>
+            {/* Receitas por categoria */}
+            {recPorCategoria.length > 0 && (
+              <div className="mb-5">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Receitas por categoria</p>
+                <div className="bg-white rounded-2xl overflow-hidden border border-gray-100">
+                  {recPorCategoria.map((c, i) => {
+                    const pct = totalReceitasManuais > 0 ? (c.total / totalReceitasManuais) * 100 : 0
+                    return (
+                      <div key={i} className="px-4 py-3 border-b border-gray-50 last:border-0">
+                        <div className="flex items-center mb-1.5">
+                          <span className="text-lg mr-2">{c.emoji}</span>
+                          <span className="flex-1 text-sm text-gray-700">{c.label}</span>
+                          <span className="text-sm font-semibold" style={{ color: '#0F6E56' }}>R$ {c.total.toFixed(2).replace('.', ',')}</span>
+                        </div>
+                        <div className="h-1.5 rounded-full" style={{ background: '#f0f0ec' }}>
+                          <div className="h-1.5 rounded-full transition-all" style={{ width: `${pct}%`, background: '#1D9E75' }} />
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Despesas por categoria */}
             {despPorCategoria.length > 0 && (
               <div className="mb-5">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Despesas por categoria</p>
@@ -185,26 +225,31 @@ export default function FinanceiroPage() {
               </div>
             )}
 
+            {/* Receitas manuais */}
             <div className="mb-5">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Receitas lançadas</p>
               {receitasManuais.length === 0 ? (
                 <div className="text-center py-4 text-gray-400 text-sm bg-white rounded-2xl border border-gray-100">Nenhuma receita lançada</div>
               ) : (
                 <div className="bg-white rounded-2xl overflow-hidden border border-gray-100">
-                  {receitasManuais.map((r) => (
-                    <div key={r.id} className="flex items-center px-4 py-3 border-b border-gray-50 last:border-0">
-                      <span className="text-xl mr-3">💵</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-800 truncate">{r.descricao}</p>
-                        <p className="text-xs text-gray-400">{format(new Date(r.data_receita + 'T00:00:00'), "dd/MM/yyyy")}</p>
+                  {receitasManuais.map((r) => {
+                    const cat = categoriasReceita.find(c => c.value === r.categoria)
+                    return (
+                      <div key={r.id} className="flex items-center px-4 py-3 border-b border-gray-50 last:border-0">
+                        <span className="text-xl mr-3">{cat?.emoji || '💵'}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-800 truncate">{cat?.label || r.descricao}</p>
+                          <p className="text-xs text-gray-400">{r.descricao} · {format(new Date(r.data_receita + 'T00:00:00'), "dd/MM/yyyy")}</p>
+                        </div>
+                        <span className="text-sm font-semibold" style={{ color: '#0F6E56' }}>+ R$ {r.valor.toFixed(2).replace('.', ',')}</span>
                       </div>
-                      <span className="text-sm font-semibold" style={{ color: '#0F6E56' }}>+ R$ {r.valor.toFixed(2).replace('.', ',')}</span>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
             </div>
 
+            {/* Receitas de agendamentos */}
             {receitasAgendamentos.length > 0 && (
               <div className="mb-5">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Receitas via agendamento</p>
@@ -226,6 +271,7 @@ export default function FinanceiroPage() {
               </div>
             )}
 
+            {/* Despesas */}
             <div className="mb-5">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Despesas</p>
               {despesas.length === 0 ? (
@@ -233,7 +279,7 @@ export default function FinanceiroPage() {
               ) : (
                 <div className="bg-white rounded-2xl overflow-hidden border border-gray-100">
                   {despesas.map((d) => {
-                    const cat = categorias.find(c => c.value === d.categoria)
+                    const cat = categoriasDespesa.find(c => c.value === d.categoria)
                     return (
                       <div key={d.id} className="flex items-center px-4 py-3 border-b border-gray-50 last:border-0">
                         <span className="text-xl mr-3">{cat?.emoji}</span>
@@ -249,6 +295,7 @@ export default function FinanceiroPage() {
               )}
             </div>
 
+            {/* Resumo */}
             {totalReceitas > 0 && (
               <div className="bg-white rounded-2xl p-4 border border-gray-100">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Resumo do período</p>
@@ -291,6 +338,7 @@ export default function FinanceiroPage() {
 
 function FormReceita({ onFechar, onSalvo }: { onFechar: () => void, onSalvo: () => void }) {
   const [form, setForm] = useState({
+    categoria: 'rota_diaria',
     descricao: '',
     valor: '',
     data_receita: format(new Date(), 'yyyy-MM-dd'),
@@ -298,12 +346,14 @@ function FormReceita({ onFechar, onSalvo }: { onFechar: () => void, onSalvo: () 
   const [saving, setSaving] = useState(false)
 
   async function salvar() {
-    if (!form.descricao || !form.valor) return
+    if (!form.valor) return
     setSaving(true)
     const { data: { user } } = await supabase.auth.getUser()
+    const cat = categoriasReceita.find(c => c.value === form.categoria)
     await supabase.from('receitas').insert({
       motorista_id: user!.id,
-      descricao: form.descricao,
+      categoria: form.categoria,
+      descricao: form.descricao || cat?.label || '',
       valor: parseFloat(form.valor),
       data_receita: form.data_receita,
     })
@@ -319,31 +369,54 @@ function FormReceita({ onFechar, onSalvo }: { onFechar: () => void, onSalvo: () 
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-4">
-        <div style={{ background: '#E1F5EE' }} className="rounded-2xl p-4 flex items-center gap-3">
-          <span className="text-3xl">💵</span>
-          <div>
-            <p className="text-sm font-semibold" style={{ color: '#085041' }}>Receita manual</p>
-            <p className="text-xs" style={{ color: '#0F6E56' }}>Lance o total que você recebeu no dia</p>
+
+        {/* Categorias */}
+        <div>
+          <p className="text-xs font-medium text-gray-500 mb-2">Tipo de receita</p>
+          <div className="grid grid-cols-3 gap-2">
+            {categoriasReceita.map(c => (
+              <button key={c.value} onClick={() => setForm(f => ({ ...f, categoria: c.value }))}
+                className="py-2.5 rounded-xl text-xs font-medium border flex flex-col items-center gap-1 transition-all"
+                style={form.categoria === c.value
+                  ? { background: '#0F6E56', color: '#fff', borderColor: '#0F6E56' }
+                  : { background: '#fff', color: '#666', borderColor: '#e5e7eb' }}>
+                <span className="text-lg">{c.emoji}</span>
+                <span className="text-center leading-tight">{c.label}</span>
+              </button>
+            ))}
           </div>
         </div>
 
-        {[
-          { label: 'Descrição', key: 'descricao', type: 'text', placeholder: 'Ex: Faturamento do dia, corrida extra...' },
-          { label: 'Valor (R$)', key: 'valor', type: 'number', placeholder: '0,00' },
-          { label: 'Data', key: 'data_receita', type: 'date', placeholder: '' },
-        ].map(f => (
-          <div key={f.key}>
-            <p className="text-xs font-medium text-gray-500 mb-1">{f.label}</p>
-            <input value={(form as any)[f.key]}
-              onChange={e => setForm(prev => ({ ...prev, [f.key]: e.target.value }))}
-              type={f.type} placeholder={f.placeholder}
-              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none bg-white focus:border-green-600" />
-          </div>
-        ))}
+        {/* Observação opcional */}
+        <div>
+          <p className="text-xs font-medium text-gray-500 mb-1">Observação (opcional)</p>
+          <input value={form.descricao}
+            onChange={e => setForm(prev => ({ ...prev, descricao: e.target.value }))}
+            type="text" placeholder="Ex: empresa tal, grupo de amigos..."
+            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none bg-white focus:border-green-600" />
+        </div>
+
+        {/* Valor */}
+        <div>
+          <p className="text-xs font-medium text-gray-500 mb-1">Valor (R$)</p>
+          <input value={form.valor}
+            onChange={e => setForm(prev => ({ ...prev, valor: e.target.value }))}
+            type="number" placeholder="0,00"
+            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none bg-white focus:border-green-600" />
+        </div>
+
+        {/* Data */}
+        <div>
+          <p className="text-xs font-medium text-gray-500 mb-1">Data</p>
+          <input value={form.data_receita}
+            onChange={e => setForm(prev => ({ ...prev, data_receita: e.target.value }))}
+            type="date"
+            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none bg-white focus:border-green-600" />
+        </div>
       </div>
 
       <div className="px-4 pb-16 pt-4 bg-white border-t border-gray-100">
-        <button onClick={salvar} disabled={saving || !form.descricao || !form.valor}
+        <button onClick={salvar} disabled={saving || !form.valor}
           className="w-full py-3.5 rounded-xl text-white text-sm font-semibold disabled:opacity-40"
           style={{ background: '#1D9E75' }}>
           {saving ? 'Salvando...' : '💰 Salvar receita'}
@@ -384,7 +457,7 @@ function FormDespesa({ onFechar, onSalvo }: { onFechar: () => void, onSalvo: () 
         <div>
           <p className="text-xs font-medium text-gray-500 mb-1">Categoria</p>
           <div className="grid grid-cols-3 gap-2">
-            {categorias.map(c => (
+            {categoriasDespesa.map(c => (
               <button key={c.value} onClick={() => setForm(f => ({ ...f, categoria: c.value }))}
                 className="py-2.5 rounded-xl text-xs font-medium border flex flex-col items-center gap-1 transition-all"
                 style={form.categoria === c.value
