@@ -11,17 +11,96 @@ const navItems = [
   { href: '/dashboard/configuracoes', label: 'Config.', emoji: '⚙' },
 ]
 
+const PLANOS = [
+  {
+    id: 'mensal',
+    label: 'Mensal',
+    preco: 'R$ 49,90',
+    periodo: '/mês',
+    destaque: false,
+    kiwifyUrl: 'https://kiwify.com.br/seu-link-mensal', // substituir pelo link real
+  },
+  {
+    id: 'semestral',
+    label: 'Semestral',
+    preco: 'R$ 34,90',
+    periodo: '/mês',
+    economia: 'Economia de 30%',
+    destaque: true,
+    kiwifyUrl: 'https://kiwify.com.br/seu-link-semestral', // substituir pelo link real
+  },
+  {
+    id: 'anual',
+    label: 'Anual',
+    preco: 'R$ 24,90',
+    periodo: '/mês',
+    economia: 'Economia de 50%',
+    destaque: false,
+    kiwifyUrl: 'https://kiwify.com.br/seu-link-anual', // substituir pelo link real
+  },
+]
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
   const [checando, setChecando] = useState(true)
+  const [statusAcesso, setStatusAcesso] = useState<'ok' | 'aviso' | 'bloqueado'>('ok')
+  const [diasRestantes, setDiasRestantes] = useState(0)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      if (!data.session) router.push('/')
-      else setChecando(false)
-    })
+    verificarAcesso()
   }, [router])
+
+  async function verificarAcesso() {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) {
+      router.push('/')
+      return
+    }
+
+    const { data: motorista } = await supabase
+      .from('motoristas')
+      .select('trial_inicio, assinatura_status, assinatura_expira')
+      .eq('id', session.user.id)
+      .single()
+
+    if (!motorista) {
+      setChecando(false)
+      return
+    }
+
+    // Se assinatura ativa
+    if (motorista.assinatura_status === 'ativo') {
+      const expira = new Date(motorista.assinatura_expira)
+      if (expira > new Date()) {
+        setStatusAcesso('ok')
+        setChecando(false)
+        return
+      }
+      // Assinatura expirada
+      setStatusAcesso('bloqueado')
+      setChecando(false)
+      return
+    }
+
+    // Verificar trial
+    const trialInicio = new Date(motorista.trial_inicio)
+    const agora = new Date()
+    const diasUsados = Math.floor((agora.getTime() - trialInicio.getTime()) / (1000 * 60 * 60 * 24))
+    const diasRestantesTrial = 10 - diasUsados
+
+    if (diasRestantesTrial <= 0) {
+      setStatusAcesso('bloqueado')
+    } else if (diasRestantesTrial <= 3) {
+      setStatusAcesso('aviso')
+      setDiasRestantes(diasRestantesTrial)
+    } else {
+      setStatusAcesso('ok')
+      setDiasRestantes(diasRestantesTrial)
+    }
+
+    setChecando(false)
+  }
 
   if (checando) {
     return (
@@ -31,13 +110,29 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     )
   }
 
+  if (statusAcesso === 'bloqueado') {
+    return <TelaBloqueio />
+  }
+
   return (
     <div className="min-h-dvh flex flex-col" style={{ background: '#f0f0ec' }}>
-      <main className="flex-1 overflow-y-auto pb-20">
+      {/* Banner de aviso trial */}
+      {statusAcesso === 'aviso' && (
+        <div className="fixed top-0 left-0 right-0 z-50 px-4 py-2 text-center text-xs font-semibold"
+          style={{ background: '#FAC775', color: '#854F0B' }}>
+          ⚠️ Seu período gratuito expira em {diasRestantes} {diasRestantes === 1 ? 'dia' : 'dias'}!{' '}
+          <button
+            onClick={() => setStatusAcesso('bloqueado')}
+            className="underline font-bold ml-1">
+            Assinar agora
+          </button>
+        </div>
+      )}
+
+      <main className={`flex-1 overflow-y-auto pb-20 ${statusAcesso === 'aviso' ? 'pt-8' : ''}`}>
         {children}
       </main>
 
-      {/* Navegação inferior */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 safe-area-bottom z-50">
         <div className="grid grid-cols-4 max-w-lg mx-auto">
           {navItems.map((item) => {
@@ -53,6 +148,93 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           })}
         </div>
       </nav>
+    </div>
+  )
+}
+
+function TelaBloqueio() {
+  return (
+    <div className="min-h-dvh flex flex-col" style={{ background: '#f0f0ec' }}>
+      {/* Header */}
+      <div style={{ background: '#0F6E56' }} className="px-4 pt-14 pb-8 text-center">
+        <div className="text-5xl mb-3">🚐</div>
+        <h1 style={{ color: '#E1F5EE' }} className="text-xl font-bold">VanGenda</h1>
+        <p style={{ color: '#9FE1CB' }} className="text-sm mt-1">Gerencie sua van com profissionalismo</p>
+      </div>
+
+      <div className="px-4 py-6 flex flex-col gap-4 max-w-md mx-auto w-full">
+        {/* Aviso */}
+        <div className="bg-white rounded-2xl p-4 border border-gray-100 text-center">
+          <p className="text-2xl mb-2">⏰</p>
+          <p className="text-base font-bold text-gray-800 mb-1">Seu período gratuito encerrou</p>
+          <p className="text-sm text-gray-500">Escolha um plano para continuar usando o VanGenda e não perder seus agendamentos!</p>
+        </div>
+
+        {/* Planos */}
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide text-center">Escolha seu plano</p>
+
+        {PLANOS.map((plano) => (
+          <div key={plano.id}
+            className="rounded-2xl p-4 border-2 relative"
+            style={{
+              background: plano.destaque ? '#0F6E56' : '#fff',
+              borderColor: plano.destaque ? '#0F6E56' : '#e5e7eb',
+            }}>
+            {plano.destaque && (
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-xs font-bold"
+                style={{ background: '#FAC775', color: '#854F0B' }}>
+                ⭐ Mais popular
+              </div>
+            )}
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <p className="font-bold" style={{ color: plano.destaque ? '#E1F5EE' : '#1a1a1a' }}>
+                  {plano.label}
+                </p>
+                {plano.economia && (
+                  <p className="text-xs" style={{ color: plano.destaque ? '#9FE1CB' : '#0F6E56' }}>
+                    {plano.economia}
+                  </p>
+                )}
+              </div>
+              <div className="text-right">
+                <p className="text-2xl font-bold" style={{ color: plano.destaque ? '#fff' : '#0F6E56' }}>
+                  {plano.preco}
+                </p>
+                <p className="text-xs" style={{ color: plano.destaque ? '#9FE1CB' : '#888' }}>
+                  {plano.periodo}
+                </p>
+              </div>
+            </div>
+            <a href={plano.kiwifyUrl} target="_blank" rel="noopener noreferrer"
+              className="block w-full py-3 rounded-xl text-center text-sm font-bold transition-all"
+              style={{
+                background: plano.destaque ? '#E1F5EE' : '#0F6E56',
+                color: plano.destaque ? '#0F6E56' : '#fff',
+              }}>
+              Assinar agora →
+            </a>
+          </div>
+        ))}
+
+        {/* Benefícios */}
+        <div className="bg-white rounded-2xl p-4 border border-gray-100">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">O que está incluído</p>
+          {[
+            '✅ Agendamentos ilimitados',
+            '✅ Link exclusivo para passageiros',
+            '✅ Controle financeiro completo',
+            '✅ Pagamento via Pix integrado',
+            '✅ Agenda organizada por dia',
+          ].map((item, i) => (
+            <p key={i} className="text-sm text-gray-700 mb-1.5">{item}</p>
+          ))}
+        </div>
+
+        <p className="text-center text-xs text-gray-400 pb-6">
+          Pagamento seguro via Kiwify · Cancele quando quiser
+        </p>
+      </div>
     </div>
   )
 }
