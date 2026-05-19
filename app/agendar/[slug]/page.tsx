@@ -270,7 +270,16 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
               <div style={{ background: '#f0f0ec' }} className="rounded-xl p-3 mb-4">
                 <p className="text-xs text-gray-500 mb-1">Chave Pix</p>
                 <p className="text-sm font-semibold text-gray-800 break-all">{motorista.pix_chave}</p>
-                <p className="text-xs text-gray-400 mt-1 capitalize">{motorista.pix_tipo}</p>
+               <p className="text-xs text-gray-400 mt-1 capitalize">{motorista.pix_tipo}</p>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(motorista.pix_chave)
+                    alert('Chave Pix copiada!')
+                  }}
+                  className="mt-3 w-full py-2.5 rounded-xl text-sm font-semibold border-2 transition-all"
+                  style={{ borderColor: '#0F6E56', color: '#0F6E56', background: '#fff' }}>
+                  📋 Copiar chave Pix
+                </button>
               </div>
 
               <div style={{ background: '#E1F5EE' }} className="rounded-xl p-3 mb-4">
