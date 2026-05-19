@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 
@@ -14,6 +14,8 @@ export default function ConfiguracoesPage() {
   const [loading, setLoading] = useState(true)
   const [motorista, setMotorista] = useState<any>(null)
   const [linkCopiado, setLinkCopiado] = useState(false)
+  const dragIdx = useRef<number | null>(null)
+  const dragOverIdx = useRef<number | null>(null)
 
   useEffect(() => { carregarDados() }, [])
 
@@ -140,6 +142,28 @@ export default function ConfiguracoesPage() {
     router.push('/')
   }
 
+  // Drag and drop handlers
+  function onDragStart(idx: number) {
+    dragIdx.current = idx
+  }
+
+  function onDragEnter(idx: number) {
+    dragOverIdx.current = idx
+    if (dragIdx.current === null || dragIdx.current === idx) return
+    const novas = [...paradas]
+    const item = novas.splice(dragIdx.current, 1)[0]
+    novas.splice(idx, 0, item)
+    dragIdx.current = idx
+    const atualizadas = novas.map((p, i) => ({ ...p, ordem: i }))
+    setParadas(atualizadas)
+    gerarPrecos(atualizadas)
+  }
+
+  function onDragEnd() {
+    dragIdx.current = null
+    dragOverIdx.current = null
+  }
+
   if (loading) return (
     <div className="flex items-center justify-center py-20">
       <div className="text-4xl animate-pulse">🚐</div>
@@ -239,20 +263,44 @@ export default function ConfiguracoesPage() {
           </div>
         </Secao>
 
-        {/* Paradas */}
+        {/* Paradas com drag and drop */}
         <Secao titulo="📍 Paradas da rota">
-          <p className="text-xs text-gray-400 mb-3">Adicione na ordem do trajeto — primeira é a origem, última é o destino.</p>
+          <p className="text-xs text-gray-400 mb-3">
+            Adicione na ordem do trajeto — primeira é a origem, última é o destino.{' '}
+            <span style={{ color: '#1D9E75' }}>Segure e arraste para reordenar.</span>
+          </p>
           <div className="flex flex-col">
             {paradas.map((p, i) => (
-              <div key={i} className="flex items-center gap-2 mb-2">
+              <div
+                key={i}
+                draggable
+                onDragStart={() => onDragStart(i)}
+                onDragEnter={() => onDragEnter(i)}
+                onDragEnd={onDragEnd}
+                onDragOver={e => e.preventDefault()}
+                className="flex items-center gap-2 mb-2 rounded-xl transition-all cursor-grab active:cursor-grabbing"
+                style={{
+                  background: dragIdx.current === i ? '#E1F5EE' : 'transparent',
+                  padding: '4px 0',
+                }}>
+                {/* Handle de arrastar */}
+                <div className="flex flex-col gap-0.5 px-1 flex-shrink-0" style={{ color: '#9FE1CB' }}>
+                  <div className="w-4 h-0.5 rounded" style={{ background: '#9FE1CB' }} />
+                  <div className="w-4 h-0.5 rounded" style={{ background: '#9FE1CB' }} />
+                  <div className="w-4 h-0.5 rounded" style={{ background: '#9FE1CB' }} />
+                </div>
+
                 <div className="flex flex-col items-center">
                   <div className="w-3 h-3 rounded-full flex-shrink-0"
                     style={{ background: i === 0 || i === paradas.length - 1 ? '#085041' : '#1D9E75' }} />
                   {i < paradas.length - 1 && <div className="w-0.5 h-5 mt-0.5" style={{ background: '#9FE1CB' }} />}
                 </div>
-                <span className="flex-1 text-sm text-gray-800 font-medium">{p.nome}</span>
+
+                <span className="flex-1 text-sm text-gray-800 font-medium select-none">{p.nome}</span>
+
                 <button onClick={() => removerParada(i)}
-                  className="text-xs px-2 py-1 rounded-lg" style={{ background: '#FCEBEB', color: '#A32D2D' }}>
+                  className="text-xs px-2 py-1 rounded-lg flex-shrink-0"
+                  style={{ background: '#FCEBEB', color: '#A32D2D' }}>
                   ✕
                 </button>
               </div>
@@ -301,7 +349,7 @@ export default function ConfiguracoesPage() {
         </button>
 
         <button onClick={sair}
-          className="w-full py-3 rounded-xl text-sm font-medium mt-2"
+          className="w-full py-3 rounded-xl text-sm font-medium mt-2 mb-8"
           style={{ background: '#FCEBEB', color: '#A32D2D' }}>
           Sair da conta
         </button>
