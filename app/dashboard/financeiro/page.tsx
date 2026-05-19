@@ -301,6 +301,8 @@ export default function FinanceiroPage() {
         )}
       </div>
 
+</div>
+        <div className="h-24" />
       {/* Modal Receita */}
       {modal === 'receita' && (
         <FormReceita
