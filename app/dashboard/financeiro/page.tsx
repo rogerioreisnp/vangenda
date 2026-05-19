@@ -342,7 +342,7 @@ function FormReceita({ onFechar, onSalvo }: { onFechar: () => void, onSalvo: () 
         ))}
       </div>
 
-      <div className="px-4 pb-10 pt-4 bg-white border-t border-gray-100">
+      <div className="px-4 pb-16 pt-4 bg-white border-t border-gray-100">
         <button onClick={salvar} disabled={saving || !form.descricao || !form.valor}
           className="w-full py-3.5 rounded-xl text-white text-sm font-semibold disabled:opacity-40"
           style={{ background: '#1D9E75' }}>
@@ -412,7 +412,7 @@ function FormDespesa({ onFechar, onSalvo }: { onFechar: () => void, onSalvo: () 
         ))}
       </div>
 
-      <div className="px-4 pb-10 pt-4 bg-white border-t border-gray-100">
+      <div className="px-4 pb-16 pt-4 bg-white border-t border-gray-100">
         <button onClick={salvar} disabled={saving || !form.descricao || !form.valor}
           className="w-full py-3.5 rounded-xl text-white text-sm font-semibold disabled:opacity-40"
           style={{ background: '#1D9E75' }}>
