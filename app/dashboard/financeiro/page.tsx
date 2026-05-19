@@ -99,11 +99,9 @@ export default function FinanceiroPage() {
 
   return (
     <div>
-      {/* Header */}
       <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-4">
         <p style={{ color: '#E1F5EE' }} className="text-base font-semibold mb-3">Financeiro</p>
 
-        {/* Filtros */}
         <div className="flex gap-2 mb-4">
           {filtros.map(f => (
             <button key={f.key} onClick={() => setFiltro(f.key)}
@@ -116,7 +114,6 @@ export default function FinanceiroPage() {
           ))}
         </div>
 
-        {/* Navegação mês */}
         {filtro === 'mes' && (
           <div className="flex items-center justify-between mb-4">
             <button onClick={() => setMes(m => subMonths(m, 1))}
@@ -131,32 +128,23 @@ export default function FinanceiroPage() {
           </div>
         )}
 
-        {/* Cards resumo */}
         <div className="grid grid-cols-3 gap-2">
           <div style={{ background: '#085041' }} className="rounded-xl p-3">
             <p style={{ color: '#5DCAA5' }} className="text-[10px]">Receitas</p>
-            <p style={{ color: '#E1F5EE' }} className="text-base font-bold mt-0.5">
-              R$ {totalReceitas.toFixed(0)}
-            </p>
+            <p style={{ color: '#E1F5EE' }} className="text-base font-bold mt-0.5">R$ {totalReceitas.toFixed(0)}</p>
           </div>
           <div style={{ background: '#085041' }} className="rounded-xl p-3">
             <p style={{ color: '#5DCAA5' }} className="text-[10px]">Despesas</p>
-            <p style={{ color: '#FAC775' }} className="text-base font-bold mt-0.5">
-              R$ {totalDespesas.toFixed(0)}
-            </p>
+            <p style={{ color: '#FAC775' }} className="text-base font-bold mt-0.5">R$ {totalDespesas.toFixed(0)}</p>
           </div>
           <div style={{ background: lucro >= 0 ? '#085041' : '#6B1A1A' }} className="rounded-xl p-3">
             <p style={{ color: '#5DCAA5' }} className="text-[10px]">Lucro</p>
-            <p style={{ color: lucro >= 0 ? '#E1F5EE' : '#FAC775' }} className="text-base font-bold mt-0.5">
-              R$ {lucro.toFixed(0)}
-            </p>
+            <p style={{ color: lucro >= 0 ? '#E1F5EE' : '#FAC775' }} className="text-base font-bold mt-0.5">R$ {lucro.toFixed(0)}</p>
           </div>
         </div>
       </div>
 
       <div className="px-4 py-4">
-
-        {/* Botões de lançamento */}
         <div className="grid grid-cols-2 gap-3 mb-5">
           <button onClick={() => setModal('receita')}
             className="py-3.5 rounded-2xl text-sm font-bold flex items-center justify-center gap-2"
@@ -174,7 +162,6 @@ export default function FinanceiroPage() {
           <p className="text-center text-gray-400 text-sm py-10">Carregando...</p>
         ) : (
           <>
-            {/* Despesas por categoria */}
             {despPorCategoria.length > 0 && (
               <div className="mb-5">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Despesas por categoria</p>
@@ -186,9 +173,7 @@ export default function FinanceiroPage() {
                         <div className="flex items-center mb-1.5">
                           <span className="text-lg mr-2">{c.emoji}</span>
                           <span className="flex-1 text-sm text-gray-700">{c.label}</span>
-                          <span className="text-sm font-semibold" style={{ color: '#854F0B' }}>
-                            R$ {c.total.toFixed(2).replace('.', ',')}
-                          </span>
+                          <span className="text-sm font-semibold" style={{ color: '#854F0B' }}>R$ {c.total.toFixed(2).replace('.', ',')}</span>
                         </div>
                         <div className="h-1.5 rounded-full" style={{ background: '#f0f0ec' }}>
                           <div className="h-1.5 rounded-full transition-all" style={{ width: `${pct}%`, background: '#FAC775' }} />
@@ -200,13 +185,10 @@ export default function FinanceiroPage() {
               </div>
             )}
 
-            {/* Receitas manuais */}
             <div className="mb-5">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Receitas lançadas</p>
               {receitasManuais.length === 0 ? (
-                <div className="text-center py-4 text-gray-400 text-sm bg-white rounded-2xl border border-gray-100">
-                  Nenhuma receita lançada
-                </div>
+                <div className="text-center py-4 text-gray-400 text-sm bg-white rounded-2xl border border-gray-100">Nenhuma receita lançada</div>
               ) : (
                 <div className="bg-white rounded-2xl overflow-hidden border border-gray-100">
                   {receitasManuais.map((r) => (
@@ -216,16 +198,13 @@ export default function FinanceiroPage() {
                         <p className="text-sm font-medium text-gray-800 truncate">{r.descricao}</p>
                         <p className="text-xs text-gray-400">{format(new Date(r.data_receita + 'T00:00:00'), "dd/MM/yyyy")}</p>
                       </div>
-                      <span className="text-sm font-semibold" style={{ color: '#0F6E56' }}>
-                        + R$ {r.valor.toFixed(2).replace('.', ',')}
-                      </span>
+                      <span className="text-sm font-semibold" style={{ color: '#0F6E56' }}>+ R$ {r.valor.toFixed(2).replace('.', ',')}</span>
                     </div>
                   ))}
                 </div>
               )}
             </div>
 
-            {/* Receitas de agendamentos */}
             {receitasAgendamentos.length > 0 && (
               <div className="mb-5">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Receitas via agendamento</p>
@@ -237,9 +216,7 @@ export default function FinanceiroPage() {
                         <p className="text-sm font-medium text-gray-800 truncate">{r.nome_passageiro}</p>
                         <p className="text-xs text-gray-400">{r.parada_origem} → {r.parada_destino} · {format(new Date(r.data_viagem + 'T00:00:00'), 'dd/MM')}</p>
                       </div>
-                      <span className="text-sm font-semibold" style={{ color: '#0F6E56' }}>
-                        + R$ {r.valor.toFixed(2).replace('.', ',')}
-                      </span>
+                      <span className="text-sm font-semibold" style={{ color: '#0F6E56' }}>+ R$ {r.valor.toFixed(2).replace('.', ',')}</span>
                     </div>
                   ))}
                   {receitasAgendamentos.length > 10 && (
@@ -249,13 +226,10 @@ export default function FinanceiroPage() {
               </div>
             )}
 
-            {/* Despesas */}
             <div className="mb-5">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Despesas</p>
               {despesas.length === 0 ? (
-                <div className="text-center py-4 text-gray-400 text-sm bg-white rounded-2xl border border-gray-100">
-                  Nenhuma despesa registrada
-                </div>
+                <div className="text-center py-4 text-gray-400 text-sm bg-white rounded-2xl border border-gray-100">Nenhuma despesa registrada</div>
               ) : (
                 <div className="bg-white rounded-2xl overflow-hidden border border-gray-100">
                   {despesas.map((d) => {
@@ -267,9 +241,7 @@ export default function FinanceiroPage() {
                           <p className="text-sm font-medium text-gray-800 truncate">{d.descricao}</p>
                           <p className="text-xs text-gray-400">{format(new Date(d.data_despesa + 'T00:00:00'), "dd/MM/yyyy")}</p>
                         </div>
-                        <span className="text-sm font-semibold" style={{ color: '#A32D2D' }}>
-                          - R$ {d.valor.toFixed(2).replace('.', ',')}
-                        </span>
+                        <span className="text-sm font-semibold" style={{ color: '#A32D2D' }}>- R$ {d.valor.toFixed(2).replace('.', ',')}</span>
                       </div>
                     )
                   })}
@@ -277,7 +249,6 @@ export default function FinanceiroPage() {
               )}
             </div>
 
-            {/* Barra de progresso lucro */}
             {totalReceitas > 0 && (
               <div className="bg-white rounded-2xl p-4 border border-gray-100">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Resumo do período</p>
@@ -291,9 +262,7 @@ export default function FinanceiroPage() {
                 </div>
                 <div className="flex justify-between mt-2">
                   <span className="text-xs" style={{ color: '#854F0B' }}>R$ {totalDespesas.toFixed(2).replace('.', ',')}</span>
-                  <span className="text-xs font-bold" style={{ color: lucro >= 0 ? '#0F6E56' : '#A32D2D' }}>
-                    R$ {lucro.toFixed(2).replace('.', ',')}
-                  </span>
+                  <span className="text-xs font-bold" style={{ color: lucro >= 0 ? '#0F6E56' : '#A32D2D' }}>R$ {lucro.toFixed(2).replace('.', ',')}</span>
                 </div>
               </div>
             )}
@@ -303,7 +272,6 @@ export default function FinanceiroPage() {
         )}
       </div>
 
-      {/* Modal Receita */}
       {modal === 'receita' && (
         <FormReceita
           onFechar={() => setModal(null)}
@@ -311,7 +279,6 @@ export default function FinanceiroPage() {
         />
       )}
 
-      {/* Modal Despesa */}
       {modal === 'despesa' && (
         <FormDespesa
           onFechar={() => setModal(null)}
@@ -375,7 +342,7 @@ function FormReceita({ onFechar, onSalvo }: { onFechar: () => void, onSalvo: () 
         ))}
       </div>
 
-      <div className="px-4 py-4 bg-white border-t border-gray-100">
+      <div className="px-4 pb-10 pt-4 bg-white border-t border-gray-100">
         <button onClick={salvar} disabled={saving || !form.descricao || !form.valor}
           className="w-full py-3.5 rounded-xl text-white text-sm font-semibold disabled:opacity-40"
           style={{ background: '#1D9E75' }}>
@@ -445,7 +412,7 @@ function FormDespesa({ onFechar, onSalvo }: { onFechar: () => void, onSalvo: () 
         ))}
       </div>
 
-      <div className="px-4 py-4 bg-white border-t border-gray-100">
+      <div className="px-4 pb-10 pt-4 bg-white border-t border-gray-100">
         <button onClick={salvar} disabled={saving || !form.descricao || !form.valor}
           className="w-full py-3.5 rounded-xl text-white text-sm font-semibold disabled:opacity-40"
           style={{ background: '#1D9E75' }}>
