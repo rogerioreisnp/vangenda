@@ -116,7 +116,7 @@ export default function FinanceiroPage() {
           ))}
         </div>
 
-        {/* Navegação mês (só aparece no filtro mês) */}
+        {/* Navegação mês */}
         {filtro === 'mes' && (
           <div className="flex items-center justify-between mb-4">
             <button onClick={() => setMes(m => subMonths(m, 1))}
@@ -209,7 +209,7 @@ export default function FinanceiroPage() {
                 </div>
               ) : (
                 <div className="bg-white rounded-2xl overflow-hidden border border-gray-100">
-                  {receitasManuais.map((r, i) => (
+                  {receitasManuais.map((r) => (
                     <div key={r.id} className="flex items-center px-4 py-3 border-b border-gray-50 last:border-0">
                       <span className="text-xl mr-3">💵</span>
                       <div className="flex-1 min-w-0">
@@ -225,7 +225,7 @@ export default function FinanceiroPage() {
               )}
             </div>
 
-            {/* Receitas de agendamentos Pix */}
+            {/* Receitas de agendamentos */}
             {receitasAgendamentos.length > 0 && (
               <div className="mb-5">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Receitas via agendamento</p>
@@ -282,8 +282,8 @@ export default function FinanceiroPage() {
               <div className="bg-white rounded-2xl p-4 border border-gray-100">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Resumo do período</p>
                 <div className="flex justify-between text-xs text-gray-500 mb-1">
-                  <span>Despesas {totalReceitas > 0 ? Math.round((totalDespesas / totalReceitas) * 100) : 0}%</span>
-                  <span>Lucro {totalReceitas > 0 ? Math.round((lucro / totalReceitas) * 100) : 0}%</span>
+                  <span>Despesas {Math.round((totalDespesas / totalReceitas) * 100)}%</span>
+                  <span>Lucro {Math.round((lucro / totalReceitas) * 100)}%</span>
                 </div>
                 <div className="h-3 rounded-full overflow-hidden flex" style={{ background: '#f0f0ec' }}>
                   <div className="h-3 transition-all" style={{ width: `${Math.min((totalDespesas / totalReceitas) * 100, 100)}%`, background: '#FAC775' }} />
@@ -297,12 +297,12 @@ export default function FinanceiroPage() {
                 </div>
               </div>
             )}
+
+            <div className="h-24" />
           </>
         )}
       </div>
 
-</div>
-        <div className="h-24" />
       {/* Modal Receita */}
       {modal === 'receita' && (
         <FormReceita
