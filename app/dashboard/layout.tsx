@@ -26,7 +26,7 @@ const PLANOS = [
     preco: 'R$ 34,90',
     periodo: '/mês',
     economia: 'Economia de 30%',
-    destaque: true,
+    destaque: false,
     kiwifyUrl: 'https://pay.kiwify.com.br/xg8cesy',
   },
   {
@@ -35,7 +35,7 @@ const PLANOS = [
     preco: 'R$ 24,90',
     periodo: '/mês',
     economia: 'Economia de 50%',
-    destaque: false,
+    destaque: true,
     kiwifyUrl: 'https://pay.kiwify.com.br/HjK0cEC',
   },
 ]
@@ -69,7 +69,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       return
     }
 
-    // Se assinatura ativa
     if (motorista.assinatura_status === 'ativo') {
       const expira = new Date(motorista.assinatura_expira)
       if (expira > new Date()) {
@@ -77,13 +76,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         setChecando(false)
         return
       }
-      // Assinatura expirada
       setStatusAcesso('bloqueado')
       setChecando(false)
       return
     }
 
-    // Verificar trial
     const trialInicio = new Date(motorista.trial_inicio)
     const agora = new Date()
     const diasUsados = Math.floor((agora.getTime() - trialInicio.getTime()) / (1000 * 60 * 60 * 24))
@@ -116,7 +113,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="min-h-dvh flex flex-col" style={{ background: '#f0f0ec' }}>
-      {/* Banner de aviso trial */}
       {statusAcesso === 'aviso' && (
         <div className="fixed top-0 left-0 right-0 z-50 px-4 py-2 text-center text-xs font-semibold"
           style={{ background: '#FAC775', color: '#854F0B' }}>
@@ -155,7 +151,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 function TelaBloqueio() {
   return (
     <div className="min-h-dvh flex flex-col" style={{ background: '#f0f0ec' }}>
-      {/* Header */}
       <div style={{ background: '#0F6E56' }} className="px-4 pt-14 pb-8 text-center">
         <div className="text-5xl mb-3">🚐</div>
         <h1 style={{ color: '#E1F5EE' }} className="text-xl font-bold">VanGenda</h1>
@@ -163,14 +158,12 @@ function TelaBloqueio() {
       </div>
 
       <div className="px-4 py-6 flex flex-col gap-4 max-w-md mx-auto w-full">
-        {/* Aviso */}
         <div className="bg-white rounded-2xl p-4 border border-gray-100 text-center">
           <p className="text-2xl mb-2">⏰</p>
           <p className="text-base font-bold text-gray-800 mb-1">Seu período gratuito encerrou</p>
           <p className="text-sm text-gray-500">Escolha um plano para continuar usando o VanGenda e não perder seus agendamentos!</p>
         </div>
 
-        {/* Planos */}
         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide text-center">Escolha seu plano</p>
 
         {PLANOS.map((plano) => (
@@ -217,7 +210,6 @@ function TelaBloqueio() {
           </div>
         ))}
 
-        {/* Benefícios */}
         <div className="bg-white rounded-2xl p-4 border border-gray-100">
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">O que está incluído</p>
           {[
