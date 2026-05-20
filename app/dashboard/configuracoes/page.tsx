@@ -157,7 +157,7 @@ const secoes: Secao[] = [
 ]
 
 function GuiaPage({ onFechar }: { onFechar: () => void }) {
-  const [secaoAberta, setSecaoAberta] = useState<number | null>(0)
+  const [secaoAberta, setSecaoAberta] = useState<number | null>(null)
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col" style={{ background: '#f0f0ec' }}>
