@@ -248,14 +248,7 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
                       </p>
                     )}
                   </div>
-                  <div className="text-right">
-                    <p className="text-lg font-bold"
-                      style={{ color: lotado ? '#A32D2D' : vagasDisponiveis <= 3 ? '#854F0B' : '#0F6E56' }}>
-                      {vagasOcupadas}/{capacidade}
-                    </p>
-                    <p className="text-[10px] text-gray-400">ocupadas</p>
-                  </div>
-                </div>
+                    </div>
               )}
 
               {lotado && (
