@@ -27,7 +27,6 @@ function gerarPayloadPix(chave: string, nome: string, valor: number, cidade: str
     field('60', pixCidade) +
     field('62', field('05', '***'))
 
-  // CRC16
   function crc16(str: string): string {
     let crc = 0xFFFF
     for (let i = 0; i < str.length; i++) {
@@ -61,14 +60,22 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
   const [valor, setValor] = useState<number | null>(null)
   const [salvando, setSalvando] = useState(false)
   const [agendamentoId, setAgendamentoId] = useState<string | null>(null)
+  const [vagasOcupadas, setVagasOcupadas] = useState(0)
+  const [verificandoVagas, setVerificandoVagas] = useState(false)
 
   useEffect(() => { carregarMotorista() }, [])
+
+  useEffect(() => {
+    if (form.data && form.turno && rota) {
+      verificarVagas()
+    }
+  }, [form.data, form.turno, rota])
 
   async function carregarMotorista() {
     const { data: mot } = await supabase
       .from('motoristas')
       .select('*')
-    .eq('id', params.slug)
+      .eq('id', params.slug)
       .single()
 
     if (!mot) { setLoading(false); return }
@@ -92,6 +99,20 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
     setLoading(false)
   }
 
+  async function verificarVagas() {
+    if (!rota || !form.data || !form.turno) return
+    setVerificandoVagas(true)
+    const { count } = await supabase
+      .from('agendamentos')
+      .select('*', { count: 'exact', head: true })
+      .eq('rota_id', rota.id)
+      .eq('data_viagem', form.data)
+      .eq('turno', form.turno)
+      .neq('status', 'cancelado')
+    setVagasOcupadas(count || 0)
+    setVerificandoVagas(false)
+  }
+
   useEffect(() => {
     if (form.origem && form.destino) {
       const preco = precos.find(p => p.parada_origem === form.origem && p.parada_destino === form.destino)
@@ -99,8 +120,13 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
     }
   }, [form.origem, form.destino, precos])
 
+  const capacidade = rota?.capacidade || motorista?.capacidade_van || 15
+  const vagasDisponiveis = capacidade - vagasOcupadas
+  const lotado = vagasDisponiveis <= 0
+
   async function agendar() {
     if (!form.nome || !form.origem || !form.destino || !form.data) return
+    if (lotado) return
     setSalvando(true)
 
     const { data } = await supabase.from('agendamentos').insert({
@@ -114,7 +140,7 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
       turno: form.turno,
       valor: valor || 0,
       forma_pagamento: motorista.pagamento_obrigatorio ? 'pix' : 'pendente',
-      status: motorista.pagamento_obrigatorio ? 'agendado' : 'agendado',
+      status: 'agendado',
     }).select().single()
 
     setSalvando(false)
@@ -153,7 +179,6 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
 
   return (
     <div className="min-h-dvh" style={{ background: '#f0f0ec' }}>
-      {/* Header */}
       <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-6 text-center">
         <div className="text-4xl mb-2">🚐</div>
         <h1 style={{ color: '#E1F5EE' }} className="text-lg font-bold">VanGenda</h1>
@@ -169,7 +194,6 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
 
       <div className="px-4 py-6 max-w-md mx-auto">
 
-        {/* ETAPA FORMULÁRIO */}
         {etapa === 'form' && (
           <div className="flex flex-col gap-4">
             <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-3">
@@ -203,42 +227,85 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
                   ))}
                 </div>
               </Campo>
-              <div className="grid grid-cols-2 gap-2">
-                <Campo label="Embarca em">
-                  <select value={form.origem} onChange={e => setForm(f => ({ ...f, origem: e.target.value }))}
-                    className="campo-input">
-                    <option value="">Selecione...</option>
-                    {paradas.map(p => <option key={p.id} value={p.nome}>{p.nome}</option>)}
-                  </select>
-                </Campo>
-                <Campo label="Desembarca em">
-                  <select value={form.destino} onChange={e => setForm(f => ({ ...f, destino: e.target.value }))}
-                    className="campo-input">
-                    <option value="">Selecione...</option>
-                    {paradas.map(p => <option key={p.id} value={p.nome}>{p.nome}</option>)}
-                  </select>
-                </Campo>
-              </div>
 
-              {valor !== null && (
-                <div style={{ background: '#E1F5EE', borderColor: '#9FE1CB' }}
-                  className="border rounded-xl px-4 py-3 flex justify-between items-center">
-                  <span style={{ color: '#085041' }} className="text-sm font-medium">Valor da passagem</span>
-                  <span style={{ color: '#0F6E56' }} className="text-xl font-bold">
-                    R$ {valor.toFixed(2).replace('.', ',')}
-                  </span>
+              {/* Indicador de vagas */}
+              {!verificandoVagas && form.data && (
+                <div className="rounded-xl px-4 py-3 flex items-center justify-between"
+                  style={{
+                    background: lotado ? '#FCEBEB' : vagasDisponiveis <= 3 ? '#FAEEDA' : '#E1F5EE',
+                    borderColor: lotado ? '#F5BCBC' : vagasDisponiveis <= 3 ? '#FAC775' : '#9FE1CB',
+                    border: '1px solid'
+                  }}>
+                  <div>
+                    <p className="text-xs font-semibold"
+                      style={{ color: lotado ? '#A32D2D' : vagasDisponiveis <= 3 ? '#854F0B' : '#085041' }}>
+                      {lotado ? '🚫 Van lotada neste dia' : vagasDisponiveis <= 3 ? '⚠️ Últimas vagas!' : '✅ Vagas disponíveis'}
+                    </p>
+                    {!lotado && (
+                      <p className="text-xs mt-0.5"
+                        style={{ color: vagasDisponiveis <= 3 ? '#854F0B' : '#0F6E56' }}>
+                        {vagasDisponiveis} vaga{vagasDisponiveis !== 1 ? 's' : ''} restante{vagasDisponiveis !== 1 ? 's' : ''}
+                      </p>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <p className="text-lg font-bold"
+                      style={{ color: lotado ? '#A32D2D' : vagasDisponiveis <= 3 ? '#854F0B' : '#0F6E56' }}>
+                      {vagasOcupadas}/{capacidade}
+                    </p>
+                    <p className="text-[10px] text-gray-400">ocupadas</p>
+                  </div>
                 </div>
+              )}
+
+              {lotado && (
+                <div style={{ background: '#FCEBEB', borderColor: '#F5BCBC' }}
+                  className="border rounded-xl px-4 py-3 text-center">
+                  <p className="text-sm font-bold" style={{ color: '#A32D2D' }}>😔 Sem vagas neste dia</p>
+                  <p className="text-xs text-gray-500 mt-1">Tente outra data ou turno</p>
+                </div>
+              )}
+
+              {!lotado && (
+                <>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Campo label="Embarca em">
+                      <select value={form.origem} onChange={e => setForm(f => ({ ...f, origem: e.target.value }))}
+                        className="campo-input">
+                        <option value="">Selecione...</option>
+                        {paradas.map(p => <option key={p.id} value={p.nome}>{p.nome}</option>)}
+                      </select>
+                    </Campo>
+                    <Campo label="Desembarca em">
+                      <select value={form.destino} onChange={e => setForm(f => ({ ...f, destino: e.target.value }))}
+                        className="campo-input">
+                        <option value="">Selecione...</option>
+                        {paradas.map(p => <option key={p.id} value={p.nome}>{p.nome}</option>)}
+                      </select>
+                    </Campo>
+                  </div>
+
+                  {valor !== null && (
+                    <div style={{ background: '#E1F5EE', borderColor: '#9FE1CB' }}
+                      className="border rounded-xl px-4 py-3 flex justify-between items-center">
+                      <span style={{ color: '#085041' }} className="text-sm font-medium">Valor da passagem</span>
+                      <span style={{ color: '#0F6E56' }} className="text-xl font-bold">
+                        R$ {valor.toFixed(2).replace('.', ',')}
+                      </span>
+                    </div>
+                  )}
+                </>
               )}
             </div>
 
             <button onClick={agendar}
-              disabled={salvando || !form.nome || !form.origem || !form.destino || !form.data}
+              disabled={salvando || !form.nome || !form.origem || !form.destino || !form.data || lotado}
               className="w-full py-4 rounded-2xl text-white text-base font-bold disabled:opacity-40"
-              style={{ background: '#1D9E75' }}>
-              {salvando ? 'Agendando...' : motorista.pagamento_obrigatorio ? '→ Avançar para pagamento' : '✓ Confirmar agendamento'}
+              style={{ background: lotado ? '#ccc' : '#1D9E75' }}>
+              {salvando ? 'Agendando...' : lotado ? '🚫 Van lotada' : motorista.pagamento_obrigatorio ? '→ Avançar para pagamento' : '✓ Confirmar agendamento'}
             </button>
 
-            {motorista.pagamento_obrigatorio && (
+            {motorista.pagamento_obrigatorio && !lotado && (
               <p className="text-center text-xs text-gray-400">
                 Você será direcionado para o pagamento via Pix
               </p>
@@ -246,7 +313,6 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
           </div>
         )}
 
-        {/* ETAPA PIX */}
         {etapa === 'pix' && (
           <div className="flex flex-col gap-4">
             <div className="bg-white rounded-2xl p-4 border border-gray-100 text-center">
@@ -254,7 +320,6 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
               <p className="text-base font-bold text-gray-800 mb-1">Pague sua passagem</p>
               <p className="text-sm text-gray-500 mb-4">Escaneie o QR Code ou copie a chave Pix</p>
 
-              {/* QR Code gerado via API pública */}
               {pixPayload && (
                 <div className="flex justify-center mb-4">
                   <img
@@ -270,7 +335,7 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
               <div style={{ background: '#f0f0ec' }} className="rounded-xl p-3 mb-4">
                 <p className="text-xs text-gray-500 mb-1">Chave Pix</p>
                 <p className="text-sm font-semibold text-gray-800 break-all">{motorista.pix_chave}</p>
-               <p className="text-xs text-gray-400 mt-1 capitalize">{motorista.pix_tipo}</p>
+                <p className="text-xs text-gray-400 mt-1 capitalize">{motorista.pix_tipo}</p>
                 <button
                   onClick={() => {
                     navigator.clipboard.writeText(motorista.pix_chave)
@@ -313,7 +378,6 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
           </div>
         )}
 
-        {/* ETAPA SUCESSO */}
         {etapa === 'sucesso' && (
           <div className="flex flex-col gap-4">
             <div className="bg-white rounded-2xl p-6 border border-gray-100 text-center">
@@ -322,7 +386,7 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
               <p className="text-sm text-gray-500 mb-4">Sua vaga está reservada</p>
 
               <div style={{ background: '#E1F5EE' }} className="rounded-xl p-4 text-left mb-4">
-                <p className="text-xs font-semibold" style={{ color: '#085041' }} >Detalhes da viagem</p>
+                <p className="text-xs font-semibold" style={{ color: '#085041' }}>Detalhes da viagem</p>
                 <div className="mt-2 flex flex-col gap-1.5">
                   <p className="text-sm text-gray-700">👤 {form.nome}</p>
                   <p className="text-sm text-gray-700 capitalize">📅 {dataSelecionada}</p>
