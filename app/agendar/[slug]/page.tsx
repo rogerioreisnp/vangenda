@@ -437,9 +437,15 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
                 </p>
               </div>
 
-              <p className="text-xs text-gray-400 leading-relaxed">
-                Após pagar, envie o comprovante pelo WhatsApp para o motorista confirmar sua vaga.
-              </p>
+              <div style={{ background: '#FAEEDA', borderColor: '#FAC775' }}
+                className="border rounded-xl p-3">
+                <p className="text-xs font-semibold" style={{ color: '#854F0B' }}>
+                  ⚠️ Sua vaga só será confirmada após o motorista verificar o comprovante.
+                </p>
+                <p className="text-xs mt-1" style={{ color: '#633806' }}>
+                  Envie o comprovante pelo WhatsApp para o motorista confirmar sua reserva.
+                </p>
+              </div>
             </div>
 
             <div style={{ background: '#FAEEDA', borderColor: '#FAC775' }}
