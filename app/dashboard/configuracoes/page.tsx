@@ -157,7 +157,7 @@ const secoes: Secao[] = [
 ]
 
 function GuiaPage({ onFechar }: { onFechar: () => void }) {
-  const [secoesAbertas, setSecoesAbertas] = useState<number[]>([])
+ const [secoesAbertas, setSecoesAbertas] = useState<number[]>([0, 1, 2, 3, 4, 5])
 
   function toggleSecao(i: number) {
     setSecoesAbertas(prev =>
