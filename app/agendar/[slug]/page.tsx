@@ -62,6 +62,7 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
   const [agendamentoId, setAgendamentoId] = useState<string | null>(null)
   const [vagasOcupadas, setVagasOcupadas] = useState(0)
   const [verificandoVagas, setVerificandoVagas] = useState(false)
+  const [erroMsg, setErroMsg] = useState<string | null>(null)
 
   useEffect(() => { carregarMotorista() }, [])
 
@@ -71,23 +72,84 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
     }
   }, [form.data, form.turno, rota])
 
+  // 🎯 PWA DINÂMICO — Manifest personalizado por motorista
+  useEffect(() => {
+    if (!motorista) return
+
+    const manifestData = {
+      name: `VanGenda - ${motorista.nome}`,
+      short_name: motorista.nome.split(' ')[0].substring(0, 12),
+      description: `Agende sua viagem com ${motorista.nome}`,
+      start_url: `/agendar/${params.slug}`,
+      scope: `/agendar/${params.slug}`,
+      display: 'standalone',
+      orientation: 'portrait',
+      background_color: '#f0f0ec',
+      theme_color: '#0F6E56',
+      icons: [
+        {
+          src: '/icon-192.png',
+          sizes: '192x192',
+          type: 'image/png',
+          purpose: 'any maskable'
+        },
+        {
+          src: '/icon-512.png',
+          sizes: '512x512',
+          type: 'image/png',
+          purpose: 'any maskable'
+        }
+      ]
+    }
+
+    const stringManifest = JSON.stringify(manifestData)
+    const blob = new Blob([stringManifest], { type: 'application/json' })
+    const manifestURL = URL.createObjectURL(blob)
+
+    const oldLink = document.querySelector('link[rel="manifest"]')
+    if (oldLink) oldLink.remove()
+
+    const link = document.createElement('link')
+    link.rel = 'manifest'
+    link.href = manifestURL
+    link.id = 'dynamic-manifest'
+    document.head.appendChild(link)
+
+    let themeColor = document.querySelector('meta[name="theme-color"]')
+    if (!themeColor) {
+      themeColor = document.createElement('meta')
+      themeColor.setAttribute('name', 'theme-color')
+      document.head.appendChild(themeColor)
+    }
+    themeColor.setAttribute('content', '#0F6E56')
+
+    document.title = `VanGenda - ${motorista.nome}`
+
+    return () => {
+      URL.revokeObjectURL(manifestURL)
+    }
+  }, [motorista, params.slug])
+
   async function carregarMotorista() {
-    const { data: mot } = await supabase
+    const { data: mot, error: errMot } = await supabase
       .from('motoristas')
       .select('*')
       .eq('id', params.slug)
       .single()
 
+    if (errMot) console.error('Erro motorista:', errMot)
     if (!mot) { setLoading(false); return }
     setMotorista(mot)
 
-    const { data: rts } = await supabase
+    const { data: rts, error: errRts } = await supabase
       .from('rotas')
       .select('*')
       .eq('motorista_id', mot.id)
       .eq('ativa', true)
       .limit(1)
       .single()
+
+    if (errRts) console.error('Erro rota:', errRts)
 
     if (rts) {
       setRota(rts)
@@ -125,11 +187,24 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
   const lotado = vagasDisponiveis <= 0
 
   async function agendar() {
-    if (!form.nome || !form.origem || !form.destino || !form.data) return
-    if (lotado) return
+    setErroMsg(null)
+
+    if (!form.nome || !form.origem || !form.destino || !form.data) {
+      setErroMsg('Preencha todos os campos obrigatórios.')
+      return
+    }
+    if (lotado) {
+      setErroMsg('Van lotada neste dia. Tente outra data.')
+      return
+    }
+    if (motorista.pagamento_obrigatorio && (valor === null || valor === undefined)) {
+      setErroMsg('Não foi possível calcular o valor. Verifique origem e destino.')
+      return
+    }
+
     setSalvando(true)
 
-    const { data } = await supabase.from('agendamentos').insert({
+    const { data, error } = await supabase.from('agendamentos').insert({
       rota_id: rota.id,
       motorista_id: motorista.id,
       nome_passageiro: form.nome,
@@ -144,6 +219,13 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
     }).select().single()
 
     setSalvando(false)
+
+    if (error) {
+      console.error('❌ Erro ao agendar:', error)
+      setErroMsg(`Erro ao agendar: ${error.message}`)
+      return
+    }
+
     if (data) {
       setAgendamentoId(data.id)
       if (motorista.pagamento_obrigatorio && motorista.pix_chave) {
@@ -151,6 +233,8 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
       } else {
         setEtapa('sucesso')
       }
+    } else {
+      setErroMsg('Não foi possível concluir o agendamento. Tente novamente.')
     }
   }
 
@@ -228,7 +312,6 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
                 </div>
               </Campo>
 
-              {/* Indicador de vagas */}
               {!verificandoVagas && form.data && (
                 <div className="rounded-xl px-4 py-3 flex items-center justify-between"
                   style={{
@@ -248,7 +331,7 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
                       </p>
                     )}
                   </div>
-                    </div>
+                </div>
               )}
 
               {lotado && (
@@ -290,6 +373,13 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
                 </>
               )}
             </div>
+
+            {erroMsg && (
+              <div style={{ background: '#FCEBEB', borderColor: '#F5BCBC' }}
+                className="border rounded-xl px-4 py-3">
+                <p className="text-sm font-semibold" style={{ color: '#A32D2D' }}>⚠️ {erroMsg}</p>
+              </div>
+            )}
 
             <button onClick={agendar}
               disabled={salvando || !form.nome || !form.origem || !form.destino || !form.data || lotado}
@@ -400,7 +490,7 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
               )}
             </div>
 
-            <button onClick={() => { setEtapa('form'); setForm({ nome: '', telefone: '', origem: '', destino: '', data: format(addDays(new Date(), 1), 'yyyy-MM-dd'), turno: 'ida' }); setValor(null) }}
+            <button onClick={() => { setEtapa('form'); setForm({ nome: '', telefone: '', origem: '', destino: '', data: format(addDays(new Date(), 1), 'yyyy-MM-dd'), turno: 'ida' }); setValor(null); setErroMsg(null) }}
               className="w-full py-3 rounded-2xl text-sm font-medium border border-gray-200 bg-white text-gray-600">
               Fazer novo agendamento
             </button>
