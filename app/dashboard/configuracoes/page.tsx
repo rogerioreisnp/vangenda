@@ -157,7 +157,13 @@ const secoes: Secao[] = [
 ]
 
 function GuiaPage({ onFechar }: { onFechar: () => void }) {
-  const [secaoAberta, setSecaoAberta] = useState<number | null>(null)
+  const [secoesAbertas, setSecoesAbertas] = useState<number[]>([])
+
+  function toggleSecao(i: number) {
+    setSecoesAbertas(prev =>
+      prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i]
+    )
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col" style={{ background: '#f0f0ec' }}>
@@ -175,7 +181,7 @@ function GuiaPage({ onFechar }: { onFechar: () => void }) {
           <div>
             <p className="text-sm font-bold" style={{ color: '#085041' }}>Bem-vindo ao VanGenda!</p>
             <p className="text-xs mt-1" style={{ color: '#0F6E56' }}>
-              Este guia explica tudo que você precisa saber para usar o app e começar a organizar sua van hoje mesmo.
+              Este guia explica tudo que você precisa saber para usar o app e começar a organizar sua van hoje mesmo. Toque em cada seção para expandir.
             </p>
           </div>
         </div>
@@ -183,14 +189,14 @@ function GuiaPage({ onFechar }: { onFechar: () => void }) {
         {secoes.map((s, i) => (
           <div key={i} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
             <button
-              onClick={() => setSecaoAberta(secaoAberta === i ? null : i)}
+              onClick={() => toggleSecao(i)}
               className="w-full px-4 py-3.5 flex items-center gap-3 text-left">
               <span className="text-xl">{s.emoji}</span>
               <span className="flex-1 text-sm font-semibold text-gray-800">{s.titulo}</span>
-              <span className="text-gray-400 text-sm">{secaoAberta === i ? '▲' : '▼'}</span>
+              <span className="text-gray-400 text-sm">{secoesAbertas.includes(i) ? '▲' : '▼'}</span>
             </button>
 
-            {secaoAberta === i && (
+            {secoesAbertas.includes(i) && (
               <div className="px-4 pb-4 flex flex-col gap-4 border-t border-gray-50">
                 {s.passos.map((p, j) => (
                   <div key={j} className="flex gap-3 pt-3">
@@ -567,7 +573,6 @@ export default function ConfiguracoesPage() {
           {saving ? 'Salvando...' : savedMsg ? '✓ Salvo!' : '💾 Salvar configurações'}
         </button>
 
-        {/* Botão Guia */}
         <button onClick={() => setMostrarGuia(true)}
           className="w-full py-3.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
           style={{ background: '#E1F5EE', color: '#0F6E56' }}>
