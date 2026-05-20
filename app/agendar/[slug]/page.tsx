@@ -222,7 +222,7 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
                       style={form.turno === t
                         ? { background: '#0F6E56', color: '#fff', borderColor: '#0F6E56' }
                         : { background: '#fff', color: '#666', borderColor: '#e5e7eb' }}>
-                      {t === 'ida' ? `↑ Ida (${rota?.horario_ida}h)` : `↓ Volta (${rota?.horario_volta}h)`}
+                     {t === 'ida' ? `↑ Ida (${rota?.horario_ida?.substring(0, 5)}h)` : `↓ Volta (${rota?.horario_volta?.substring(0, 5)}h)`}
                     </button>
                   ))}
                 </div>
