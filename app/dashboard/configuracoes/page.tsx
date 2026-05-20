@@ -3,168 +3,73 @@ import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 
-type Secao = {
-  titulo: string
-  emoji: string
-  passos: { titulo: string; descricao: string }[]
-}
-
-const secoes: Secao[] = [
+const secoes = [
   {
     titulo: 'Primeiros passos',
     emoji: '🚀',
     passos: [
-      {
-        titulo: 'Instale o VanGenda no seu celular',
-        descricao: 'Abra o site vangenda.vercel.app no navegador do seu celular. No Android, toque nos 3 pontinhos e selecione "Adicionar à tela inicial". No iPhone, toque no ícone de compartilhar e selecione "Adicionar à Tela de Início". Assim o VanGenda fica como um app no seu celular!',
-      },
-      {
-        titulo: 'Cadastre-se com seu e-mail',
-        descricao: 'Na tela inicial, toque em "Criar conta" e preencha seu e-mail e senha. Use o mesmo e-mail que usou na compra do plano — isso garante que seu acesso seja liberado automaticamente.',
-      },
-      {
-        titulo: 'Acesso liberado automaticamente',
-        descricao: 'Após o pagamento do plano, seu acesso é liberado automaticamente pelo sistema. Se tiver problemas, entre em contato com o suporte.',
-      },
+      { titulo: 'Instale o VanGenda no seu celular', descricao: 'Abra o site vangenda.vercel.app no navegador do seu celular. No Android, toque nos 3 pontinhos e selecione "Adicionar à tela inicial". No iPhone, toque no ícone de compartilhar e selecione "Adicionar à Tela de Início". Assim o VanGenda fica como um app no seu celular!' },
+      { titulo: 'Cadastre-se com seu e-mail', descricao: 'Na tela inicial, toque em "Criar conta" e preencha seu e-mail e senha. Use o mesmo e-mail que usou na compra do plano — isso garante que seu acesso seja liberado automaticamente.' },
+      { titulo: 'Acesso liberado automaticamente', descricao: 'Após o pagamento do plano, seu acesso é liberado automaticamente pelo sistema. Se tiver problemas, entre em contato com o suporte.' },
     ],
   },
   {
     titulo: 'Configurando sua rota',
     emoji: '🛣️',
     passos: [
-      {
-        titulo: 'Acesse as Configurações',
-        descricao: 'Toque na aba "Config." no menu inferior. Lá você vai configurar tudo: sua rota, paradas, preços e dados de pagamento.',
-      },
-      {
-        titulo: 'Adicione as paradas na ordem certa',
-        descricao: 'Em "Paradas da rota", adicione primeiro o ponto de PARTIDA (onde você sai) e por último o DESTINO final (onde você chega). No meio, adicione todas as paradas intermediárias na ordem que você passa por elas.',
-      },
-      {
-        titulo: 'Reordene arrastando',
-        descricao: 'Se errou a ordem das paradas, não precisa apagar! Segure e arraste a parada para cima ou para baixo para colocá-la no lugar certo. As 3 linhas do lado esquerdo indicam que pode arrastar.',
-      },
-      {
-        titulo: 'Configure os preços de cada trecho',
-        descricao: 'Depois de adicionar todas as paradas, o sistema gera automaticamente todas as combinações de trechos. Basta digitar o valor de cada trecho. Exemplo: Rorainópolis → Boa Vista = R$ 120,00.',
-      },
-      {
-        titulo: 'Defina a capacidade da van',
-        descricao: 'Em "Capacidade da van", coloque quantos passageiros cabem na sua van. Quando atingir o limite, o sistema bloqueia novos agendamentos automaticamente para aquele dia.',
-      },
-      {
-        titulo: 'Salve as configurações',
-        descricao: 'Sempre toque em "💾 Salvar configurações" após fazer qualquer alteração. Sem salvar, as mudanças serão perdidas.',
-      },
+      { titulo: 'Acesse as Configurações', descricao: 'Toque na aba "Config." no menu inferior. Lá você vai configurar tudo: sua rota, paradas, preços e dados de pagamento.' },
+      { titulo: 'Adicione as paradas na ordem certa', descricao: 'Em "Paradas da rota", adicione primeiro o ponto de PARTIDA (onde você sai) e por último o DESTINO final (onde você chega). No meio, adicione todas as paradas intermediárias na ordem que você passa por elas.' },
+      { titulo: 'Reordene arrastando', descricao: 'Se errou a ordem das paradas, não precisa apagar! Segure e arraste a parada para cima ou para baixo. As 3 linhas do lado esquerdo indicam que pode arrastar.' },
+      { titulo: 'Configure os preços de cada trecho', descricao: 'Depois de adicionar todas as paradas, o sistema gera automaticamente todas as combinações de trechos. Basta digitar o valor de cada trecho. Exemplo: Rorainópolis → Boa Vista = R$ 120,00.' },
+      { titulo: 'Defina a capacidade da van', descricao: 'Em "Capacidade da van", coloque quantos passageiros cabem na sua van. Quando atingir o limite, o sistema bloqueia novos agendamentos automaticamente para aquele dia.' },
+      { titulo: 'Salve as configurações', descricao: 'Sempre toque em "💾 Salvar configurações" após fazer qualquer alteração. Sem salvar, as mudanças serão perdidas.' },
     ],
   },
   {
     titulo: 'Compartilhando seu link',
     emoji: '🔗',
     passos: [
-      {
-        titulo: 'Copie seu link exclusivo',
-        descricao: 'Em Configurações, na seção "Link de agendamento", toque em "📋 Copiar link". Cada motorista tem um link único e exclusivo.',
-      },
-      {
-        titulo: 'Envie para seus passageiros',
-        descricao: 'Cole o link no WhatsApp e envie para seus passageiros. Eles vão abrir o link no celular deles e fazer o agendamento sem precisar de cadastro.',
-      },
-      {
-        titulo: 'Instale o app no celular do passageiro',
-        descricao: 'Oriente seus passageiros a também adicionar o link à tela inicial do celular deles. Assim sempre que quiserem agendar, já têm o app em mãos e não precisam procurar o link novamente.',
-      },
+      { titulo: 'Copie seu link exclusivo', descricao: 'Em Configurações, na seção "Link de agendamento", toque em "📋 Copiar link". Cada motorista tem um link único e exclusivo.' },
+      { titulo: 'Envie para seus passageiros', descricao: 'Cole o link no WhatsApp e envie para seus passageiros. Eles vão abrir o link no celular deles e fazer o agendamento sem precisar de cadastro.' },
+      { titulo: 'Instale o app no celular do passageiro', descricao: 'Oriente seus passageiros a também adicionar o link à tela inicial do celular deles. Assim sempre que quiserem agendar, já têm o app em mãos.' },
     ],
   },
   {
     titulo: 'Pagamento via Pix',
     emoji: '💰',
     passos: [
-      {
-        titulo: 'Ative o pagamento obrigatório',
-        descricao: 'Em Configurações → Pagamento via Pix, ative a chave "Exigir pagamento ao agendar". Quando ativado, o passageiro só confirma a viagem após pagar o Pix.',
-      },
-      {
-        titulo: 'Configure sua chave Pix',
-        descricao: 'Escolha o tipo da sua chave (telefone, CPF, e-mail ou aleatória) e cole o valor da chave. O sistema gera o QR Code automaticamente para o passageiro escanear.',
-      },
-      {
-        titulo: 'O passageiro paga pelo celular dele',
-        descricao: 'Quando o passageiro agendar pelo link, ele verá o QR Code Pix e a opção de copiar a chave. Ele paga pelo celular dele e envia o comprovante pelo WhatsApp para você confirmar.',
-      },
-      {
-        titulo: 'Agendamento sem pagamento obrigatório',
-        descricao: 'Se preferir cobrar na hora da viagem, deixe a chave desativada. O passageiro agenda normalmente e você cobra o dinheiro pessoalmente.',
-      },
-      {
-        titulo: 'Motorista agendando manualmente',
-        descricao: 'Quando você mesmo adiciona um passageiro pela Agenda, o Pix não é cobrado automaticamente — você controla o pagamento manualmente. Use esta opção para passageiros que pegam no meio do caminho ou que pagam em dinheiro.',
-      },
+      { titulo: 'Ative o pagamento obrigatório', descricao: 'Em Configurações → Pagamento via Pix, ative a chave "Exigir pagamento ao agendar". Quando ativado, o passageiro só confirma a viagem após pagar o Pix.' },
+      { titulo: 'Configure sua chave Pix', descricao: 'Escolha o tipo da sua chave (telefone, CPF, e-mail ou aleatória) e cole o valor da chave. O sistema gera o QR Code automaticamente para o passageiro escanear.' },
+      { titulo: 'O passageiro paga pelo celular dele', descricao: 'Quando o passageiro agendar pelo link, ele verá o QR Code Pix e a opção de copiar a chave. Ele paga pelo celular dele e envia o comprovante pelo WhatsApp.' },
+      { titulo: 'Agendamento sem pagamento obrigatório', descricao: 'Se preferir cobrar na hora da viagem, deixe a chave desativada. O passageiro agenda normalmente e você cobra pessoalmente.' },
+      { titulo: 'Motorista agendando manualmente', descricao: 'Quando você mesmo adiciona um passageiro pela Agenda, o Pix não é cobrado. Use esta opção para passageiros que pegam no meio do caminho ou pagam em dinheiro.' },
     ],
   },
   {
     titulo: 'Gerenciando a Agenda',
     emoji: '📅',
     passos: [
-      {
-        titulo: 'Veja os passageiros do dia',
-        descricao: 'Na aba "Agenda", toque em um dia no calendário para ver todos os passageiros agendados. Os dias com agendamentos têm um ponto verde.',
-      },
-      {
-        titulo: 'Confirme a presença',
-        descricao: 'Toque em "✓ Confirmar" no card do passageiro para marcar que ele confirmou a viagem. O status muda de "Agendado" para "Confirmado".',
-      },
-      {
-        titulo: 'Entre em contato pelo WhatsApp',
-        descricao: 'Toque em "💬 WhatsApp" para abrir uma conversa direta com o passageiro com uma mensagem já pronta de confirmação. Ou toque em "📞 Ligar" para ligar diretamente.',
-      },
-      {
-        titulo: 'Cancele um agendamento',
-        descricao: 'Se o passageiro cancelar, toque em "✕" no card dele. O sistema remove da agenda e libera a vaga para outro passageiro.',
-      },
-      {
-        titulo: 'Adicione passageiros manualmente',
-        descricao: 'Toque em "+ Agendar passageiro neste dia" para adicionar alguém que você pegou no meio do caminho ou que não agendou pelo link.',
-      },
+      { titulo: 'Veja os passageiros do dia', descricao: 'Na aba "Agenda", toque em um dia no calendário para ver todos os passageiros agendados. Os dias com agendamentos têm um ponto verde.' },
+      { titulo: 'Confirme a presença', descricao: 'Toque em "✓ Confirmar" no card do passageiro para marcar que ele confirmou a viagem.' },
+      { titulo: 'Entre em contato pelo WhatsApp', descricao: 'Toque em "💬 WhatsApp" para abrir uma conversa direta com o passageiro com uma mensagem pronta. Ou toque em "📞 Ligar" para ligar diretamente.' },
+      { titulo: 'Cancele um agendamento', descricao: 'Se o passageiro cancelar, toque em "✕" no card dele. O sistema remove da agenda e libera a vaga.' },
+      { titulo: 'Adicione passageiros manualmente', descricao: 'Toque em "+ Agendar passageiro neste dia" para adicionar alguém que você pegou no meio do caminho ou que não agendou pelo link.' },
     ],
   },
   {
     titulo: 'Controle Financeiro',
     emoji: '💵',
     passos: [
-      {
-        titulo: 'Receitas dos agendamentos',
-        descricao: 'Tudo que for pago via Pix pelo link de agendamento entra automaticamente na seção "Receitas via agendamento" do Financeiro.',
-      },
-      {
-        titulo: 'Lance receitas manuais',
-        descricao: 'No final do dia, some o dinheiro que recebeu em espécie e toque em "+ Receita". Escolha a categoria (Rota diária, Passagens avulsas, Frete, Tour etc.), coloque o valor e salve.',
-      },
-      {
-        titulo: 'Registre suas despesas',
-        descricao: 'Toque em "+ Despesa" para registrar gastos como combustível, manutenção, pedágio, pneu etc. Escolha a categoria, descreva e coloque o valor.',
-      },
-      {
-        titulo: 'Acompanhe seu lucro',
-        descricao: 'O sistema calcula automaticamente: Receitas - Despesas = Lucro. Use os filtros Hoje, 7 dias, 30 dias ou Mês para ver o resumo do período que quiser.',
-      },
-      {
-        titulo: 'Veja por categoria',
-        descricao: 'O financeiro mostra gráficos com quanto você gastou em cada categoria de despesa e quanto recebeu em cada tipo de receita.',
-      },
+      { titulo: 'Receitas dos agendamentos', descricao: 'Tudo que for pago via Pix pelo link de agendamento entra automaticamente na seção "Receitas via agendamento" do Financeiro.' },
+      { titulo: 'Lance receitas manuais', descricao: 'No final do dia, some o dinheiro recebido em espécie e toque em "+ Receita". Escolha a categoria, coloque o valor e salve.' },
+      { titulo: 'Registre suas despesas', descricao: 'Toque em "+ Despesa" para registrar gastos como combustível, manutenção, pedágio, pneu etc.' },
+      { titulo: 'Acompanhe seu lucro', descricao: 'O sistema calcula automaticamente: Receitas - Despesas = Lucro. Use os filtros Hoje, 7 dias, 30 dias ou Mês.' },
+      { titulo: 'Veja por categoria', descricao: 'O financeiro mostra gráficos com quanto você gastou em cada categoria e quanto recebeu em cada tipo de receita.' },
     ],
   },
 ]
 
 function GuiaPage({ onFechar }: { onFechar: () => void }) {
- const [secoesAbertas, setSecoesAbertas] = useState<number[]>([0, 1, 2, 3, 4, 5])
-
-  function toggleSecao(i: number) {
-    setSecoesAbertas(prev =>
-      prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i]
-    )
-  }
-
   return (
     <div className="fixed inset-0 z-50 flex flex-col" style={{ background: '#f0f0ec' }}>
       <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-4 flex items-center gap-3">
@@ -175,43 +80,39 @@ function GuiaPage({ onFechar }: { onFechar: () => void }) {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
+      <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-4">
+
         <div style={{ background: '#E1F5EE' }} className="rounded-2xl p-4 flex gap-3 items-start">
           <span className="text-3xl">🚐</span>
           <div>
             <p className="text-sm font-bold" style={{ color: '#085041' }}>Bem-vindo ao VanGenda!</p>
             <p className="text-xs mt-1" style={{ color: '#0F6E56' }}>
-              Este guia explica tudo que você precisa saber para usar o app e começar a organizar sua van hoje mesmo. Toque em cada seção para expandir.
+              Este guia explica tudo que você precisa saber para usar o app e começar a organizar sua van hoje mesmo.
             </p>
           </div>
         </div>
 
         {secoes.map((s, i) => (
           <div key={i} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-            <button
-              onClick={() => toggleSecao(i)}
-              className="w-full px-4 py-3.5 flex items-center gap-3 text-left">
+            <div className="px-4 py-3 flex items-center gap-3"
+              style={{ borderBottom: '1px solid #f0f0ec' }}>
               <span className="text-xl">{s.emoji}</span>
-              <span className="flex-1 text-sm font-semibold text-gray-800">{s.titulo}</span>
-              <span className="text-gray-400 text-sm">{secoesAbertas.includes(i) ? '▲' : '▼'}</span>
-            </button>
-
-            {secoesAbertas.includes(i) && (
-              <div className="px-4 pb-4 flex flex-col gap-4 border-t border-gray-50">
-                {s.passos.map((p, j) => (
-                  <div key={j} className="flex gap-3 pt-3">
-                    <div className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold mt-0.5"
-                      style={{ background: '#0F6E56', color: '#fff' }}>
-                      {j + 1}
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-gray-800 mb-1">{p.titulo}</p>
-                      <p className="text-xs text-gray-500 leading-relaxed">{p.descricao}</p>
-                    </div>
+              <span className="text-sm font-bold text-gray-800">{s.titulo}</span>
+            </div>
+            <div className="px-4 py-3 flex flex-col gap-4">
+              {s.passos.map((p, j) => (
+                <div key={j} className="flex gap-3">
+                  <div className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold mt-0.5"
+                    style={{ background: '#0F6E56', color: '#fff' }}>
+                    {j + 1}
                   </div>
-                ))}
-              </div>
-            )}
+                  <div>
+                    <p className="text-sm font-semibold text-gray-800 mb-0.5">{p.titulo}</p>
+                    <p className="text-xs text-gray-500 leading-relaxed">{p.descricao}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         ))}
 
@@ -225,6 +126,7 @@ function GuiaPage({ onFechar }: { onFechar: () => void }) {
             </p>
           </div>
         </div>
+
       </div>
     </div>
   )
@@ -250,12 +152,9 @@ export default function ConfiguracoesPage() {
   async function carregarDados() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-
     const { data: mot } = await supabase.from('motoristas').select('*').eq('id', user.id).single()
     if (mot) setMotorista(mot)
-
     const { data: rts } = await supabase.from('rotas').select('*').eq('motorista_id', user.id).limit(1).single()
-
     if (rts) {
       setRota(rts)
       const { data: pars } = await supabase.from('paradas').select('*').eq('rota_id', rts.id).order('ordem')
@@ -265,11 +164,7 @@ export default function ConfiguracoesPage() {
     } else {
       const { data: { user: u } } = await supabase.auth.getUser()
       const { data: novaRota } = await supabase.from('rotas').insert({
-        motorista_id: u!.id,
-        nome: 'Minha Rota',
-        horario_ida: '05:00',
-        horario_volta: '14:00',
-        capacidade: 15,
+        motorista_id: u!.id, nome: 'Minha Rota', horario_ida: '05:00', horario_volta: '14:00', capacidade: 15,
       }).select().single()
       if (novaRota) setRota(novaRota)
     }
@@ -280,40 +175,24 @@ export default function ConfiguracoesPage() {
     if (!rota) return
     setSaving(true)
     await supabase.from('rotas').update({
-      nome: rota.nome,
-      horario_ida: rota.horario_ida,
-      horario_volta: rota.horario_volta,
-      capacidade: rota.capacidade || 15,
+      nome: rota.nome, horario_ida: rota.horario_ida, horario_volta: rota.horario_volta, capacidade: rota.capacidade || 15,
     }).eq('id', rota.id)
-
     await supabase.from('paradas').delete().eq('rota_id', rota.id)
     if (paradas.length > 0) {
-      await supabase.from('paradas').insert(
-        paradas.map((p, i) => ({ rota_id: rota.id, nome: p.nome, ordem: i }))
-      )
+      await supabase.from('paradas').insert(paradas.map((p, i) => ({ rota_id: rota.id, nome: p.nome, ordem: i })))
     }
-
     await supabase.from('precos').delete().eq('rota_id', rota.id)
     const precosValidos = precos.filter(p => p.valor > 0)
     if (precosValidos.length > 0) {
-      await supabase.from('precos').insert(
-        precosValidos.map(p => ({
-          rota_id: rota.id,
-          parada_origem: p.parada_origem,
-          parada_destino: p.parada_destino,
-          valor: parseFloat(p.valor),
-        }))
-      )
+      await supabase.from('precos').insert(precosValidos.map(p => ({
+        rota_id: rota.id, parada_origem: p.parada_origem, parada_destino: p.parada_destino, valor: parseFloat(p.valor),
+      })))
     }
-
     if (motorista) {
       await supabase.from('motoristas').update({
-        pix_tipo: motorista.pix_tipo,
-        pix_chave: motorista.pix_chave,
-        pagamento_obrigatorio: motorista.pagamento_obrigatorio,
+        pix_tipo: motorista.pix_tipo, pix_chave: motorista.pix_chave, pagamento_obrigatorio: motorista.pagamento_obrigatorio,
       }).eq('id', motorista.id)
     }
-
     setSaving(false)
     setSavedMsg(true)
     setTimeout(() => setSavedMsg(false), 2000)
@@ -344,11 +223,7 @@ export default function ConfiguracoesPage() {
     for (let i = 0; i < pars.length; i++) {
       for (let j = i + 1; j < pars.length; j++) {
         const existe = precos.find(p => p.parada_origem === pars[i].nome && p.parada_destino === pars[j].nome)
-        novosPrecos.push({
-          parada_origem: pars[i].nome,
-          parada_destino: pars[j].nome,
-          valor: existe?.valor || 0,
-        })
+        novosPrecos.push({ parada_origem: pars[i].nome, parada_destino: pars[j].nome, valor: existe?.valor || 0 })
       }
     }
     setPrecos(novosPrecos)
@@ -437,7 +312,6 @@ export default function ConfiguracoesPage() {
                   style={{ left: motorista?.pagamento_obrigatorio ? '26px' : '2px' }} />
               </button>
             </div>
-
             {motorista?.pagamento_obrigatorio && (
               <>
                 <Campo label="Tipo da chave Pix">
@@ -453,8 +327,7 @@ export default function ConfiguracoesPage() {
                 <Campo label="Chave Pix">
                   <input value={motorista?.pix_chave || ''}
                     onChange={e => setMotorista((m: any) => ({ ...m, pix_chave: e.target.value }))}
-                    placeholder="Ex: (95) 99999-9999"
-                    className="campo-input" />
+                    placeholder="Ex: (95) 99999-9999" className="campo-input" />
                 </Campo>
                 <div style={{ background: '#E1F5EE' }} className="rounded-xl p-3">
                   <p className="text-xs" style={{ color: '#085041' }}>
@@ -485,13 +358,9 @@ export default function ConfiguracoesPage() {
               </Campo>
             </div>
             <Campo label="🚐 Capacidade da van (passageiros)">
-              <input
-                type="number"
-                value={rota?.capacidade || 15}
+              <input type="number" value={rota?.capacidade || 15}
                 onChange={e => setRota((r: any) => ({ ...r, capacidade: parseInt(e.target.value) || 15 }))}
-                min={1} max={50}
-                placeholder="Ex: 15"
-                className="campo-input" />
+                min={1} max={50} placeholder="Ex: 15" className="campo-input" />
             </Campo>
             <div style={{ background: '#E1F5EE' }} className="rounded-xl p-3">
               <p className="text-xs" style={{ color: '#085041' }}>
@@ -508,9 +377,7 @@ export default function ConfiguracoesPage() {
           </p>
           <div className="flex flex-col">
             {paradas.map((p, i) => (
-              <div
-                key={i}
-                draggable
+              <div key={i} draggable
                 onDragStart={() => onDragStart(i)}
                 onDragEnter={() => onDragEnter(i)}
                 onDragEnd={onDragEnd}
