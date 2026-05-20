@@ -41,6 +41,7 @@ export default function ConfiguracoesPage() {
         nome: 'Minha Rota',
         horario_ida: '05:00',
         horario_volta: '14:00',
+        capacidade: 15,
       }).select().single()
       if (novaRota) setRota(novaRota)
     }
@@ -54,6 +55,7 @@ export default function ConfiguracoesPage() {
       nome: rota.nome,
       horario_ida: rota.horario_ida,
       horario_volta: rota.horario_volta,
+      capacidade: rota.capacidade || 15,
     }).eq('id', rota.id)
 
     await supabase.from('paradas').delete().eq('rota_id', rota.id)
@@ -142,7 +144,6 @@ export default function ConfiguracoesPage() {
     router.push('/')
   }
 
-  // Drag and drop handlers
   function onDragStart(idx: number) {
     dragIdx.current = idx
   }
@@ -260,6 +261,20 @@ export default function ConfiguracoesPage() {
                   className="campo-input" />
               </Campo>
             </div>
+            <Campo label="🚐 Capacidade da van (passageiros)">
+              <input
+                type="number"
+                value={rota?.capacidade || 15}
+                onChange={e => setRota((r: any) => ({ ...r, capacidade: parseInt(e.target.value) || 15 }))}
+                min={1} max={50}
+                placeholder="Ex: 15"
+                className="campo-input" />
+            </Campo>
+            <div style={{ background: '#E1F5EE' }} className="rounded-xl p-3">
+              <p className="text-xs" style={{ color: '#085041' }}>
+                ✓ Quando a van atingir o limite, os passageiros não conseguirão mais agendar naquele dia.
+              </p>
+            </div>
           </div>
         </Secao>
 
@@ -283,21 +298,17 @@ export default function ConfiguracoesPage() {
                   background: dragIdx.current === i ? '#E1F5EE' : 'transparent',
                   padding: '4px 0',
                 }}>
-                {/* Handle de arrastar */}
-                <div className="flex flex-col gap-0.5 px-1 flex-shrink-0" style={{ color: '#9FE1CB' }}>
+                <div className="flex flex-col gap-0.5 px-1 flex-shrink-0">
                   <div className="w-4 h-0.5 rounded" style={{ background: '#9FE1CB' }} />
                   <div className="w-4 h-0.5 rounded" style={{ background: '#9FE1CB' }} />
                   <div className="w-4 h-0.5 rounded" style={{ background: '#9FE1CB' }} />
                 </div>
-
                 <div className="flex flex-col items-center">
                   <div className="w-3 h-3 rounded-full flex-shrink-0"
                     style={{ background: i === 0 || i === paradas.length - 1 ? '#085041' : '#1D9E75' }} />
                   {i < paradas.length - 1 && <div className="w-0.5 h-5 mt-0.5" style={{ background: '#9FE1CB' }} />}
                 </div>
-
                 <span className="flex-1 text-sm text-gray-800 font-medium select-none">{p.nome}</span>
-
                 <button onClick={() => removerParada(i)}
                   className="text-xs px-2 py-1 rounded-lg flex-shrink-0"
                   style={{ background: '#FCEBEB', color: '#A32D2D' }}>
