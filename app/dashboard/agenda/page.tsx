@@ -51,7 +51,6 @@ export default function AgendaPage() {
     setLoading(false)
   }
 
-  // Dias do calendário
   const inicioSemana = startOfWeek(startOfMonth(mesAtual), { weekStartsOn: 0 })
   const fimSemana = endOfWeek(endOfMonth(mesAtual), { weekStartsOn: 0 })
   const dias = eachDayOfInterval({ start: inicioSemana, end: fimSemana })
@@ -67,12 +66,10 @@ export default function AgendaPage() {
 
   return (
     <div>
-      {/* Header */}
       <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-0">
         <p style={{ color: '#E1F5EE' }} className="text-base font-semibold mb-1">Agenda</p>
         <p style={{ color: '#5DCAA5' }} className="text-xs mb-3">Toque em um dia para ver os passageiros</p>
 
-        {/* Navegação do mês */}
         <div className="flex items-center justify-between mb-3">
           <button onClick={() => setMesAtual(m => subMonths(m, 1))}
             style={{ background: '#085041', color: '#9FE1CB' }}
@@ -85,14 +82,12 @@ export default function AgendaPage() {
             className="w-8 h-8 rounded-lg flex items-center justify-center text-lg font-bold">›</button>
         </div>
 
-        {/* Dias da semana */}
         <div className="grid grid-cols-7 mb-1">
           {['D','S','T','Q','Q','S','S'].map((d, i) => (
             <div key={i} style={{ color: '#5DCAA5' }} className="text-[10px] text-center pb-1">{d}</div>
           ))}
         </div>
 
-        {/* Grid de dias */}
         <div className="grid grid-cols-7 gap-0.5 pb-3">
           {dias.map((dia, i) => {
             const chave = format(dia, 'yyyy-MM-dd')
@@ -121,7 +116,6 @@ export default function AgendaPage() {
         </div>
       </div>
 
-      {/* Conteúdo do dia */}
       <div className="px-4 py-4">
         {isAmanha && (
           <div style={{ background: '#FAEEDA', borderColor: '#FAC775' }}
@@ -167,7 +161,6 @@ export default function AgendaPage() {
         </button>
       </div>
 
-      {/* Modal de agendamento */}
       {mostrarForm && (
         <FormAgendamento
           data={diaSelecionado}
@@ -214,10 +207,22 @@ function CardPassageiro({ p, onAtualizar }: { p: Agendamento, onAtualizar: () =>
     await supabase.from('agendamentos').update({ status: 'confirmado' }).eq('id', p.id)
     onAtualizar()
   }
+
   async function cancelar() {
     if (!confirm('Cancelar este agendamento?')) return
     await supabase.from('agendamentos').update({ status: 'cancelado' }).eq('id', p.id)
     onAtualizar()
+  }
+
+  function abrirWhatsApp() {
+    if (!p.telefone_passageiro) return
+    const tel = p.telefone_passageiro.replace(/\D/g, '')
+    const data = format(new Date(p.data_viagem + 'T00:00:00'), "dd/MM", { locale: ptBR })
+    const turno = p.turno === 'ida' ? 'ida (05:00h)' : 'volta (14:00h)'
+    const msg = encodeURIComponent(
+      `Olá ${p.nome_passageiro}! 👋\n\nConfirmando sua viagem:\n📍 ${p.parada_origem} → ${p.parada_destino}\n📅 ${data} - ${turno}\n💰 R$ ${p.valor.toFixed(2).replace('.', ',')}\n\nTudo certo? ✅`
+    )
+    window.open(`https://wa.me/55${tel}?text=${msg}`, '_blank')
   }
 
   return (
@@ -242,6 +247,7 @@ function CardPassageiro({ p, onAtualizar }: { p: Agendamento, onAtualizar: () =>
           </span>
         </div>
       </div>
+
       <div className="flex gap-2 mt-2">
         {p.status !== 'confirmado' && (
           <button onClick={confirmar}
@@ -249,13 +255,18 @@ function CardPassageiro({ p, onAtualizar }: { p: Agendamento, onAtualizar: () =>
             style={{ background: '#E1F5EE', color: '#0F6E56' }}>✓ Confirmar</button>
         )}
         {p.telefone_passageiro && (
-          <a href={`tel:${p.telefone_passageiro}`}
-            className="flex-1 py-1.5 rounded-lg text-xs font-medium text-center"
-            style={{ background: '#f0f0f0', color: '#555' }}>📞 Ligar</a>
+          <>
+            <a href={`tel:${p.telefone_passageiro}`}
+              className="flex-1 py-1.5 rounded-lg text-xs font-medium text-center"
+              style={{ background: '#f0f0f0', color: '#555' }}>📞 Ligar</a>
+            <button onClick={abrirWhatsApp}
+              className="flex-1 py-1.5 rounded-lg text-xs font-medium"
+              style={{ background: '#E7F9EE', color: '#128C7E' }}>💬 WhatsApp</button>
+          </>
         )}
         <button onClick={cancelar}
           className="py-1.5 px-3 rounded-lg text-xs font-medium"
-          style={{ background: '#FCEBEB', color: '#A32D2D' }}>Cancelar</button>
+          style={{ background: '#FCEBEB', color: '#A32D2D' }}>✕</button>
       </div>
     </div>
   )
@@ -344,7 +355,6 @@ function FormAgendamento({ data, rotas, onFechar, onSalvo }: {
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col" style={{ background: '#f0f0ec' }}>
-      {/* Topbar */}
       <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-4 flex items-center gap-3">
         <button onClick={onFechar} style={{ color: '#9FE1CB' }} className="text-2xl">‹</button>
         <div>
@@ -356,7 +366,6 @@ function FormAgendamento({ data, rotas, onFechar, onSalvo }: {
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
-        {/* Rota */}
         {rotas.length > 1 && (
           <Campo label="Rota">
             <select value={form.rota_id} onChange={e => setForm(f => ({ ...f, rota_id: e.target.value }))}
@@ -366,7 +375,6 @@ function FormAgendamento({ data, rotas, onFechar, onSalvo }: {
           </Campo>
         )}
 
-        {/* Nome */}
         <Campo label="Nome do passageiro">
           <input value={filtroCliente || form.nome_passageiro}
             onChange={e => { setFiltroCliente(e.target.value); setForm(f => ({ ...f, nome_passageiro: e.target.value })) }}
@@ -384,13 +392,11 @@ function FormAgendamento({ data, rotas, onFechar, onSalvo }: {
           )}
         </Campo>
 
-        {/* Telefone */}
         <Campo label="Telefone">
           <input value={form.telefone_passageiro} onChange={e => setForm(f => ({ ...f, telefone_passageiro: e.target.value }))}
             placeholder="(95) 99999-9999" type="tel" className="campo-input" />
         </Campo>
 
-        {/* Turno */}
         <Campo label="Turno">
           <div className="grid grid-cols-2 gap-2">
             {(['ida', 'volta'] as const).map(t => (
@@ -405,7 +411,6 @@ function FormAgendamento({ data, rotas, onFechar, onSalvo }: {
           </div>
         </Campo>
 
-        {/* Trecho */}
         <div className="grid grid-cols-2 gap-2">
           <Campo label="Embarca em">
             <select value={form.parada_origem} onChange={e => setForm(f => ({ ...f, parada_origem: e.target.value }))}
@@ -423,7 +428,6 @@ function FormAgendamento({ data, rotas, onFechar, onSalvo }: {
           </Campo>
         </div>
 
-        {/* Valor */}
         <Campo label={valorAuto ? '✓ Valor automático da tabela' : 'Valor da passagem'}>
           <div className="flex gap-2">
             <span className="flex items-center px-3 rounded-l-xl border border-r-0 border-gray-200 bg-white text-gray-400 text-sm">R$</span>
@@ -434,7 +438,6 @@ function FormAgendamento({ data, rotas, onFechar, onSalvo }: {
           </div>
         </Campo>
 
-        {/* Pagamento */}
         <Campo label="Forma de pagamento">
           <select value={form.forma_pagamento} onChange={e => setForm(f => ({ ...f, forma_pagamento: e.target.value }))}
             className="campo-input">
@@ -446,7 +449,6 @@ function FormAgendamento({ data, rotas, onFechar, onSalvo }: {
         </Campo>
       </div>
 
-      {/* Botão salvar fixo acima da navegação */}
       <div style={{ position: 'fixed', bottom: '64px', left: 0, right: 0, padding: '8px 16px', background: 'white', borderTop: '1px solid #e5e7eb', zIndex: 40 }}>
         <button onClick={salvar} disabled={saving || !form.nome_passageiro || !form.parada_origem || !form.parada_destino || !form.valor}
           className="w-full py-3.5 rounded-xl text-white text-sm font-semibold transition-opacity disabled:opacity-40"
