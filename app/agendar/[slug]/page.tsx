@@ -72,7 +72,6 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
     }
   }, [form.data, form.turno, rota])
 
-  // 🎯 PWA DINÂMICO — Manifest personalizado por motorista
   useEffect(() => {
     if (!motorista) return
 
@@ -87,18 +86,8 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
       background_color: '#f0f0ec',
       theme_color: '#0F6E56',
       icons: [
-        {
-          src: '/icon-192.png',
-          sizes: '192x192',
-          type: 'image/png',
-          purpose: 'any maskable'
-        },
-        {
-          src: '/icon-512.png',
-          sizes: '512x512',
-          type: 'image/png',
-          purpose: 'any maskable'
-        }
+        { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
+        { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
       ]
     }
 
@@ -122,32 +111,21 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
       document.head.appendChild(themeColor)
     }
     themeColor.setAttribute('content', '#0F6E56')
-
     document.title = `VanGenda - ${motorista.nome}`
 
-    return () => {
-      URL.revokeObjectURL(manifestURL)
-    }
+    return () => { URL.revokeObjectURL(manifestURL) }
   }, [motorista, params.slug])
 
   async function carregarMotorista() {
     const { data: mot, error: errMot } = await supabase
-      .from('motoristas')
-      .select('*')
-      .eq('id', params.slug)
-      .single()
+      .from('motoristas').select('*').eq('id', params.slug).single()
 
     if (errMot) console.error('Erro motorista:', errMot)
     if (!mot) { setLoading(false); return }
     setMotorista(mot)
 
     const { data: rts, error: errRts } = await supabase
-      .from('rotas')
-      .select('*')
-      .eq('motorista_id', mot.id)
-      .eq('ativa', true)
-      .limit(1)
-      .single()
+      .from('rotas').select('*').eq('motorista_id', mot.id).eq('ativa', true).limit(1).single()
 
     if (errRts) console.error('Erro rota:', errRts)
 
@@ -185,6 +163,25 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
   const capacidade = rota?.capacidade || motorista?.capacidade_van || 15
   const vagasDisponiveis = capacidade - vagasOcupadas
   const lotado = vagasDisponiveis <= 0
+
+  async function enviarNotificacao() {
+    try {
+      await fetch('/api/notificar-agendamento', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          motorista_id: motorista.id,
+          nome_passageiro: form.nome,
+          origem: form.origem,
+          destino: form.destino,
+          data_viagem: form.data,
+          turno: form.turno,
+        }),
+      })
+    } catch (e) {
+      console.error('Erro ao enviar notificação:', e)
+    }
+  }
 
   async function agendar() {
     setErroMsg(null)
@@ -228,6 +225,7 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
 
     if (data) {
       setAgendamentoId(data.id)
+      enviarNotificacao()
       if (motorista.pagamento_obrigatorio && motorista.pix_chave) {
         setEtapa('pix')
       } else {
@@ -306,31 +304,29 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
                       style={form.turno === t
                         ? { background: '#0F6E56', color: '#fff', borderColor: '#0F6E56' }
                         : { background: '#fff', color: '#666', borderColor: '#e5e7eb' }}>
-                     {t === 'ida' ? `↑ Ida (${rota?.horario_ida?.substring(0, 5)}h)` : `↓ Volta (${rota?.horario_volta?.substring(0, 5)}h)`}
+                      {t === 'ida' ? `↑ Ida (${rota?.horario_ida?.substring(0, 5)}h)` : `↓ Volta (${rota?.horario_volta?.substring(0, 5)}h)`}
                     </button>
                   ))}
                 </div>
               </Campo>
 
               {!verificandoVagas && form.data && (
-                <div className="rounded-xl px-4 py-3 flex items-center justify-between"
+                <div className="rounded-xl px-4 py-3"
                   style={{
                     background: lotado ? '#FCEBEB' : vagasDisponiveis <= 3 ? '#FAEEDA' : '#E1F5EE',
                     borderColor: lotado ? '#F5BCBC' : vagasDisponiveis <= 3 ? '#FAC775' : '#9FE1CB',
                     border: '1px solid'
                   }}>
-                  <div>
-                    <p className="text-xs font-semibold"
-                      style={{ color: lotado ? '#A32D2D' : vagasDisponiveis <= 3 ? '#854F0B' : '#085041' }}>
-                      {lotado ? '🚫 Van lotada neste dia' : vagasDisponiveis <= 3 ? '⚠️ Últimas vagas!' : '✅ Vagas disponíveis'}
+                  <p className="text-xs font-semibold"
+                    style={{ color: lotado ? '#A32D2D' : vagasDisponiveis <= 3 ? '#854F0B' : '#085041' }}>
+                    {lotado ? '🚫 Van lotada neste dia' : vagasDisponiveis <= 3 ? '⚠️ Últimas vagas!' : '✅ Vagas disponíveis'}
+                  </p>
+                  {!lotado && (
+                    <p className="text-xs mt-0.5"
+                      style={{ color: vagasDisponiveis <= 3 ? '#854F0B' : '#0F6E56' }}>
+                      {vagasDisponiveis} vaga{vagasDisponiveis !== 1 ? 's' : ''} restante{vagasDisponiveis !== 1 ? 's' : ''}
                     </p>
-                    {!lotado && (
-                      <p className="text-xs mt-0.5"
-                        style={{ color: vagasDisponiveis <= 3 ? '#854F0B' : '#0F6E56' }}>
-                        {vagasDisponiveis} vaga{vagasDisponiveis !== 1 ? 's' : ''} restante{vagasDisponiveis !== 1 ? 's' : ''}
-                      </p>
-                    )}
-                  </div>
+                  )}
                 </div>
               )}
 
@@ -409,8 +405,7 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
                     src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(pixPayload)}`}
                     alt="QR Code Pix"
                     className="rounded-xl border border-gray-100"
-                    width={200}
-                    height={200}
+                    width={200} height={200}
                   />
                 </div>
               )}
@@ -420,10 +415,7 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
                 <p className="text-sm font-semibold text-gray-800 break-all">{motorista.pix_chave}</p>
                 <p className="text-xs text-gray-400 mt-1 capitalize">{motorista.pix_tipo}</p>
                 <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(motorista.pix_chave)
-                    alert('Chave Pix copiada!')
-                  }}
+                  onClick={() => { navigator.clipboard.writeText(motorista.pix_chave); alert('Chave Pix copiada!') }}
                   className="mt-3 w-full py-2.5 rounded-xl text-sm font-semibold border-2 transition-all"
                   style={{ borderColor: '#0F6E56', color: '#0F6E56', background: '#fff' }}>
                   📋 Copiar chave Pix
@@ -496,8 +488,12 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
               )}
             </div>
 
-            <button onClick={() => { setEtapa('form'); setForm({ nome: '', telefone: '', origem: '', destino: '', data: format(addDays(new Date(), 1), 'yyyy-MM-dd'), turno: 'ida' }); setValor(null); setErroMsg(null) }}
-              className="w-full py-3 rounded-2xl text-sm font-medium border border-gray-200 bg-white text-gray-600">
+            <button onClick={() => {
+              setEtapa('form')
+              setForm({ nome: '', telefone: '', origem: '', destino: '', data: format(addDays(new Date(), 1), 'yyyy-MM-dd'), turno: 'ida' })
+              setValor(null)
+              setErroMsg(null)
+            }} className="w-full py-3 rounded-2xl text-sm font-medium border border-gray-200 bg-white text-gray-600">
               Fazer novo agendamento
             </button>
           </div>
