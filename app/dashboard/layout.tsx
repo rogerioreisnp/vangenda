@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import OneSignalInit from '@/components/OneSignalInit'
 
 const navItems = [
   { href: '/dashboard', label: 'Início', emoji: '⌂' },
@@ -46,6 +47,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [checando, setChecando] = useState(true)
   const [statusAcesso, setStatusAcesso] = useState<'ok' | 'aviso' | 'bloqueado'>('ok')
   const [diasRestantes, setDiasRestantes] = useState(0)
+  const [motoristaId, setMotoristaId] = useState<string | null>(null)
 
   useEffect(() => {
     verificarAcesso()
@@ -57,6 +59,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       router.push('/')
       return
     }
+
+    setMotoristaId(session.user.id)
 
     const { data: motorista } = await supabase
       .from('motoristas')
@@ -113,6 +117,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="min-h-dvh flex flex-col" style={{ background: '#f0f0ec' }}>
+      {motoristaId && <OneSignalInit motoristaId={motoristaId} />}
+
       {statusAcesso === 'aviso' && (
         <div className="fixed top-0 left-0 right-0 z-50 px-4 py-2 text-center text-xs font-semibold"
           style={{ background: '#FAC775', color: '#854F0B' }}>
