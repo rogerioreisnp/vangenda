@@ -212,13 +212,15 @@ function GuiaPage({ onFechar }: { onFechar: () => void }) {
         {/* Suporte */}
         <div className="rounded-2xl p-4 mb-8" style={{ background: '#FAEEDA', border: '1px solid #FAC775' }}>
           <p className="text-sm font-bold mb-1" style={{ color: '#854F0B' }}>💬 Precisa de ajuda?</p>
-         <p className="text-sm leading-relaxed" style={{ color: '#633806' }}>
-            Se tiver dúvidas ou problemas, fale direto com o suporte pelo WhatsApp:{' '}
-            <a href="https://wa.me/5595984143839" target="_blank" rel="noopener noreferrer"
-              style={{ color: '#854F0B', fontWeight: 'bold', textDecoration: 'underline' }}>
-              (95) 98414-3839
-            </a>
+         <p className="text-sm leading-relaxed mb-3" style={{ color: '#633806' }}>
+            Se tiver dúvidas ou problemas, fale direto com o suporte:
           </p>
+          <a href="https://wa.me/5595984143839?text=Olá!%20Preciso%20de%20ajuda%20com%20o%20VanGenda." 
+            target="_blank" rel="noopener noreferrer"
+            className="flex items-center justify-center gap-2 w-full py-3 rounded-xl text-sm font-bold"
+            style={{ background: '#25D366', color: '#fff' }}>
+            💬 Falar com o suporte no WhatsApp
+          </a>
         </div>
 
       </div>
