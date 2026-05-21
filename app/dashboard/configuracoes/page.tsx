@@ -3,76 +3,10 @@ import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 
-const secoes = [
-  {
-    titulo: 'Primeiros passos',
-    emoji: '🚀',
-    passos: [
-      { titulo: 'Instale o VanGenda no seu celular', descricao: 'Abra o site vangenda.vercel.app no navegador do seu celular. No Android, toque nos 3 pontinhos e selecione "Adicionar à tela inicial". No iPhone, toque no ícone de compartilhar e selecione "Adicionar à Tela de Início". Assim o VanGenda fica como um app no seu celular!' },
-      { titulo: 'Cadastre-se com seu e-mail', descricao: 'Na tela inicial, toque em "Criar conta" e preencha seu e-mail e senha. Use o mesmo e-mail que usou na compra do plano — isso garante que seu acesso seja liberado automaticamente.' },
-      { titulo: 'Acesso liberado automaticamente', descricao: 'Após o pagamento do plano, seu acesso é liberado automaticamente pelo sistema. Se tiver problemas, entre em contato com o suporte.' },
-    ],
-  },
-  {
-    titulo: 'Configurando sua rota',
-    emoji: '🛣️',
-    passos: [
-      { titulo: 'Acesse as Configurações', descricao: 'Toque na aba "Config." no menu inferior. Lá você vai configurar tudo: sua rota, paradas, preços e dados de pagamento.' },
-      { titulo: 'Adicione as paradas na ordem certa', descricao: 'Em "Paradas da rota", adicione primeiro o ponto de PARTIDA (onde você sai) e por último o DESTINO final (onde você chega). No meio, adicione todas as paradas intermediárias na ordem que você passa por elas.' },
-      { titulo: 'Reordene arrastando', descricao: 'Se errou a ordem das paradas, não precisa apagar! Segure e arraste a parada para cima ou para baixo. As 3 linhas do lado esquerdo indicam que pode arrastar.' },
-      { titulo: 'Configure os preços de cada trecho', descricao: 'Depois de adicionar todas as paradas, o sistema gera automaticamente todas as combinações de trechos. Basta digitar o valor de cada trecho. Exemplo: Rorainópolis → Boa Vista = R$ 120,00.' },
-      { titulo: 'Defina a capacidade da van', descricao: 'Em "Capacidade da van", coloque quantos passageiros cabem na sua van. Quando atingir o limite, o sistema bloqueia novos agendamentos automaticamente para aquele dia.' },
-      { titulo: 'Salve as configurações', descricao: 'Sempre toque em "💾 Salvar configurações" após fazer qualquer alteração. Sem salvar, as mudanças serão perdidas.' },
-    ],
-  },
-  {
-    titulo: 'Compartilhando seu link',
-    emoji: '🔗',
-    passos: [
-      { titulo: 'Copie seu link exclusivo', descricao: 'Em Configurações, na seção "Link de agendamento", toque em "📋 Copiar link". Cada motorista tem um link único e exclusivo.' },
-      { titulo: 'Envie para seus passageiros', descricao: 'Cole o link no WhatsApp e envie para seus passageiros. Eles vão abrir o link no celular deles e fazer o agendamento sem precisar de cadastro.' },
-      { titulo: 'Instale o app no celular do passageiro', descricao: 'Oriente seus passageiros a também adicionar o link à tela inicial do celular deles. Assim sempre que quiserem agendar, já têm o app em mãos.' },
-    ],
-  },
-  {
-    titulo: 'Pagamento via Pix',
-    emoji: '💰',
-    passos: [
-      { titulo: 'Ative o pagamento obrigatório', descricao: 'Em Configurações → Pagamento via Pix, ative a chave "Exigir pagamento ao agendar". Quando ativado, o passageiro só confirma a viagem após pagar o Pix.' },
-      { titulo: 'Configure sua chave Pix', descricao: 'Escolha o tipo da sua chave (telefone, CPF, e-mail ou aleatória) e cole o valor da chave. O sistema gera o QR Code automaticamente para o passageiro escanear.' },
-      { titulo: 'O passageiro paga pelo celular dele', descricao: 'Quando o passageiro agendar pelo link, ele verá o QR Code Pix e a opção de copiar a chave. Ele paga pelo celular dele e envia o comprovante pelo WhatsApp.' },
-      { titulo: 'Agendamento sem pagamento obrigatório', descricao: 'Se preferir cobrar na hora da viagem, deixe a chave desativada. O passageiro agenda normalmente e você cobra pessoalmente.' },
-      { titulo: 'Motorista agendando manualmente', descricao: 'Quando você mesmo adiciona um passageiro pela Agenda, o Pix não é cobrado. Use esta opção para passageiros que pegam no meio do caminho ou pagam em dinheiro.' },
-    ],
-  },
-  {
-    titulo: 'Gerenciando a Agenda',
-    emoji: '📅',
-    passos: [
-      { titulo: 'Veja os passageiros do dia', descricao: 'Na aba "Agenda", toque em um dia no calendário para ver todos os passageiros agendados. Os dias com agendamentos têm um ponto verde.' },
-      { titulo: 'Confirme a presença', descricao: 'Toque em "✓ Confirmar" no card do passageiro para marcar que ele confirmou a viagem.' },
-      { titulo: 'Entre em contato pelo WhatsApp', descricao: 'Toque em "💬 WhatsApp" para abrir uma conversa direta com o passageiro com uma mensagem pronta. Ou toque em "📞 Ligar" para ligar diretamente.' },
-      { titulo: 'Cancele um agendamento', descricao: 'Se o passageiro cancelar, toque em "✕" no card dele. O sistema remove da agenda e libera a vaga.' },
-      { titulo: 'Adicione passageiros manualmente', descricao: 'Toque em "+ Agendar passageiro neste dia" para adicionar alguém que você pegou no meio do caminho ou que não agendou pelo link.' },
-    ],
-  },
-  {
-    titulo: 'Controle Financeiro',
-    emoji: '💵',
-    passos: [
-      { titulo: 'Receitas dos agendamentos', descricao: 'Tudo que for pago via Pix pelo link de agendamento entra automaticamente na seção "Receitas via agendamento" do Financeiro.' },
-      { titulo: 'Lance receitas manuais', descricao: 'No final do dia, some o dinheiro recebido em espécie e toque em "+ Receita". Escolha a categoria, coloque o valor e salve.' },
-      { titulo: 'Registre suas despesas', descricao: 'Toque em "+ Despesa" para registrar gastos como combustível, manutenção, pedágio, pneu etc.' },
-      { titulo: 'Acompanhe seu lucro', descricao: 'O sistema calcula automaticamente: Receitas - Despesas = Lucro. Use os filtros Hoje, 7 dias, 30 dias ou Mês.' },
-      { titulo: 'Veja por categoria', descricao: 'O financeiro mostra gráficos com quanto você gastou em cada categoria e quanto recebeu em cada tipo de receita.' },
-    ],
-  },
-]
-
 function GuiaPage({ onFechar }: { onFechar: () => void }) {
   return (
-    <div className="fixed inset-0 z-50 flex flex-col" style={{ background: '#f0f0ec' }}>
-      <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-4 flex items-center gap-3">
+    <div className="fixed inset-0 z-50 flex flex-col" style={{ background: '#fff' }}>
+      <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-4 flex items-center gap-3 flex-shrink-0">
         <button onClick={onFechar} style={{ color: '#9FE1CB' }} className="text-2xl">‹</button>
         <div>
           <p style={{ color: '#E1F5EE' }} className="text-sm font-semibold">Guia de uso</p>
@@ -80,51 +14,187 @@ function GuiaPage({ onFechar }: { onFechar: () => void }) {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-4">
+      <div className="flex-1 overflow-y-auto px-5 py-6">
 
-        <div style={{ background: '#E1F5EE' }} className="rounded-2xl p-4 flex gap-3 items-start">
-          <span className="text-3xl">🚐</span>
-          <div>
-            <p className="text-sm font-bold" style={{ color: '#085041' }}>Bem-vindo ao VanGenda!</p>
-            <p className="text-xs mt-1" style={{ color: '#0F6E56' }}>
-              Este guia explica tudo que você precisa saber para usar o app e começar a organizar sua van hoje mesmo.
-            </p>
-          </div>
+        <div className="text-center mb-8">
+          <div className="text-5xl mb-3">🚐</div>
+          <h1 className="text-xl font-bold mb-2" style={{ color: '#0F6E56' }}>Bem-vindo ao VanGenda!</h1>
+          <p className="text-sm text-gray-500 leading-relaxed">
+            Este guia explica tudo que você precisa saber para organizar sua van com o app.
+          </p>
         </div>
 
-        {secoes.map((s, i) => (
-          <div key={i} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-            <div className="px-4 py-3 flex items-center gap-3"
-              style={{ borderBottom: '1px solid #f0f0ec' }}>
-              <span className="text-xl">{s.emoji}</span>
-              <span className="text-sm font-bold text-gray-800">{s.titulo}</span>
-            </div>
-            <div className="px-4 py-3 flex flex-col gap-4">
-              {s.passos.map((p, j) => (
-                <div key={j} className="flex gap-3">
-                  <div className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold mt-0.5"
-                    style={{ background: '#0F6E56', color: '#fff' }}>
-                    {j + 1}
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-800 mb-0.5">{p.titulo}</p>
-                    <p className="text-xs text-gray-500 leading-relaxed">{p.descricao}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
+        <div className="h-px mb-6" style={{ background: '#e5e7eb' }} />
 
-        <div style={{ background: '#FAEEDA', borderColor: '#FAC775' }}
-          className="border rounded-2xl p-4 flex gap-3 items-start mb-6">
-          <span className="text-2xl">💬</span>
-          <div>
-            <p className="text-sm font-bold" style={{ color: '#854F0B' }}>Precisa de ajuda?</p>
-            <p className="text-xs mt-1" style={{ color: '#633806' }}>
-              Se tiver dúvidas ou problemas, entre em contato com o suporte pelo WhatsApp. Estamos aqui para ajudar!
-            </p>
-          </div>
+        {/* SEÇÃO 1 */}
+        <h2 className="text-base font-bold mb-4" style={{ color: '#0F6E56' }}>🚀 Primeiros passos</h2>
+
+        <p className="text-sm font-semibold text-gray-800 mb-1">1. Instale o VanGenda no seu celular</p>
+        <p className="text-sm text-gray-600 leading-relaxed mb-4">
+          Abra o site <strong>vangenda.vercel.app</strong> no navegador do seu celular. No Android, toque nos 3 pontinhos e selecione "Adicionar à tela inicial". No iPhone, toque no ícone de compartilhar e selecione "Adicionar à Tela de Início". Assim o VanGenda fica como um app no seu celular!
+        </p>
+
+        <p className="text-sm font-semibold text-gray-800 mb-1">2. Cadastre-se com seu e-mail</p>
+        <p className="text-sm text-gray-600 leading-relaxed mb-4">
+          Na tela inicial, toque em "Criar conta" e preencha seu e-mail e senha. Use o mesmo e-mail que usou na compra do plano — isso garante que seu acesso seja liberado automaticamente.
+        </p>
+
+        <p className="text-sm font-semibold text-gray-800 mb-1">3. Acesso liberado automaticamente</p>
+        <p className="text-sm text-gray-600 leading-relaxed mb-6">
+          Após o pagamento do plano, seu acesso é liberado automaticamente pelo sistema. Se tiver problemas, entre em contato com o suporte.
+        </p>
+
+        <div className="h-px mb-6" style={{ background: '#e5e7eb' }} />
+
+        {/* SEÇÃO 2 */}
+        <h2 className="text-base font-bold mb-4" style={{ color: '#0F6E56' }}>🛣️ Configurando sua rota</h2>
+
+        <p className="text-sm font-semibold text-gray-800 mb-1">1. Acesse as Configurações</p>
+        <p className="text-sm text-gray-600 leading-relaxed mb-4">
+          Toque na aba "Config." no menu inferior. Lá você vai configurar tudo: sua rota, paradas, preços e dados de pagamento.
+        </p>
+
+        <p className="text-sm font-semibold text-gray-800 mb-1">2. Adicione as paradas na ordem certa</p>
+        <p className="text-sm text-gray-600 leading-relaxed mb-4">
+          Em "Paradas da rota", adicione primeiro o ponto de <strong>PARTIDA</strong> (onde você sai) e por último o <strong>DESTINO</strong> final (onde você chega). No meio, adicione todas as paradas intermediárias na ordem que você passa por elas.
+        </p>
+
+        <p className="text-sm font-semibold text-gray-800 mb-1">3. Reordene arrastando</p>
+        <p className="text-sm text-gray-600 leading-relaxed mb-4">
+          Se errou a ordem das paradas, não precisa apagar! Segure e arraste a parada para cima ou para baixo. As 3 linhas do lado esquerdo de cada parada indicam que pode arrastar.
+        </p>
+
+        <p className="text-sm font-semibold text-gray-800 mb-1">4. Configure os preços de cada trecho</p>
+        <p className="text-sm text-gray-600 leading-relaxed mb-4">
+          Depois de adicionar todas as paradas, o sistema gera automaticamente todas as combinações de trechos. Basta digitar o valor de cada trecho. Exemplo: Rorainópolis → Boa Vista = R$ 120,00.
+        </p>
+
+        <p className="text-sm font-semibold text-gray-800 mb-1">5. Defina a capacidade da van</p>
+        <p className="text-sm text-gray-600 leading-relaxed mb-4">
+          Em "Capacidade da van", coloque quantos passageiros cabem na sua van. Quando atingir o limite, o sistema bloqueia novos agendamentos automaticamente para aquele dia.
+        </p>
+
+        <p className="text-sm font-semibold text-gray-800 mb-1">6. Salve as configurações</p>
+        <p className="text-sm text-gray-600 leading-relaxed mb-6">
+          Sempre toque em "💾 Salvar configurações" após fazer qualquer alteração. Sem salvar, as mudanças serão perdidas.
+        </p>
+
+        <div className="h-px mb-6" style={{ background: '#e5e7eb' }} />
+
+        {/* SEÇÃO 3 */}
+        <h2 className="text-base font-bold mb-4" style={{ color: '#0F6E56' }}>🔗 Compartilhando seu link</h2>
+
+        <p className="text-sm font-semibold text-gray-800 mb-1">1. Copie seu link exclusivo</p>
+        <p className="text-sm text-gray-600 leading-relaxed mb-4">
+          Em Configurações, na seção "Link de agendamento", toque em "📋 Copiar link". Cada motorista tem um link único e exclusivo — nenhum dado de um motorista aparece para outro.
+        </p>
+
+        <p className="text-sm font-semibold text-gray-800 mb-1">2. Envie para seus passageiros</p>
+        <p className="text-sm text-gray-600 leading-relaxed mb-4">
+          Cole o link no WhatsApp e envie para seus passageiros. Eles vão abrir o link no celular deles e fazer o agendamento sem precisar de cadastro.
+        </p>
+
+        <p className="text-sm font-semibold text-gray-800 mb-1">3. Oriente o passageiro a instalar o app</p>
+        <p className="text-sm text-gray-600 leading-relaxed mb-6">
+          Peça para seus passageiros também adicionarem o link à tela inicial do celular deles. Assim sempre que quiserem agendar, já têm o app em mãos.
+        </p>
+
+        <div className="h-px mb-6" style={{ background: '#e5e7eb' }} />
+
+        {/* SEÇÃO 4 */}
+        <h2 className="text-base font-bold mb-4" style={{ color: '#0F6E56' }}>💰 Pagamento via Pix</h2>
+
+        <p className="text-sm font-semibold text-gray-800 mb-1">1. Ative o pagamento obrigatório</p>
+        <p className="text-sm text-gray-600 leading-relaxed mb-4">
+          Em Configurações → Pagamento via Pix, ative a chave "Exigir pagamento ao agendar". Quando ativado, o passageiro verá o QR Code Pix ao agendar e deverá pagar antes de confirmar.
+        </p>
+
+        <p className="text-sm font-semibold text-gray-800 mb-1">2. Configure sua chave Pix</p>
+        <p className="text-sm text-gray-600 leading-relaxed mb-4">
+          Escolha o tipo da sua chave (telefone, CPF, e-mail ou aleatória) e cole o valor da chave. O sistema gera o QR Code automaticamente para o passageiro escanear.
+        </p>
+
+        <p className="text-sm font-semibold text-gray-800 mb-1">3. O passageiro paga pelo celular dele</p>
+        <p className="text-sm text-gray-600 leading-relaxed mb-4">
+          Quando o passageiro agendar pelo link, ele verá o QR Code Pix e a opção de copiar a chave. Ele paga pelo celular dele e envia o comprovante pelo WhatsApp para você confirmar.
+        </p>
+
+        <p className="text-sm font-semibold text-gray-800 mb-1">4. Agendamento sem pagamento obrigatório</p>
+        <p className="text-sm text-gray-600 leading-relaxed mb-4">
+          Se preferir cobrar na hora da viagem, deixe a chave desativada. O passageiro agenda normalmente e você cobra o dinheiro pessoalmente.
+        </p>
+
+        <p className="text-sm font-semibold text-gray-800 mb-1">5. Motorista agendando manualmente</p>
+        <p className="text-sm text-gray-600 leading-relaxed mb-6">
+          Quando você mesmo adiciona um passageiro pela Agenda, o Pix não é cobrado — você controla o pagamento manualmente. Use esta opção para passageiros que pegam no meio do caminho ou que pagam em dinheiro.
+        </p>
+
+        <div className="h-px mb-6" style={{ background: '#e5e7eb' }} />
+
+        {/* SEÇÃO 5 */}
+        <h2 className="text-base font-bold mb-4" style={{ color: '#0F6E56' }}>📅 Gerenciando a Agenda</h2>
+
+        <p className="text-sm font-semibold text-gray-800 mb-1">1. Veja os passageiros do dia</p>
+        <p className="text-sm text-gray-600 leading-relaxed mb-4">
+          Na aba "Agenda", toque em um dia no calendário para ver todos os passageiros agendados. Os dias com agendamentos têm um ponto verde.
+        </p>
+
+        <p className="text-sm font-semibold text-gray-800 mb-1">2. Confirme a presença</p>
+        <p className="text-sm text-gray-600 leading-relaxed mb-4">
+          Toque em "✓ Confirmar" no card do passageiro para marcar que ele confirmou a viagem. O status muda de "Agendado" para "Confirmado".
+        </p>
+
+        <p className="text-sm font-semibold text-gray-800 mb-1">3. Entre em contato pelo WhatsApp</p>
+        <p className="text-sm text-gray-600 leading-relaxed mb-4">
+          Toque em "💬 WhatsApp" para abrir uma conversa direta com o passageiro com uma mensagem já pronta. Ou toque em "📞 Ligar" para ligar diretamente.
+        </p>
+
+        <p className="text-sm font-semibold text-gray-800 mb-1">4. Cancele um agendamento</p>
+        <p className="text-sm text-gray-600 leading-relaxed mb-4">
+          Se o passageiro cancelar, toque em "✕" no card dele. O sistema remove da agenda e libera a vaga para outro passageiro.
+        </p>
+
+        <p className="text-sm font-semibold text-gray-800 mb-1">5. Adicione passageiros manualmente</p>
+        <p className="text-sm text-gray-600 leading-relaxed mb-6">
+          Toque em "+ Agendar passageiro neste dia" para adicionar alguém que você pegou no meio do caminho ou que não agendou pelo link.
+        </p>
+
+        <div className="h-px mb-6" style={{ background: '#e5e7eb' }} />
+
+        {/* SEÇÃO 6 */}
+        <h2 className="text-base font-bold mb-4" style={{ color: '#0F6E56' }}>💵 Controle Financeiro</h2>
+
+        <p className="text-sm font-semibold text-gray-800 mb-1">1. Receitas dos agendamentos</p>
+        <p className="text-sm text-gray-600 leading-relaxed mb-4">
+          Tudo que for pago via Pix pelo link de agendamento entra automaticamente na seção "Receitas via agendamento" do Financeiro.
+        </p>
+
+        <p className="text-sm font-semibold text-gray-800 mb-1">2. Lance receitas manuais</p>
+        <p className="text-sm text-gray-600 leading-relaxed mb-4">
+          No final do dia, some o dinheiro que recebeu em espécie e toque em "+ Receita". Escolha a categoria (Rota diária, Passagens avulsas, Frete, Tour etc.), coloque o valor e salve. O sistema soma tudo automaticamente.
+        </p>
+
+        <p className="text-sm font-semibold text-gray-800 mb-1">3. Registre suas despesas</p>
+        <p className="text-sm text-gray-600 leading-relaxed mb-4">
+          Toque em "+ Despesa" para registrar gastos como combustível, manutenção, pedágio, pneu etc. Escolha a categoria, descreva e coloque o valor.
+        </p>
+
+        <p className="text-sm font-semibold text-gray-800 mb-1">4. Acompanhe seu lucro</p>
+        <p className="text-sm text-gray-600 leading-relaxed mb-4">
+          O sistema calcula automaticamente: Receitas − Despesas = Lucro. Use os filtros Hoje, 7 dias, 30 dias ou Mês para ver o resumo do período que quiser.
+        </p>
+
+        <p className="text-sm font-semibold text-gray-800 mb-1">5. Veja por categoria</p>
+        <p className="text-sm text-gray-600 leading-relaxed mb-8">
+          O financeiro mostra gráficos com quanto você gastou em cada categoria de despesa e quanto recebeu em cada tipo de receita.
+        </p>
+
+        {/* Suporte */}
+        <div className="rounded-2xl p-4 mb-8" style={{ background: '#FAEEDA', border: '1px solid #FAC775' }}>
+          <p className="text-sm font-bold mb-1" style={{ color: '#854F0B' }}>💬 Precisa de ajuda?</p>
+          <p className="text-sm leading-relaxed" style={{ color: '#633806' }}>
+            Se tiver dúvidas ou problemas, entre em contato com o suporte pelo WhatsApp. Estamos aqui para ajudar!
+          </p>
         </div>
 
       </div>
