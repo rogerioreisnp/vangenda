@@ -47,6 +47,26 @@ function GuiaPage({ onFechar }: { onFechar: () => void }) {
         <div className="h-px mb-6" style={{ background: '#e5e7eb' }} />
 
         {/* SEÇÃO 2 */}
+        <h2 className="text-base font-bold mb-4" style={{ color: '#0F6E56' }}>🏠 Tela Início</h2>
+
+        <p className="text-sm font-semibold text-gray-800 mb-1">1. Resumo do dia</p>
+        <p className="text-sm text-gray-600 leading-relaxed mb-4">
+          A tela Início mostra um resumo rápido do seu dia: quantos passageiros você tem hoje e o total de receita do dia. É a primeira coisa que você vê ao abrir o app.
+        </p>
+
+        <p className="text-sm font-semibold text-gray-800 mb-1">2. Aviso de amanhã</p>
+        <p className="text-sm text-gray-600 leading-relaxed mb-4">
+          Um aviso amarelo aparece automaticamente informando quantos passageiros você tem agendados para o dia seguinte. Assim você já sabe com antecedência e pode confirmar com eles.
+        </p>
+
+        <p className="text-sm font-semibold text-gray-800 mb-1">3. Lista de passageiros de hoje</p>
+        <p className="text-sm text-gray-600 leading-relaxed mb-6">
+          Abaixo do resumo aparece a lista completa dos passageiros do dia com nome, rota e valor. Você pode confirmar a presença de cada passageiro diretamente desta tela sem precisar ir para a Agenda.
+        </p>
+
+        <div className="h-px mb-6" style={{ background: '#e5e7eb' }} />
+
+        {/* SEÇÃO 3 */}
         <h2 className="text-base font-bold mb-4" style={{ color: '#0F6E56' }}>🛣️ Configurando sua rota</h2>
 
         <p className="text-sm font-semibold text-gray-800 mb-1">1. Acesse as Configurações</p>
@@ -66,7 +86,7 @@ function GuiaPage({ onFechar }: { onFechar: () => void }) {
 
         <p className="text-sm font-semibold text-gray-800 mb-1">4. Configure os preços de cada trecho</p>
         <p className="text-sm text-gray-600 leading-relaxed mb-4">
-          Depois de adicionar todas as paradas, o sistema gera automaticamente todas as combinações de trechos. Basta digitar o valor de cada trecho. Exemplo: Rorainópolis → Boa Vista = R$ 120,00.
+          Depois de adicionar todas as paradas, o sistema gera automaticamente todas as combinações de trechos. Basta digitar o valor de cada combinação. Exemplo: Cidade A → Cidade B = R$ 80,00. Cada combinação de origem e destino tem seu próprio preço.
         </p>
 
         <p className="text-sm font-semibold text-gray-800 mb-1">5. Defina a capacidade da van</p>
@@ -81,7 +101,7 @@ function GuiaPage({ onFechar }: { onFechar: () => void }) {
 
         <div className="h-px mb-6" style={{ background: '#e5e7eb' }} />
 
-        {/* SEÇÃO 3 */}
+        {/* SEÇÃO 4 */}
         <h2 className="text-base font-bold mb-4" style={{ color: '#0F6E56' }}>🔗 Compartilhando seu link</h2>
 
         <p className="text-sm font-semibold text-gray-800 mb-1">1. Copie seu link exclusivo</p>
@@ -101,7 +121,7 @@ function GuiaPage({ onFechar }: { onFechar: () => void }) {
 
         <div className="h-px mb-6" style={{ background: '#e5e7eb' }} />
 
-        {/* SEÇÃO 4 */}
+        {/* SEÇÃO 5 */}
         <h2 className="text-base font-bold mb-4" style={{ color: '#0F6E56' }}>💰 Pagamento via Pix</h2>
 
         <p className="text-sm font-semibold text-gray-800 mb-1">1. Ative o pagamento obrigatório</p>
@@ -131,12 +151,12 @@ function GuiaPage({ onFechar }: { onFechar: () => void }) {
 
         <div className="h-px mb-6" style={{ background: '#e5e7eb' }} />
 
-        {/* SEÇÃO 5 */}
+        {/* SEÇÃO 6 */}
         <h2 className="text-base font-bold mb-4" style={{ color: '#0F6E56' }}>📅 Gerenciando a Agenda</h2>
 
         <p className="text-sm font-semibold text-gray-800 mb-1">1. Veja os passageiros do dia</p>
         <p className="text-sm text-gray-600 leading-relaxed mb-4">
-          Na aba "Agenda", toque em um dia no calendário para ver todos os passageiros agendados. Os dias com agendamentos têm um ponto verde.
+          Na aba "Agenda", toque em um dia no calendário para ver todos os passageiros agendados. Os dias com agendamentos têm um ponto verde. O calendário mostra o mês completo e você pode navegar entre os meses.
         </p>
 
         <p className="text-sm font-semibold text-gray-800 mb-1">2. Confirme a presença</p>
@@ -144,9 +164,9 @@ function GuiaPage({ onFechar }: { onFechar: () => void }) {
           Toque em "✓ Confirmar" no card do passageiro para marcar que ele confirmou a viagem. O status muda de "Agendado" para "Confirmado".
         </p>
 
-        <p className="text-sm font-semibold text-gray-800 mb-1">3. Entre em contato pelo WhatsApp</p>
+        <p className="text-sm font-semibold text-gray-800 mb-1">3. Entre em contato pelo WhatsApp ou telefone</p>
         <p className="text-sm text-gray-600 leading-relaxed mb-4">
-          Toque em "💬 WhatsApp" para abrir uma conversa direta com o passageiro com uma mensagem já pronta. Ou toque em "📞 Ligar" para ligar diretamente.
+          Toque em "💬 WhatsApp" para abrir uma conversa direta com o passageiro com uma mensagem já pronta de confirmação. Ou toque em "📞 Ligar" para ligar diretamente.
         </p>
 
         <p className="text-sm font-semibold text-gray-800 mb-1">4. Cancele um agendamento</p>
@@ -156,12 +176,12 @@ function GuiaPage({ onFechar }: { onFechar: () => void }) {
 
         <p className="text-sm font-semibold text-gray-800 mb-1">5. Adicione passageiros manualmente</p>
         <p className="text-sm text-gray-600 leading-relaxed mb-6">
-          Toque em "+ Agendar passageiro neste dia" para adicionar alguém que você pegou no meio do caminho ou que não agendou pelo link.
+          Toque em "+ Agendar passageiro neste dia" para adicionar alguém que você pegou no meio do caminho ou que não agendou pelo link. Você preenche o nome, telefone, origem, destino e valor manualmente.
         </p>
 
         <div className="h-px mb-6" style={{ background: '#e5e7eb' }} />
 
-        {/* SEÇÃO 6 */}
+        {/* SEÇÃO 7 */}
         <h2 className="text-base font-bold mb-4" style={{ color: '#0F6E56' }}>💵 Controle Financeiro</h2>
 
         <p className="text-sm font-semibold text-gray-800 mb-1">1. Receitas dos agendamentos</p>
@@ -171,7 +191,7 @@ function GuiaPage({ onFechar }: { onFechar: () => void }) {
 
         <p className="text-sm font-semibold text-gray-800 mb-1">2. Lance receitas manuais</p>
         <p className="text-sm text-gray-600 leading-relaxed mb-4">
-          No final do dia, some o dinheiro que recebeu em espécie e toque em "+ Receita". Escolha a categoria (Rota diária, Passagens avulsas, Frete, Tour etc.), coloque o valor e salve. O sistema soma tudo automaticamente.
+          No final do dia, some o dinheiro que recebeu em espécie e toque em "+ Receita". Escolha a categoria (Rota diária, Passagens avulsas, Frete empresarial, Tour/Passeio, Entrega ou Outros), coloque o valor e salve. O sistema soma tudo automaticamente.
         </p>
 
         <p className="text-sm font-semibold text-gray-800 mb-1">3. Registre suas despesas</p>
@@ -181,12 +201,12 @@ function GuiaPage({ onFechar }: { onFechar: () => void }) {
 
         <p className="text-sm font-semibold text-gray-800 mb-1">4. Acompanhe seu lucro</p>
         <p className="text-sm text-gray-600 leading-relaxed mb-4">
-          O sistema calcula automaticamente: Receitas − Despesas = Lucro. Use os filtros Hoje, 7 dias, 30 dias ou Mês para ver o resumo do período que quiser.
+          O sistema calcula automaticamente: Receitas − Despesas = Lucro. Use os filtros <strong>Hoje, 7 dias, 30 dias</strong> ou <strong>Mês</strong> para ver o resumo do período que quiser. No filtro Mês você pode navegar entre os meses.
         </p>
 
         <p className="text-sm font-semibold text-gray-800 mb-1">5. Veja por categoria</p>
         <p className="text-sm text-gray-600 leading-relaxed mb-8">
-          O financeiro mostra gráficos com quanto você gastou em cada categoria de despesa e quanto recebeu em cada tipo de receita.
+          O financeiro mostra gráficos com quanto você gastou em cada categoria de despesa e quanto recebeu em cada tipo de receita. Assim você sabe exatamente onde está gastando mais e onde está ganhando mais.
         </p>
 
         {/* Suporte */}
@@ -413,7 +433,7 @@ export default function ConfiguracoesPage() {
           <div className="flex flex-col gap-3">
             <Campo label="Nome da rota">
               <input value={rota?.nome || ''} onChange={e => setRota((r: any) => ({ ...r, nome: e.target.value }))}
-                placeholder="Ex: Rorainópolis → Boa Vista" className="campo-input" />
+                placeholder="Ex: São Paulo → Campinas" className="campo-input" />
             </Campo>
             <div className="grid grid-cols-2 gap-2">
               <Campo label="Saída ida">
