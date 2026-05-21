@@ -212,8 +212,12 @@ function GuiaPage({ onFechar }: { onFechar: () => void }) {
         {/* Suporte */}
         <div className="rounded-2xl p-4 mb-8" style={{ background: '#FAEEDA', border: '1px solid #FAC775' }}>
           <p className="text-sm font-bold mb-1" style={{ color: '#854F0B' }}>💬 Precisa de ajuda?</p>
-          <p className="text-sm leading-relaxed" style={{ color: '#633806' }}>
-            Se tiver dúvidas ou problemas, entre em contato com o suporte pelo WhatsApp. Estamos aqui para ajudar!
+         <p className="text-sm leading-relaxed" style={{ color: '#633806' }}>
+            Se tiver dúvidas ou problemas, fale direto com o suporte pelo WhatsApp:{' '}
+            <a href="https://wa.me/5595984143839" target="_blank" rel="noopener noreferrer"
+              style={{ color: '#854F0B', fontWeight: 'bold', textDecoration: 'underline' }}>
+              (95) 98414-3839
+            </a>
           </p>
         </div>
 
