@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { format, addDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-
+import InstallBanner from '@/components/InstallBanner'
 function gerarPayloadPix(chave: string, nome: string, valor: number, cidade: string = 'Brasil'): string {
   const pixChave = chave
   const pixNome = nome.substring(0, 25).replace(/[^a-zA-Z ]/g, '')
@@ -80,7 +80,7 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
       short_name: motorista.nome.split(' ')[0].substring(0, 12),
       description: `Agende sua viagem com ${motorista.nome}`,
       start_url: `/agendar/${params.slug}`,
-scope: `/`,
+      scope: `/`,
       display: 'standalone',
       orientation: 'portrait',
       background_color: '#f0f0ec',
@@ -261,6 +261,7 @@ scope: `/`,
 
   return (
     <div className="min-h-dvh" style={{ background: '#f0f0ec' }}>
+      <InstallBanner />
       <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-6 text-center">
         <div className="text-4xl mb-2">🚐</div>
         <h1 style={{ color: '#E1F5EE' }} className="text-lg font-bold">VanGenda</h1>
