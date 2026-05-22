@@ -2,7 +2,7 @@
   "name": "VanGenda",
   "short_name": "VanGenda",
   "description": "Agendamentos para motoristas de van",
-  "start_url": "/",
+  "start_url": "/agendar/"
   "display": "standalone",
   "background_color": "#0F6E56",
   "theme_color": "#0F6E56",
