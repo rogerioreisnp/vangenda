@@ -80,7 +80,7 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
       short_name: motorista.nome.split(' ')[0].substring(0, 12),
       description: `Agende sua viagem com ${motorista.nome}`,
       start_url: `/agendar/${params.slug}`,
-      scope: `/agendar/${params.slug}`,
+scope: `/`,
       display: 'standalone',
       orientation: 'portrait',
       background_color: '#f0f0ec',
