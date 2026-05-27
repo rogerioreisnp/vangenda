@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { format, addDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import InstallBanner from '@/components/InstallBanner'
+
 function gerarPayloadPix(chave: string, nome: string, valor: number, cidade: string = 'Brasil'): string {
   const pixChave = chave
   const pixNome = nome.substring(0, 25).replace(/[^a-zA-Z ]/g, '')
@@ -56,25 +57,25 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
     destino: '',
     data: format(addDays(new Date(), 1), 'yyyy-MM-dd'),
     turno: 'ida',
+    quantidade: 1,
   })
-  const [valor, setValor] = useState<number | null>(null)
+  const [valorUnitario, setValorUnitario] = useState<number | null>(null)
   const [salvando, setSalvando] = useState(false)
   const [agendamentoId, setAgendamentoId] = useState<string | null>(null)
   const [vagasOcupadas, setVagasOcupadas] = useState(0)
   const [verificandoVagas, setVerificandoVagas] = useState(false)
   const [erroMsg, setErroMsg] = useState<string | null>(null)
 
+  const valorTotal = valorUnitario !== null ? valorUnitario * form.quantidade : null
+
   useEffect(() => { carregarMotorista() }, [])
 
   useEffect(() => {
-    if (form.data && form.turno && rota) {
-      verificarVagas()
-    }
+    if (form.data && form.turno && rota) verificarVagas()
   }, [form.data, form.turno, rota])
 
   useEffect(() => {
     if (!motorista) return
-
     const manifestData = {
       name: `VanGenda - ${motorista.nome}`,
       short_name: motorista.nome.split(' ')[0].substring(0, 12),
@@ -90,20 +91,16 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
         { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
       ]
     }
-
     const stringManifest = JSON.stringify(manifestData)
     const blob = new Blob([stringManifest], { type: 'application/json' })
     const manifestURL = URL.createObjectURL(blob)
-
     const oldLink = document.querySelector('link[rel="manifest"]')
     if (oldLink) oldLink.remove()
-
     const link = document.createElement('link')
     link.rel = 'manifest'
     link.href = manifestURL
     link.id = 'dynamic-manifest'
     document.head.appendChild(link)
-
     let themeColor = document.querySelector('meta[name="theme-color"]')
     if (!themeColor) {
       themeColor = document.createElement('meta')
@@ -112,23 +109,18 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
     }
     themeColor.setAttribute('content', '#0F6E56')
     document.title = `VanGenda - ${motorista.nome}`
-
     return () => { URL.revokeObjectURL(manifestURL) }
   }, [motorista, params.slug])
 
   async function carregarMotorista() {
     const { data: mot, error: errMot } = await supabase
       .from('motoristas').select('*').eq('id', params.slug).single()
-
     if (errMot) console.error('Erro motorista:', errMot)
     if (!mot) { setLoading(false); return }
     setMotorista(mot)
-
     const { data: rts, error: errRts } = await supabase
       .from('rotas').select('*').eq('motorista_id', mot.id).eq('ativa', true).limit(1).single()
-
     if (errRts) console.error('Erro rota:', errRts)
-
     if (rts) {
       setRota(rts)
       const { data: pars } = await supabase.from('paradas').select('*').eq('rota_id', rts.id).order('ordem')
@@ -156,22 +148,23 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
   useEffect(() => {
     if (form.origem && form.destino) {
       const preco = precos.find(p => p.parada_origem === form.origem && p.parada_destino === form.destino)
-      setValor(preco ? preco.valor : null)
+      setValorUnitario(preco ? preco.valor : null)
     }
   }, [form.origem, form.destino, precos])
 
   const capacidade = rota?.capacidade || motorista?.capacidade_van || 15
   const vagasDisponiveis = capacidade - vagasOcupadas
   const lotado = vagasDisponiveis <= 0
+  const vagasInsuficientes = form.quantidade > vagasDisponiveis
 
-  async function enviarNotificacao() {
+  async function enviarNotificacao(qtd: number) {
     try {
       await fetch('/api/notificar-agendamento', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           motorista_id: motorista.id,
-          nome_passageiro: form.nome,
+          nome_passageiro: qtd > 1 ? `${form.nome} (+${qtd - 1})` : form.nome,
           origem: form.origem,
           destino: form.destino,
           data_viagem: form.data,
@@ -194,26 +187,36 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
       setErroMsg('Van lotada neste dia. Tente outra data.')
       return
     }
-    if (motorista.pagamento_obrigatorio && (valor === null || valor === undefined)) {
+    if (vagasInsuficientes) {
+      setErroMsg(`Vagas insuficientes. Disponível: ${vagasDisponiveis} vaga${vagasDisponiveis !== 1 ? 's' : ''}.`)
+      return
+    }
+    if (motorista.pagamento_obrigatorio && (valorUnitario === null || valorUnitario === undefined)) {
       setErroMsg('Não foi possível calcular o valor. Verifique origem e destino.')
       return
     }
 
     setSalvando(true)
 
-    const { data, error } = await supabase.from('agendamentos').insert({
+    // Inserir um agendamento por passageiro
+    const agendamentos = Array.from({ length: form.quantidade }, (_, i) => ({
       rota_id: rota.id,
       motorista_id: motorista.id,
-      nome_passageiro: form.nome,
+      nome_passageiro: form.quantidade > 1 ? `${form.nome} (${i + 1}/${form.quantidade})` : form.nome,
       telefone_passageiro: form.telefone,
       parada_origem: form.origem,
       parada_destino: form.destino,
       data_viagem: form.data,
       turno: form.turno,
-      valor: valor || 0,
+      valor: valorUnitario || 0,
       forma_pagamento: motorista.pagamento_obrigatorio ? 'pix' : 'pendente',
       status: 'agendado',
-    }).select().single()
+    }))
+
+    const { data, error } = await supabase
+      .from('agendamentos')
+      .insert(agendamentos)
+      .select()
 
     setSalvando(false)
 
@@ -223,9 +226,9 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
       return
     }
 
-    if (data) {
-      setAgendamentoId(data.id)
-      enviarNotificacao()
+    if (data && data.length > 0) {
+      setAgendamentoId(data[0].id)
+      enviarNotificacao(form.quantidade)
       if (motorista.pagamento_obrigatorio && motorista.pix_chave) {
         setEtapa('pix')
       } else {
@@ -236,8 +239,8 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
     }
   }
 
-  const pixPayload = motorista?.pix_chave && valor
-    ? gerarPayloadPix(motorista.pix_chave, motorista.nome, valor)
+  const pixPayload = motorista?.pix_chave && valorTotal
+    ? gerarPayloadPix(motorista.pix_chave, motorista.nome, valorTotal)
     : null
 
   const dataSelecionada = form.data
@@ -358,13 +361,73 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
                     </Campo>
                   </div>
 
-                  {valor !== null && (
+                  {/* ── QUANTIDADE DE PASSAGEIROS ── */}
+                  <Campo label="Quantidade de passageiros">
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => setForm(f => ({ ...f, quantidade: Math.max(1, f.quantidade - 1) }))}
+                        className="w-10 h-10 rounded-xl text-xl font-bold border border-gray-200 flex items-center justify-center"
+                        style={{ background: '#f0f0ec', color: '#0F6E56' }}>
+                        −
+                      </button>
+                      <div className="flex-1 text-center">
+                        <span className="text-2xl font-bold text-gray-800">{form.quantidade}</span>
+                        <p className="text-xs text-gray-400">
+                          {form.quantidade === 1 ? 'passageiro' : 'passageiros'}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setForm(f => ({ ...f, quantidade: Math.min(vagasDisponiveis, f.quantidade + 1) }))}
+                        className="w-10 h-10 rounded-xl text-xl font-bold border border-gray-200 flex items-center justify-center"
+                        style={{ background: '#0F6E56', color: '#fff' }}>
+                        +
+                      </button>
+                    </div>
+                    {form.quantidade > 1 && (
+                      <p className="text-xs text-gray-400 mt-1 text-center">
+                        Máx. {vagasDisponiveis} vagas disponíveis
+                      </p>
+                    )}
+                  </Campo>
+
+                  {/* ── VALOR ── */}
+                  {valorUnitario !== null && (
                     <div style={{ background: '#E1F5EE', borderColor: '#9FE1CB' }}
-                      className="border rounded-xl px-4 py-3 flex justify-between items-center">
-                      <span style={{ color: '#085041' }} className="text-sm font-medium">Valor da passagem</span>
-                      <span style={{ color: '#0F6E56' }} className="text-xl font-bold">
-                        R$ {valor.toFixed(2).replace('.', ',')}
-                      </span>
+                      className="border rounded-xl px-4 py-3">
+                      {form.quantidade > 1 ? (
+                        <>
+                          <div className="flex justify-between items-center mb-1">
+                            <span style={{ color: '#085041' }} className="text-xs">Valor por passageiro</span>
+                            <span style={{ color: '#0F6E56' }} className="text-sm font-semibold">
+                              R$ {valorUnitario.toFixed(2).replace('.', ',')}
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center border-t pt-2" style={{ borderColor: '#9FE1CB' }}>
+                            <span style={{ color: '#085041' }} className="text-sm font-medium">
+                              Total ({form.quantidade} passageiros)
+                            </span>
+                            <span style={{ color: '#0F6E56' }} className="text-xl font-bold">
+                              R$ {valorTotal!.toFixed(2).replace('.', ',')}
+                            </span>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="flex justify-between items-center">
+                          <span style={{ color: '#085041' }} className="text-sm font-medium">Valor da passagem</span>
+                          <span style={{ color: '#0F6E56' }} className="text-xl font-bold">
+                            R$ {valorUnitario.toFixed(2).replace('.', ',')}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {vagasInsuficientes && !lotado && (
+                    <div style={{ background: '#FCEBEB', borderColor: '#F5BCBC' }}
+                      className="border rounded-xl px-4 py-3">
+                      <p className="text-xs font-semibold" style={{ color: '#A32D2D' }}>
+                        ⚠️ Só há {vagasDisponiveis} vaga{vagasDisponiveis !== 1 ? 's' : ''} disponível{vagasDisponiveis !== 1 ? 'is' : ''} neste dia.
+                      </p>
                     </div>
                   )}
                 </>
@@ -379,10 +442,16 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
             )}
 
             <button onClick={agendar}
-              disabled={salvando || !form.nome || !form.origem || !form.destino || !form.data || lotado}
+              disabled={salvando || !form.nome || !form.origem || !form.destino || !form.data || lotado || vagasInsuficientes}
               className="w-full py-4 rounded-2xl text-white text-base font-bold disabled:opacity-40"
               style={{ background: lotado ? '#ccc' : '#1D9E75' }}>
-              {salvando ? 'Agendando...' : lotado ? '🚫 Van lotada' : motorista.pagamento_obrigatorio ? '→ Avançar para pagamento' : '✓ Confirmar agendamento'}
+              {salvando
+                ? 'Agendando...'
+                : lotado
+                ? '🚫 Van lotada'
+                : motorista.pagamento_obrigatorio
+                ? `→ Avançar para pagamento${form.quantidade > 1 ? ` (${form.quantidade} passageiros)` : ''}`
+                : `✓ Confirmar agendamento${form.quantidade > 1 ? ` (${form.quantidade} passageiros)` : ''}`}
             </button>
 
             {motorista.pagamento_obrigatorio && !lotado && (
@@ -424,9 +493,16 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
               </div>
 
               <div style={{ background: '#E1F5EE' }} className="rounded-xl p-3 mb-4">
-                <p className="text-xs" style={{ color: '#085041' }}>Valor a pagar</p>
+                {form.quantidade > 1 && (
+                  <p className="text-xs mb-1" style={{ color: '#085041' }}>
+                    {form.quantidade} passageiros × R$ {valorUnitario?.toFixed(2).replace('.', ',')}
+                  </p>
+                )}
+                <p className="text-xs" style={{ color: '#085041' }}>
+                  {form.quantidade > 1 ? 'Total a pagar' : 'Valor a pagar'}
+                </p>
                 <p className="text-2xl font-bold" style={{ color: '#0F6E56' }}>
-                  R$ {valor?.toFixed(2).replace('.', ',')}
+                  R$ {valorTotal?.toFixed(2).replace('.', ',')}
                 </p>
               </div>
 
@@ -449,6 +525,11 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
                 <p className="text-xs text-gray-600 mt-1 capitalize">{dataSelecionada}</p>
                 <p className="text-xs text-gray-600">{form.origem} → {form.destino}</p>
                 <p className="text-xs text-gray-600">{form.turno === 'ida' ? `Saída ${rota?.horario_ida}h` : `Saída ${rota?.horario_volta}h`}</p>
+                {form.quantidade > 1 && (
+                  <p className="text-xs font-semibold mt-1" style={{ color: '#854F0B' }}>
+                    👥 {form.quantidade} passageiros
+                  </p>
+                )}
               </div>
             </div>
 
@@ -464,17 +545,33 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
           <div className="flex flex-col gap-4">
             <div className="bg-white rounded-2xl p-6 border border-gray-100 text-center">
               <p className="text-5xl mb-3">🎉</p>
-              <p className="text-lg font-bold text-gray-800 mb-1">Agendado com sucesso!</p>
-              <p className="text-sm text-gray-500 mb-4">Sua vaga está reservada</p>
+              <p className="text-lg font-bold text-gray-800 mb-1">
+                {form.quantidade > 1 ? `${form.quantidade} passagens agendadas!` : 'Agendado com sucesso!'}
+              </p>
+              <p className="text-sm text-gray-500 mb-4">
+                {form.quantidade > 1 ? 'Suas vagas estão reservadas' : 'Sua vaga está reservada'}
+              </p>
 
               <div style={{ background: '#E1F5EE' }} className="rounded-xl p-4 text-left mb-4">
                 <p className="text-xs font-semibold" style={{ color: '#085041' }}>Detalhes da viagem</p>
                 <div className="mt-2 flex flex-col gap-1.5">
                   <p className="text-sm text-gray-700">👤 {form.nome}</p>
+                  {form.quantidade > 1 && (
+                    <p className="text-sm text-gray-700">👥 {form.quantidade} passageiros</p>
+                  )}
                   <p className="text-sm text-gray-700 capitalize">📅 {dataSelecionada}</p>
                   <p className="text-sm text-gray-700">📍 {form.origem} → {form.destino}</p>
                   <p className="text-sm text-gray-700">🕐 {form.turno === 'ida' ? `Saída ${rota?.horario_ida}h` : `Saída ${rota?.horario_volta}h`}</p>
-                  {valor && <p className="text-sm font-semibold" style={{ color: '#0F6E56' }}>💰 R$ {valor.toFixed(2).replace('.', ',')}</p>}
+                  {valorTotal && (
+                    <p className="text-sm font-semibold" style={{ color: '#0F6E56' }}>
+                      💰 R$ {valorTotal.toFixed(2).replace('.', ',')}
+                      {form.quantidade > 1 && (
+                        <span className="text-xs font-normal text-gray-400 ml-1">
+                          ({form.quantidade}× R$ {valorUnitario?.toFixed(2).replace('.', ',')})
+                        </span>
+                      )}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -491,8 +588,8 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
 
             <button onClick={() => {
               setEtapa('form')
-              setForm({ nome: '', telefone: '', origem: '', destino: '', data: format(addDays(new Date(), 1), 'yyyy-MM-dd'), turno: 'ida' })
-              setValor(null)
+              setForm({ nome: '', telefone: '', origem: '', destino: '', data: format(addDays(new Date(), 1), 'yyyy-MM-dd'), turno: 'ida', quantidade: 1 })
+              setValorUnitario(null)
               setErroMsg(null)
             }} className="w-full py-3 rounded-2xl text-sm font-medium border border-gray-200 bg-white text-gray-600">
               Fazer novo agendamento
