@@ -55,6 +55,8 @@ export default function FinanceiroPage() {
   const [despesas, setDespesas] = useState<Despesa[]>([])
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState<null | 'receita' | 'despesa'>(null)
+  const [editandoReceita, setEditandoReceita] = useState<Receita | null>(null)
+  const [editandoDespesa, setEditandoDespesa] = useState<Despesa | null>(null)
 
   useEffect(() => { carregarDados() }, [filtro, mes])
 
@@ -87,6 +89,20 @@ export default function FinanceiroPage() {
     if (desps) setDespesas(desps)
     if (agends) setReceitasAgendamentos(agends)
     setLoading(false)
+  }
+
+  async function excluirReceita(id: string) {
+    if (!confirm('Excluir esta receita?')) return
+    const { error } = await supabase.from('receitas').delete().eq('id', id)
+    if (error) { alert('Erro ao excluir: ' + error.message); return }
+    carregarDados()
+  }
+
+  async function excluirDespesa(id: string) {
+    if (!confirm('Excluir esta despesa?')) return
+    const { error } = await supabase.from('despesas').delete().eq('id', id)
+    if (error) { alert('Erro ao excluir: ' + error.message); return }
+    carregarDados()
   }
 
   const totalReceitasManuais = receitasManuais.reduce((s, r) => s + r.valor, 0)
@@ -225,7 +241,7 @@ export default function FinanceiroPage() {
               </div>
             )}
 
-            {/* Receitas manuais */}
+            {/* Receitas lançadas */}
             <div className="mb-5">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Receitas lançadas</p>
               {receitasManuais.length === 0 ? (
@@ -235,13 +251,28 @@ export default function FinanceiroPage() {
                   {receitasManuais.map((r) => {
                     const cat = categoriasReceita.find(c => c.value === r.categoria)
                     return (
-                      <div key={r.id} className="flex items-center px-4 py-3 border-b border-gray-50 last:border-0">
-                        <span className="text-xl mr-3">{cat?.emoji || '💵'}</span>
+                      <div key={r.id} className="flex items-center px-4 py-3 border-b border-gray-50 last:border-0 gap-2">
+                        <span className="text-xl mr-1">{cat?.emoji || '💵'}</span>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-gray-800 truncate">{cat?.label || r.descricao}</p>
                           <p className="text-xs text-gray-400">{r.descricao} · {format(new Date(r.data_receita + 'T00:00:00'), "dd/MM/yyyy")}</p>
                         </div>
-                        <span className="text-sm font-semibold" style={{ color: '#0F6E56' }}>+ R$ {r.valor.toFixed(2).replace('.', ',')}</span>
+                        <span className="text-sm font-semibold shrink-0" style={{ color: '#0F6E56' }}>+ R$ {r.valor.toFixed(2).replace('.', ',')}</span>
+                        {/* Botões editar/excluir */}
+                        <button
+                          onClick={() => setEditandoReceita(r)}
+                          className="p-1.5 rounded-lg shrink-0"
+                          style={{ background: '#E1F5EE', color: '#0F6E56' }}
+                          title="Editar">
+                          ✏️
+                        </button>
+                        <button
+                          onClick={() => excluirReceita(r.id)}
+                          className="p-1.5 rounded-lg shrink-0"
+                          style={{ background: '#FDE8E8', color: '#A32D2D' }}
+                          title="Excluir">
+                          🗑️
+                        </button>
                       </div>
                     )
                   })}
@@ -281,13 +312,28 @@ export default function FinanceiroPage() {
                   {despesas.map((d) => {
                     const cat = categoriasDespesa.find(c => c.value === d.categoria)
                     return (
-                      <div key={d.id} className="flex items-center px-4 py-3 border-b border-gray-50 last:border-0">
-                        <span className="text-xl mr-3">{cat?.emoji}</span>
+                      <div key={d.id} className="flex items-center px-4 py-3 border-b border-gray-50 last:border-0 gap-2">
+                        <span className="text-xl mr-1">{cat?.emoji}</span>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-gray-800 truncate">{d.descricao}</p>
                           <p className="text-xs text-gray-400">{format(new Date(d.data_despesa + 'T00:00:00'), "dd/MM/yyyy")}</p>
                         </div>
-                        <span className="text-sm font-semibold" style={{ color: '#A32D2D' }}>- R$ {d.valor.toFixed(2).replace('.', ',')}</span>
+                        <span className="text-sm font-semibold shrink-0" style={{ color: '#A32D2D' }}>- R$ {d.valor.toFixed(2).replace('.', ',')}</span>
+                        {/* Botões editar/excluir */}
+                        <button
+                          onClick={() => setEditandoDespesa(d)}
+                          className="p-1.5 rounded-lg shrink-0"
+                          style={{ background: '#E1F5EE', color: '#0F6E56' }}
+                          title="Editar">
+                          ✏️
+                        </button>
+                        <button
+                          onClick={() => excluirDespesa(d.id)}
+                          className="p-1.5 rounded-lg shrink-0"
+                          style={{ background: '#FDE8E8', color: '#A32D2D' }}
+                          title="Excluir">
+                          🗑️
+                        </button>
                       </div>
                     )
                   })}
@@ -319,6 +365,7 @@ export default function FinanceiroPage() {
         )}
       </div>
 
+      {/* Modal nova receita */}
       {modal === 'receita' && (
         <FormReceita
           onFechar={() => setModal(null)}
@@ -326,37 +373,87 @@ export default function FinanceiroPage() {
         />
       )}
 
+      {/* Modal nova despesa */}
       {modal === 'despesa' && (
         <FormDespesa
           onFechar={() => setModal(null)}
           onSalvo={() => { setModal(null); carregarDados() }}
         />
       )}
+
+      {/* Modal editar receita */}
+      {editandoReceita && (
+        <FormReceita
+          receita={editandoReceita}
+          onFechar={() => setEditandoReceita(null)}
+          onSalvo={() => { setEditandoReceita(null); carregarDados() }}
+        />
+      )}
+
+      {/* Modal editar despesa */}
+      {editandoDespesa && (
+        <FormDespesa
+          despesa={editandoDespesa}
+          onFechar={() => setEditandoDespesa(null)}
+          onSalvo={() => { setEditandoDespesa(null); carregarDados() }}
+        />
+      )}
     </div>
   )
 }
 
-function FormReceita({ onFechar, onSalvo }: { onFechar: () => void, onSalvo: () => void }) {
+// ─── FORM RECEITA ─────────────────────────────────────────────────────────────
+
+function FormReceita({
+  receita,
+  onFechar,
+  onSalvo,
+}: {
+  receita?: Receita
+  onFechar: () => void
+  onSalvo: () => void
+}) {
   const [form, setForm] = useState({
-    categoria: 'rota_diaria',
-    descricao: '',
-    valor: '',
-    data_receita: format(new Date(), 'yyyy-MM-dd'),
+    categoria: receita?.categoria ?? 'rota_diaria',
+    descricao: receita?.descricao ?? '',
+    valor: receita?.valor?.toString() ?? '',
+    data_receita: receita?.data_receita ?? format(new Date(), 'yyyy-MM-dd'),
   })
   const [saving, setSaving] = useState(false)
+  const [erro, setErro] = useState('')
 
   async function salvar() {
     if (!form.valor) return
     setSaving(true)
+    setErro('')
     const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setErro('Usuário não autenticado.'); setSaving(false); return }
+
     const cat = categoriasReceita.find(c => c.value === form.categoria)
-    await supabase.from('receitas').insert({
-      motorista_id: user!.id,
+    const payload = {
+      motorista_id: user.id,
       categoria: form.categoria,
       descricao: form.descricao || cat?.label || '',
       valor: parseFloat(form.valor),
       data_receita: form.data_receita,
-    })
+    }
+
+    let error
+    if (receita) {
+      // EDITAR
+      ;({ error } = await supabase.from('receitas').update(payload).eq('id', receita.id))
+    } else {
+      // INSERIR
+      ;({ error } = await supabase.from('receitas').insert(payload))
+    }
+
+    if (error) {
+      console.error('Erro receita:', error)
+      setErro('Erro ao salvar: ' + error.message)
+      setSaving(false)
+      return
+    }
+
     setSaving(false)
     onSalvo()
   }
@@ -365,12 +462,12 @@ function FormReceita({ onFechar, onSalvo }: { onFechar: () => void, onSalvo: () 
     <div className="fixed inset-0 z-50 flex flex-col" style={{ background: '#f0f0ec' }}>
       <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-4 flex items-center gap-3">
         <button onClick={onFechar} style={{ color: '#9FE1CB' }} className="text-2xl">‹</button>
-        <p style={{ color: '#E1F5EE' }} className="text-sm font-semibold">Lançar receita</p>
+        <p style={{ color: '#E1F5EE' }} className="text-sm font-semibold">
+          {receita ? 'Editar receita' : 'Lançar receita'}
+        </p>
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-4">
-
-        {/* Categorias */}
         <div>
           <p className="text-xs font-medium text-gray-500 mb-2">Tipo de receita</p>
           <div className="grid grid-cols-3 gap-2">
@@ -387,7 +484,6 @@ function FormReceita({ onFechar, onSalvo }: { onFechar: () => void, onSalvo: () 
           </div>
         </div>
 
-        {/* Observação opcional */}
         <div>
           <p className="text-xs font-medium text-gray-500 mb-1">Observação (opcional)</p>
           <input value={form.descricao}
@@ -396,7 +492,6 @@ function FormReceita({ onFechar, onSalvo }: { onFechar: () => void, onSalvo: () 
             className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none bg-white focus:border-green-600" />
         </div>
 
-        {/* Valor */}
         <div>
           <p className="text-xs font-medium text-gray-500 mb-1">Valor (R$)</p>
           <input value={form.valor}
@@ -405,7 +500,6 @@ function FormReceita({ onFechar, onSalvo }: { onFechar: () => void, onSalvo: () 
             className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none bg-white focus:border-green-600" />
         </div>
 
-        {/* Data */}
         <div>
           <p className="text-xs font-medium text-gray-500 mb-1">Data</p>
           <input value={form.data_receita}
@@ -413,35 +507,72 @@ function FormReceita({ onFechar, onSalvo }: { onFechar: () => void, onSalvo: () 
             type="date"
             className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none bg-white focus:border-green-600" />
         </div>
+
+        {erro && <p className="text-xs text-red-500 bg-red-50 px-3 py-2 rounded-xl">{erro}</p>}
       </div>
 
       <div className="px-4 pb-16 pt-4 bg-white border-t border-gray-100">
         <button onClick={salvar} disabled={saving || !form.valor}
           className="w-full py-3.5 rounded-xl text-white text-sm font-semibold disabled:opacity-40"
           style={{ background: '#1D9E75' }}>
-          {saving ? 'Salvando...' : '💰 Salvar receita'}
+          {saving ? 'Salvando...' : receita ? '✓ Atualizar receita' : '💰 Salvar receita'}
         </button>
       </div>
     </div>
   )
 }
 
-function FormDespesa({ onFechar, onSalvo }: { onFechar: () => void, onSalvo: () => void }) {
+// ─── FORM DESPESA ─────────────────────────────────────────────────────────────
+
+function FormDespesa({
+  despesa,
+  onFechar,
+  onSalvo,
+}: {
+  despesa?: Despesa
+  onFechar: () => void
+  onSalvo: () => void
+}) {
   const [form, setForm] = useState({
-    descricao: '', categoria: 'combustivel', valor: '',
-    data_despesa: format(new Date(), 'yyyy-MM-dd'),
+    descricao: despesa?.descricao ?? '',
+    categoria: despesa?.categoria ?? 'combustivel',
+    valor: despesa?.valor?.toString() ?? '',
+    data_despesa: despesa?.data_despesa ?? format(new Date(), 'yyyy-MM-dd'),
   })
   const [saving, setSaving] = useState(false)
+  const [erro, setErro] = useState('')
 
   async function salvar() {
     if (!form.descricao || !form.valor) return
     setSaving(true)
+    setErro('')
     const { data: { user } } = await supabase.auth.getUser()
-    await supabase.from('despesas').insert({
-      ...form,
-      motorista_id: user!.id,
-      valor: parseFloat(form.valor)
-    })
+    if (!user) { setErro('Usuário não autenticado.'); setSaving(false); return }
+
+    const payload = {
+      motorista_id: user.id,
+      descricao: form.descricao,
+      categoria: form.categoria,
+      valor: parseFloat(form.valor),
+      data_despesa: form.data_despesa,
+    }
+
+    let error
+    if (despesa) {
+      // EDITAR
+      ;({ error } = await supabase.from('despesas').update(payload).eq('id', despesa.id))
+    } else {
+      // INSERIR
+      ;({ error } = await supabase.from('despesas').insert(payload))
+    }
+
+    if (error) {
+      console.error('Erro despesa:', error)
+      setErro('Erro ao salvar: ' + error.message)
+      setSaving(false)
+      return
+    }
+
     setSaving(false)
     onSalvo()
   }
@@ -450,7 +581,9 @@ function FormDespesa({ onFechar, onSalvo }: { onFechar: () => void, onSalvo: () 
     <div className="fixed inset-0 z-50 flex flex-col" style={{ background: '#f0f0ec' }}>
       <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-4 flex items-center gap-3">
         <button onClick={onFechar} style={{ color: '#9FE1CB' }} className="text-2xl">‹</button>
-        <p style={{ color: '#E1F5EE' }} className="text-sm font-semibold">Nova despesa</p>
+        <p style={{ color: '#E1F5EE' }} className="text-sm font-semibold">
+          {despesa ? 'Editar despesa' : 'Nova despesa'}
+        </p>
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
@@ -483,13 +616,15 @@ function FormDespesa({ onFechar, onSalvo }: { onFechar: () => void, onSalvo: () 
               className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none bg-white focus:border-green-600" />
           </div>
         ))}
+
+        {erro && <p className="text-xs text-red-500 bg-red-50 px-3 py-2 rounded-xl">{erro}</p>}
       </div>
 
       <div className="px-4 pb-16 pt-4 bg-white border-t border-gray-100">
         <button onClick={salvar} disabled={saving || !form.descricao || !form.valor}
           className="w-full py-3.5 rounded-xl text-white text-sm font-semibold disabled:opacity-40"
           style={{ background: '#1D9E75' }}>
-          {saving ? 'Salvando...' : '✓ Salvar despesa'}
+          {saving ? 'Salvando...' : despesa ? '✓ Atualizar despesa' : '✓ Salvar despesa'}
         </button>
       </div>
     </div>
