@@ -927,6 +927,11 @@ body{font-family:var(--fonte-corpo);color:var(--texto);background:#fff;line-heig
         ✂&nbsp;&nbsp;SÍ! QUIERO PROTEGER A MI FAMILIA&nbsp;&nbsp;✂
       </div>
 
+      <style>
+        @keyframes gold-shimmer{0%{background-position:-200% center}100%{background-position:200% center}}
+        .gold-top-line{position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,transparent,#F9A825,#FF8C00,#F9A825,transparent);background-size:200% auto;animation:gold-shimmer 2.5s linear infinite;z-index:3}
+      </style>
+
       <div class="planos-grid">
 
         <!-- MENSUAL -->
@@ -949,9 +954,32 @@ body{font-family:var(--fonte-corpo);color:var(--texto);background:#fff;line-heig
           <a href="https://go.centerpag.com/PPU38CQCNE2" class="btn-plano secundario">Comenzar Gratis →</a>
         </div>
 
-        <!-- SEMESTRAL — DESTAQUE -->
-        <div class="plano-card destaque" style="padding-top:36px;">
-          <div class="plano-badge" style="top:16px;">⭐ Más Popular</div>
+        <!-- ANUAL VIP — DESTAQUE CENTRAL PREMIUM -->
+        <div class="plano-card destaque" style="background:linear-gradient(135deg,#1a1500 0%,#2d2200 50%,#1a1500 100%);border:2px solid #F9A825;box-shadow:0 0 0 1px rgba(249,168,37,0.3),0 30px 80px rgba(249,168,37,0.2),0 0 60px rgba(249,168,37,0.1);overflow:hidden;">
+          <div class="gold-top-line"></div>
+          <div class="plano-badge" style="background:linear-gradient(135deg,#F9A825,#FF8C00);color:#000;font-size:12px;padding:8px 24px;box-shadow:0 4px 20px rgba(249,168,37,0.6);">⭐ Más Popular</div>
+          <div class="plano-titulo">Plan Anual VIP</div>
+          <div class="plano-sub">Acceso Completo por 12 Meses</div>
+          <div class="trial-box">
+            <p>🎁 <strong>7 días gratis</strong> · Sin tarjeta · Ahorra 49%</p>
+          </div>
+          <div class="plano-preco-antigo">De $59,90 USD</div>
+          <div style="font-family:'Syne',sans-serif;font-size:52px;font-weight:800;color:#F9A825;line-height:1;margin-bottom:4px;text-shadow:0 0 30px rgba(249,168,37,0.4);">$29,90</div>
+          <div class="plano-preco-desc">USD · pago único anual · equivale a $2,49/mes</div>
+          <div style="color:#F9A825;font-weight:700;font-size:13.5px;margin:10px 0 18px;text-align:center;letter-spacing:.3px;">✨ Ahorras $29,90 USD al año</div>
+          <ul class="plano-lista">
+            <li><i class="fa-solid fa-circle-check" style="color:#F9A825;"></i> Escáner de Etiquetas Ilimitado</li>
+            <li><i class="fa-solid fa-circle-check" style="color:#F9A825;"></i> Índice ISA (0 a 100)</li>
+            <li><i class="fa-solid fa-circle-check" style="color:#F9A825;"></i> Rastreo EFSA + FDA</li>
+            <li><i class="fa-solid fa-circle-check" style="color:#F9A825;"></i> Rastreo de Alérgenos Ocultos</li>
+            <li><i class="fa-solid fa-circle-check" style="color:#F9A825;"></i> Guía de Configuración PWA</li>
+            <li><i class="fa-solid fa-circle-check" style="color:#F9A825;"></i> Actualizaciones de Recursos Incluidas</li>
+          </ul>
+          <a href="https://go.centerpag.com/PPU38CQCNEF" class="btn-plano principal" style="background:linear-gradient(135deg,#F9A825,#FF8C00);color:#000;font-weight:900;box-shadow:0 8px 30px rgba(249,168,37,0.5);border:none;">Elegir Plan Anual VIP →</a>
+        </div>
+
+        <!-- SEMESTRAL -->
+        <div class="plano-card">
           <div class="plano-titulo">Plan Semestral</div>
           <div class="plano-sub">El Ciclo Ideal de Adaptación</div>
           <img src="http://guiavital.site/wp-content/uploads/2026/05/Mockup-pure-scan.webp" alt="PureScan AI" style="width:100%;border-radius:12px;display:block;margin:18px 0 14px;box-shadow:0 12px 40px rgba(0,0,0,.5);">
@@ -969,29 +997,7 @@ body{font-family:var(--fonte-corpo);color:var(--texto);background:#fff;line-heig
             <li><i class="fa-solid fa-circle-check"></i> Guía de Configuración PWA</li>
             <li><i class="fa-solid fa-circle-check"></i> Actualizaciones de Recursos Incluidas</li>
           </ul>
-          <a href="https://go.centerpag.com/PPU38CQCNEC" class="btn-plano principal">Garantizar Acceso Semestral →</a>
-        </div>
-
-        <!-- ANUAL VIP -->
-        <div class="plano-card">
-          <div class="plano-titulo">Plan Anual VIP</div>
-          <div class="plano-sub">Acceso Completo por 12 Meses</div>
-          <div class="trial-box">
-            <p>🎁 <strong>7 días gratis</strong> · Sin tarjeta · Ahorra 49%</p>
-          </div>
-          <div class="plano-preco-antigo">De $59,90 USD</div>
-          <div class="plano-preco">$29,90</div>
-          <div class="plano-preco-desc">USD · pago único anual · equivale a $2,49/mes</div>
-          <br>
-          <ul class="plano-lista">
-            <li><i class="fa-solid fa-circle-check"></i> Escáner de Etiquetas Ilimitado</li>
-            <li><i class="fa-solid fa-circle-check"></i> Índice ISA (0 a 100)</li>
-            <li><i class="fa-solid fa-circle-check"></i> Rastreo EFSA + FDA</li>
-            <li><i class="fa-solid fa-circle-check"></i> Rastreo de Alérgenos Ocultos</li>
-            <li><i class="fa-solid fa-circle-check"></i> Guía de Configuración PWA</li>
-            <li><i class="fa-solid fa-circle-check"></i> Actualizaciones de Recursos Incluidas</li>
-          </ul>
-          <a href="https://go.centerpag.com/PPU38CQCNEF" class="btn-plano secundario">Elegir Plan Anual VIP</a>
+          <a href="https://go.centerpag.com/PPU38CQCNEC" class="btn-plano secundario">Garantizar Acceso Semestral →</a>
         </div>
 
       </div>
