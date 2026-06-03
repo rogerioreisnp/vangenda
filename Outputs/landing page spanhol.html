@@ -1,0 +1,1191 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>PureScan AI — Descubre la Verdad Sobre Cualquier Etiqueta Antes de Servir a Tu Familia</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --verde:#1a9e5c;
+  --verde-escuro:#0d6e3e;
+  --verde-claro:#e6f7ef;
+  --vermelho:#d63031;
+  --vermelho-claro:#fff5f5;
+  --amarelo:#f9a825;
+  --cinza-bg:#f7f7f5;
+  --preto:#0f0f0f;
+  --texto:#1e1e1e;
+  --texto-leve:#4a4a4a;
+  --borda:#e2e2de;
+  --fonte-titulo:'Syne',sans-serif;
+  --fonte-corpo:'DM Sans',sans-serif;
+}
+html{scroll-behavior:smooth}
+body{font-family:var(--fonte-corpo);color:var(--texto);background:#fff;line-height:1.75;overflow-x:hidden;font-size:16px}
+
+.topo{background:#0f0f0f;color:#fff;text-align:center;padding:12px 20px;font-size:14.5px;letter-spacing:.3px;border-bottom:2px solid var(--vermelho)}
+.topo span{color:var(--amarelo);font-weight:700}
+
+.hero{background:#0d0d0d;color:#fff;padding:64px 24px 72px;text-align:center;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 80% 55% at 50% 0%,rgba(26,158,92,.15) 0%,transparent 70%);pointer-events:none}
+.tag-alerta{display:inline-flex;align-items:center;gap:8px;background:rgba(214,48,49,.13);border:1px solid rgba(214,48,49,.4);color:#ff7575;font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;padding:6px 18px;border-radius:100px;margin-bottom:26px}
+.tag-alerta::before{content:'';width:8px;height:8px;background:#ff7575;border-radius:50%;animation:pisca 1.2s ease-in-out infinite}
+@keyframes pisca{0%,100%{opacity:1}50%{opacity:.2}}
+.hero h1{font-family:var(--fonte-titulo);font-size:clamp(26px,5.2vw,52px);font-weight:800;line-height:1.1;max-width:800px;margin:0 auto 18px;color:#fff}
+.hero h1 em{color:var(--verde);font-style:normal}
+.hero-sub{font-size:clamp(16px,2.6vw,24px);color:#e0e0e0;max-width:780px;margin:0 auto 36px;font-weight:500;line-height:1.8}
+.hero-sub .destaque{color:#fff;font-weight:600;position:relative;display:inline-block}
+.hero-sub .destaque::after{content:'';position:absolute;bottom:-2px;left:0;width:100%;height:2px;background:linear-gradient(90deg,var(--verde),#4ade80);border-radius:2px}
+.hero-mockup{max-width:600px;width:100%;margin:0 auto 40px;display:block}
+.hero-mockup img{width:100%;height:auto;border-radius:16px;box-shadow:0 28px 80px rgba(0,0,0,.6)}
+.btn-hero{display:inline-block;background:var(--verde);color:#fff;font-family:var(--fonte-titulo);font-weight:800;font-size:17px;padding:17px 44px;border-radius:14px;text-decoration:none;letter-spacing:.3px;box-shadow:0 8px 28px rgba(26,158,92,.4);transition:background .2s,transform .15s}
+.btn-hero:hover{background:var(--verde-escuro);transform:translateY(-2px)}
+.hero-nota{font-size:14px;color:#5a5a5a;margin-top:12px;letter-spacing:.2px}
+
+/* TRIAL BADGE */
+.trial-badge{display:inline-flex;align-items:center;gap:10px;background:rgba(26,158,92,.2);border:1px solid rgba(26,158,92,.5);color:#4ade80;font-size:13px;font-weight:700;padding:10px 24px;border-radius:100px;margin-bottom:18px;margin-top:8px}
+
+.container{max-width:740px;margin:0 auto}
+
+.secao-label{font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--verde);margin-bottom:12px}
+.secao-titulo{font-family:var(--fonte-titulo);font-size:clamp(24px,4vw,38px);font-weight:800;color:var(--preto);line-height:1.16;margin-bottom:22px}
+.secao-titulo em{color:var(--vermelho);font-style:normal}
+.secao-sub{font-size:16px;color:var(--texto-leve);line-height:1.85;margin-bottom:32px;font-weight:400}
+
+.divisor-verde{width:100%;height:4px;background:linear-gradient(90deg,transparent 0%,var(--verde) 50%,transparent 100%)}
+
+.dor{background:var(--cinza-bg);padding:70px 24px}
+.stat-card{background:#fff;border:1.5px solid var(--borda);border-radius:18px;padding:22px 26px;margin-bottom:14px;display:flex;align-items:flex-start;gap:20px;transition:box-shadow .2s}
+.stat-card:hover{box-shadow:0 6px 22px rgba(0,0,0,.07)}
+.stat-num{font-family:var(--fonte-titulo);font-size:40px;font-weight:800;color:var(--vermelho);min-width:80px;line-height:1;flex-shrink:0}
+.stat-info{display:flex;flex-direction:column;gap:4px}
+.stat-info strong{font-size:16px;font-weight:600;color:var(--preto);line-height:1.45}
+.stat-info span{font-size:15px;color:var(--texto-leve);line-height:1.75;font-weight:400}
+.aviso-box{background:var(--vermelho-claro);border-left:4px solid var(--vermelho);border-radius:0 16px 16px 0;padding:18px 22px;margin-top:26px}
+.aviso-box p{font-size:15.5px;color:var(--texto);line-height:1.85;font-weight:400}
+.aviso-box strong{color:var(--vermelho);font-weight:700}
+
+.frases{padding:64px 24px;background:#fff}
+.frase-lista{display:flex;flex-direction:column;gap:14px;margin-top:28px}
+.frase-item{background:var(--cinza-bg);border-left:4px solid var(--verde);border-radius:0 16px 16px 0;padding:18px 22px;transition:transform .2s}
+.frase-item:hover{transform:translateX(4px)}
+.frase-item p{font-size:16px;font-style:italic;color:var(--texto);line-height:1.8;margin-bottom:10px}
+.frase-item span{font-size:13.5px;color:var(--texto-leve);font-style:normal;font-weight:400}
+
+.como{background:#0d0d0d;padding:70px 24px}
+.como .secao-titulo{color:#fff}
+.como .secao-sub{color:#888}
+.steps{display:flex;flex-direction:column;margin-top:38px}
+.step{display:flex;gap:22px;padding-bottom:38px}
+.step:last-child{padding-bottom:0}
+.step-esquerda{display:flex;flex-direction:column;align-items:center;flex-shrink:0}
+.step-num{width:46px;height:46px;background:var(--verde);border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--fonte-titulo);font-weight:800;font-size:19px;color:#fff;box-shadow:0 4px 16px rgba(26,158,92,.4)}
+.step-linha{flex:1;width:2px;background:rgba(26,158,92,.2);margin:8px 0}
+.step:last-child .step-linha{display:none}
+.step-corpo{padding-top:8px}
+.step-corpo h3{font-family:var(--fonte-titulo);font-size:20px;font-weight:700;color:#fff;margin-bottom:10px;line-height:1.3}
+.step-corpo p{font-size:15.5px;color:#aaa;line-height:1.85;font-weight:400}
+
+.falsos{padding:70px 24px;background:var(--cinza-bg)}
+.falso-lista{display:flex;flex-direction:column;gap:14px;margin-top:8px}
+.falso-item{background:#fff;border:1px solid var(--borda);border-radius:18px;padding:22px 24px;position:relative;overflow:hidden;transition:box-shadow .2s}
+.falso-item:hover{box-shadow:0 6px 24px rgba(0,0,0,.08)}
+.falso-item::after{content:'🔍 ATENCIÓN';position:absolute;top:16px;right:16px;font-size:9px;font-weight:800;letter-spacing:.8px;color:var(--vermelho);background:var(--vermelho-claro);padding:4px 10px;border-radius:6px;border:1px solid rgba(214,48,49,.18)}
+.falso-nome{font-family:var(--fonte-titulo);font-weight:700;font-size:18px;color:var(--preto);margin-bottom:8px;padding-right:90px}
+.falso-tag{font-size:13px;color:var(--verde-escuro);background:var(--verde-claro);display:inline-block;padding:4px 12px;border-radius:6px;margin-bottom:14px;font-weight:500}
+.falso-desc{font-size:15px;color:var(--texto);line-height:1.8;font-weight:400}
+.falso-desc strong{color:var(--vermelho)}
+
+.diferenciais{padding:70px 24px;background:#fff}
+.dif-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:28px}
+.dif-item{background:var(--cinza-bg);border-radius:18px;padding:22px;border:1px solid transparent;transition:border-color .2s,box-shadow .2s}
+.dif-item:hover{border-color:var(--borda);box-shadow:0 4px 18px rgba(0,0,0,.06)}
+.dif-icone{width:44px;height:44px;background:var(--verde-claro);border-radius:12px;display:flex;align-items:center;justify-content:center;margin-bottom:14px;font-size:22px}
+.dif-item h3{font-family:var(--fonte-titulo);font-weight:700;font-size:16.5px;color:var(--preto);margin-bottom:8px;line-height:1.3}
+.dif-item p{font-size:15px;color:var(--texto-leve);line-height:1.8;font-weight:400}
+
+.objecoes{padding:70px 24px;background:#0d0d0d}
+.objecoes .secao-titulo{color:#fff}
+.obj-lista{display:flex;flex-direction:column;gap:14px;margin-top:32px}
+.obj-item{background:#161616;border:1px solid #252525;border-radius:18px;padding:22px 24px;display:flex;gap:18px;align-items:flex-start;transition:border-color .2s}
+.obj-item:hover{border-color:#333}
+.obj-icone{width:44px;height:44px;border-radius:12px;background:rgba(26,158,92,.14);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.obj-icone i{color:var(--verde);font-size:17px}
+.obj-corpo h4{font-family:var(--fonte-titulo);font-size:16.5px;font-weight:700;color:#f0f0f0;margin-bottom:8px;line-height:1.4}
+.obj-corpo p{font-size:15px;color:#aaa;line-height:1.85;font-weight:400}
+.obj-corpo p strong{color:var(--verde)}
+
+.faq{padding:70px 24px;background:var(--cinza-bg)}
+.faq-lista{display:flex;flex-direction:column;gap:10px;margin-top:30px}
+.faq-item{background:#fff;border:1px solid var(--borda);border-radius:16px;overflow:hidden}
+.faq-pergunta{width:100%;background:none;border:none;text-align:left;padding:20px 24px;font-family:var(--fonte-corpo);font-size:16px;font-weight:600;color:var(--preto);cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:16px;transition:background .2s}
+.faq-pergunta:hover{background:var(--cinza-bg)}
+.faq-pergunta.aberta{background:var(--verde-claro);color:var(--verde-escuro)}
+.faq-seta{font-size:13px;color:var(--texto-leve);transition:transform .3s;flex-shrink:0}
+.faq-pergunta.aberta .faq-seta{transform:rotate(180deg);color:var(--verde)}
+.faq-resposta{font-size:15.5px;color:var(--texto-leve);line-height:1.85;padding:0 24px;max-height:0;overflow:hidden;transition:max-height .35s ease,padding .3s;font-weight:400}
+.faq-resposta.visivel{max-height:400px;padding:0 24px 22px}
+.faq-resposta strong{color:var(--preto)}
+
+.depoimentos{padding:70px 24px;background:#fff}
+.dep-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;margin-top:36px}
+.dep-card{background:var(--cinza-bg);border:1px solid var(--borda);border-radius:22px;padding:28px 22px;display:flex;flex-direction:column;align-items:center;text-align:center;transition:box-shadow .25s,transform .25s}
+.dep-card:hover{box-shadow:0 10px 36px rgba(0,0,0,.09);transform:translateY(-4px)}
+.dep-foto{width:88px;height:88px;border-radius:50%;overflow:hidden;border:3px solid var(--verde);box-shadow:0 0 0 5px rgba(26,158,92,.13),0 8px 24px rgba(26,158,92,.18);margin-bottom:16px;flex-shrink:0;background:#e6f7ef}
+.dep-foto img{width:100%;height:100%;object-fit:cover;display:block}
+.dep-estrelas{display:flex;gap:3px;justify-content:center;margin-bottom:12px}
+.dep-estrelas i{color:var(--amarelo);font-size:13px}
+.dep-texto{font-size:15.5px;color:var(--texto);line-height:1.85;font-style:italic;margin-bottom:18px;flex:1;font-weight:400}
+.dep-nome{font-family:var(--fonte-titulo);font-size:16px;font-weight:700;color:var(--preto);margin-bottom:4px}
+.dep-cargo{font-size:13.5px;color:var(--texto-leve);font-weight:400}
+@media(max-width:768px){.dep-grid{grid-template-columns:1fr;gap:18px}}
+
+.opcoes{padding:70px 24px;background:#fff}
+.opcao-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:30px}
+.opcao-card{border-radius:18px;padding:26px;border:1.5px solid var(--borda)}
+.opcao-card.ruim{background:#fafafa}
+.opcao-card.boa{background:var(--verde);border-color:var(--verde-escuro);box-shadow:0 10px 36px rgba(26,158,92,.3)}
+.opcao-emoji{font-size:30px;margin-bottom:14px}
+.opcao-card h3{font-family:var(--fonte-titulo);font-weight:800;font-size:14px;margin-bottom:12px;letter-spacing:.6px;text-transform:uppercase}
+.opcao-card.ruim h3{color:var(--vermelho)}
+.opcao-card.boa h3{color:#fff}
+.opcao-card p{font-size:15px;line-height:1.85;font-weight:400}
+.opcao-card.ruim p{color:var(--texto-leve)}
+.opcao-card.boa p{color:rgba(255,255,255,.88)}
+.opcoes-cta{text-align:center;margin-top:32px}
+.opcoes-cta p{font-size:17px;font-weight:700;color:var(--preto);margin-bottom:6px}
+.opcoes-cta span{font-size:14px;color:var(--texto-leve)}
+
+.urgencia{background:var(--vermelho);color:#fff;padding:14px 24px;text-align:center}
+.urgencia p{font-size:15px;font-weight:700;letter-spacing:.2px}
+
+.recap{padding:64px 24px;background:var(--cinza-bg)}
+.recap-lista{list-style:none;display:flex;flex-direction:column;gap:14px;margin-top:28px}
+.recap-item{display:flex;align-items:flex-start;gap:13px}
+.recap-check{width:24px;height:24px;background:var(--verde);border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;flex-shrink:0;margin-top:2px;box-shadow:0 3px 10px rgba(26,158,92,.28)}
+.recap-texto{font-size:16px;color:var(--texto);line-height:1.85;font-weight:400}
+.recap-texto strong{color:var(--preto);font-weight:600}
+
+.planos{background:#0a0a0a;padding:20px 24px 76px;text-align:center}
+.planos .secao-titulo{color:#fff}
+.planos .secao-label{color:var(--verde)}
+.planos-sub{font-size:16px;color:#888;max-width:520px;margin:0 auto 44px;line-height:1.85;font-weight:400}
+.planos-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:28px;max-width:1100px;margin:0 auto;align-items:start}
+.plano-card{background:#141414;border:1px solid #242424;border-radius:22px;padding:36px 28px;display:flex;flex-direction:column;position:relative;transition:transform .25s,border-color .25s}
+.plano-card:hover{transform:translateY(-4px);border-color:#363636}
+.plano-card.destaque{border:2px solid var(--verde);box-shadow:0 20px 60px rgba(26,158,92,.26);background:#121a14;transform:scale(1.04);overflow:visible;padding-top:52px}
+.plano-card.destaque:hover{transform:scale(1.04) translateY(-4px)}
+.plano-badge{position:absolute;top:16px;left:50%;transform:translateX(-50%);background:var(--verde);color:#fff;font-size:10.5px;font-weight:800;padding:5px 16px;border-radius:100px;text-transform:uppercase;letter-spacing:.9px;white-space:nowrap;box-shadow:0 4px 16px rgba(26,158,92,.45)}
+.plano-titulo{font-family:var(--fonte-titulo);font-size:21px;font-weight:800;color:#fff;margin-bottom:5px}
+.plano-sub{font-size:14.5px;color:#777;margin-bottom:22px;font-weight:400}
+.plano-preco-antigo{font-size:14px;color:#444;text-decoration:line-through;margin-bottom:2px}
+.plano-preco{font-family:var(--fonte-titulo);font-size:46px;font-weight:800;color:var(--verde);line-height:1}
+.plano-preco-desc{font-size:13.5px;color:#777;margin-top:6px;font-weight:400}
+.plano-lista{list-style:none;text-align:left;flex:1;margin-bottom:26px;display:flex;flex-direction:column;gap:10px}
+.plano-lista li{display:flex;align-items:center;gap:10px;font-size:15px;color:#ccc;font-weight:400}
+.plano-lista li i{color:var(--verde);font-size:13px;flex-shrink:0}
+.btn-plano{display:block;font-family:var(--fonte-titulo);font-weight:800;font-size:14px;padding:15px 20px;border-radius:13px;text-align:center;text-decoration:none;transition:background .2s,transform .15s;letter-spacing:.3px}
+.btn-plano:hover{transform:translateY(-1px)}
+.btn-plano.secundario{background:#1e1e1e;border:1px solid #2e2e2e;color:#aaa}
+.btn-plano.secundario:hover{background:#252525;color:#fff}
+.btn-plano.principal{background:var(--verde);color:#fff;font-size:15px;padding:17px 20px;box-shadow:0 6px 22px rgba(26,158,92,.42)}
+.btn-plano.principal:hover{background:var(--verde-escuro)}
+
+/* TRIAL BOX */
+.trial-box{background:rgba(26,158,92,0.12);border:1.5px solid rgba(26,158,92,0.4);border-radius:14px;padding:18px 22px;margin-bottom:22px;text-align:center}
+.trial-box p{color:#4ade80;font-size:14px;font-weight:600;line-height:1.6}
+.trial-box strong{color:#fff}
+
+.garantia{background:#fff;padding:70px 24px;border-top:1px solid var(--borda);border-bottom:1px solid var(--borda)}
+.garantia-inner{max-width:740px;margin:0 auto;display:flex;align-items:center;gap:38px}
+.garantia-foto{flex-shrink:0;width:150px;height:150px;border-radius:50%;overflow:hidden;border:4px solid var(--verde);box-shadow:0 0 0 7px rgba(26,158,92,.12),0 14px 40px rgba(26,158,92,.2);background:#f0fff7}
+.garantia-foto img{width:100%;height:100%;object-fit:cover;display:block}
+.garantia-texto h3{font-family:var(--fonte-titulo);font-size:25px;font-weight:800;color:var(--preto);margin-bottom:14px;line-height:1.25}
+.garantia-texto p{font-size:16px;color:var(--texto-leve);line-height:1.9;font-weight:400}
+.garantia-texto p strong{color:var(--preto);font-weight:600}
+
+.rodape{background:#080808}
+.rodape-topo{padding:50px 24px 32px;max-width:900px;margin:0 auto;display:grid;grid-template-columns:1fr 1fr 1fr;gap:36px}
+.rodape-logo{font-family:var(--fonte-titulo);font-size:22px;font-weight:800;color:var(--verde);margin-bottom:10px}
+.rodape-desc{font-size:14.5px;color:#5a5a5a;line-height:1.85;font-weight:400}
+.rodape-col h4{font-family:var(--fonte-titulo);font-size:13px;font-weight:700;color:#888;letter-spacing:1.2px;text-transform:uppercase;margin-bottom:14px}
+.rodape-col ul{list-style:none;display:flex;flex-direction:column;gap:9px}
+.rodape-col ul li{font-size:14.5px;color:#5a5a5a;font-weight:400}
+.rodape-col ul li a{color:#4a4a4a;text-decoration:none;transition:color .2s}
+.rodape-col ul li a:hover{color:var(--verde)}
+.rodape-divisor{border:none;border-top:1px solid #1a1a1a;margin:0 24px}
+.rodape-aviso{background:#060606;padding:28px 24px}
+.rodape-aviso-inner{max-width:900px;margin:0 auto}
+.rodape-disclaimer{font-size:13px;color:#444;line-height:1.9;text-align:center;margin-bottom:18px;font-weight:400}
+.rodape-disclaimer strong{color:#444}
+.rodape-disclaimer a{color:#3a3a3a;text-decoration:underline}
+.rodape-copyright{font-size:13px;color:#3a3a3a;text-align:center;padding-top:14px;border-top:1px solid #161616;font-weight:400}
+
+@media(max-width:768px){
+  .planos-grid{grid-template-columns:1fr;gap:24px;padding:0 16px}
+  .plano-card{padding:28px 22px}
+  .plano-card.destaque{transform:none}
+  .plano-card.destaque:hover{transform:translateY(-4px)}
+  .garantia-inner{flex-direction:column;text-align:center}
+  .rodape-topo{grid-template-columns:1fr;gap:28px}
+}
+@media(max-width:480px){
+  .dif-grid,.opcao-grid{grid-template-columns:1fr}
+  .stat-card{flex-direction:column;gap:10px}
+}
+</style>
+</head>
+<body>
+
+<!-- TOPO -->
+<div class="topo">
+  ⚡ <span>ALERTA:</span> La industria usa 47 nombres diferentes para esconder el azúcar en las etiquetas — y tu familia lo consume sin saberlo
+</div>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="container">
+    <div class="tag-alerta">Para quienes ya no confían en los sellos fit e integral de la industria alimentaria</div>
+    <h1>
+      El empaque fue diseñado para <br><em>que confíes.</em><br>Los ingredientes fueron formulados para <em>que no entiendas</em>
+    </h1>
+    <p class="hero-sub">
+      Por primera vez, quien traduce la etiqueta <span class="destaque">trabaja para ti</span> — no para quien fabricó el producto.
+    </p>
+    <div class="trial-badge">
+      🎁 7 días GRATIS · Sin tarjeta de crédito · Sin compromiso
+    </div>
+    <div class="hero-mockup">
+      <img src="http://guiavital.site/wp-content/uploads/2026/06/mockup-purescan-es_11zon.webp" alt="Demostración de PureScan AI escaneando una etiqueta de alimento">
+    </div>
+    <a href="#planos" class="btn-hero">Quiero saber qué hay en esta etiqueta →</a>
+    <p class="hero-nota">Funciona directo en el navegador &nbsp;·&nbsp; Sin descargas &nbsp;·&nbsp; Sin registro &nbsp;·&nbsp; 7 días gratis</p>
+  </div>
+</section>
+
+<div class="divisor-verde"></div>
+
+<!-- DOR -->
+<section class="dor">
+  <div class="container">
+    <div class="secao-label">El problema que la industria no quiere que descubras</div>
+    <h2 class="secao-titulo">Investigas. Eliges con cuidado.<br>Y aún puedes estar <em>sirviendo química disfrazada</em> a tu familia.</h2>
+    <p class="secao-sub">
+      "Miro el frente del empaque y parece lo más saludable del mundo. Pero cuando volteo a leer los ingredientes, no entiendo la mitad de esos nombres químicos complicados." Eso no es debilidad. Es exactamente el resultado de lo que la industria alimentaria pasó décadas construyendo — para que no entiendas lo que estás poniendo en el plato de tus hijos.
+    </p>
+
+    <img src="http://guiavital.site/wp-content/uploads/2026/06/Mae-lendo-rotulo.webp" alt="Mamá intentando leer etiqueta en el supermercado" style="width:100%;border-radius:16px;margin-bottom:32px;display:block;">
+
+    <div class="stat-card">
+      <div class="stat-num">62%</div>
+      <div class="stat-info">
+        <strong>de los alimentos lanzados en LATAM son ultraprocesados</strong>
+        <span>Al mismo tiempo, 8 de cada 10 empaques traen algún mensaje "saludable" al frente — fit, integral, natural, sin azúcar. El marketing promete salud. La lista de ingredientes cuenta una historia completamente diferente. Lo sientes cuando abres el refrigerador y no tienes certeza de nada de lo que pusiste allí.</span>
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-num">57mil</div>
+      <div class="stat-info">
+        <strong>casos anuales asociados a aditivos y ultraprocesados en la región</strong>
+        <span>Colorantes asociados a trastornos de atención. Conservantes prohibidos en 38 países. Emulsificantes que nunca fueron aprobados para consumo infantil. Todos legales aquí. Todos presentes en la lonchera de niños que probablemente conoces. Y lo más grave: nunca sabrás cuál fue el responsable — porque nunca supiste lo que había dentro.</span>
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-num">40%</div>
+      <div class="stat-info">
+        <strong>de las madres no entienden los ingredientes de los productos que compran</strong>
+        <span>No es falta de inteligencia. Es que los nombres fueron elegidos para confundir: Carragenina, TBHQ, BHA, BHT, Caramelo IV. La industria sabe que no vas a entender. Y cuenta con eso para seguir vendiendo. Cada vez que pones un producto en el carrito sin entender la lista, ellos ganan. Hasta ahora.</span>
+      </div>
+    </div>
+
+    <div class="aviso-box">
+      <p>
+        <strong>El mayor peligro no está en los productos que ya sabes que son malos.</strong> Está en los que compras creyendo que son buenos — el pan "integral" que tiene harina blanca refinada como primer ingrediente, el yogur "griego" que es 40% almidón modificado, el jugo "natural" que tiene más fructosa que una gaseosa. Esos son los ultraprocesados camuflados que entran a tu casa con sello de saludable.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- FRASES -->
+<section class="frases">
+  <div class="container">
+    <div class="secao-label">¿Reconoces estas palabras?</div>
+    <h2 class="secao-titulo">La batalla silenciosa de toda mamá<br>consciente en el supermercado</h2>
+
+    <img src="http://guiavital.site/wp-content/uploads/2026/06/Mae-lendo-rotulo-em-casa.webp" alt="Mamá preocupada en casa mirando empaque" style="width:100%;border-radius:16px;margin-bottom:28px;display:block;">
+
+    <div class="frase-lista">
+      <div class="frase-item">
+        <p>"Miro el frente del empaque y parece lo más saludable del mundo. Pero cuando volteo a leer los ingredientes, no entiendo la mitad de esos nombres químicos complicados."</p>
+        <span>— Lo que miles de madres dicen cada semana en el pasillo del supermercado</span>
+      </div>
+      <div class="frase-item">
+        <p>"Hoy ya no confío en nada que venga con sello 'fit' o 'integral'. La verdad es que casi todo en el supermercado se convirtió en ultraprocesado disfrazado."</p>
+        <span>— La desconfianza creciente que la propia industria generó</span>
+      </div>
+      <div class="frase-item">
+        <p>"Si pudiera simplemente apuntar la cámara del celular al producto y saber si eso es comida de verdad o química disfrazada, no perdería más tiempo en la fila."</p>
+        <span>— El deseo exacto que PureScan AI resuelve en segundos</span>
+      </div>
+      <div class="frase-item">
+        <p>"Mi mayor meta es lograr desembalar menos y elegir más alimentos naturales, pero con el trabajo y la escuela de los niños, es imposible mantener la disciplina."</p>
+        <span>— La realidad de quien quiere hacer lo correcto pero vive al límite del tiempo</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- COMO FUNCIONA -->
+<section class="como">
+  <div class="container">
+    <div class="secao-label" style="color:var(--verde)">Cómo funciona</div>
+    <h2 class="secao-titulo">3 segundos para saber la verdad<br>sobre cualquier alimento</h2>
+    <p class="secao-sub" style="color:#888">Camila, nutricionista y madre de dos hijos, estaba segura de saber lo que compraba. En la primera semana con PureScan AI, escaneó el yogur de la lonchera de sus hijos y se sorprendió: nota 22, cinco aditivos ocultos, uno de ellos bajo alerta en Europa. "Hoy mi carrito cambió completamente", cuenta. No fue difícil. Fueron solo 3 pasos:</p>
+    <div class="steps">
+      <div class="step">
+        <div class="step-esquerda">
+          <div class="step-num">1</div>
+          <div class="step-linha"></div>
+        </div>
+        <div class="step-corpo">
+          <h3>Abre directo en el navegador — sin instalación</h3>
+          <p>Sin descargar ninguna app, sin ocupar memoria del celular, sin crear cuenta ni recordar contraseña. Accedes desde el navegador como cualquier otro sitio. Funciona con 4G, en el pasillo del supermercado, con los niños al lado — exactamente donde más lo necesitas.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-esquerda">
+          <div class="step-num">2</div>
+          <div class="step-linha"></div>
+        </div>
+        <div class="step-corpo">
+          <h3>Fotografía la lista de ingredientes</h3>
+          <p>Apunta la cámara al reverso del empaque, donde están esos nombres imposibles de pronunciar. La inteligencia artificial lee todo, cruza con bases de datos internacionales y lo traduce a un español simple y directo — sin términos técnicos, sin necesidad de saber de nutrición.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-esquerda">
+          <div class="step-num">3</div>
+          <div class="step-linha"></div>
+        </div>
+        <div class="step-corpo">
+          <h3>Recibe la nota real — y la verdad sobre ese producto</h3>
+          <p>El Índice de Seguridad Alimentaria (ISA de 0 a 100) no tiene patrocinador y no miente. Ves cada ingrediente identificado, lo que hace en el organismo, si está prohibido en Europa o en EE.UU. — y decides con seguridad lo que entra o no al carrito. Sin nervios. Sin culpa. Sin tiempo perdido.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FALSOS SALUDABLES -->
+<section class="falsos">
+  <div class="container">
+    <div class="secao-label">Los mayores villanos de la lonchera</div>
+    <h2 class="secao-titulo">Estos productos están en los estantes<br>con sellos de saludable — <em>y merecen un análisis urgente.</em></h2>
+    <p class="secao-sub">Cada semana madres se sorprenden al escanear un producto que le daban a sus hijos desde hace años. Estos son los más frecuentes en PureScan AI:</p>
+    <div class="falso-lista">
+      <div class="falso-item">
+        <div class="falso-nome">🧃 Jugo de Caja "Natural"</div>
+        <span class="falso-tag">Promesa del empaque: "Natural y rico en vitaminas"</span>
+        <p class="falso-desc">Lo que PureScan revela: <strong>concentración de fructosa que supera a las gaseosas, conservantes y cero fibra del fruto original.</strong> La palabra "natural" se refiere al proceso de extracción — no significa que el producto sea puro o saludable para los niños.</p>
+      </div>
+      <div class="falso-item">
+        <div class="falso-nome">🥛 Yogur Griego Saborizado</div>
+        <span class="falso-tag">Promesa del empaque: "Rico en proteínas y calcio"</span>
+        <p class="falso-desc">Lo que PureScan revela: <strong>almidón modificado como espesante principal, aromatizantes artificiales y proteína muy por debajo del yogur griego verdadero.</strong> La consistencia cremosa no viene de la leche concentrada — viene de espesantes industriales que imitan la textura.</p>
+      </div>
+      <div class="falso-item">
+        <div class="falso-nome">🍞 Pan Integral de Molde</div>
+        <span class="falso-tag">Promesa del empaque: "Granos integrales y energía duradera"</span>
+        <p class="falso-desc">Lo que PureScan revela: <strong>harina blanca refinada como primer ingrediente de la lista</strong> — lo que significa que es el componente en mayor cantidad. Lo "integral" aparece, pero la base es refinada, acompañada de emulsificantes, conservantes y aditivos de color.</p>
+      </div>
+      <div class="falso-item">
+        <div class="falso-nome">🍫 Barra de Cereal Fit</div>
+        <span class="falso-tag">Promesa del empaque: "Rica en fibra y aliada del intestino"</span>
+        <p class="falso-desc">Lo que PureScan revela: <strong>azúcar invertido, maltodextrina y jarabe de maíz</strong> — tres formas diferentes de decir azúcar usando nombres técnicos que la mayoría no reconoce. Si todos fueran listados como "azúcar", sería el primer ingrediente de la lista.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- DIFERENCIALES -->
+<section class="diferenciais">
+  <div class="container">
+    <div class="secao-label">Por qué funciona cuando otros fallaron</div>
+    <h2 class="secao-titulo">La diferencia entre PureScan AI<br>y todo lo que has probado antes</h2>
+    <div class="dif-grid">
+      <div class="dif-item">
+        <div class="dif-icone">📱</div>
+        <h3>Llegas a casa sabiendo lo que trajiste — no esperando haber acertado</h3>
+        <p>Sin instalar nada, sin crear cuenta, sin recordar contraseña. Abres en el navegador como cualquier sitio, escaneas y listo. La diferencia es que ahora sales del mercado con certeza — no con esperanza de que estabas en lo correcto.</p>
+      </div>
+      <div class="dif-item">
+        <div class="dif-icone">⚡</div>
+        <h3>Dejas de perder la batalla en el pasillo del supermercado</h3>
+        <p>Antes, tenías tiempo solo para esperar estar en lo correcto. Ahora, en 3 segundos, tienes más información de la que 20 minutos de búsqueda en Google entregarían — y todavía estás de pie, con los niños al lado, antes de poner en el carrito.</p>
+      </div>
+      <div class="dif-item">
+        <div class="dif-icone">🌍</div>
+        <h3>Lo que Europa prohíbe y LATAM aún vende a tus hijos — lo sabrás antes de llegar a casa</h3>
+        <p>El cruce con EFSA y FDA revela sustancias prohibidas internacionalmente que circulan libremente aquí. No como curiosidad aterradora — como decisión. Eliges conscientemente lo que entra o no a tu hogar.</p>
+      </div>
+      <div class="dif-item">
+        <div class="dif-icone">🛡️</div>
+        <h3>La industria usó 47 nombres para esconder. Ahora los conoces todos.</h3>
+        <p>Azúcar invertido, maltodextrina, jarabe de glucosa-fructosa — tres formas de decir lo mismo. La IA los conoce todos y los traduce a un español que cualquier persona entiende, en tiempo real, en la etiqueta frente a ti.</p>
+      </div>
+      <div class="dif-item">
+        <div class="dif-icone">🎯</div>
+        <h3>Finalmente tienes una nota que ninguna marca patrocinó</h3>
+        <p>El ISA de 0 a 100 no recibe patrocinio. No tiene acuerdo con fabricantes. Se calcula con datos regulatorios internacionales — y entrega lo que ningún sello de marketing jamás entregó: la verdad sobre lo que hay en ese empaque.</p>
+      </div>
+      <div class="dif-item">
+        <div class="dif-icone">🧒</div>
+        <h3>La lonchera deja de ser ruleta rusa y se convierte en decisión consciente</h3>
+        <p>Colorantes ligados a hiperactividad. Edulcorantes no aprobados para niños. Conservantes con efectos hormonales documentados. Cada uno identificado con claridad — para que decidas con información real, no con fe en la etiqueta.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- OBJECIONES -->
+<section class="objecoes">
+  <div class="container">
+    <div class="secao-label" style="color:var(--verde)">Esto ya pasó por tu mente</div>
+    <h2 class="secao-titulo">Tus preguntas tienen respuesta —<br>y es más simple de lo que imaginas</h2>
+    <div class="obj-lista">
+      <div class="obj-item">
+        <div class="obj-icone"><i class="fa-solid fa-mobile-screen"></i></div>
+        <div class="obj-corpo">
+          <h4>"¿Otra app que voy a descargar y nunca más usar?"</h4>
+          <p>No hay descarga. PureScan AI funciona <strong>100% en el navegador del celular</strong>, como abrir cualquier sitio. Sin instalación, sin memoria ocupada, sin cuenta obligatoria. Y los primeros <strong>7 días son completamente gratis, sin tarjeta de crédito</strong>. Quien lo usa una vez no para — porque la primera vez que descubres la nota 18 en el yogur de la lonchera, nunca más haces compras sin PureScan.</p>
+        </div>
+      </div>
+      <div class="obj-item">
+        <div class="obj-icone"><i class="fa-solid fa-clock"></i></div>
+        <div class="obj-corpo">
+          <h4>"No tengo tiempo para analizar etiquetas en el mercado."</h4>
+          <p>Exactamente por eso fue creado PureScan AI: porque no tienes tiempo. <strong>Una foto de 2 segundos y tienes el diagnóstico completo</strong> — más rápido que leer el frente del empaque, más honesto que cualquier sello de marketing. Con los niños al lado, en la fila de caja, todavía lo logras.</p>
+        </div>
+      </div>
+      <div class="obj-item">
+        <div class="obj-icone"><i class="fa-solid fa-credit-card"></i></div>
+        <div class="obj-corpo">
+          <h4>"¿Tengo que poner mi tarjeta para probar?"</h4>
+          <p><strong>No.</strong> Los 7 días de prueba son completamente gratis y sin necesidad de tarjeta de crédito. Solo después de los 7 días, si quieres continuar, eliges el plan que tiene sentido para tu momento. <strong>Sin multas, sin letras pequeñas, sin fidelidad obligatoria.</strong> Y aún tienes 7 días de garantía después del pago. El riesgo es nuestro, no tuyo.</p>
+        </div>
+      </div>
+      <div class="obj-item">
+        <div class="obj-icone"><i class="fa-solid fa-lock"></i></div>
+        <div class="obj-corpo">
+          <h4>"¿Esta IA venderá mis datos de salud?"</h4>
+          <p>Lo entendemos. Es una preocupación legítima — y por eso PureScan AI fue construido sin recopilar datos personales de salud. <strong>Fotografías la etiqueta del producto, no a ti misma.</strong> Ninguna información tuya es almacenada, cruzada o compartida. Jamás.</p>
+        </div>
+      </div>
+      <div class="obj-item">
+        <div class="obj-icone"><i class="fa-solid fa-magnifying-glass"></i></div>
+        <div class="obj-corpo">
+          <h4>"No vale la pena. Puedo buscar en Google."</h4>
+          <p>Claro que sí. Buscar cada ingrediente individualmente en Google tarda unos 20 minutos por producto, en bases de datos que tendrías que saber dónde encontrar. Multiplicado por cada ítem del carrito. <strong>PureScan AI lo hace en segundos</strong>, cruzando con bases regulatorias internacionales que ni sabrías dónde buscar — y entregando la respuesta en lenguaje simple.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- TESTIMONIOS -->
+<section class="depoimentos">
+  <div class="container" style="max-width:1000px">
+    <div class="secao-label" style="text-align:center">Quienes ya usan PureScan AI</div>
+    <h2 class="secao-titulo" style="text-align:center">Madres reales. Descubrimientos reales.<br>Familias más protegidas.</h2>
+    <div class="dep-grid">
+      <div class="dep-card">
+        <div class="dep-foto">
+          <img src="http://guiavital.site/wp-content/uploads/2026/05/maes.png" alt="Foto de María González">
+        </div>
+        <div class="dep-estrelas">
+          <i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i>
+        </div>
+        <p class="dep-texto">"Me quedé en shock cuando escaneé el yogur que mi nieta comía cada mañana. La nota fue 18. Tenía cinco aditivos que jamás habría encontrado sola — incluyendo un colorante bajo alerta en Europa. Hoy PureScan es lo primero que abro antes de cualquier compra en el mercado."</p>
+        <div class="dep-nome">María González</div>
+        <div class="dep-cargo">Maestra, abuela de 3 niños · Ciudad de México</div>
+      </div>
+      <div class="dep-card">
+        <div class="dep-foto">
+          <img src="http://guiavital.site/wp-content/uploads/2026/05/image-12.png" alt="Foto de Camila Rodríguez">
+        </div>
+        <div class="dep-estrelas">
+          <i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i>
+        </div>
+        <p class="dep-texto">"Soy nutricionista y creía que compraba bien — la lonchera de los niños era 'impecable'. Después de empezar a usar PureScan, me di cuenta que la mitad de lo que ponía era ultraprocesado disfrazado de saludable. Hoy mi carrito cambió completamente. Y duermo mejor."</p>
+        <div class="dep-nome">Camila Rodríguez</div>
+        <div class="dep-cargo">Nutricionista y mamá · Bogotá, Colombia</div>
+      </div>
+      <div class="dep-card">
+        <div class="dep-foto">
+          <img src="http://guiavital.site/wp-content/uploads/2026/05/Screenshot-3.png" alt="Foto de Renata Oliveira">
+        </div>
+        <div class="dep-estrelas">
+          <i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i>
+        </div>
+        <p class="dep-texto">"Mi hijo tiene intolerancia alimentaria grave y vivía con miedo de que le pasara algún aditivo sin darme cuenta. Con PureScan AI hago compras con tranquilidad real. La nota y las alertas son claras, rápidas y nunca me han fallado."</p>
+        <div class="dep-nome">Renata Oliveira</div>
+        <div class="dep-cargo">Emprendedora y mamá · Lima, Perú</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- AUTORIDAD -->
+<section style="background:#0d0d0d;padding:70px 24px;">
+  <div class="container">
+    <div class="secao-label">Quién creó PureScan AI</div>
+    <div style="display:flex;align-items:flex-start;gap:48px;margin-top:36px;flex-wrap:wrap;">
+      <div style="flex-shrink:0;width:280px;max-width:100%;">
+        <img src="http://guiavital.site/wp-content/uploads/2026/06/Foto-Produtos-purescan.webp" alt="Rogerio Reis, creador de PureScan AI" style="width:100%;border-radius:16px;box-shadow:0 0 0 4px rgba(26,158,92,.35),0 20px 60px rgba(0,0,0,.5);display:block;">
+      </div>
+      <div style="flex:1;min-width:260px;">
+        <div style="font-family:var(--fonte-titulo);font-size:clamp(26px,4vw,36px);font-weight:800;color:var(--verde);margin-bottom:8px;">Rogerio Reis</div>
+        <div style="color:#fff;font-size:16px;font-weight:500;margin-bottom:24px;">Creador de PureScan AI | Investigador en Nutrición y Tecnología | Especialista en Alimentación Consciente</div>
+        <p style="color:#aaa;font-size:15.5px;line-height:1.9;margin-bottom:16px;">Durante años, Rogerio Reis vivió como la mayoría: comprando lo que la industria presentaba como saludable, confiando en los sellos del empaque y sin cuestionar lo que ponía en el plato de su familia. El cuerpo cobró la factura con una gastritis severa que no cedía — endoscopia tras endoscopia, médico tras médico, medicamento tras medicamento. Nada resolvía de verdad.</p>
+        <p style="color:#aaa;font-size:15.5px;line-height:1.9;margin-bottom:16px;">El cambio llegó cuando tomó una decisión que transformó su vida: investigar a fondo lo que realmente había dentro de los alimentos que consumía. Al descubrir la verdad detrás de los ingredientes, eligió conscientemente una alimentación más limpia y natural. La gastritis que ningún medicamento había resuelto simplemente desapareció.</p>
+        <p style="color:#aaa;font-size:15.5px;line-height:1.9;margin-bottom:16px;">Esa transformación personal generó una pregunta que nunca salió de su mente: <em style="color:#fff;">¿por qué las personas tienen que pasar años sufriendo hasta descubrir lo que hay dentro de lo que comen?</em> Con formación académica sólida y experiencia en investigación, Rogerio unió tecnología e inteligencia artificial para crear la solución que él mismo necesitó y no encontró — PureScan AI.</p>
+        <div style="background:rgba(26,158,92,0.1);border-left:3px solid var(--verde);border-radius:0 12px 12px 0;padding:18px 22px;margin-bottom:16px;">
+          <p style="color:#fff;font-size:15.5px;line-height:1.9;font-style:italic;margin:0;">"Yo pasé años sin saber lo que estaba comiendo. Hoy tengo esa claridad — y quiero que tú también la tengas. Porque proteger a quienes amas comienza en el momento en que agarras un producto del estante."</p>
+          <span style="color:var(--verde);font-size:13px;font-weight:600;margin-top:8px;display:block;">— Rogerio Reis, creador de PureScan AI</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PARA QUIÉN ES -->
+<section style="background:var(--cinza-bg);padding:70px 24px;">
+  <div class="container">
+    <div class="secao-label">Esta página fue hecha para ti</div>
+    <h2 class="secao-titulo">PureScan AI es para ti que:</h2>
+    <div style="display:flex;align-items:flex-start;gap:40px;margin-top:32px;flex-wrap:wrap;">
+      <div style="flex-shrink:0;width:280px;max-width:100%;">
+        <img src="http://guiavital.site/wp-content/uploads/2026/06/Maes-scaneando-rotulo.webp" alt="Mamá escaneando etiqueta en el supermercado con PureScan AI" style="width:100%;border-radius:16px;display:block;">
+      </div>
+      <div style="flex:1;min-width:260px;">
+        <ul class="recap-lista">
+          <li class="recap-item">
+            <div class="recap-check"><i class="fa-solid fa-check" style="font-size:10px"></i></div>
+            <span class="recap-texto">Volteas el empaque en el mercado y no entiendes la mitad de los nombres químicos</span>
+          </li>
+          <li class="recap-item">
+            <div class="recap-check"><i class="fa-solid fa-check" style="font-size:10px"></i></div>
+            <span class="recap-texto">Ya no confías en nada con sello fit, integral o sin azúcar</span>
+          </li>
+          <li class="recap-item">
+            <div class="recap-check"><i class="fa-solid fa-check" style="font-size:10px"></i></div>
+            <span class="recap-texto">Quieres proteger a tus hijos de aditivos que causan trastornos y problemas hormonales</span>
+          </li>
+          <li class="recap-item">
+            <div class="recap-check"><i class="fa-solid fa-check" style="font-size:10px"></i></div>
+            <span class="recap-texto">Ya intentaste buscar ingredientes en Google y desististe porque tardaba demasiado</span>
+          </li>
+          <li class="recap-item">
+            <div class="recap-check"><i class="fa-solid fa-check" style="font-size:10px"></i></div>
+            <span class="recap-texto">Tienes miedo de que tus datos de salud sean vendidos a aseguradoras</span>
+          </li>
+          <li class="recap-item">
+            <div class="recap-check"><i class="fa-solid fa-check" style="font-size:10px"></i></div>
+            <span class="recap-texto">Quieres hacer compras con agilidad y certeza científica, sin culpa y sin nervios</span>
+          </li>
+        </ul>
+        <p style="font-size:16px;color:var(--texto-leve);line-height:1.85;margin-top:24px;margin-bottom:24px;">Si quieres hacer compras sabiendo exactamente lo que estás poniendo en el plato de tu familia, toca el botón de abajo y garantiza tu acceso ahora.</p>
+        <a href="#planos" style="display:inline-block;background:var(--verde);color:#fff;font-family:var(--fonte-titulo);font-weight:800;font-size:16px;padding:16px 32px;border-radius:13px;text-decoration:none;box-shadow:0 8px 26px rgba(26,158,92,.36);">QUIERO PROTEGER A MI FAMILIA ahora</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- OPCIONES -->
+<section class="opcoes">
+  <div class="container" style="text-align:center">
+    <div class="secao-label">La encrucijada</div>
+    <h2 class="secao-titulo">Estás en un momento de decisión.<br>Dos caminos frente a ti.</h2>
+    <div class="opcao-grid">
+      <div class="opcao-card ruim">
+        <div class="opcao-emoji">❌</div>
+        <h3>Opción 1 — Seguir igual</h3>
+        <p>Seguir llevando a casa productos llenos de colorantes, conservantes y azúcares disfrazados — sin saberlo. Seguir confiando en el empaque colorido mientras tus hijos consumen aditivos que nunca pudiste pronunciar. Seguir gastando tiempo en el mercado sin nunca tener certeza de si eso es comida de verdad o química industrial con empaque bonito.</p>
+      </div>
+      <div class="opcao-card boa">
+        <div class="opcao-emoji">✅</div>
+        <h3>Opción 2 — Compras con certeza científica</h3>
+        <p>Fotografiar cualquier etiqueta y recibir la nota real en segundos. Hacer compras con agilidad y certeza — sin nervios, sin culpa, sin tiempo perdido. Proteger el desarrollo metabólico de tus hijos con datos de bancos internacionales. Empezar gratis, sin tarjeta de crédito, por 7 días completos.</p>
+      </div>
+    </div>
+    <div class="opcoes-cta">
+      <p>Lo sé. Y tú también lo sabes. La opción 2 es la única que tiene sentido para una mamá que realmente se preocupa.</p>
+      <span>Toca el botón de abajo y garantiza tu acceso ahora mismo.</span>
+      <br>
+      <a href="#planos" style="display:inline-block;margin-top:22px;background:var(--verde);color:#fff;font-family:var(--fonte-titulo);font-weight:800;font-size:16px;padding:16px 42px;border-radius:13px;text-decoration:none;box-shadow:0 8px 26px rgba(26,158,92,.36)">Quiero proteger a mi familia →</a>
+    </div>
+  </div>
+</section>
+
+<!-- URGENCIA -->
+<div class="urgencia">
+  <p>✅ Bonos exclusivos disponibles hoy &nbsp;·&nbsp; 7 días GRATIS sin tarjeta &nbsp;·&nbsp; Acceso liberado inmediatamente &nbsp;·&nbsp; Garantía de 7 días sin riesgo</p>
+</div>
+
+<!-- RECAPITULANDO -->
+<section class="recap">
+  <div class="container">
+    <div class="secao-label">Recapitulando</div>
+    <h2 class="secao-titulo">Todo lo que protege a tu familia<br>cuando garantizas PureScan AI</h2>
+    <ul class="recap-lista">
+      <li class="recap-item">
+        <div class="recap-check"><i class="fa-solid fa-check" style="font-size:10px"></i></div>
+        <span class="recap-texto"><strong>Escáner inteligente que transforma 20 minutos de angustia en 3 segundos de certeza</strong> — fotografías la lista de ingredientes, recibes el diagnóstico completo y decides con seguridad antes de poner cualquier producto en el carrito.</span>
+      </li>
+      <li class="recap-item">
+        <div class="recap-check"><i class="fa-solid fa-check" style="font-size:10px"></i></div>
+        <span class="recap-texto"><strong>El Índice ISA (0 a 100) que ninguna marca patrocina</strong> — un número calculado con datos de agencias regulatorias internacionales que dice en segundos lo que ningún sello de marketing jamás dice: si ese producto es realmente seguro para quien amas.</span>
+      </li>
+      <li class="recap-item">
+        <div class="recap-check"><i class="fa-solid fa-check" style="font-size:10px"></i></div>
+        <span class="recap-texto"><strong>Lo que cada ingrediente identificado hace en el organismo, explicado en español directo</strong> — sin necesidad de entender de nutrición, sin abrir otra pestaña, sin llamar a ningún especialista.</span>
+      </li>
+      <li class="recap-item">
+        <div class="recap-check"><i class="fa-solid fa-check" style="font-size:10px"></i></div>
+        <span class="recap-texto"><strong>Descubres si un ingrediente está prohibido en Europa o bajo alerta en EE.UU. antes de poner en el carrito</strong> — no después de haberlo servido a tus hijos por meses sin saber que había un problema documentado afuera.</span>
+      </li>
+      <li class="recap-item">
+        <div class="recap-check"><i class="fa-solid fa-check" style="font-size:10px"></i></div>
+        <span class="recap-texto"><strong>Identificador de los 47+ nombres técnicos que la industria usa para esconder azúcar, grasa trans y aditivos</strong> — todos expuestos en lenguaje que cualquier persona entiende, sin depender de saber el nombre científico de nada.</span>
+      </li>
+      <li class="recap-item">
+        <div class="recap-check"><i class="fa-solid fa-check" style="font-size:10px"></i></div>
+        <span class="recap-texto"><strong>Guía de instalación PWA para tener PureScan con 1 toque en la pantalla inicial del celular</strong> — para que en el pasillo del mercado, con los niños al lado y con prisa, todavía puedas saber la verdad antes de decidir qué entra al carrito.</span>
+      </li>
+    </ul>
+  </div>
+</section>
+
+<!-- BONOS -->
+<style>
+  :root{--rosa:#C2185B;--rosa-escuro:#880E4F;--dourado:#F9A825;--branco:#FFFFFF}
+  .bonus-section{background:linear-gradient(160deg,#1a0a0f 0%,#2d0a1a 50%,#0d1f0d 100%);padding:80px 20px;position:relative;overflow:hidden}
+  .bonus-section::before{content:'';position:absolute;top:0;left:0;right:0;bottom:0;background:radial-gradient(ellipse at top,rgba(194,24,91,0.15) 0%,transparent 60%),radial-gradient(ellipse at bottom,rgba(46,125,50,0.1) 0%,transparent 60%);pointer-events:none}
+  .bonus-container{max-width:1100px;margin:0 auto;position:relative;z-index:1}
+  .bonus-urgency-tag{display:inline-block;background:var(--dourado);color:#1a0a0f;font-size:13px;font-weight:800;letter-spacing:2px;text-transform:uppercase;padding:8px 24px;border-radius:50px;margin-bottom:24px;animation:pulse-gold 2s infinite}
+  @keyframes pulse-gold{0%,100%{box-shadow:0 0 0 0 rgba(249,168,37,0.5)}50%{box-shadow:0 0 0 12px rgba(249,168,37,0)}}
+  .bonus-title{font-size:clamp(26px,4vw,42px);font-weight:900;color:var(--branco);text-align:center;line-height:1.2;margin-bottom:12px}
+  .bonus-title span{color:var(--dourado)}
+  .bonus-subtitle{font-size:clamp(15px,2vw,18px);color:rgba(255,255,255,0.75);text-align:center;max-width:680px;margin:0 auto 16px;line-height:1.6}
+  .bonus-alert{background:linear-gradient(135deg,rgba(194,24,91,0.3),rgba(136,14,79,0.3));border:1px solid rgba(194,24,91,0.6);border-radius:12px;padding:16px 28px;text-align:center;margin:0 auto 52px;max-width:700px;display:flex;align-items:center;justify-content:center;gap:12px}
+  .bonus-alert p{color:#FFB3C6;font-size:15px;font-weight:600;margin:0;line-height:1.5}
+  .bonus-alert p strong{color:var(--branco)}
+  .bonus-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:28px;margin-bottom:52px}
+  .bonus-card{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:20px;overflow:hidden;transition:transform .3s,border-color .3s,box-shadow .3s;position:relative}
+  .bonus-card:hover{transform:translateY(-6px);border-color:rgba(194,24,91,0.5);box-shadow:0 20px 60px rgba(194,24,91,0.2)}
+  .bonus-badge{position:absolute;top:16px;left:16px;background:var(--dourado);color:#1a0a0f;font-size:11px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;padding:5px 14px;border-radius:50px;z-index:2}
+  .bonus-card-img{width:100%;aspect-ratio:3/4;object-fit:cover;display:block;transition:transform .4s}
+  .bonus-card:hover .bonus-card-img{transform:scale(1.03)}
+  .bonus-card-img-wrapper{overflow:hidden;position:relative}
+  .bonus-card-body{padding:24px}
+  .bonus-card-name{font-size:17px;font-weight:800;color:var(--branco);margin-bottom:10px;line-height:1.3}
+  .bonus-card-desc{font-size:14px;color:rgba(255,255,255,0.65);line-height:1.6;margin-bottom:18px}
+  .bonus-card-price{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+  .bonus-price-original{font-size:15px;color:rgba(255,255,255,0.35);text-decoration:line-through}
+  .bonus-price-free{font-size:22px;font-weight:900;color:#43A047;letter-spacing:1px}
+  .bonus-card-items{list-style:none;padding:0;margin:0}
+  .bonus-card-items li{font-size:13px;color:rgba(255,255,255,0.7);padding:4px 0 4px 20px;position:relative;line-height:1.4}
+  .bonus-card-items li::before{content:'✓';position:absolute;left:0;color:#43A047;font-weight:700}
+  .bonus-cta-block{background:linear-gradient(135deg,rgba(249,168,37,0.1),rgba(249,168,37,0.05));border:1px solid rgba(249,168,37,0.3);border-radius:20px;padding:36px 28px;text-align:center;max-width:750px;margin:0 auto}
+  .bonus-cta-block h3{font-size:clamp(18px,3vw,26px);font-weight:900;color:var(--branco);margin-bottom:12px;line-height:1.3}
+  .bonus-cta-block h3 span{color:var(--dourado)}
+  .bonus-cta-block p{font-size:15px;color:rgba(255,255,255,0.7);margin-bottom:20px;line-height:1.6}
+  .bonus-cta-block p strong{color:var(--branco)}
+  .bonus-cta-list{list-style:none;padding:0;margin:0 auto 28px;max-width:520px;text-align:left}
+  .bonus-cta-list li{font-size:14px;color:rgba(255,255,255,0.8);padding:6px 0 6px 24px;position:relative;line-height:1.4}
+  .bonus-cta-list li::before{content:'⚡';position:absolute;left:0}
+  .bonus-warning{font-size:13px;color:#FFB3C6;font-style:italic;margin-top:16px}
+  @media(max-width:640px){.bonus-section{padding:52px 16px}.bonus-grid{grid-template-columns:1fr;gap:20px}.bonus-alert{flex-direction:column}}
+</style>
+
+<section class="bonus-section">
+  <div class="bonus-container">
+
+    <!-- INTRO VSL -->
+    <div style="text-align:center;">
+      <span class="bonus-urgency-tag">⚡ Solo para quien actúe hoy</span>
+    </div>
+    <h2 class="bonus-title">Espera. Antes de mostrarte el precio,<br><span>necesito contarte algo importante.</span></h2>
+    <p class="bonus-subtitle">Cuando estaba creando PureScan AI, me pregunté: <em style="color:#fff;">"¿Qué más necesita una mamá para que esto funcione de verdad en su vida?"</em> Y la respuesta me llevó a crear tres materiales que, honestamente, podrían venderse solos — y que hoy voy a darte completamente gratis.</p>
+
+    <div class="bonus-alert">
+      <span style="font-size:22px;">🎁</span>
+      <p>Estos 3 bonos tienen un valor real de <strong>$57 USD</strong> — y normalmente no los ofrezco juntos. Pero hoy, para quien tome la decisión ahora mismo, los entrego sin costo adicional. Te explico por qué.</p>
+    </div>
+
+    <!-- TEXTO VSL PRE-CARDS -->
+    <div style="max-width:780px;margin:0 auto 52px;text-align:left;background:rgba(255,255,255,0.03);border-radius:16px;padding:28px 32px;border:1px solid rgba(255,255,255,0.07);">
+      <p style="font-size:17px;color:rgba(255,255,255,0.9);line-height:2;margin:0;">
+        Sé que el escáner cambia el supermercado para siempre. Pero hay <strong style="color:#fff;">tres momentos específicos</strong> que me preocupaban en tu vida diaria: la lonchera de los niños, la primera compra cuando empiezas a ver la verdad en las etiquetas, y ese momento en que sostienes un producto y no sabes si ese nombre raro que lees es azúcar disfrazado o no. Para esos tres momentos exactos, creé esto.
+      </p>
+    </div>
+
+    <div class="bonus-grid">
+
+      <!-- BONO 1 -->
+      <div class="bonus-card">
+        <span class="bonus-badge">Bono 1</span>
+        <div class="bonus-card-img-wrapper">
+          <img src="http://guiavital.site/wp-content/uploads/2026/06/loncheira-sin-veneno_11zon.webp" alt="Lonchera Sin Veneno" class="bonus-card-img">
+        </div>
+        <div class="bonus-card-body">
+          <h3 class="bonus-card-name">"Lonchera Sin Veneno"</h3>
+          <p class="bonus-card-desc" style="font-size:14.5px;line-height:1.8;color:rgba(255,255,255,0.82);">
+            Piensa en la lonchera que mandas mañana. ¿Sabes exactamente lo que hay dentro de cada uno de esos productos? La mayoría de las madres conscientes que conozco me dijeron lo mismo: la lonchera es el punto ciego. No hay tiempo para montar algo saludable <em>y</em> que los niños acepten sin pelea.
+          </p>
+          <p class="bonus-card-desc" style="font-size:14.5px;line-height:1.8;color:rgba(255,255,255,0.82);margin-top:-4px;">
+            Pasé semanas compilando <strong style="color:#fff;">30 opciones reales, prácticas y que los niños aman</strong> — con recetas listas en hasta 15 minutos. Podría vender esto por $19 fácilmente. Hoy es tuyo gratis.
+          </p>
+          <div class="bonus-card-price">
+            <span class="bonus-price-original">$19 USD</span>
+            <span class="bonus-price-free">GRATIS</span>
+          </div>
+          <ul class="bonus-card-items">
+            <li>Los 15 peores alimentos de lonchera revelados sin filtro</li>
+            <li>30 alternativas prácticas que los niños piden de nuevo</li>
+            <li>20 recetas listas en hasta 15 minutos</li>
+            <li>El método exacto para convencer a los niños sin peleas</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- BONO 2 -->
+      <div class="bonus-card">
+        <span class="bonus-badge">Bono 2</span>
+        <div class="bonus-card-img-wrapper">
+          <img src="http://guiavital.site/wp-content/uploads/2026/06/detox-de-supermercado_11zon.webp" alt="Detox del Supermercado" class="bonus-card-img">
+        </div>
+        <div class="bonus-card-body">
+          <h3 class="bonus-card-name">"Detox del Supermercado"</h3>
+          <p class="bonus-card-desc" style="font-size:14.5px;line-height:1.8;color:rgba(255,255,255,0.82);">
+            La primera vez que escaneas con PureScan y ves nota 22 en un producto que dabas a tus hijos desde hace años, pasa algo en tu mente: quieres cambiar todo de golpe. Y es exactamente ahí donde la mayoría falla — porque cambiar todo a la vez genera resistencia en la familia y culpa en ti.
+          </p>
+          <p class="bonus-card-desc" style="font-size:14.5px;line-height:1.8;color:rgba(255,255,255,0.82);margin-top:-4px;">
+            Desarrollé un método de <strong style="color:#fff;">21 días para sustituir los 10 ultraprocesados más peligrosos</strong> — semana a semana, con lista de compras lista y sustituciones que la familia acepta sin quejarse. Esto lo vendo separado. Hoy es tuyo gratis.
+          </p>
+          <div class="bonus-card-price">
+            <span class="bonus-price-original">$19 USD</span>
+            <span class="bonus-price-free">GRATIS</span>
+          </div>
+          <ul class="bonus-card-items">
+            <li>Los 10 ultraprocesados más peligrosos — identificados</li>
+            <li>Lista de compras semana a semana lista para usar</li>
+            <li>10 sustituciones que la familia acepta desde el día uno</li>
+            <li>Cómo mantener el cambio después de los 21 días</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- BONO 3 -->
+      <div class="bonus-card">
+        <span class="bonus-badge">Bono 3</span>
+        <div class="bonus-card-img-wrapper">
+          <img src="http://guiavital.site/wp-content/uploads/2026/06/etiquesta-desenmascaradas_11zon.webp" alt="Etiquetas Desenmascaradas" class="bonus-card-img">
+        </div>
+        <div class="bonus-card-body">
+          <h3 class="bonus-card-name">"Etiquetas al Descubierto"</h3>
+          <p class="bonus-card-desc" style="font-size:14.5px;line-height:1.8;color:rgba(255,255,255,0.82);">
+            ¿Sabes cuántos nombres tiene el azúcar en una etiqueta? Más de 30. ¿Y la grasa trans? Veinte maneras distintas de aparecer sin decir lo que es. La industria no miente directamente — usa nombres técnicos que suenan a ciencia para que ni preguntes.
+          </p>
+          <p class="bonus-card-desc" style="font-size:14.5px;line-height:1.8;color:rgba(255,255,255,0.82);margin-top:-4px;">
+            Compilé <strong style="color:#fff;">más de 100 nombres que la industria usa para camuflar azúcar, grasas y aditivos</strong> — con tabla comparativa LATAM vs Europa vs EE.UU. Un nutricionista cobra $250/hora por esta información. Tú la recibes gratis hoy.
+          </p>
+          <div class="bonus-card-price">
+            <span class="bonus-price-original">$19 USD</span>
+            <span class="bonus-price-free">GRATIS</span>
+          </div>
+          <ul class="bonus-card-items">
+            <li>Más de 30 nombres secretos del azúcar expuestos</li>
+            <li>20 disfraces de las grasas trans y saturadas</li>
+            <li>Tabla comparativa LATAM vs Europa vs EE.UU.</li>
+            <li>Guía de bolsillo imprimible para el supermercado</li>
+          </ul>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ANCORAGEM DE VALOR VSL -->
+    <div class="bonus-cta-block">
+      <h3>En total, recibes <span>$57 USD en bonos — completamente gratis.</span></h3>
+      <p style="font-size:16px;line-height:1.85;margin-bottom:10px;color:rgba(255,255,255,0.85);">
+        Y te cuento por qué hago esto: porque sé que quien transforma su lonchera, su refrigerador y su manera de leer etiquetas al mismo tiempo — esa persona no abandona. Esa persona protege a su familia de verdad. Y eso es exactamente lo que quiero para ti.
+      </p>
+      <p style="font-size:15px;line-height:1.85;margin-bottom:28px;color:rgba(255,255,255,0.6);">
+        Podría cobrar $57 solo por los bonos, y nadie diría que es injusto. Pero hoy, junto con PureScan AI, los recibes gratis — porque juntos hacen algo que ninguno puede hacer solo.
+      </p>
+      <div style="background:rgba(249,168,37,0.07);border:1px solid rgba(249,168,37,0.22);border-radius:14px;padding:22px 28px;margin-bottom:28px;text-align:left;">
+        <p style="color:#F9A825;font-size:12px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:14px;">Lo que entra en tu vida hoy</p>
+        <ul class="bonus-cta-list" style="margin-bottom:0;">
+          <li>PureScan AI — 7 días gratis, sin tarjeta de crédito</li>
+          <li>Bono 1: Lonchera Sin Veneno — valor $19, tuyo gratis</li>
+          <li>Bono 2: Detox del Supermercado — valor $19, tuyo gratis</li>
+          <li>Bono 3: Etiquetas al Descubierto — valor $19, tuyo gratis</li>
+          <li>Garantía de 7 días: si no te gusta, te devuelvo cada centavo</li>
+        </ul>
+      </div>
+      <div style="text-align:center;background:rgba(255,255,255,0.04);border-radius:12px;padding:20px 24px;margin-bottom:20px;">
+        <p style="font-size:13.5px;color:rgba(255,255,255,0.35);text-decoration:line-through;margin-bottom:6px;">Valor real de los 3 bonos: $57 USD</p>
+        <p style="font-family:var(--fonte-titulo);font-size:30px;font-weight:900;color:#43A047;margin:0;letter-spacing:.5px;">Todo esto: GRATIS hoy</p>
+        <p style="font-size:13px;color:rgba(255,255,255,0.38);margin-top:8px;">Solo al garantizar tu acceso mientras esta oferta esté disponible</p>
+      </div>
+      <p class="bonus-warning">⚠ Estos bonos son exclusivos de esta página y pueden ser retirados en cualquier momento sin aviso previo. Quien los garantice hoy, los mantiene para siempre.</p>
+    </div>
+
+  </div>
+</section>
+
+<!-- RECAP PRECIO -->
+<section style="background:#0a0a0a;padding:70px 24px;">
+  <div class="container">
+    <div style="background:#0d3a7a;border-radius:16px;padding:22px 32px;text-align:center;margin-bottom:40px;">
+      <p style="color:#fff;font-size:18px;font-weight:700;line-height:1.5;margin:0;">RECAPITULANDO... Ve todo lo que recibes con PureScan AI</p>
+    </div>
+    <ul style="list-style:none;display:flex;flex-direction:column;gap:14px;margin-bottom:32px;padding:0;">
+      <li style="display:flex;align-items:center;gap:13px;justify-content:space-between;">
+        <div style="display:flex;align-items:center;gap:13px;flex:1;">
+          <div class="recap-check"><i class="fa-solid fa-check" style="font-size:10px"></i></div>
+          <span style="font-size:16px;color:#fff;line-height:1.6;">PureScan AI — Escáner Ilimitado de Etiquetas</span>
+        </div>
+        <span style="color:#555;text-decoration:line-through;font-size:15px;white-space:nowrap;flex-shrink:0;margin-left:12px;">$29 USD</span>
+      </li>
+      <li style="display:flex;align-items:center;gap:13px;justify-content:space-between;">
+        <div style="display:flex;align-items:center;gap:13px;flex:1;">
+          <div class="recap-check"><i class="fa-solid fa-check" style="font-size:10px"></i></div>
+          <span style="font-size:16px;color:#fff;line-height:1.6;">Índice ISA con Rastreo EFSA + FDA</span>
+        </div>
+        <span style="color:#555;text-decoration:line-through;font-size:15px;white-space:nowrap;flex-shrink:0;margin-left:12px;">$19 USD</span>
+      </li>
+      <li style="display:flex;align-items:center;gap:13px;justify-content:space-between;">
+        <div style="display:flex;align-items:center;gap:13px;flex:1;">
+          <div class="recap-check"><i class="fa-solid fa-check" style="font-size:10px"></i></div>
+          <span style="font-size:16px;color:#fff;line-height:1.6;">Rastreo de Alérgenos Ocultos</span>
+        </div>
+        <span style="color:#555;text-decoration:line-through;font-size:15px;white-space:nowrap;flex-shrink:0;margin-left:12px;">$14 USD</span>
+      </li>
+      <li style="display:flex;align-items:center;gap:13px;justify-content:space-between;">
+        <div style="display:flex;align-items:center;gap:13px;flex:1;">
+          <div class="recap-check"><i class="fa-solid fa-check" style="font-size:10px"></i></div>
+          <span style="font-size:16px;color:#fff;line-height:1.6;">BONO: Lonchera Sin Veneno</span>
+        </div>
+        <span style="color:#555;text-decoration:line-through;font-size:15px;white-space:nowrap;flex-shrink:0;margin-left:12px;">$19 USD</span>
+      </li>
+      <li style="display:flex;align-items:center;gap:13px;justify-content:space-between;">
+        <div style="display:flex;align-items:center;gap:13px;flex:1;">
+          <div class="recap-check"><i class="fa-solid fa-check" style="font-size:10px"></i></div>
+          <span style="font-size:16px;color:#fff;line-height:1.6;">BONO: Detox del Supermercado</span>
+        </div>
+        <span style="color:#555;text-decoration:line-through;font-size:15px;white-space:nowrap;flex-shrink:0;margin-left:12px;">$19 USD</span>
+      </li>
+      <li style="display:flex;align-items:center;gap:13px;justify-content:space-between;">
+        <div style="display:flex;align-items:center;gap:13px;flex:1;">
+          <div class="recap-check"><i class="fa-solid fa-check" style="font-size:10px"></i></div>
+          <span style="font-size:16px;color:#fff;line-height:1.6;">BONO: Etiquetas al Descubierto</span>
+        </div>
+        <span style="color:#555;text-decoration:line-through;font-size:15px;white-space:nowrap;flex-shrink:0;margin-left:12px;">$19 USD</span>
+      </li>
+    </ul>
+    <hr style="border:none;border-top:1px solid #1e1e1e;margin-bottom:28px;">
+    <div style="text-align:center;margin-bottom:32px;">
+      <p style="color:#aaa;font-size:16px;margin-bottom:10px;">Todo esto debería costar:</p>
+      <div style="font-family:var(--fonte-titulo);font-size:clamp(40px,7vw,58px);font-weight:800;color:#555;text-decoration:line-through;line-height:1;">$119 USD</div>
+    </div>
+    <div style="background:var(--verde);border-radius:16px;padding:20px 32px;text-align:center;">
+      <p style="color:#fff;font-size:17px;font-weight:700;line-height:1.6;margin:0;">Pero hoy tienes acceso a PureScan AI con todos los bonos por solo:</p>
+    </div>
+  </div>
+</section>
+
+<!-- PLANOS -->
+<section class="planos" id="planos">
+  <div style="max-width:1100px;margin:0 auto;padding:24px 24px 76px">
+
+    <!-- TRIAL INFO BOX -->
+    <div style="background:rgba(26,158,92,0.1);border:2px solid rgba(26,158,92,0.4);border-radius:20px;padding:28px 32px;text-align:center;margin-bottom:40px;">
+      <div style="font-family:var(--fonte-titulo);font-size:22px;font-weight:800;color:#4ade80;margin-bottom:10px;">🎁 7 días completamente GRATIS</div>
+      <p style="color:#aaa;font-size:15px;line-height:1.7;max-width:560px;margin:0 auto;">Sin tarjeta de crédito. Sin compromiso. Usa PureScan AI durante 7 días completos sin pagar nada. Solo después, si quieres continuar, eliges tu plan. Y si pagas y no te gusta, tienes <strong style="color:#fff;">7 días más de garantía</strong> con reembolso total.</p>
+    </div>
+
+    <div style="position:relative;border:2.5px dashed #1a9e5c;border-radius:24px;padding:52px 32px 36px;background:rgba(26,158,92,0.04);">
+      <div style="position:absolute;top:-18px;left:50%;transform:translateX(-50%);background:#1a9e5c;color:#fff;font-family:'Syne',sans-serif;font-size:12px;font-weight:800;letter-spacing:2px;text-transform:uppercase;padding:7px 28px;border-radius:100px;white-space:nowrap;box-shadow:0 4px 16px rgba(26,158,92,.4);">
+        ✂&nbsp;&nbsp;SÍ! QUIERO PROTEGER A MI FAMILIA&nbsp;&nbsp;✂
+      </div>
+
+      <div class="planos-grid">
+
+        <!-- MENSUAL -->
+        <div class="plano-card">
+          <div class="plano-titulo">Plan Mensual</div>
+          <div class="plano-sub">Uso Flexible, Mes a Mes</div>
+          <div class="trial-box">
+            <p>🎁 <strong>7 días gratis</strong> · Sin tarjeta</p>
+          </div>
+          <div class="plano-preco-antigo">De $9,90 USD</div>
+          <div class="plano-preco">$4,90</div>
+          <div class="plano-preco-desc">USD por mes · renovación automática</div>
+          <br>
+          <ul class="plano-lista">
+            <li><i class="fa-solid fa-circle-check"></i> Escáner de Etiquetas Ilimitado</li>
+            <li><i class="fa-solid fa-circle-check"></i> Índice ISA (0 a 100)</li>
+            <li><i class="fa-solid fa-circle-check"></i> Diagnóstico en español claro</li>
+            <li><i class="fa-solid fa-circle-check"></i> Historial de Consultas</li>
+          </ul>
+          <a href="https://go.centerpag.com/PPU38CQCNE2" class="btn-plano secundario">Comenzar Gratis →</a>
+        </div>
+
+        <!-- SEMESTRAL — DESTAQUE -->
+        <div class="plano-card destaque" style="padding-top:36px;">
+          <div class="plano-badge" style="top:16px;">⭐ Más Popular</div>
+          <div class="plano-titulo">Plan Semestral</div>
+          <div class="plano-sub">El Ciclo Ideal de Adaptación</div>
+          <img src="http://guiavital.site/wp-content/uploads/2026/05/Mockup-pure-scan.webp" alt="PureScan AI" style="width:100%;border-radius:12px;display:block;margin:18px 0 14px;box-shadow:0 12px 40px rgba(0,0,0,.5);">
+          <div class="trial-box">
+            <p>🎁 <strong>7 días gratis</strong> · Sin tarjeta · Ahorra 32%</p>
+          </div>
+          <div class="plano-preco-antigo">De $29,90 USD</div>
+          <div style="font-family:'Syne',sans-serif;font-size:36px;font-weight:800;color:#1a9e5c;line-height:1;margin-bottom:8px;">$19,90</div>
+          <div class="plano-preco-desc">USD · pago único semestral · equivale a $3,32/mes</div>
+          <ul class="plano-lista">
+            <li><i class="fa-solid fa-circle-check"></i> Escáner de Etiquetas Ilimitado</li>
+            <li><i class="fa-solid fa-circle-check"></i> Índice ISA (0 a 100)</li>
+            <li><i class="fa-solid fa-circle-check"></i> Rastreo EFSA + FDA</li>
+            <li><i class="fa-solid fa-circle-check"></i> Rastreo de Alérgenos Ocultos</li>
+            <li><i class="fa-solid fa-circle-check"></i> Guía de Configuración PWA</li>
+            <li><i class="fa-solid fa-circle-check"></i> Actualizaciones de Recursos Incluidas</li>
+          </ul>
+          <a href="https://go.centerpag.com/PPU38CQCNEC" class="btn-plano principal">Garantizar Acceso Semestral →</a>
+        </div>
+
+        <!-- ANUAL VIP -->
+        <div class="plano-card">
+          <div class="plano-titulo">Plan Anual VIP</div>
+          <div class="plano-sub">Acceso Completo por 12 Meses</div>
+          <div class="trial-box">
+            <p>🎁 <strong>7 días gratis</strong> · Sin tarjeta · Ahorra 49%</p>
+          </div>
+          <div class="plano-preco-antigo">De $59,90 USD</div>
+          <div class="plano-preco">$29,90</div>
+          <div class="plano-preco-desc">USD · pago único anual · equivale a $2,49/mes</div>
+          <br>
+          <ul class="plano-lista">
+            <li><i class="fa-solid fa-circle-check"></i> Escáner de Etiquetas Ilimitado</li>
+            <li><i class="fa-solid fa-circle-check"></i> Índice ISA (0 a 100)</li>
+            <li><i class="fa-solid fa-circle-check"></i> Rastreo EFSA + FDA</li>
+            <li><i class="fa-solid fa-circle-check"></i> Rastreo de Alérgenos Ocultos</li>
+            <li><i class="fa-solid fa-circle-check"></i> Guía de Configuración PWA</li>
+            <li><i class="fa-solid fa-circle-check"></i> Actualizaciones de Recursos Incluidas</li>
+          </ul>
+          <a href="https://go.centerpag.com/PPU38CQCNEF" class="btn-plano secundario">Elegir Plan Anual VIP</a>
+        </div>
+
+      </div>
+
+      <div style="display:flex;justify-content:center;gap:28px;flex-wrap:wrap;margin-top:32px;padding-top:24px;border-top:1px solid rgba(26,158,92,0.2);">
+        <div style="display:flex;align-items:center;gap:7px;font-size:13px;color:#777;">
+          <i class="fa-solid fa-lock" style="color:#1a9e5c;"></i> Compra 100% Segura
+        </div>
+        <div style="display:flex;align-items:center;gap:7px;font-size:13px;color:#777;">
+          <i class="fa-solid fa-gift" style="color:#1a9e5c;"></i> 7 Días Gratis Sin Tarjeta
+        </div>
+        <div style="display:flex;align-items:center;gap:7px;font-size:13px;color:#777;">
+          <i class="fa-solid fa-shield-halved" style="color:#1a9e5c;"></i> Garantía de 7 Días después del pago
+        </div>
+        <div style="display:flex;align-items:center;gap:7px;font-size:13px;color:#777;">
+          <i class="fa-solid fa-bolt" style="color:#1a9e5c;"></i> Acceso Inmediato
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- COMO FUNCIONA LA ENTREGA -->
+<section style="background:var(--cinza-bg);padding:70px 24px;">
+  <div class="container">
+    <div class="secao-label">Acceso inmediato</div>
+    <h2 class="secao-titulo">¡Comienza hoy y recibe tu acceso de inmediato!</h2>
+    <div style="display:flex;gap:24px;margin-top:40px;flex-wrap:wrap;">
+      <div style="flex:1;min-width:200px;text-align:center;padding:32px 20px;background:#fff;border-radius:18px;border:1px solid var(--borda);">
+        <div style="width:60px;height:60px;background:var(--verde-claro);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 18px;">
+          <i class="fa-solid fa-gift" style="color:var(--verde-escuro);font-size:24px;"></i>
+        </div>
+        <h3 style="font-family:var(--fonte-titulo);font-size:17px;font-weight:700;color:var(--preto);margin-bottom:10px;">EMPIEZA GRATIS</h3>
+        <p style="font-size:15px;color:var(--texto-leve);line-height:1.8;">7 días sin tarjeta de crédito. Accede al link y empieza a usar ahora mismo</p>
+      </div>
+      <div style="flex:1;min-width:200px;text-align:center;padding:32px 20px;background:#fff;border-radius:18px;border:1px solid var(--borda);">
+        <div style="width:60px;height:60px;background:var(--verde-claro);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 18px;">
+          <i class="fa-solid fa-mobile-screen" style="color:var(--verde-escuro);font-size:24px;"></i>
+        </div>
+        <h3 style="font-family:var(--fonte-titulo);font-size:17px;font-weight:700;color:var(--preto);margin-bottom:10px;">ABRE EN EL NAVEGADOR</h3>
+        <p style="font-size:15px;color:var(--texto-leve);line-height:1.8;">Sin instalar nada. Funciona directo en Chrome o Safari de tu celular</p>
+      </div>
+      <div style="flex:1;min-width:200px;text-align:center;padding:32px 20px;background:#fff;border-radius:18px;border:1px solid var(--borda);">
+        <div style="width:60px;height:60px;background:var(--verde-claro);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 18px;">
+          <i class="fa-solid fa-circle-check" style="color:var(--verde-escuro);font-size:24px;"></i>
+        </div>
+        <h3 style="font-family:var(--fonte-titulo);font-size:17px;font-weight:700;color:var(--preto);margin-bottom:10px;">ESCANEA Y PROTEGE</h3>
+        <p style="font-size:15px;color:var(--texto-leve);line-height:1.8;">En tu próxima visita al mercado, ya sabes la verdad sobre cualquier producto antes de poner en el carrito</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- GARANTIA -->
+<section class="garantia">
+  <div class="garantia-inner">
+    <div class="garantia-foto">
+      <img src="http://guiavital.site/wp-content/uploads/2026/05/19eccd0c-9588-4353-a225-135f327d91a7_11zon_11zon.webp" alt="Garantía Protege Familia 7 Días PureScan AI">
+    </div>
+    <div class="garantia-texto">
+      <h3>Garantía Familia Protegida: 7 Días de Uso Real — o el 100% de Tu Dinero de Vuelta, Sin Preguntas</h3>
+      <p>
+        Aquí está mi promesa personal, escrita con claridad: en los próximos 7 días completos después del pago, quiero que uses <strong>PureScan AI</strong> en tus compras de verdad. Escanea los productos que le has dado a tu familia durante meses. Ve las notas. Descubre lo que había dentro.
+      </p>
+      <p style="margin-top:14px">
+        Si al final de esos 7 días no sientes que haces compras con más certeza, más tranquilidad y más consciencia que antes — <strong>me niego a quedarme con tu dinero.</strong> Sin formulario complicado. Sin necesidad de explicar nada. Sin esperar respuesta de soporte. El riesgo es enteramente nuestro. La protección es enteramente tuya.
+      </p>
+      <p style="margin-top:14px;font-weight:600;color:var(--verde);">
+        Total: 7 días gratis + 7 días de garantía = 14 días sin riesgo alguno.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section class="faq">
+  <div class="container">
+    <div class="secao-label">Preguntas frecuentes</div>
+    <h2 class="secao-titulo">Respondiendo todo<br>antes de tu decisión</h2>
+    <div class="faq-lista">
+      <div class="faq-item">
+        <button class="faq-pergunta" onclick="toggleFaq(this)">
+          ¿Los 7 días gratis son de verdad? ¿Necesito tarjeta?
+          <i class="fa-solid fa-chevron-down faq-seta"></i>
+        </button>
+        <div class="faq-resposta">
+          Sí, completamente reales y sin necesidad de tarjeta de crédito. Tienes 7 días completos para usar PureScan AI sin pagar absolutamente nada. Solo después de los 7 días, si quieres continuar disfrutando, eliges el plan que mejor te convenga.
+        </div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-pergunta" onclick="toggleFaq(this)">
+          ¿PureScan AI realmente funciona sin instalar nada?
+          <i class="fa-solid fa-chevron-down faq-seta"></i>
+        </button>
+        <div class="faq-resposta">
+          Sí, 100%. PureScan AI es una aplicación web que corre directamente en el navegador de tu celular — Chrome, Safari o cualquier otro. No necesitas instalar ninguna aplicación, ni crear cuenta con correo. Solo accedes al link y empiezas a usar al instante.
+        </div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-pergunta" onclick="toggleFaq(this)">
+          ¿Necesita internet para usar en el supermercado?
+          <i class="fa-solid fa-chevron-down faq-seta"></i>
+        </button>
+        <div class="faq-resposta">
+          El análisis de ingredientes lo hace nuestra inteligencia artificial, así que una conexión básica de datos (3G o 4G) es necesaria para enviar la foto y recibir el diagnóstico. En redes móviles comunes, el proceso completo tarda solo unos segundos.
+        </div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-pergunta" onclick="toggleFaq(this)">
+          ¿Puedo cancelar el plan cuando quiera?
+          <i class="fa-solid fa-chevron-down faq-seta"></i>
+        </button>
+        <div class="faq-resposta">
+          Sí. Para el plan mensual, basta cancelar antes de la próxima fecha de renovación directamente desde la plataforma, sin necesidad de contactar a ningún soporte. Para los planes semestral y anual, el pago es único — no hay renovación automática.
+        </div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-pergunta" onclick="toggleFaq(this)">
+          ¿La garantía de 7 días es real? ¿Cómo funciona?
+          <i class="fa-solid fa-chevron-down faq-seta"></i>
+        </button>
+        <div class="faq-resposta">
+          Totalmente real. Si dentro de 7 días después del pago entiendes que PureScan AI no cumple tus expectativas, solicita el reembolso directamente desde la plataforma. El valor íntegro es devuelto sin preguntas, sin burocracia y sin incomodidad. Ninguna explicación necesaria.
+        </div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-pergunta" onclick="toggleFaq(this)">
+          ¿Sirve para cualquier tipo de alimento empacado?
+          <i class="fa-solid fa-chevron-down faq-seta"></i>
+        </button>
+        <div class="faq-resposta">
+          Sí. PureScan AI analiza la lista de ingredientes de cualquier alimento empacado — desde snacks y galletas hasta salsas, embutidos, lácteos, bebidas, suplementos y productos infantiles. Si el producto tiene una lista de ingredientes impresa en el empaque, el escáner puede procesarlo.
+        </div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-pergunta" onclick="toggleFaq(this)">
+          ¿Mis datos personales están protegidos?
+          <i class="fa-solid fa-chevron-down faq-seta"></i>
+        </button>
+        <div class="faq-resposta">
+          Absolutamente. PureScan AI no solicita ni almacena información de salud personal. Fotografías la etiqueta del producto — no a ti misma. No recopilamos datos sobre enfermedades, restricciones alimentarias ni ninguna información médica. Tu privacidad es tratada con total seriedad.
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- RODAPÉ -->
+<footer class="rodape">
+  <div class="rodape-topo">
+    <div>
+      <div class="rodape-logo">PureScan AI</div>
+      <p class="rodape-desc">Tecnología de inteligencia artificial para análisis de etiquetas alimentarias. Protege a tu familia de ultraprocesados camuflados con una simple foto.</p>
+    </div>
+    <div class="rodape-col">
+      <h4>Enlaces</h4>
+      <ul>
+        <li><a href="#planos">Planes y Precios</a></li>
+        <li><a href="#planos">Comenzar Ahora</a></li>
+        <li><a href="mailto:contato@purescanai.com.br">Contacto</a></li>
+      </ul>
+    </div>
+    <div class="rodape-col">
+      <h4>Soporte</h4>
+      <ul>
+        <li><a href="mailto:contato@purescanai.com.br">contato@purescanai.com.br</a></li>
+        <li><a href="#">Política de Privacidad</a></li>
+        <li><a href="#">Términos de Uso</a></li>
+      </ul>
+    </div>
+  </div>
+  <hr class="rodape-divisor">
+  <div class="rodape-aviso">
+    <div class="rodape-aviso-inner">
+      <p class="rodape-disclaimer">
+        <strong>Aviso Legal:</strong> Este sitio y el producto PureScan AI no están afiliados, asociados, autorizados, respaldados ni de ninguna manera conectados oficialmente a <strong>Facebook</strong>, <strong>Instagram</strong>, la empresa <strong>Meta Platforms, Inc.</strong> o cualquiera de sus subsidiarias. Los diagnósticos generados por PureScan AI tienen finalidad exclusivamente informativa, basada en registros públicos de ingredientes y datos de agencias regulatorias. Los resultados presentados pueden variar según cada usuario.
+      </p>
+      <p class="rodape-copyright">
+        Copyright © 2026 PureScan AI · Todos los Derechos Reservados &nbsp;·&nbsp; Desarrollado con tecnología de inteligencia artificial
+      </p>
+    </div>
+  </div>
+</footer>
+
+<script>
+function toggleFaq(btn){
+  var resposta=btn.nextElementSibling;
+  var aberta=btn.classList.contains('aberta');
+  document.querySelectorAll('.faq-pergunta.aberta').forEach(function(b){
+    b.classList.remove('aberta');
+    b.nextElementSibling.classList.remove('visivel');
+  });
+  if(!aberta){btn.classList.add('aberta');resposta.classList.add('visivel');}
+}
+</script>
+</body>
+</html>
