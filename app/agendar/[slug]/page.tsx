@@ -60,8 +60,10 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
     quantidade: 1,
     rua: '',
     numero: '',
+    bairro: '',
     municipio: '',
     cep: '',
+    referencia: '',
   })
   const [valorUnitario, setValorUnitario] = useState<number | null>(null)
   const [salvando, setSalvando] = useState(false)
@@ -217,8 +219,10 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
       status: 'agendado',
       rua: form.rua || null,
       numero: form.numero || null,
+      bairro: form.bairro || null,
       municipio: form.municipio || null,
       cep: form.cep || null,
+      referencia: form.referencia || null,
     }))
 
     const { data, error } = await supabase
@@ -444,13 +448,19 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
 
             <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-3">
               <p className="text-sm font-semibold text-gray-700">📍 Endereço de embarque <span className="text-xs font-normal text-gray-400">(opcional)</span></p>
-              <Campo label="Rua / Logradouro">
-                <input value={form.rua} onChange={e => setForm(f => ({ ...f, rua: e.target.value }))}
-                  placeholder="Ex: Rua das Flores" className="campo-input" />
-              </Campo>
-              <Campo label="Número">
-                <input value={form.numero} onChange={e => setForm(f => ({ ...f, numero: e.target.value }))}
-                  placeholder="Ex: 123" className="campo-input" />
+              <div style={{ display: 'grid', gridTemplateColumns: '70% 30%', gap: '8px' }}>
+                <Campo label="Rua / Logradouro">
+                  <input value={form.rua} onChange={e => setForm(f => ({ ...f, rua: e.target.value }))}
+                    placeholder="Ex: Rua das Flores" className="campo-input" />
+                </Campo>
+                <Campo label="Número">
+                  <input value={form.numero} onChange={e => setForm(f => ({ ...f, numero: e.target.value }))}
+                    placeholder="123" className="campo-input" />
+                </Campo>
+              </div>
+              <Campo label="Bairro">
+                <input value={form.bairro} onChange={e => setForm(f => ({ ...f, bairro: e.target.value }))}
+                  placeholder="Ex: Centro" className="campo-input" />
               </Campo>
               <div className="grid grid-cols-2 gap-2">
                 <Campo label="Município">
@@ -462,6 +472,10 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
                     placeholder="00000-000" className="campo-input" />
                 </Campo>
               </div>
+              <Campo label="Ponto de referência">
+                <input value={form.referencia} onChange={e => setForm(f => ({ ...f, referencia: e.target.value }))}
+                  placeholder="Ex: Próximo ao mercado Boa Ideia" className="campo-input" />
+              </Campo>
             </div>
 
             {erroMsg && (
@@ -618,7 +632,7 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
 
             <button onClick={() => {
               setEtapa('form')
-              setForm({ nome: '', telefone: '', origem: '', destino: '', data: format(addDays(new Date(), 1), 'yyyy-MM-dd'), turno: 'ida', quantidade: 1, rua: '', numero: '', municipio: '', cep: '' })
+              setForm({ nome: '', telefone: '', origem: '', destino: '', data: format(addDays(new Date(), 1), 'yyyy-MM-dd'), turno: 'ida', quantidade: 1, rua: '', numero: '', bairro: '', municipio: '', cep: '', referencia: '' })
               setValorUnitario(null)
               setErroMsg(null)
             }} className="w-full py-3 rounded-2xl text-sm font-medium border border-gray-200 bg-white text-gray-600">

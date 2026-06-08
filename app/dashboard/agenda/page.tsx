@@ -17,8 +17,10 @@ type Agendamento = {
   forma_pagamento?: string
   rua?: string
   numero?: string
+  bairro?: string
   municipio?: string
   cep?: string
+  referencia?: string
 }
 
 export default function AgendaPage() {
@@ -256,7 +258,7 @@ function DetalhePassageiro({ p, onVoltar, onAtualizar }: {
   const formaLabel: Record<string, string> = {
     dinheiro: 'Dinheiro', pix: 'Pix', cartao: 'Cartão', pendente: 'A cobrar'
   }
-  const temEndereco = p.rua || p.numero || p.municipio || p.cep
+  const temEndereco = p.rua || p.numero || p.bairro || p.municipio || p.cep || p.referencia
 
   function abrirWhatsApp() {
     if (!p.telefone_passageiro) return
@@ -269,7 +271,7 @@ function DetalhePassageiro({ p, onVoltar, onAtualizar }: {
   }
 
   function abrirMaps() {
-    const partes = [p.rua, p.numero, p.municipio, p.cep].filter(Boolean)
+    const partes = [p.rua, p.numero, p.bairro, p.municipio, p.cep].filter(Boolean)
     if (!partes.length) return
     window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(partes.join(', '))}`, '_blank')
   }
@@ -359,8 +361,12 @@ function DetalhePassageiro({ p, onVoltar, onAtualizar }: {
               {(p.rua || p.numero) && (
                 <p className="text-sm text-gray-800">{[p.rua, p.numero].filter(Boolean).join(', ')}</p>
               )}
+              {p.bairro && <p className="text-sm text-gray-800">{p.bairro}</p>}
               {p.municipio && <p className="text-sm text-gray-800">{p.municipio}</p>}
               {p.cep && <p className="text-xs text-gray-400">CEP: {p.cep}</p>}
+              {p.referencia && (
+                <p className="text-xs text-gray-500 mt-1">📌 {p.referencia}</p>
+              )}
             </div>
             <button onClick={abrirMaps}
               className="w-full py-2.5 rounded-xl text-sm font-medium border border-gray-200 flex items-center justify-center gap-2"
@@ -409,8 +415,10 @@ function FormAgendamento({ data, rotas, onFechar, onSalvo }: {
     quantidade: 0,
     rua: '',
     numero: '',
+    bairro: '',
     municipio: '',
     cep: '',
+    referencia: '',
   })
   const [valorAuto, setValorAuto] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
@@ -499,8 +507,10 @@ function FormAgendamento({ data, rotas, onFechar, onSalvo }: {
       data_viagem: form.data_viagem,
       rua: form.rua || null,
       numero: form.numero || null,
+      bairro: form.bairro || null,
       municipio: form.municipio || null,
       cep: form.cep || null,
+      referencia: form.referencia || null,
     }))
     await supabase.from('agendamentos').insert(registros)
     setSaving(false)
@@ -647,6 +657,11 @@ function FormAgendamento({ data, rotas, onFechar, onSalvo }: {
           </Campo>
         </div>
 
+        <Campo label="Bairro">
+          <input value={form.bairro} onChange={e => setForm(f => ({ ...f, bairro: e.target.value }))}
+            placeholder="Ex: Centro" className="campo-input" />
+        </Campo>
+
         <div className="grid grid-cols-2 gap-2">
           <Campo label="Município">
             <input value={form.municipio} onChange={e => setForm(f => ({ ...f, municipio: e.target.value }))}
@@ -657,6 +672,11 @@ function FormAgendamento({ data, rotas, onFechar, onSalvo }: {
               placeholder="00000-000" className="campo-input" />
           </Campo>
         </div>
+
+        <Campo label="Ponto de referência">
+          <input value={form.referencia} onChange={e => setForm(f => ({ ...f, referencia: e.target.value }))}
+            placeholder="Ex: Próximo ao mercado Boa Ideia" className="campo-input" />
+        </Campo>
       </div>
 
       <div style={{ padding: '8px 16px 80px', background: 'white', borderTop: '1px solid #e5e7eb' }}>
