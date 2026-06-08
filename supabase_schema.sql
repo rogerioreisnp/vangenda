@@ -8,6 +8,9 @@ create table motoristas (
   id uuid references auth.users on delete cascade primary key,
   nome text not null,
   telefone text,
+  trial_inicio timestamp with time zone default now(),
+  assinatura_status text default 'inativo' check (assinatura_status in ('ativo', 'inativo')),
+  assinatura_expira timestamp with time zone,
   criado_em timestamp with time zone default now()
 );
 
@@ -109,8 +112,14 @@ create policy "despesa_proprio" on despesas for all using (auth.uid() = motorist
 create or replace function public.handle_new_user()
 returns trigger as $$
 begin
-  insert into public.motoristas (id, nome, telefone)
-  values (new.id, new.raw_user_meta_data->>'nome', new.raw_user_meta_data->>'telefone');
+  insert into public.motoristas (id, nome, telefone, trial_inicio, assinatura_status)
+  values (
+    new.id,
+    new.raw_user_meta_data->>'nome',
+    new.raw_user_meta_data->>'telefone',
+    now(),
+    'inativo'
+  );
   return new;
 end;
 $$ language plpgsql security definer;

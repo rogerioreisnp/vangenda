@@ -64,11 +64,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
     const { data: motorista } = await supabase
       .from('motoristas')
-      .select('trial_inicio, assinatura_status, assinatura_expira')
+      .select('trial_inicio, assinatura_status, assinatura_expira, criado_em')
       .eq('id', session.user.id)
       .single()
 
     if (!motorista) {
+      setStatusAcesso('bloqueado')
       setChecando(false)
       return
     }
@@ -85,7 +86,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       return
     }
 
-    const trialInicio = new Date(motorista.trial_inicio)
+    // Usa criado_em como fallback se trial_inicio for null (usuários antigos)
+    const trialInicio = new Date(motorista.trial_inicio ?? motorista.criado_em)
     const agora = new Date()
     const diasUsados = Math.floor((agora.getTime() - trialInicio.getTime()) / (1000 * 60 * 60 * 24))
     const diasRestantesTrial = 10 - diasUsados
