@@ -537,7 +537,7 @@ function FormAgendamento({ data, rotas, onFechar, onSalvo }: {
         )}
       </div>
 
-      <div style={{ position: 'fixed', bottom: '64px', left: 0, right: 0, padding: '8px 16px', background: 'white', borderTop: '1px solid #e5e7eb', zIndex: 40 }}>
+      <div style={{ padding: '8px 16px 16px', background: 'white', borderTop: '1px solid #e5e7eb' }}>
         <button onClick={salvar} disabled={saving || !form.nome_passageiro || !form.parada_origem || !form.parada_destino || !form.valor}
           className="w-full py-3.5 rounded-xl text-white text-sm font-semibold transition-opacity disabled:opacity-40"
           style={{ background: '#1D9E75' }}>
