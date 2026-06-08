@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, isSameDay, isSameMonth, addMonths, subMonths, parseISO } from 'date-fns'
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, isSameDay, isSameMonth, addMonths, subMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
 type Agendamento = {
@@ -14,6 +14,11 @@ type Agendamento = {
   status: 'agendado' | 'confirmado' | 'cancelado'
   data_viagem: string
   telefone_passageiro?: string
+  forma_pagamento?: string
+  rua?: string
+  numero?: string
+  municipio?: string
+  cep?: string
 }
 
 export default function AgendaPage() {
@@ -24,6 +29,7 @@ export default function AgendaPage() {
   const [loading, setLoading] = useState(true)
   const [mostrarForm, setMostrarForm] = useState(false)
   const [rotas, setRotas] = useState<any[]>([])
+  const [agendamentoDetalhe, setAgendamentoDetalhe] = useState<Agendamento | null>(null)
 
   useEffect(() => { carregarMes() }, [mesAtual])
 
@@ -146,10 +152,10 @@ export default function AgendaPage() {
         ) : (
           <>
             {ida.length > 0 && (
-              <BlocoTurno turno="ida" horario="05:00h" passageiros={ida} onAtualizar={carregarMes} />
+              <BlocoTurno turno="ida" horario="05:00h" passageiros={ida} onAtualizar={carregarMes} onVerDetalhe={setAgendamentoDetalhe} />
             )}
             {volta.length > 0 && (
-              <BlocoTurno turno="volta" horario="14:00h" passageiros={volta} onAtualizar={carregarMes} />
+              <BlocoTurno turno="volta" horario="14:00h" passageiros={volta} onAtualizar={carregarMes} onVerDetalhe={setAgendamentoDetalhe} />
             )}
           </>
         )}
@@ -160,6 +166,14 @@ export default function AgendaPage() {
           + Agendar passageiro neste dia
         </button>
       </div>
+
+      {agendamentoDetalhe && (
+        <DetalhePassageiro
+          p={agendamentoDetalhe}
+          onVoltar={() => setAgendamentoDetalhe(null)}
+          onAtualizar={() => { setAgendamentoDetalhe(null); carregarMes() }}
+        />
+      )}
 
       {mostrarForm && (
         <FormAgendamento
@@ -173,8 +187,9 @@ export default function AgendaPage() {
   )
 }
 
-function BlocoTurno({ turno, horario, passageiros, onAtualizar }: {
-  turno: 'ida' | 'volta', horario: string, passageiros: Agendamento[], onAtualizar: () => void
+function BlocoTurno({ turno, horario, passageiros, onAtualizar, onVerDetalhe }: {
+  turno: 'ida' | 'volta', horario: string, passageiros: Agendamento[],
+  onAtualizar: () => void, onVerDetalhe: (a: Agendamento) => void
 }) {
   const sub = passageiros.reduce((s, a) => s + a.valor, 0)
   return (
@@ -193,15 +208,71 @@ function BlocoTurno({ turno, horario, passageiros, onAtualizar }: {
         </div>
         <span className="text-xs text-gray-400">R$ {sub.toFixed(0)}</span>
       </div>
-      {passageiros.map(p => <CardPassageiro key={p.id} p={p} onAtualizar={onAtualizar} />)}
+      {passageiros.map(p => (
+        <CardPassageiro key={p.id} p={p} onVerDetalhe={() => onVerDetalhe(p)} />
+      ))}
     </div>
   )
 }
 
-function CardPassageiro({ p, onAtualizar }: { p: Agendamento, onAtualizar: () => void }) {
+function CardPassageiro({ p, onVerDetalhe }: { p: Agendamento, onVerDetalhe: () => void }) {
   const iniciais = p.nome_passageiro.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase()
   const cores = ['#E1F5EE|#0F6E56', '#FAEEDA|#854F0B', '#E6F1FB|#185FA5', '#EEEDFE|#534AB7']
   const cor = cores[p.nome_passageiro.charCodeAt(0) % cores.length].split('|')
+
+  return (
+    <button
+      onClick={onVerDetalhe}
+      className="w-full bg-white border border-gray-100 rounded-xl p-3 mb-2 flex items-center gap-3 text-left active:opacity-70 transition-opacity"
+      style={{ cursor: 'pointer' }}>
+      <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+        style={{ background: cor[0], color: cor[1] }}>{iniciais}</div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-gray-800 truncate">{p.nome_passageiro}</p>
+        <p className="text-xs text-gray-400">{p.parada_origem} → {p.parada_destino}</p>
+        {p.telefone_passageiro && (
+          <p className="text-xs text-gray-400">{p.telefone_passageiro}</p>
+        )}
+      </div>
+      <div className="text-right flex-shrink-0">
+        <p className="text-sm font-bold" style={{ color: '#1D9E75' }}>R$ {p.valor.toFixed(0)}</p>
+        <span className="text-[10px] px-2 py-0.5 rounded-md font-medium"
+          style={p.status === 'confirmado'
+            ? { background: '#E1F5EE', color: '#0F6E56' }
+            : { background: '#f0f0f0', color: '#888' }}>
+          {p.status === 'confirmado' ? 'Confirmado' : 'Agendado'}
+        </span>
+      </div>
+      <span className="text-gray-300 text-sm ml-1">›</span>
+    </button>
+  )
+}
+
+function DetalhePassageiro({ p, onVoltar, onAtualizar }: {
+  p: Agendamento, onVoltar: () => void, onAtualizar: () => void
+}) {
+  const dataFmt = format(new Date(p.data_viagem + 'T00:00:00'), "EEEE, dd 'de' MMMM", { locale: ptBR })
+  const turnoLabel = p.turno === 'ida' ? 'Ida (05:00h)' : 'Volta (14:00h)'
+  const formaLabel: Record<string, string> = {
+    dinheiro: 'Dinheiro', pix: 'Pix', cartao: 'Cartão', pendente: 'A cobrar'
+  }
+  const temEndereco = p.rua || p.numero || p.municipio || p.cep
+
+  function abrirWhatsApp() {
+    if (!p.telefone_passageiro) return
+    const tel = p.telefone_passageiro.replace(/\D/g, '')
+    const dataMsg = format(new Date(p.data_viagem + 'T00:00:00'), 'dd/MM', { locale: ptBR })
+    const msg = encodeURIComponent(
+      `Olá ${p.nome_passageiro}! 👋\n\nConfirmando sua viagem:\n📍 ${p.parada_origem} → ${p.parada_destino}\n📅 ${dataMsg} - ${turnoLabel}\n💰 R$ ${p.valor.toFixed(2).replace('.', ',')}\n\nTudo certo? ✅`
+    )
+    window.open(`https://wa.me/55${tel}?text=${msg}`, '_blank')
+  }
+
+  function abrirMaps() {
+    const partes = [p.rua, p.numero, p.municipio, p.cep].filter(Boolean)
+    if (!partes.length) return
+    window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(partes.join(', '))}`, '_blank')
+  }
 
   async function confirmar() {
     await supabase.from('agendamentos').update({ status: 'confirmado' }).eq('id', p.id)
@@ -214,59 +285,106 @@ function CardPassageiro({ p, onAtualizar }: { p: Agendamento, onAtualizar: () =>
     onAtualizar()
   }
 
-  function abrirWhatsApp() {
-    if (!p.telefone_passageiro) return
-    const tel = p.telefone_passageiro.replace(/\D/g, '')
-    const data = format(new Date(p.data_viagem + 'T00:00:00'), "dd/MM", { locale: ptBR })
-    const turno = p.turno === 'ida' ? 'ida (05:00h)' : 'volta (14:00h)'
-    const msg = encodeURIComponent(
-      `Olá ${p.nome_passageiro}! 👋\n\nConfirmando sua viagem:\n📍 ${p.parada_origem} → ${p.parada_destino}\n📅 ${data} - ${turno}\n💰 R$ ${p.valor.toFixed(2).replace('.', ',')}\n\nTudo certo? ✅`
-    )
-    window.open(`https://wa.me/55${tel}?text=${msg}`, '_blank')
-  }
-
   return (
-    <div className="bg-white border border-gray-100 rounded-xl p-3 mb-2">
-      <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
-          style={{ background: cor[0], color: cor[1] }}>{iniciais}</div>
+    <div className="fixed inset-0 z-50 flex flex-col" style={{ background: '#f0f0ec' }}>
+      <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-4 flex items-center gap-3">
+        <button onClick={onVoltar} style={{ color: '#9FE1CB' }} className="text-2xl">‹</button>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-gray-800 truncate">{p.nome_passageiro}</p>
-          <p className="text-xs text-gray-400">{p.parada_origem} → {p.parada_destino}</p>
-          {p.telefone_passageiro && (
-            <p className="text-xs text-gray-400">{p.telefone_passageiro}</p>
-          )}
+          <p style={{ color: '#E1F5EE' }} className="text-sm font-semibold truncate">{p.nome_passageiro}</p>
+          <p style={{ color: '#5DCAA5' }} className="text-xs capitalize">{dataFmt}</p>
         </div>
-        <div className="text-right flex-shrink-0">
-          <p className="text-sm font-bold" style={{ color: '#1D9E75' }}>R$ {p.valor.toFixed(0)}</p>
-          <span className="text-[10px] px-2 py-0.5 rounded-md font-medium"
-            style={p.status === 'confirmado'
-              ? { background: '#E1F5EE', color: '#0F6E56' }
-              : { background: '#f0f0f0', color: '#888' }}>
-            {p.status === 'confirmado' ? 'Confirmado' : 'Agendado'}
-          </span>
-        </div>
+        <span className="text-[11px] px-2 py-1 rounded-lg font-medium"
+          style={p.status === 'confirmado'
+            ? { background: '#085041', color: '#9FE1CB' }
+            : { background: '#0a5a48', color: '#9FE1CB' }}>
+          {p.status === 'confirmado' ? 'Confirmado' : 'Agendado'}
+        </span>
       </div>
 
-      <div className="flex gap-2 mt-2">
-        {p.status !== 'confirmado' && (
-          <button onClick={confirmar}
-            className="flex-1 py-1.5 rounded-lg text-xs font-medium"
-            style={{ background: '#E1F5EE', color: '#0F6E56' }}>✓ Confirmar</button>
+      <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
+        {/* Passageiro */}
+        <div className="bg-white rounded-2xl p-4 border border-gray-100">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Passageiro</p>
+          <p className="text-base font-bold text-gray-800 mb-2">{p.nome_passageiro}</p>
+          {p.telefone_passageiro ? (
+            <div className="flex gap-2">
+              <a href={`tel:${p.telefone_passageiro}`}
+                className="flex-1 py-2.5 rounded-xl text-sm font-medium text-center border border-gray-200"
+                style={{ background: '#f0f0ec', color: '#333' }}>
+                📞 {p.telefone_passageiro}
+              </a>
+              <button onClick={abrirWhatsApp}
+                className="px-4 py-2.5 rounded-xl text-sm font-medium"
+                style={{ background: '#E7F9EE', color: '#128C7E' }}>
+                💬
+              </button>
+            </div>
+          ) : (
+            <p className="text-sm text-gray-400">Sem telefone cadastrado</p>
+          )}
+        </div>
+
+        {/* Viagem */}
+        <div className="bg-white rounded-2xl p-4 border border-gray-100">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Viagem</p>
+          <div className="flex flex-col gap-2.5">
+            <div className="flex justify-between items-start gap-2">
+              <span className="text-xs text-gray-400 mt-0.5 shrink-0">Rota</span>
+              <span className="text-sm font-medium text-gray-800 text-right">{p.parada_origem} → {p.parada_destino}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-xs text-gray-400">Turno</span>
+              <span className="text-sm font-medium text-gray-800">{turnoLabel}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-xs text-gray-400">Valor</span>
+              <span className="text-sm font-bold" style={{ color: '#1D9E75' }}>
+                R$ {p.valor.toFixed(2).replace('.', ',')}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-xs text-gray-400">Pagamento</span>
+              <span className="text-sm font-medium text-gray-800">
+                {formaLabel[p.forma_pagamento || ''] || p.forma_pagamento || '—'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Endereço */}
+        {temEndereco && (
+          <div className="bg-white rounded-2xl p-4 border border-gray-100">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Endereço de embarque</p>
+            <div className="flex flex-col gap-1 mb-3">
+              {(p.rua || p.numero) && (
+                <p className="text-sm text-gray-800">{[p.rua, p.numero].filter(Boolean).join(', ')}</p>
+              )}
+              {p.municipio && <p className="text-sm text-gray-800">{p.municipio}</p>}
+              {p.cep && <p className="text-xs text-gray-400">CEP: {p.cep}</p>}
+            </div>
+            <button onClick={abrirMaps}
+              className="w-full py-2.5 rounded-xl text-sm font-medium border border-gray-200 flex items-center justify-center gap-2"
+              style={{ background: '#f0f0ec', color: '#185FA5' }}>
+              📍 Abrir no Google Maps
+            </button>
+          </div>
         )}
-        {p.telefone_passageiro && (
-          <>
-            <a href={`tel:${p.telefone_passageiro}`}
-              className="flex-1 py-1.5 rounded-lg text-xs font-medium text-center"
-              style={{ background: '#f0f0f0', color: '#555' }}>📞 Ligar</a>
-            <button onClick={abrirWhatsApp}
-              className="flex-1 py-1.5 rounded-lg text-xs font-medium"
-              style={{ background: '#E7F9EE', color: '#128C7E' }}>💬 WhatsApp</button>
-          </>
-        )}
-        <button onClick={cancelar}
-          className="py-1.5 px-3 rounded-lg text-xs font-medium"
-          style={{ background: '#FCEBEB', color: '#A32D2D' }}>✕</button>
+
+        {/* Ações */}
+        <div className="flex flex-col gap-2">
+          {p.status !== 'confirmado' && (
+            <button onClick={confirmar}
+              className="w-full py-3 rounded-xl text-sm font-semibold"
+              style={{ background: '#E1F5EE', color: '#0F6E56' }}>
+              ✓ Confirmar presença
+            </button>
+          )}
+          <button onClick={cancelar}
+            className="w-full py-3 rounded-xl text-sm font-semibold"
+            style={{ background: '#FCEBEB', color: '#A32D2D' }}>
+            ✕ Cancelar agendamento
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -287,8 +405,9 @@ function FormAgendamento({ data, rotas, onFechar, onSalvo }: {
     turno: 'ida',
     valor: '',
     forma_pagamento: 'dinheiro',
-    quantidade: 1,
+    quantidade: 0,
     rua: '',
+    numero: '',
     municipio: '',
     cep: '',
   })
@@ -360,8 +479,10 @@ function FormAgendamento({ data, rotas, onFechar, onSalvo }: {
   const capacidade = rotaAtual?.capacidade || 15
   const vagasDisponiveis = Math.max(0, capacidade - vagasOcupadas)
 
+  const podeSalvar = !saving && !!form.nome_passageiro && !!form.parada_origem && !!form.parada_destino && !!form.valor && form.quantidade > 0
+
   async function salvar() {
-    if (!form.nome_passageiro || !form.parada_origem || !form.parada_destino || !form.valor) return
+    if (!podeSalvar) return
     setSaving(true)
     const { data: { user } } = await supabase.auth.getUser()
     const registros = Array.from({ length: form.quantidade }, (_, i) => ({
@@ -376,6 +497,7 @@ function FormAgendamento({ data, rotas, onFechar, onSalvo }: {
       forma_pagamento: form.forma_pagamento,
       data_viagem: format(data, 'yyyy-MM-dd'),
       rua: form.rua || null,
+      numero: form.numero || null,
       municipio: form.municipio || null,
       cep: form.cep || null,
     }))
@@ -387,11 +509,6 @@ function FormAgendamento({ data, rotas, onFechar, onSalvo }: {
   const clientesFiltrados = filtroCliente.length >= 2
     ? clientes.filter(c => c.nome.toLowerCase().includes(filtroCliente.toLowerCase()))
     : []
-
-  function abrirMaps() {
-    const endereco = encodeURIComponent([form.rua, form.municipio, form.cep].filter(Boolean).join(', '))
-    window.open(`https://www.google.com/maps/search/?api=1&query=${endereco}`, '_blank')
-  }
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col" style={{ background: '#f0f0ec' }}>
@@ -453,7 +570,7 @@ function FormAgendamento({ data, rotas, onFechar, onSalvo }: {
 
         <Campo label="Quantidade de passageiros">
           <div className="flex items-center gap-3">
-            <button onClick={() => setForm(f => ({ ...f, quantidade: Math.max(1, f.quantidade - 1) }))}
+            <button onClick={() => setForm(f => ({ ...f, quantidade: Math.max(0, f.quantidade - 1) }))}
               className="w-10 h-10 rounded-xl text-xl font-bold border border-gray-200 flex items-center justify-center"
               style={{ background: '#f0f0ec', color: '#0F6E56' }}>
               −
@@ -514,7 +631,12 @@ function FormAgendamento({ data, rotas, onFechar, onSalvo }: {
 
         <Campo label="Rua / Logradouro">
           <input value={form.rua} onChange={e => setForm(f => ({ ...f, rua: e.target.value }))}
-            placeholder="Ex: Rua das Flores, 123" className="campo-input" />
+            placeholder="Ex: Rua das Flores" className="campo-input" />
+        </Campo>
+
+        <Campo label="Número">
+          <input value={form.numero} onChange={e => setForm(f => ({ ...f, numero: e.target.value }))}
+            placeholder="Ex: 123" className="campo-input" />
         </Campo>
 
         <div className="grid grid-cols-2 gap-2">
@@ -527,18 +649,10 @@ function FormAgendamento({ data, rotas, onFechar, onSalvo }: {
               placeholder="00000-000" className="campo-input" />
           </Campo>
         </div>
-
-        {(form.rua || form.municipio) && (
-          <button onClick={abrirMaps}
-            className="w-full py-2.5 rounded-xl text-sm font-medium border border-gray-200 flex items-center justify-center gap-2"
-            style={{ background: '#fff', color: '#185FA5' }}>
-            📍 Abrir no Google Maps
-          </button>
-        )}
       </div>
 
-      <div style={{ padding: '8px 16px 16px', background: 'white', borderTop: '1px solid #e5e7eb' }}>
-        <button onClick={salvar} disabled={saving || !form.nome_passageiro || !form.parada_origem || !form.parada_destino || !form.valor}
+      <div style={{ padding: '8px 16px', paddingBottom: 'calc(16px + env(safe-area-inset-bottom, 0px))', background: 'white', borderTop: '1px solid #e5e7eb' }}>
+        <button onClick={salvar} disabled={!podeSalvar}
           className="w-full py-3.5 rounded-xl text-white text-sm font-semibold transition-opacity disabled:opacity-40"
           style={{ background: '#1D9E75' }}>
           {saving

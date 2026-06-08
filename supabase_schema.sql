@@ -67,6 +67,7 @@ create table agendamentos (
   parada_origem text not null,
   parada_destino text not null,
   rua text,
+  numero text,
   municipio text,
   cep text,
   data_viagem date not null,
