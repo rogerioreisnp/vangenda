@@ -53,6 +53,36 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     verificarAcesso()
   }, [router])
 
+  useEffect(() => {
+    if (!motoristaId) return
+
+    const channel = supabase
+      .channel(`assinatura-${motoristaId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'motoristas',
+          filter: `id=eq.${motoristaId}`,
+        },
+        (payload) => {
+          const novo = payload.new as { assinatura_status: string; assinatura_expira: string }
+          if (novo.assinatura_status === 'ativo') {
+            const expira = new Date(novo.assinatura_expira)
+            if (expira > new Date()) {
+              setStatusAcesso('ok')
+            }
+          }
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [motoristaId])
+
   async function verificarAcesso() {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) {

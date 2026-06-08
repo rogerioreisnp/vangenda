@@ -287,19 +287,40 @@ function FormAgendamento({ data, rotas, onFechar, onSalvo }: {
     turno: 'ida',
     valor: '',
     forma_pagamento: 'dinheiro',
+    quantidade: 1,
+    rua: '',
+    municipio: '',
+    cep: '',
   })
   const [valorAuto, setValorAuto] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
   const [filtroCliente, setFiltroCliente] = useState('')
+  const [vagasOcupadas, setVagasOcupadas] = useState(0)
 
   useEffect(() => {
-    if (form.rota_id) carregarRota(form.rota_id)
+    if (form.rota_id) { carregarRota(form.rota_id); carregarVagas() }
     carregarClientes()
   }, [form.rota_id])
 
   useEffect(() => {
+    if (form.rota_id) carregarVagas()
+  }, [form.turno])
+
+  useEffect(() => {
     if (form.parada_origem && form.parada_destino) calcularValor()
   }, [form.parada_origem, form.parada_destino])
+
+  async function carregarVagas() {
+    if (!form.rota_id) return
+    const { count } = await supabase
+      .from('agendamentos')
+      .select('*', { count: 'exact', head: true })
+      .eq('rota_id', form.rota_id)
+      .eq('data_viagem', format(data, 'yyyy-MM-dd'))
+      .eq('turno', form.turno)
+      .neq('status', 'cancelado')
+    setVagasOcupadas(count || 0)
+  }
 
   async function carregarRota(rotaId: string) {
     const { data: pars } = await supabase.from('paradas').select('*').eq('rota_id', rotaId).order('ordem')
@@ -335,16 +356,30 @@ function FormAgendamento({ data, rotas, onFechar, onSalvo }: {
     setFiltroCliente('')
   }
 
+  const rotaAtual = rotas.find(r => r.id === form.rota_id)
+  const capacidade = rotaAtual?.capacidade || 15
+  const vagasDisponiveis = Math.max(0, capacidade - vagasOcupadas)
+
   async function salvar() {
     if (!form.nome_passageiro || !form.parada_origem || !form.parada_destino || !form.valor) return
     setSaving(true)
     const { data: { user } } = await supabase.auth.getUser()
-    await supabase.from('agendamentos').insert({
-      ...form,
+    const registros = Array.from({ length: form.quantidade }, (_, i) => ({
+      rota_id: form.rota_id,
       motorista_id: user!.id,
-      data_viagem: format(data, 'yyyy-MM-dd'),
+      nome_passageiro: form.quantidade > 1 ? `${form.nome_passageiro} (${i + 1}/${form.quantidade})` : form.nome_passageiro,
+      telefone_passageiro: form.telefone_passageiro || null,
+      parada_origem: form.parada_origem,
+      parada_destino: form.parada_destino,
+      turno: form.turno,
       valor: parseFloat(form.valor),
-    })
+      forma_pagamento: form.forma_pagamento,
+      data_viagem: format(data, 'yyyy-MM-dd'),
+      rua: form.rua || null,
+      municipio: form.municipio || null,
+      cep: form.cep || null,
+    }))
+    await supabase.from('agendamentos').insert(registros)
     setSaving(false)
     onSalvo()
   }
@@ -352,6 +387,11 @@ function FormAgendamento({ data, rotas, onFechar, onSalvo }: {
   const clientesFiltrados = filtroCliente.length >= 2
     ? clientes.filter(c => c.nome.toLowerCase().includes(filtroCliente.toLowerCase()))
     : []
+
+  function abrirMaps() {
+    const endereco = encodeURIComponent([form.rua, form.municipio, form.cep].filter(Boolean).join(', '))
+    window.open(`https://www.google.com/maps/search/?api=1&query=${endereco}`, '_blank')
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col" style={{ background: '#f0f0ec' }}>
@@ -411,6 +451,28 @@ function FormAgendamento({ data, rotas, onFechar, onSalvo }: {
           </div>
         </Campo>
 
+        <Campo label="Quantidade de passageiros">
+          <div className="flex items-center gap-3">
+            <button onClick={() => setForm(f => ({ ...f, quantidade: Math.max(1, f.quantidade - 1) }))}
+              className="w-10 h-10 rounded-xl text-xl font-bold border border-gray-200 flex items-center justify-center"
+              style={{ background: '#f0f0ec', color: '#0F6E56' }}>
+              −
+            </button>
+            <div className="flex-1 text-center">
+              <span className="text-2xl font-bold text-gray-800">{form.quantidade}</span>
+              <p className="text-xs text-gray-400">{form.quantidade === 1 ? 'passageiro' : 'passageiros'}</p>
+            </div>
+            <button onClick={() => setForm(f => ({ ...f, quantidade: Math.min(vagasDisponiveis || 99, f.quantidade + 1) }))}
+              className="w-10 h-10 rounded-xl text-xl font-bold border border-gray-200 flex items-center justify-center"
+              style={{ background: '#0F6E56', color: '#fff' }}>
+              +
+            </button>
+          </div>
+          {vagasDisponiveis > 0 && (
+            <p className="text-xs text-gray-400 mt-1 text-center">{vagasDisponiveis} vaga{vagasDisponiveis !== 1 ? 's' : ''} disponível{vagasDisponiveis !== 1 ? 'is' : ''}</p>
+          )}
+        </Campo>
+
         <div className="grid grid-cols-2 gap-2">
           <Campo label="Embarca em">
             <select value={form.parada_origem} onChange={e => setForm(f => ({ ...f, parada_origem: e.target.value }))}
@@ -447,13 +509,43 @@ function FormAgendamento({ data, rotas, onFechar, onSalvo }: {
             <option value="pendente">A cobrar na viagem</option>
           </select>
         </Campo>
+
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mt-1">Endereço de embarque</p>
+
+        <Campo label="Rua / Logradouro">
+          <input value={form.rua} onChange={e => setForm(f => ({ ...f, rua: e.target.value }))}
+            placeholder="Ex: Rua das Flores, 123" className="campo-input" />
+        </Campo>
+
+        <div className="grid grid-cols-2 gap-2">
+          <Campo label="Município">
+            <input value={form.municipio} onChange={e => setForm(f => ({ ...f, municipio: e.target.value }))}
+              placeholder="Ex: São Paulo" className="campo-input" />
+          </Campo>
+          <Campo label="CEP (opcional)">
+            <input value={form.cep} onChange={e => setForm(f => ({ ...f, cep: e.target.value }))}
+              placeholder="00000-000" className="campo-input" />
+          </Campo>
+        </div>
+
+        {(form.rua || form.municipio) && (
+          <button onClick={abrirMaps}
+            className="w-full py-2.5 rounded-xl text-sm font-medium border border-gray-200 flex items-center justify-center gap-2"
+            style={{ background: '#fff', color: '#185FA5' }}>
+            📍 Abrir no Google Maps
+          </button>
+        )}
       </div>
 
       <div style={{ position: 'fixed', bottom: '64px', left: 0, right: 0, padding: '8px 16px', background: 'white', borderTop: '1px solid #e5e7eb', zIndex: 40 }}>
         <button onClick={salvar} disabled={saving || !form.nome_passageiro || !form.parada_origem || !form.parada_destino || !form.valor}
           className="w-full py-3.5 rounded-xl text-white text-sm font-semibold transition-opacity disabled:opacity-40"
           style={{ background: '#1D9E75' }}>
-          {saving ? 'Salvando...' : '✓ Salvar passageiro'}
+          {saving
+            ? 'Salvando...'
+            : form.quantidade > 1
+            ? `✓ Salvar ${form.quantidade} passageiros`
+            : '✓ Salvar passageiro'}
         </button>
       </div>
 

@@ -58,6 +58,9 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
     data: format(addDays(new Date(), 1), 'yyyy-MM-dd'),
     turno: 'ida',
     quantidade: 1,
+    rua: '',
+    municipio: '',
+    cep: '',
   })
   const [valorUnitario, setValorUnitario] = useState<number | null>(null)
   const [salvando, setSalvando] = useState(false)
@@ -211,6 +214,9 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
       valor: valorUnitario || 0,
       forma_pagamento: motorista.pagamento_obrigatorio ? 'pix' : 'pendente',
       status: 'agendado',
+      rua: form.rua || null,
+      municipio: form.municipio || null,
+      cep: form.cep || null,
     }))
 
     const { data, error } = await supabase
@@ -434,6 +440,34 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
               )}
             </div>
 
+            <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-3">
+              <p className="text-sm font-semibold text-gray-700">📍 Endereço de embarque <span className="text-xs font-normal text-gray-400">(opcional)</span></p>
+              <Campo label="Rua / Logradouro">
+                <input value={form.rua} onChange={e => setForm(f => ({ ...f, rua: e.target.value }))}
+                  placeholder="Ex: Rua das Flores, 123" className="campo-input" />
+              </Campo>
+              <div className="grid grid-cols-2 gap-2">
+                <Campo label="Município">
+                  <input value={form.municipio} onChange={e => setForm(f => ({ ...f, municipio: e.target.value }))}
+                    placeholder="Ex: São Paulo" className="campo-input" />
+                </Campo>
+                <Campo label="CEP">
+                  <input value={form.cep} onChange={e => setForm(f => ({ ...f, cep: e.target.value }))}
+                    placeholder="00000-000" className="campo-input" />
+                </Campo>
+              </div>
+              {(form.rua || form.municipio) && (
+                <button onClick={() => {
+                  const end = encodeURIComponent([form.rua, form.municipio, form.cep].filter(Boolean).join(', '))
+                  window.open(`https://www.google.com/maps/search/?api=1&query=${end}`, '_blank')
+                }}
+                  className="w-full py-2.5 rounded-xl text-sm font-medium border border-gray-200 flex items-center justify-center gap-2"
+                  style={{ background: '#f0f0ec', color: '#185FA5' }}>
+                  📍 Ver no Google Maps
+                </button>
+              )}
+            </div>
+
             {erroMsg && (
               <div style={{ background: '#FCEBEB', borderColor: '#F5BCBC' }}
                 className="border rounded-xl px-4 py-3">
@@ -588,7 +622,7 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
 
             <button onClick={() => {
               setEtapa('form')
-              setForm({ nome: '', telefone: '', origem: '', destino: '', data: format(addDays(new Date(), 1), 'yyyy-MM-dd'), turno: 'ida', quantidade: 1 })
+              setForm({ nome: '', telefone: '', origem: '', destino: '', data: format(addDays(new Date(), 1), 'yyyy-MM-dd'), turno: 'ida', quantidade: 1, rua: '', municipio: '', cep: '' })
               setValorUnitario(null)
               setErroMsg(null)
             }} className="w-full py-3 rounded-2xl text-sm font-medium border border-gray-200 bg-white text-gray-600">

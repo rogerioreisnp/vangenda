@@ -22,6 +22,7 @@ create table rotas (
   horario_ida time not null default '05:00',
   horario_volta time,
   dias_semana text[] default array['seg','ter','qua','qui','sex','sab'],
+  capacidade integer default 15,
   ativa boolean default true,
   criado_em timestamp with time zone default now()
 );
@@ -65,6 +66,9 @@ create table agendamentos (
   telefone_passageiro text,
   parada_origem text not null,
   parada_destino text not null,
+  rua text,
+  municipio text,
+  cep text,
   data_viagem date not null,
   turno text not null check (turno in ('ida','volta')),
   valor numeric(10,2) not null,

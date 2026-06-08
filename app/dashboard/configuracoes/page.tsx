@@ -455,8 +455,8 @@ export default function ConfiguracoesPage() {
             </div>
             <Campo label="🚐 Capacidade da van (passageiros)">
               <input type="number" value={rota?.capacidade || 15}
-                onChange={e => setRota((r: any) => ({ ...r, capacidade: parseInt(e.target.value) || 15 }))}
-                min={1} max={50} placeholder="Ex: 15" className="campo-input" />
+                onChange={e => setRota((r: any) => ({ ...r, capacidade: parseInt(e.target.value) || 1 }))}
+                min={1} placeholder="Ex: 15" className="campo-input" />
             </Campo>
             <div style={{ background: '#E1F5EE' }} className="rounded-xl p-3">
               <p className="text-xs" style={{ color: '#085041' }}>
