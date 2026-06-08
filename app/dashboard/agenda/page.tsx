@@ -403,6 +403,7 @@ function FormAgendamento({ data, rotas, onFechar, onSalvo }: {
     parada_origem: '',
     parada_destino: '',
     turno: 'ida',
+    data_viagem: format(data, 'yyyy-MM-dd'),
     valor: '',
     forma_pagamento: 'dinheiro',
     quantidade: 0,
@@ -423,7 +424,7 @@ function FormAgendamento({ data, rotas, onFechar, onSalvo }: {
 
   useEffect(() => {
     if (form.rota_id) carregarVagas()
-  }, [form.turno])
+  }, [form.turno, form.data_viagem])
 
   useEffect(() => {
     if (form.parada_origem && form.parada_destino) calcularValor()
@@ -435,7 +436,7 @@ function FormAgendamento({ data, rotas, onFechar, onSalvo }: {
       .from('agendamentos')
       .select('*', { count: 'exact', head: true })
       .eq('rota_id', form.rota_id)
-      .eq('data_viagem', format(data, 'yyyy-MM-dd'))
+      .eq('data_viagem', form.data_viagem)
       .eq('turno', form.turno)
       .neq('status', 'cancelado')
     setVagasOcupadas(count || 0)
@@ -495,7 +496,7 @@ function FormAgendamento({ data, rotas, onFechar, onSalvo }: {
       turno: form.turno,
       valor: parseFloat(form.valor),
       forma_pagamento: form.forma_pagamento,
-      data_viagem: format(data, 'yyyy-MM-dd'),
+      data_viagem: form.data_viagem,
       rua: form.rua || null,
       numero: form.numero || null,
       municipio: form.municipio || null,
@@ -552,6 +553,12 @@ function FormAgendamento({ data, rotas, onFechar, onSalvo }: {
         <Campo label="Telefone">
           <input value={form.telefone_passageiro} onChange={e => setForm(f => ({ ...f, telefone_passageiro: e.target.value }))}
             placeholder="(95) 99999-9999" type="tel" className="campo-input" />
+        </Campo>
+
+        <Campo label="Data da viagem">
+          <input type="date" value={form.data_viagem}
+            onChange={e => setForm(f => ({ ...f, data_viagem: e.target.value }))}
+            className="campo-input" />
         </Campo>
 
         <Campo label="Turno">
@@ -629,15 +636,16 @@ function FormAgendamento({ data, rotas, onFechar, onSalvo }: {
 
         <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mt-1">Endereço de embarque</p>
 
-        <Campo label="Rua / Logradouro">
-          <input value={form.rua} onChange={e => setForm(f => ({ ...f, rua: e.target.value }))}
-            placeholder="Ex: Rua das Flores" className="campo-input" />
-        </Campo>
-
-        <Campo label="Número">
-          <input value={form.numero} onChange={e => setForm(f => ({ ...f, numero: e.target.value }))}
-            placeholder="Ex: 123" className="campo-input" />
-        </Campo>
+        <div style={{ display: 'grid', gridTemplateColumns: '70% 30%', gap: '8px' }}>
+          <Campo label="Rua / Logradouro">
+            <input value={form.rua} onChange={e => setForm(f => ({ ...f, rua: e.target.value }))}
+              placeholder="Ex: Rua das Flores" className="campo-input" />
+          </Campo>
+          <Campo label="Número">
+            <input value={form.numero} onChange={e => setForm(f => ({ ...f, numero: e.target.value }))}
+              placeholder="123" className="campo-input" />
+          </Campo>
+        </div>
 
         <div className="grid grid-cols-2 gap-2">
           <Campo label="Município">
@@ -651,7 +659,7 @@ function FormAgendamento({ data, rotas, onFechar, onSalvo }: {
         </div>
       </div>
 
-      <div style={{ padding: '8px 16px', paddingBottom: 'calc(16px + env(safe-area-inset-bottom, 0px))', background: 'white', borderTop: '1px solid #e5e7eb' }}>
+      <div style={{ padding: '8px 16px 80px', background: 'white', borderTop: '1px solid #e5e7eb' }}>
         <button onClick={salvar} disabled={!podeSalvar}
           className="w-full py-3.5 rounded-xl text-white text-sm font-semibold transition-opacity disabled:opacity-40"
           style={{ background: '#1D9E75' }}>
