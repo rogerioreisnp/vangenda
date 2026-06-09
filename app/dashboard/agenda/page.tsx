@@ -53,7 +53,7 @@ export default function AgendaPage() {
 
     if (data) setAgendamentos(data)
 
-    const { data: rts } = await supabase.from('rotas').select('*').eq('motorista_id', user.id).eq('ativa', true)
+    const { data: rts } = await supabase.from('rotas').select('*').eq('motorista_id', user.id)
     if (rts) setRotas(rts)
 
     setLoading(false)

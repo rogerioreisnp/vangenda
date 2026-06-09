@@ -126,7 +126,7 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
     if (!mot) { setLoading(false); return }
     setMotorista(mot)
     const { data: rts, error: errRts } = await supabase
-      .from('rotas').select('*').eq('motorista_id', mot.id).eq('ativa', true).limit(1).single()
+      .from('rotas').select('*').eq('motorista_id', mot.id).limit(1).single()
     if (errRts) console.error('Erro rota:', errRts)
     if (rts) {
       setRota(rts)

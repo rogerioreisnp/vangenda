@@ -1,222 +1,248 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { format } from 'date-fns'
+import { format, startOfMonth, endOfMonth } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import Link from 'next/link'
-import ModalNovaEncomenda from '@/components/ModalNovaEncomenda'
-
-type Agendamento = {
-  id: string
-  nome_passageiro: string
-  parada_origem: string
-  parada_destino: string
-  turno: 'ida' | 'volta'
-  valor: number
-  status: 'agendado' | 'confirmado' | 'cancelado'
-  data_viagem: string
-}
 
 export default function DashboardPage() {
   const hoje = new Date()
   const amanha = new Date(); amanha.setDate(hoje.getDate() + 1)
-  const [motorista, setMotorista] = useState<{ nome: string } | null>(null)
-  const [agendamentosHoje, setAgendamentosHoje] = useState<Agendamento[]>([])
-  const [agendamentosAmanha, setAgendamentosAmanha] = useState<Agendamento[]>([])
-  const [loading, setLoading] = useState(true)
-  const [modalEncomenda, setModalEncomenda] = useState(false)
+  const hojeStr = format(hoje, 'yyyy-MM-dd')
+  const amanhaStr = format(amanha, 'yyyy-MM-dd')
 
-  useEffect(() => {
-    carregarDados()
-  }, [])
+  const [motorista, setMotorista] = useState<{ nome: string } | null>(null)
+  const [passageirosHoje, setPassageirosHoje] = useState(0)
+  const [receitaHoje, setReceitaHoje] = useState(0)
+  const [capacidade, setCapacidade] = useState(0)
+  const [temAmanha, setTemAmanha] = useState(false)
+  const [qtdAmanha, setQtdAmanha] = useState(0)
+  const [encomendasPendentes, setEncomendasPendentes] = useState(0)
+  const [receitaMes, setReceitaMes] = useState(0)
+  const [despesasMes, setDespesasMes] = useState(0)
+  const [fiados, setFiados] = useState<{ count: number; total: number; temVencido: boolean } | null>(null)
+
+  const hora = hoje.getHours()
+  const saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite'
+  const diaSemana = format(hoje, "EEE, dd 'de' MMM", { locale: ptBR })
+  const mesAtual = format(hoje, "MMMM 'de' yyyy", { locale: ptBR })
+
+  useEffect(() => { carregarDados() }, [])
 
   async function carregarDados() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
-    const { data: mot } = await supabase.from('motoristas').select('nome').eq('id', user.id).single()
-    setMotorista(mot)
+    const inicioMes = format(startOfMonth(hoje), 'yyyy-MM-dd')
+    const fimMes = format(endOfMonth(hoje), 'yyyy-MM-dd')
 
-    const hojeStr = format(hoje, 'yyyy-MM-dd')
-    const amanhaStr = format(amanha, 'yyyy-MM-dd')
+    const [
+      { data: mot },
+      { data: rot },
+      { data: agsHoje },
+      { data: agsAmanha },
+      { data: recs },
+      { data: desps },
+      { data: agsMes },
+      { data: fiadosAbertos },
+    ] = await Promise.all([
+      supabase.from('motoristas').select('nome').eq('id', user.id).single(),
+      supabase.from('rotas').select('capacidade').eq('motorista_id', user.id).limit(1).single(),
+      supabase.from('agendamentos').select('valor').eq('motorista_id', user.id).eq('data_viagem', hojeStr).neq('status', 'cancelado'),
+      supabase.from('agendamentos').select('id').eq('motorista_id', user.id).eq('data_viagem', amanhaStr).neq('status', 'cancelado'),
+      supabase.from('receitas').select('valor').eq('motorista_id', user.id).gte('data_receita', inicioMes).lte('data_receita', fimMes),
+      supabase.from('despesas').select('valor').eq('motorista_id', user.id).gte('data_despesa', inicioMes).lte('data_despesa', fimMes),
+      supabase.from('agendamentos').select('valor').eq('motorista_id', user.id).neq('status', 'cancelado').gte('data_viagem', inicioMes).lte('data_viagem', fimMes),
+      supabase.from('agendamentos').select('valor, fiado_data_combinada').eq('motorista_id', user.id).eq('forma_pagamento', 'fiado').neq('fiado_pago', true).neq('status', 'cancelado'),
+    ])
 
-    const { data: ags } = await supabase
-      .from('agendamentos')
-      .select('*')
-      .eq('motorista_id', user.id)
-      .in('data_viagem', [hojeStr, amanhaStr])
-      .neq('status', 'cancelado')
-      .order('turno')
+    if (mot) setMotorista(mot)
+    if (rot) setCapacidade(rot.capacidade || 0)
 
-    if (ags) {
-      setAgendamentosHoje(ags.filter(a => a.data_viagem === hojeStr))
-      setAgendamentosAmanha(ags.filter(a => a.data_viagem === amanhaStr))
+    const totalHoje = agsHoje?.reduce((s, a) => s + (a.valor || 0), 0) || 0
+    setPassageirosHoje(agsHoje?.length || 0)
+    setReceitaHoje(totalHoje)
+
+    setQtdAmanha(agsAmanha?.length || 0)
+    setTemAmanha((agsAmanha?.length || 0) > 0)
+
+    const { data: encAbertos } = await supabase
+      .from('encomendas').select('id').eq('motorista_id', user.id).neq('pago', true)
+    setEncomendasPendentes(encAbertos?.length || 0)
+
+    const totalRecs = (recs?.reduce((s, r) => s + (r.valor || 0), 0) || 0)
+                    + (agsMes?.reduce((s, a) => s + (a.valor || 0), 0) || 0)
+    const totalDesps = desps?.reduce((s, d) => s + (d.valor || 0), 0) || 0
+    setReceitaMes(totalRecs)
+    setDespesasMes(totalDesps)
+
+    if (fiadosAbertos && fiadosAbertos.length > 0) {
+      const total = fiadosAbertos.reduce((s, f) => s + (f.valor || 0), 0)
+      const temVencido = fiadosAbertos.some(f =>
+        f.fiado_data_combinada && new Date(f.fiado_data_combinada + 'T23:59:59') < hoje
+      )
+      setFiados({ count: fiadosAbertos.length, total, temVencido })
     }
-
-    setLoading(false)
   }
 
-  async function confirmarPassageiro(id: string) {
-    await supabase.from('agendamentos').update({ status: 'confirmado' }).eq('id', id)
-    carregarDados()
-  }
-
-  const receitaHoje = agendamentosHoje.reduce((s, a) => s + a.valor, 0)
-  const ida = agendamentosHoje.filter(a => a.turno === 'ida')
-  const volta = agendamentosHoje.filter(a => a.turno === 'volta')
-
-  const diaSemana = format(hoje, "EEE, dd 'de' MMM", { locale: ptBR })
+  const saldoMes = receitaMes - despesasMes
+  const vagasRestantes = capacidade > 0 ? Math.max(0, capacidade - passageirosHoje) : null
+  const ocupacao = capacidade > 0 ? Math.min((passageirosHoje / capacidade) * 100, 100) : 0
 
   return (
     <div>
-      {/* Header verde */}
-      <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-4">
-        <div className="flex justify-between items-start mb-4">
+      {/* Header */}
+      <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-5">
+        <div className="flex justify-between items-start">
           <div>
-            <p style={{ color: '#9FE1CB' }} className="text-xs">Bom dia,</p>
-            <p style={{ color: '#E1F5EE' }} className="text-base font-semibold">
-              {motorista?.nome || '...'}
+            <p style={{ color: '#9FE1CB' }} className="text-xs">{saudacao},</p>
+            <p style={{ color: '#E1F5EE' }} className="text-lg font-bold">
+              {motorista?.nome?.split(' ')[0] || '...'}
             </p>
           </div>
           <span style={{ background: '#085041', color: '#5DCAA5' }}
             className="text-xs px-3 py-1.5 rounded-lg capitalize">{diaSemana}</span>
         </div>
-
-        {/* Stats */}
-        <div className="grid grid-cols-2 gap-2">
-          <div style={{ background: '#085041' }} className="rounded-xl p-3">
-            <p style={{ color: '#5DCAA5' }} className="text-[10px]">Passageiros hoje</p>
-            <p style={{ color: '#E1F5EE' }} className="text-xl font-semibold mt-0.5">
-              {agendamentosHoje.length}
-            </p>
-          </div>
-          <div style={{ background: '#085041' }} className="rounded-xl p-3">
-            <p style={{ color: '#5DCAA5' }} className="text-[10px]">Receita do dia</p>
-            <p style={{ color: '#E1F5EE' }} className="text-xl font-semibold mt-0.5">
-              R$ {receitaHoje.toFixed(0)}
-            </p>
-          </div>
-        </div>
       </div>
 
-      <div className="px-4 py-4">
+      <div className="px-4 py-4 flex flex-col gap-3">
+
+        {/* Card Hoje */}
+        <Link href="/dashboard/agenda"
+          className="bg-white rounded-2xl p-4 block active:opacity-75"
+          style={{ border: '1px solid #f0f0f0', boxShadow: '0 1px 6px rgba(0,0,0,0.06)' }}>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <span className="text-base">🚐</span>
+              <p className="text-sm font-semibold text-gray-700">Hoje</p>
+            </div>
+            <span className="text-gray-300 text-xs">›</span>
+          </div>
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div>
+              <p className="text-2xl font-bold" style={{ color: '#0F6E56' }}>{passageirosHoje}</p>
+              <p className="text-xs text-gray-400">passageiro{passageirosHoje !== 1 ? 's' : ''}</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold" style={{ color: '#0F6E56' }}>
+                R$ {receitaHoje.toFixed(0)}
+              </p>
+              <p className="text-xs text-gray-400">receita esperada</p>
+            </div>
+          </div>
+          {vagasRestantes !== null && (
+            <div className="pt-3" style={{ borderTop: '1px solid #f5f5f5' }}>
+              <div className="flex justify-between items-center mb-1.5">
+                <p className="text-xs text-gray-400">Vagas disponíveis</p>
+                <p className="text-xs font-semibold" style={{ color: vagasRestantes === 0 ? '#A32D2D' : '#1D9E75' }}>
+                  {vagasRestantes} de {capacidade}
+                </p>
+              </div>
+              <div className="h-1.5 rounded-full overflow-hidden" style={{ background: '#f0f0ec' }}>
+                <div className="h-1.5 rounded-full transition-all"
+                  style={{
+                    width: `${ocupacao}%`,
+                    background: ocupacao >= 100 ? '#A32D2D' : ocupacao >= 80 ? '#FAC775' : '#1D9E75'
+                  }} />
+              </div>
+            </div>
+          )}
+        </Link>
+
+        {/* Card Encomendas — só aparece se houver pendentes */}
+        {encomendasPendentes > 0 && (
+          <Link href="/dashboard/financeiro"
+            className="bg-white rounded-2xl p-4 block active:opacity-75"
+            style={{ border: '1px solid #f0f0f0', boxShadow: '0 1px 6px rgba(0,0,0,0.06)' }}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl"
+                  style={{ background: '#FAEEDA' }}>📦</div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-700">Encomendas pendentes</p>
+                  <p className="text-xs mt-0.5" style={{ color: '#854F0B' }}>
+                    {encomendasPendentes} encomenda{encomendasPendentes !== 1 ? 's' : ''} aguardando pagamento
+                  </p>
+                </div>
+              </div>
+              <span className="text-gray-300 text-xs">›</span>
+            </div>
+          </Link>
+        )}
+
+        {/* Card Mês */}
+        <Link href="/dashboard/financeiro"
+          className="rounded-2xl p-4 block active:opacity-75"
+          style={{ background: '#0F6E56', boxShadow: '0 2px 8px rgba(15,110,86,0.25)' }}>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <span className="text-base">📊</span>
+              <p style={{ color: '#E1F5EE' }} className="text-sm font-semibold capitalize">{mesAtual}</p>
+            </div>
+            <span style={{ color: '#9FE1CB' }} className="text-xs">›</span>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <p style={{ color: '#9FE1CB' }} className="text-[10px] mb-1">Receitas</p>
+              <p style={{ color: '#E1F5EE' }} className="text-base font-bold">
+                R$ {receitaMes.toFixed(0)}
+              </p>
+            </div>
+            <div>
+              <p style={{ color: '#9FE1CB' }} className="text-[10px] mb-1">Despesas</p>
+              <p style={{ color: '#FAC775' }} className="text-base font-bold">
+                R$ {despesasMes.toFixed(0)}
+              </p>
+            </div>
+            <div>
+              <p style={{ color: '#9FE1CB' }} className="text-[10px] mb-1">Saldo</p>
+              <p style={{ color: saldoMes >= 0 ? '#E1F5EE' : '#FAC775' }} className="text-base font-bold">
+                R$ {saldoMes.toFixed(0)}
+              </p>
+            </div>
+          </div>
+        </Link>
+
+        {/* Card Fiado — só aparece se houver em aberto */}
+        {fiados && (
+          <Link href="/dashboard/financeiro"
+            className="rounded-2xl p-4 block active:opacity-75"
+            style={{ background: '#FFF5F5', border: '1px solid #FDE8E8', boxShadow: '0 1px 4px rgba(163,45,45,0.08)' }}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl"
+                  style={{ background: '#FCEBEB' }}>
+                  {fiados.temVencido ? '⚠️' : '💸'}
+                </div>
+                <div>
+                  <p className="text-sm font-semibold" style={{ color: '#A32D2D' }}>Fiado em aberto</p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {fiados.count} lançamento{fiados.count !== 1 ? 's' : ''} · R$ {fiados.total.toFixed(2).replace('.', ',')}
+                  </p>
+                  {fiados.temVencido && (
+                    <p className="text-xs font-semibold mt-1" style={{ color: '#A32D2D' }}>
+                      Há valores com data vencida
+                    </p>
+                  )}
+                </div>
+              </div>
+              <span className="text-gray-300 text-xs">›</span>
+            </div>
+          </Link>
+        )}
+
         {/* Alerta amanhã */}
-        {agendamentosAmanha.length > 0 && (
-          <div style={{ background: '#FAEEDA', borderColor: '#FAC775' }}
-            className="border rounded-xl p-3 flex gap-3 mb-4">
+        {temAmanha && (
+          <div style={{ background: '#FAEEDA', border: '1px solid #FAC775' }}
+            className="rounded-xl p-3 flex gap-3">
             <span className="text-lg flex-shrink-0">🔔</span>
             <p style={{ color: '#633806' }} className="text-xs leading-relaxed">
-              <strong>Amanhã</strong> você tem {agendamentosAmanha.length} passageiro{agendamentosAmanha.length > 1 ? 's' : ''} agendado{agendamentosAmanha.length > 1 ? 's' : ''}.
+              <strong>Amanhã</strong> você tem {qtdAmanha} passageiro{qtdAmanha > 1 ? 's' : ''} agendado{qtdAmanha > 1 ? 's' : ''}.
               Ligue para confirmar!
             </p>
           </div>
         )}
 
-        {loading ? (
-          <p className="text-center text-gray-400 text-sm py-8">Carregando...</p>
-        ) : agendamentosHoje.length === 0 ? (
-          <div className="text-center py-10">
-            <p className="text-3xl mb-2">📭</p>
-            <p className="text-gray-400 text-sm">Nenhum passageiro hoje</p>
-          </div>
-        ) : (
-          <>
-            {ida.length > 0 && (
-              <TurnoBloco turno="ida" horario="05:00h" passageiros={ida} onConfirmar={confirmarPassageiro} />
-            )}
-            {volta.length > 0 && (
-              <TurnoBloco turno="volta" horario="14:00h" passageiros={volta} onConfirmar={confirmarPassageiro} />
-            )}
-
-            {/* Total */}
-            <div className="bg-white rounded-xl px-4 py-3 flex justify-between items-center mt-2">
-              <span className="text-sm text-gray-500">Total do dia</span>
-              <span className="text-lg font-bold" style={{ color: '#0F6E56' }}>
-                R$ {receitaHoje.toFixed(2).replace('.', ',')}
-              </span>
-            </div>
-          </>
-        )}
-
-        {/* Botões de ação */}
-        <div className="grid grid-cols-2 gap-3 mt-4">
-          <Link href="/dashboard/agenda"
-            className="flex items-center justify-center gap-2 py-3 rounded-xl text-white text-sm font-semibold"
-            style={{ background: '#1D9E75' }}>
-            + Agendar passageiro
-          </Link>
-          <button
-            onClick={() => setModalEncomenda(true)}
-            className="flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold"
-            style={{ background: '#FAEEDA', color: '#854F0B' }}>
-            📦 Agendar encomenda
-          </button>
-        </div>
-      </div>
-
-      {modalEncomenda && (
-        <ModalNovaEncomenda
-          onFechar={() => setModalEncomenda(false)}
-          onSalvo={() => setModalEncomenda(false)}
-        />
-      )}
-    </div>
-  )
-}
-
-function TurnoBloco({ turno, horario, passageiros, onConfirmar }: {
-  turno: 'ida' | 'volta', horario: string, passageiros: Agendamento[], onConfirmar: (id: string) => void
-}) {
-  const subTotal = passageiros.reduce((s, a) => s + a.valor, 0)
-  return (
-    <div className="mb-4">
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-            {turno === 'ida' ? 'Ida' : 'Volta'}
-          </span>
-          <span className="text-[10px] px-2 py-0.5 rounded-md font-medium"
-            style={turno === 'ida'
-              ? { background: '#E1F5EE', color: '#0F6E56' }
-              : { background: '#FAEEDA', color: '#854F0B' }}>
-            {horario}
-          </span>
-        </div>
-        <span className="text-xs text-gray-400">{passageiros.length} · R$ {subTotal.toFixed(0)}</span>
-      </div>
-
-      {passageiros.map(p => (
-        <PassageiroCard key={p.id} p={p} onConfirmar={onConfirmar} />
-      ))}
-    </div>
-  )
-}
-
-function PassageiroCard({ p, onConfirmar }: { p: Agendamento, onConfirmar: (id: string) => void }) {
-  const iniciais = p.nome_passageiro.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase()
-  const cores = ['#E1F5EE|#0F6E56', '#FAEEDA|#854F0B', '#E6F1FB|#185FA5', '#EEEDFE|#534AB7']
-  const cor = cores[p.nome_passageiro.charCodeAt(0) % cores.length].split('|')
-
-  return (
-    <div className="bg-white border border-gray-100 rounded-xl p-3 mb-2 flex items-center gap-3">
-      <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
-        style={{ background: cor[0], color: cor[1] }}>{iniciais}</div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-gray-800 truncate">{p.nome_passageiro}</p>
-        <p className="text-xs text-gray-400 mt-0.5">{p.parada_origem} → {p.parada_destino}</p>
-      </div>
-      <div className="text-right flex-shrink-0">
-        <p className="text-sm font-bold" style={{ color: '#1D9E75' }}>R$ {p.valor.toFixed(0)}</p>
-        {p.status === 'agendado' ? (
-          <button onClick={() => onConfirmar(p.id)}
-            className="text-[10px] mt-0.5 px-2 py-0.5 rounded-md font-medium"
-            style={{ background: '#FAEEDA', color: '#854F0B' }}>
-            Confirmar
-          </button>
-        ) : (
-          <span className="text-[10px] mt-0.5 px-2 py-0.5 rounded-md font-medium"
-            style={{ background: '#E1F5EE', color: '#0F6E56' }}>Confirmado</span>
-        )}
       </div>
     </div>
   )
