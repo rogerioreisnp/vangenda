@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import Link from 'next/link'
+import ModalNovaEncomenda from '@/components/ModalNovaEncomenda'
 
 type Agendamento = {
   id: string
@@ -23,6 +24,7 @@ export default function DashboardPage() {
   const [agendamentosHoje, setAgendamentosHoje] = useState<Agendamento[]>([])
   const [agendamentosAmanha, setAgendamentosAmanha] = useState<Agendamento[]>([])
   const [loading, setLoading] = useState(true)
+  const [modalEncomenda, setModalEncomenda] = useState(false)
 
   useEffect(() => {
     carregarDados()
@@ -136,13 +138,28 @@ export default function DashboardPage() {
           </>
         )}
 
-        {/* Botão agendar */}
-        <Link href="/dashboard/agenda"
-          className="flex items-center justify-center gap-2 w-full mt-4 py-3 rounded-xl text-white text-sm font-semibold"
-          style={{ background: '#1D9E75' }}>
-          + Agendar passageiro
-        </Link>
+        {/* Botões de ação */}
+        <div className="grid grid-cols-2 gap-3 mt-4">
+          <Link href="/dashboard/agenda"
+            className="flex items-center justify-center gap-2 py-3 rounded-xl text-white text-sm font-semibold"
+            style={{ background: '#1D9E75' }}>
+            + Agendar passageiro
+          </Link>
+          <button
+            onClick={() => setModalEncomenda(true)}
+            className="flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold"
+            style={{ background: '#FAEEDA', color: '#854F0B' }}>
+            📦 Agendar encomenda
+          </button>
+        </div>
       </div>
+
+      {modalEncomenda && (
+        <ModalNovaEncomenda
+          onFechar={() => setModalEncomenda(false)}
+          onSalvo={() => setModalEncomenda(false)}
+        />
+      )}
     </div>
   )
 }
