@@ -58,6 +58,7 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
     data: format(addDays(new Date(), 1), 'yyyy-MM-dd'),
     turno: 'ida',
     quantidade: 1,
+    forma_pagamento: 'dinheiro',
     rua: '',
     numero: '',
     bairro: '',
@@ -215,7 +216,7 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
       data_viagem: form.data,
       turno: form.turno,
       valor: valorUnitario || 0,
-      forma_pagamento: motorista.pagamento_obrigatorio ? 'pix' : 'pendente',
+      forma_pagamento: motorista.pagamento_obrigatorio ? 'pix' : form.forma_pagamento,
       status: 'agendado',
       rua: form.rua || null,
       numero: form.numero || null,
@@ -434,6 +435,26 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
                     </div>
                   )}
 
+                  {!motorista.pagamento_obrigatorio && (
+                    <Campo label="Forma de pagamento">
+                      <div className="grid grid-cols-3 gap-2">
+                        {([
+                          { value: 'dinheiro', label: 'Dinheiro' },
+                          { value: 'pix', label: 'Pix' },
+                          { value: 'fiado', label: 'Fiado' },
+                        ] as const).map(op => (
+                          <button key={op.value} onClick={() => setForm(f => ({ ...f, forma_pagamento: op.value }))}
+                            className="py-2.5 rounded-xl text-sm font-medium border transition-all"
+                            style={form.forma_pagamento === op.value
+                              ? { background: '#0F6E56', color: '#fff', borderColor: '#0F6E56' }
+                              : { background: '#fff', color: '#666', borderColor: '#e5e7eb' }}>
+                            {op.label}
+                          </button>
+                        ))}
+                      </div>
+                    </Campo>
+                  )}
+
                   {vagasInsuficientes && !lotado && (
                     <div style={{ background: '#FCEBEB', borderColor: '#F5BCBC' }}
                       className="border rounded-xl px-4 py-3">
@@ -632,7 +653,7 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
 
             <button onClick={() => {
               setEtapa('form')
-              setForm({ nome: '', telefone: '', origem: '', destino: '', data: format(addDays(new Date(), 1), 'yyyy-MM-dd'), turno: 'ida', quantidade: 1, rua: '', numero: '', bairro: '', municipio: '', cep: '', referencia: '' })
+              setForm({ nome: '', telefone: '', origem: '', destino: '', data: format(addDays(new Date(), 1), 'yyyy-MM-dd'), turno: 'ida', quantidade: 1, forma_pagamento: 'dinheiro', rua: '', numero: '', bairro: '', municipio: '', cep: '', referencia: '' })
               setValorUnitario(null)
               setErroMsg(null)
             }} className="w-full py-3 rounded-2xl text-sm font-medium border border-gray-200 bg-white text-gray-600">

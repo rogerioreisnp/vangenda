@@ -256,7 +256,7 @@ function DetalhePassageiro({ p, onVoltar, onAtualizar }: {
   const dataFmt = format(new Date(p.data_viagem + 'T00:00:00'), "EEEE, dd 'de' MMMM", { locale: ptBR })
   const turnoLabel = p.turno === 'ida' ? 'Ida (05:00h)' : 'Volta (14:00h)'
   const formaLabel: Record<string, string> = {
-    dinheiro: 'Dinheiro', pix: 'Pix', cartao: 'Cartão', pendente: 'A cobrar'
+    dinheiro: 'Dinheiro', pix: 'Pix', cartao: 'Cartão', pendente: 'A cobrar', fiado: 'Fiado'
   }
   const temEndereco = p.rua || p.numero || p.bairro || p.municipio || p.cep || p.referencia
 
@@ -640,6 +640,7 @@ function FormAgendamento({ data, rotas, onFechar, onSalvo }: {
             <option value="dinheiro">Dinheiro</option>
             <option value="pix">Pix</option>
             <option value="cartao">Cartão</option>
+            <option value="fiado">Fiado</option>
             <option value="pendente">A cobrar na viagem</option>
           </select>
         </Campo>
