@@ -67,7 +67,20 @@ const categoriasDespesa = [
 ]
 
 type Filtro = 'hoje' | '7dias' | '30dias' | 'mes'
-type Aba = 'geral' | 'fiado'
+type Aba = 'geral' | 'fiado' | 'encomendas'
+
+type Encomenda = {
+  id: string
+  nome: string
+  telefone?: string
+  valor: number
+  observacao?: string
+  pago: boolean
+  valor_pago: number
+  forma_pagamento?: string
+  data_combinada?: string
+  criado_em: string
+}
 
 export default function FinanceiroPage() {
   const [aba, setAba] = useState<Aba>('geral')
@@ -154,22 +167,29 @@ export default function FinanceiroPage() {
   return (
     <div>
       <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-4">
-        <div className="flex items-center justify-between mb-3">
-          <p style={{ color: '#E1F5EE' }} className="text-base font-semibold">Financeiro</p>
+        <div className="mb-3">
+          <p style={{ color: '#E1F5EE' }} className="text-base font-semibold mb-2">Financeiro</p>
           <div className="flex rounded-xl overflow-hidden" style={{ border: '1px solid #085041' }}>
             <button onClick={() => setAba('geral')}
-              className="px-4 py-1.5 text-xs font-semibold transition-all"
+              className="flex-1 py-1.5 text-[11px] font-semibold transition-all"
               style={aba === 'geral'
                 ? { background: '#E1F5EE', color: '#0F6E56' }
                 : { background: '#085041', color: '#9FE1CB' }}>
               Visão Geral
             </button>
             <button onClick={() => setAba('fiado')}
-              className="px-4 py-1.5 text-xs font-semibold transition-all"
+              className="flex-1 py-1.5 text-[11px] font-semibold transition-all"
               style={aba === 'fiado'
                 ? { background: '#E1F5EE', color: '#0F6E56' }
                 : { background: '#085041', color: '#9FE1CB' }}>
               Fiado
+            </button>
+            <button onClick={() => setAba('encomendas')}
+              className="flex-1 py-1.5 text-[11px] font-semibold transition-all"
+              style={aba === 'encomendas'
+                ? { background: '#E1F5EE', color: '#0F6E56' }
+                : { background: '#085041', color: '#9FE1CB' }}>
+              Encomendas
             </button>
           </div>
         </div>
@@ -222,6 +242,8 @@ export default function FinanceiroPage() {
 
       {aba === 'fiado' ? (
         <AbaFiado />
+      ) : aba === 'encomendas' ? (
+        <AbaEncomendas />
       ) : (
         <div className="px-4 py-4">
           <div className="grid grid-cols-2 gap-3 mb-5">
@@ -948,6 +970,510 @@ function ModalDarBaixa({ viagem, onFechar, onSalvo }: {
             : isTotal
             ? '✓ Confirmar quitação'
             : '✓ Registrar pagamento parcial'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ─── ABA ENCOMENDAS ───────────────────────────────────────────────────────────
+
+function AbaEncomendas() {
+  const [loading, setLoading] = useState(true)
+  const [encomendas, setEncomendas] = useState<Encomenda[]>([])
+  const [quitadas, setQuitadas] = useState<Encomenda[]>([])
+  const [modalNova, setModalNova] = useState(false)
+  const [modalBaixa, setModalBaixa] = useState<Encomenda | null>(null)
+  const [mostrarQuitadas, setMostrarQuitadas] = useState(false)
+  const [obsEdit, setObsEdit] = useState<Record<string, boolean>>({})
+  const [obsTemp, setObsTemp] = useState<Record<string, string>>({})
+
+  useEffect(() => { carregarEncomendas() }, [])
+
+  async function carregarEncomendas() {
+    setLoading(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
+    const [{ data: abertas }, { data: pagas }] = await Promise.all([
+      supabase.from('encomendas').select('*').eq('motorista_id', user.id).neq('pago', true).order('criado_em', { ascending: false }),
+      supabase.from('encomendas').select('*').eq('motorista_id', user.id).eq('pago', true).order('criado_em', { ascending: false }),
+    ])
+
+    if (abertas) {
+      setEncomendas(abertas)
+      const init: Record<string, string> = {}
+      abertas.forEach(e => { init[e.id] = e.observacao || '' })
+      setObsTemp(init)
+    }
+    if (pagas) setQuitadas(pagas)
+    setLoading(false)
+  }
+
+  async function salvarObs(enc: Encomenda, valor: string) {
+    await supabase.from('encomendas').update({ observacao: valor || null }).eq('id', enc.id)
+    setObsEdit(prev => ({ ...prev, [enc.id]: false }))
+  }
+
+  const hoje = new Date()
+  const inicioMes = startOfMonth(hoje)
+  const fimMes = endOfMonth(hoje)
+
+  const pedidoresMap = encomendas.reduce((acc, e) => {
+    const key = e.nome
+    if (!acc[key]) acc[key] = { nome: e.nome, telefone: e.telefone, total: 0, encomendas: [], temVencido: false }
+    acc[key].total += e.valor - (e.valor_pago || 0)
+    acc[key].encomendas.push(e)
+    if (e.data_combinada && new Date(e.data_combinada + 'T00:00:00') < hoje) acc[key].temVencido = true
+    return acc
+  }, {} as Record<string, { nome: string; telefone?: string; total: number; encomendas: Encomenda[]; temVencido: boolean }>)
+
+  const pedidores = Object.values(pedidoresMap).sort((a, b) => {
+    if (a.temVencido !== b.temVencido) return a.temVencido ? -1 : 1
+    return b.total - a.total
+  })
+
+  const totalGeral = pedidores.reduce((s, p) => s + p.total, 0)
+  const totalQuitadoMes = quitadas
+    .filter(q => { const d = new Date(q.criado_em); return d >= inicioMes && d <= fimMes })
+    .reduce((s, q) => s + q.valor, 0)
+
+  const quitadasMap = quitadas.reduce((acc, q) => {
+    if (!acc[q.nome]) acc[q.nome] = { nome: q.nome, total: 0, encomendas: [] }
+    acc[q.nome].total += q.valor
+    acc[q.nome].encomendas.push(q)
+    return acc
+  }, {} as Record<string, { nome: string; total: number; encomendas: Encomenda[] }>)
+  const pedidoresQuitados = Object.values(quitadasMap)
+
+  function abrirWhatsApp(p: { nome: string; telefone?: string; total: number }) {
+    if (!p.telefone) return
+    const tel = p.telefone.replace(/\D/g, '')
+    const msg = `Olá ${p.nome.split(' ')[0]}! Passando para lembrar que você tem uma encomenda pendente no valor de R$${p.total.toFixed(2).replace('.', ',')}. Qualquer dúvida estou à disposição!`
+    window.open(`https://wa.me/55${tel}?text=${encodeURIComponent(msg)}`, '_blank')
+  }
+
+  if (loading) return <p className="text-center text-gray-400 text-sm py-10">Carregando...</p>
+
+  return (
+    <div className="px-4 py-4">
+      <button onClick={() => setModalNova(true)}
+        className="w-full py-3 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 mb-4"
+        style={{ background: '#FAEEDA', color: '#854F0B' }}>
+        📦 + Nova encomenda
+      </button>
+
+      <div className="grid grid-cols-3 gap-2 mb-4">
+        <div className="bg-white rounded-2xl p-3 border border-gray-100 text-center">
+          <p className="text-[10px] text-gray-400 uppercase leading-tight mb-1">Em aberto</p>
+          <p className="text-sm font-bold" style={{ color: '#A32D2D' }}>R$ {totalGeral.toFixed(0)}</p>
+        </div>
+        <div className="bg-white rounded-2xl p-3 border border-gray-100 text-center">
+          <p className="text-[10px] text-gray-400 uppercase leading-tight mb-1">Quitado/mês</p>
+          <p className="text-sm font-bold" style={{ color: '#0F6E56' }}>R$ {totalQuitadoMes.toFixed(0)}</p>
+        </div>
+        <div className="bg-white rounded-2xl p-3 border border-gray-100 text-center">
+          <p className="text-[10px] text-gray-400 uppercase leading-tight mb-1">Pendentes</p>
+          <p className="text-sm font-bold text-gray-800">{encomendas.length}</p>
+        </div>
+      </div>
+
+      {pedidores.length === 0 ? (
+        <div className="text-center py-10">
+          <p className="text-3xl mb-2">📦</p>
+          <p className="text-gray-600 font-medium text-sm">Nenhuma encomenda pendente</p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-4">
+          {pedidores.map(pedidor => (
+            <div key={pedidor.nome} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+              <div className="px-4 pt-3 pb-2"
+                style={{ background: pedidor.temVencido ? '#FFF0F0' : '#FFF5F5', borderBottom: '1px solid #FDE8E8' }}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      {pedidor.temVencido && <span className="text-base leading-none">⚠️</span>}
+                      <p className="text-sm font-bold text-gray-800 truncate">{pedidor.nome}</p>
+                    </div>
+                    {pedidor.telefone && <p className="text-xs text-gray-400">{pedidor.telefone}</p>}
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {pedidor.telefone && (
+                      <button onClick={() => abrirWhatsApp(pedidor)}
+                        className="px-3 py-1.5 rounded-lg text-xs font-bold"
+                        style={{ background: '#E7F9EE', color: '#128C7E' }}>
+                        💬
+                      </button>
+                    )}
+                    <div className="text-right">
+                      <p className="text-[10px] text-gray-400 uppercase">Deve</p>
+                      <p className="text-sm font-bold" style={{ color: '#A32D2D' }}>
+                        R$ {pedidor.total.toFixed(2).replace('.', ',')}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {pedidor.encomendas.map(enc => {
+                const vencida = !!enc.data_combinada && new Date(enc.data_combinada + 'T00:00:00') < hoje
+                const saldoEnc = enc.valor - (enc.valor_pago || 0)
+                return (
+                  <div key={enc.id} className="px-4 py-3 border-b border-gray-50 last:border-0">
+                    <div className="flex items-start gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1 flex-wrap mb-1">
+                          <span className="text-xs text-gray-400">
+                            {format(new Date(enc.criado_em), 'dd/MM/yyyy')}
+                          </span>
+                          {enc.data_combinada && (
+                            <span className="text-xs" style={{ color: vencida ? '#A32D2D' : '#6b7280' }}>
+                              {' • '}{vencida ? '⚠️ Venceu: ' : 'Pagar: '}
+                              {format(new Date(enc.data_combinada + 'T00:00:00'), 'dd/MM')}
+                            </span>
+                          )}
+                        </div>
+                        {obsEdit[enc.id] ? (
+                          <div className="flex gap-2 mb-1">
+                            <textarea
+                              value={obsTemp[enc.id] || ''}
+                              onChange={e => setObsTemp(prev => ({ ...prev, [enc.id]: e.target.value }))}
+                              placeholder="Ex: buscar correio capital, caixa azul, dia 15"
+                              rows={2}
+                              className="flex-1 text-xs px-3 py-2 rounded-xl border border-gray-200 resize-none outline-none bg-white"
+                              style={{ color: '#444' }}
+                            />
+                            <button onClick={() => salvarObs(enc, obsTemp[enc.id] || '')}
+                              className="text-xs px-3 py-2 rounded-xl font-semibold shrink-0 self-start"
+                              style={{ background: '#E1F5EE', color: '#0F6E56' }}>
+                              Salvar
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1 mb-1">
+                            {obsTemp[enc.id]
+                              ? <p className="text-xs text-gray-600 flex-1">{obsTemp[enc.id]}</p>
+                              : <p className="text-xs text-gray-300 italic flex-1">Sem observação</p>}
+                            <button onClick={() => setObsEdit(prev => ({ ...prev, [enc.id]: true }))}
+                              className="text-sm shrink-0 p-0.5">✏️</button>
+                          </div>
+                        )}
+                        {(enc.valor_pago || 0) > 0 && (
+                          <p className="text-xs mt-0.5" style={{ color: '#854F0B' }}>
+                            Parcial: R$ {(enc.valor_pago || 0).toFixed(2).replace('.', ',')} pago
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex flex-col items-end gap-1.5 shrink-0">
+                        <p className="text-sm font-bold" style={{ color: '#A32D2D' }}>
+                          R$ {saldoEnc.toFixed(2).replace('.', ',')}
+                        </p>
+                        <button onClick={() => setModalBaixa(enc)}
+                          className="text-xs px-3 py-1.5 rounded-lg font-medium"
+                          style={{ background: '#E1F5EE', color: '#0F6E56' }}>
+                          Dar baixa
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-5">
+        <button onClick={() => setMostrarQuitadas(m => !m)}
+          className="w-full py-3 rounded-2xl text-sm font-medium border border-gray-200 flex items-center justify-center gap-2"
+          style={{ background: mostrarQuitadas ? '#E1F5EE' : 'white', color: mostrarQuitadas ? '#0F6E56' : '#666' }}>
+          {mostrarQuitadas ? '▲ Esconder quitadas' : `▼ Ver quitadas (${quitadas.length})`}
+        </button>
+
+        {mostrarQuitadas && (
+          <div className="flex flex-col gap-3 mt-3">
+            {pedidoresQuitados.length === 0 ? (
+              <p className="text-center text-gray-400 text-sm py-4">Nenhuma encomenda quitada ainda</p>
+            ) : pedidoresQuitados.map(pq => (
+              <div key={pq.nome} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+                <div className="px-4 py-3 flex items-center justify-between"
+                  style={{ background: '#F0FDF4', borderBottom: '1px solid #D1FAE5' }}>
+                  <p className="text-sm font-bold text-gray-800">{pq.nome}</p>
+                  <div className="text-right">
+                    <p className="text-[10px] text-gray-400 uppercase">Quitado</p>
+                    <p className="text-sm font-bold" style={{ color: '#0F6E56' }}>
+                      R$ {pq.total.toFixed(2).replace('.', ',')}
+                    </p>
+                  </div>
+                </div>
+                {pq.encomendas.map(e => (
+                  <div key={e.id} className="px-4 py-2.5 border-b border-gray-50 last:border-0 flex items-center justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-gray-500">
+                        {format(new Date(e.criado_em), 'dd/MM/yyyy')}
+                        {e.forma_pagamento && ` · ${e.forma_pagamento === 'dinheiro' ? '💵' : '📱'} ${e.forma_pagamento}`}
+                      </p>
+                      {e.observacao && <p className="text-xs text-gray-400 truncate">{e.observacao}</p>}
+                    </div>
+                    <p className="text-sm font-semibold shrink-0" style={{ color: '#0F6E56' }}>
+                      R$ {e.valor.toFixed(2).replace('.', ',')}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="h-24" />
+
+      {modalNova && (
+        <ModalNovaEncomenda
+          onFechar={() => setModalNova(false)}
+          onSalvo={() => { setModalNova(false); carregarEncomendas() }}
+        />
+      )}
+      {modalBaixa && (
+        <ModalDarBaixaEncomenda
+          encomenda={modalBaixa}
+          onFechar={() => setModalBaixa(null)}
+          onSalvo={() => { setModalBaixa(null); carregarEncomendas() }}
+        />
+      )}
+    </div>
+  )
+}
+
+// ─── MODAL NOVA ENCOMENDA ─────────────────────────────────────────────────────
+
+function ModalNovaEncomenda({ onFechar, onSalvo }: { onFechar: () => void; onSalvo: () => void }) {
+  const [form, setForm] = useState({
+    nome: '', telefone: '', valor: '', observacao: '',
+    status: 'fiado' as 'fiado' | 'pago_na_hora',
+    forma_pagamento: 'dinheiro',
+  })
+  const [saving, setSaving] = useState(false)
+  const [erro, setErro] = useState('')
+
+  async function salvar() {
+    if (!form.nome.trim() || !form.valor) { setErro('Nome e valor são obrigatórios.'); return }
+    setSaving(true)
+    setErro('')
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setErro('Não autenticado.'); setSaving(false); return }
+
+    const valor = parseFloat(form.valor)
+    const pago = form.status === 'pago_na_hora'
+
+    const { error } = await supabase.from('encomendas').insert({
+      motorista_id: user.id,
+      nome: form.nome.trim(),
+      telefone: form.telefone.trim() || null,
+      valor,
+      observacao: form.observacao.trim() || null,
+      pago,
+      valor_pago: pago ? valor : 0,
+      forma_pagamento: pago ? form.forma_pagamento : null,
+    })
+
+    if (error) { setErro('Erro: ' + error.message); setSaving(false); return }
+    setSaving(false)
+    onSalvo()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end" style={{ background: 'rgba(0,0,0,0.4)' }}>
+      <div className="w-full bg-white rounded-t-2xl p-6 pb-16 flex flex-col gap-4" style={{ maxHeight: '90dvh', overflowY: 'auto' }}>
+        <div className="flex items-center justify-between">
+          <p className="text-base font-bold text-gray-800">Nova encomenda</p>
+          <button onClick={onFechar} className="text-gray-400 text-xl leading-none">✕</button>
+        </div>
+
+        <div>
+          <p className="text-xs font-medium text-gray-500 mb-1">Nome de quem pediu *</p>
+          <input value={form.nome} onChange={e => setForm(f => ({ ...f, nome: e.target.value }))}
+            placeholder="Ex: João Silva"
+            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none bg-white focus:border-green-600" />
+        </div>
+
+        <div>
+          <p className="text-xs font-medium text-gray-500 mb-1">Telefone (opcional)</p>
+          <input value={form.telefone} onChange={e => setForm(f => ({ ...f, telefone: e.target.value }))}
+            placeholder="(95) 99999-9999" type="tel"
+            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none bg-white focus:border-green-600" />
+        </div>
+
+        <div>
+          <p className="text-xs font-medium text-gray-500 mb-1">Valor do frete (R$) *</p>
+          <input value={form.valor} onChange={e => setForm(f => ({ ...f, valor: e.target.value }))}
+            placeholder="0,00" type="number" step="0.01"
+            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none bg-white focus:border-green-600" />
+        </div>
+
+        <div>
+          <p className="text-xs font-medium text-gray-500 mb-1">Observação (opcional)</p>
+          <textarea value={form.observacao} onChange={e => setForm(f => ({ ...f, observacao: e.target.value }))}
+            placeholder="Ex: buscar correio capital, caixa azul, dia 15"
+            rows={3}
+            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none bg-white resize-none focus:border-green-600" />
+        </div>
+
+        <div>
+          <p className="text-xs font-medium text-gray-500 mb-2">Status do pagamento</p>
+          <div className="grid grid-cols-2 gap-2">
+            {([
+              { value: 'fiado', label: '📝 Fiado' },
+              { value: 'pago_na_hora', label: '✅ Pago na hora' },
+            ] as const).map(s => (
+              <button key={s.value} onClick={() => setForm(f => ({ ...f, status: s.value }))}
+                className="py-2.5 rounded-xl text-sm font-medium border transition-all"
+                style={form.status === s.value
+                  ? { background: '#0F6E56', color: '#fff', borderColor: '#0F6E56' }
+                  : { background: '#fff', color: '#666', borderColor: '#e5e7eb' }}>
+                {s.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {form.status === 'pago_na_hora' && (
+          <div>
+            <p className="text-xs font-medium text-gray-500 mb-2">Forma de recebimento</p>
+            <div className="grid grid-cols-2 gap-2">
+              {([
+                { value: 'dinheiro', label: '💵 Dinheiro' },
+                { value: 'pix', label: '📱 Pix' },
+              ] as const).map(f => (
+                <button key={f.value} onClick={() => setForm(prev => ({ ...prev, forma_pagamento: f.value }))}
+                  className="py-2.5 rounded-xl text-sm font-medium border transition-all"
+                  style={form.forma_pagamento === f.value
+                    ? { background: '#0F6E56', color: '#fff', borderColor: '#0F6E56' }
+                    : { background: '#fff', color: '#666', borderColor: '#e5e7eb' }}>
+                  {f.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {erro && <p className="text-xs text-red-500 bg-red-50 px-3 py-2 rounded-xl">{erro}</p>}
+
+        <button onClick={salvar} disabled={saving || !form.nome || !form.valor}
+          className="w-full py-3.5 rounded-xl text-white text-sm font-semibold disabled:opacity-40"
+          style={{ background: '#1D9E75' }}>
+          {saving ? 'Salvando...' : '✓ Registrar encomenda'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ─── MODAL DAR BAIXA ENCOMENDA ────────────────────────────────────────────────
+
+function ModalDarBaixaEncomenda({ encomenda, onFechar, onSalvo }: {
+  encomenda: Encomenda
+  onFechar: () => void
+  onSalvo: () => void
+}) {
+  const saldoRestante = encomenda.valor - (encomenda.valor_pago || 0)
+  const [valorRecebido, setValorRecebido] = useState(saldoRestante.toFixed(2))
+  const [dataCombinada, setDataCombinada] = useState(encomenda.data_combinada || '')
+  const [formaPagamento, setFormaPagamento] = useState('dinheiro')
+  const [saving, setSaving] = useState(false)
+
+  const vr = parseFloat(valorRecebido) || 0
+  const isTotal = vr >= saldoRestante - 0.001
+  const novoSaldo = Math.max(0, saldoRestante - vr)
+
+  async function confirmar() {
+    if (!vr || vr <= 0) return
+    setSaving(true)
+    const novoPago = (encomenda.valor_pago || 0) + vr
+    const updates: Record<string, unknown> = {
+      valor_pago: parseFloat(Math.min(novoPago, encomenda.valor).toFixed(2)),
+      forma_pagamento: formaPagamento,
+    }
+    if (isTotal) {
+      updates.pago = true
+    } else if (dataCombinada) {
+      updates.data_combinada = dataCombinada
+    }
+    await supabase.from('encomendas').update(updates).eq('id', encomenda.id)
+    setSaving(false)
+    onSalvo()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end" style={{ background: 'rgba(0,0,0,0.4)' }}>
+      <div className="w-full bg-white rounded-t-2xl p-6 pb-16 flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <p className="text-base font-bold text-gray-800">Dar baixa na encomenda</p>
+          <button onClick={onFechar} className="text-gray-400 text-xl leading-none">✕</button>
+        </div>
+
+        <div className="rounded-xl p-3" style={{ background: '#f0f0ec' }}>
+          <p className="text-xs text-gray-500 mb-0.5">{encomenda.nome}</p>
+          {encomenda.observacao && <p className="text-xs text-gray-500 mb-0.5">{encomenda.observacao}</p>}
+          <p className="text-sm font-bold mt-1" style={{ color: '#A32D2D' }}>
+            Saldo em aberto: R$ {saldoRestante.toFixed(2).replace('.', ',')}
+          </p>
+        </div>
+
+        <div>
+          <p className="text-xs font-medium text-gray-500 mb-1">Valor recebido (R$)</p>
+          <input type="number" step="0.01" value={valorRecebido}
+            onChange={e => setValorRecebido(e.target.value)}
+            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none bg-white focus:border-green-600" />
+        </div>
+
+        {vr > 0 && !isTotal && (
+          <div className="border rounded-xl px-4 py-3" style={{ background: '#FAEEDA', borderColor: '#FAC775' }}>
+            <p className="text-xs" style={{ color: '#854F0B' }}>
+              Pagando R$ {vr.toFixed(2).replace('.', ',')} — ainda ficará devendo R$ {novoSaldo.toFixed(2).replace('.', ',')}
+            </p>
+          </div>
+        )}
+
+        {vr > 0 && !isTotal && (
+          <div>
+            <p className="text-xs font-medium text-gray-500 mb-1">Data combinada para pagar o restante (opcional)</p>
+            <input type="date" value={dataCombinada}
+              onChange={e => setDataCombinada(e.target.value)}
+              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none bg-white focus:border-green-600" />
+          </div>
+        )}
+
+        <div>
+          <p className="text-xs font-medium text-gray-500 mb-2">Forma de recebimento</p>
+          <div className="grid grid-cols-2 gap-2">
+            {([
+              { value: 'dinheiro', label: '💵 Dinheiro' },
+              { value: 'pix', label: '📱 Pix' },
+            ] as const).map(f => (
+              <button key={f.value} onClick={() => setFormaPagamento(f.value)}
+                className="py-2.5 rounded-xl text-sm font-medium border transition-all"
+                style={formaPagamento === f.value
+                  ? { background: '#0F6E56', color: '#fff', borderColor: '#0F6E56' }
+                  : { background: '#fff', color: '#666', borderColor: '#e5e7eb' }}>
+                {f.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {vr > 0 && isTotal && (
+          <div className="border rounded-xl px-4 py-3" style={{ background: '#E1F5EE', borderColor: '#9FE1CB' }}>
+            <p className="text-xs font-semibold" style={{ color: '#0F6E56' }}>
+              ✓ Quitação total — encomenda será marcada como paga
+            </p>
+          </div>
+        )}
+
+        <button onClick={confirmar} disabled={saving || vr <= 0}
+          className="w-full py-3.5 rounded-xl text-white text-sm font-semibold disabled:opacity-40"
+          style={{ background: '#1D9E75' }}>
+          {saving ? 'Salvando...' : isTotal ? '✓ Confirmar quitação' : '✓ Registrar pagamento parcial'}
         </button>
       </div>
     </div>

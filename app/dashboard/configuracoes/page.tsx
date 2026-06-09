@@ -287,7 +287,6 @@ export default function ConfiguracoesPage() {
     if (motorista) {
       await supabase.from('motoristas').update({
         pix_tipo: motorista.pix_tipo, pix_chave: motorista.pix_chave, pagamento_obrigatorio: motorista.pagamento_obrigatorio,
-        mensagem_fiado_whatsapp: motorista.mensagem_fiado_whatsapp || null,
       }).eq('id', motorista.id)
     }
     setSaving(false)
@@ -529,20 +528,6 @@ export default function ConfiguracoesPage() {
               ))}
             </div>
           )}
-        </Secao>
-
-        <Secao titulo="💬 Mensagem de cobrança (Fiado)">
-          <p className="text-xs text-gray-400 mb-3">
-            Texto enviado pelo botão WhatsApp na aba Fiado. Use <strong>[nome]</strong> e <strong>[total]</strong> como variáveis.
-          </p>
-          <textarea
-            value={motorista?.mensagem_fiado_whatsapp || ''}
-            onChange={e => setMotorista((m: any) => ({ ...m, mensagem_fiado_whatsapp: e.target.value }))}
-            placeholder={`Olá [nome]! Passando para lembrar que você tem um valor em aberto de R$[total] referente às suas viagens. Qualquer dúvida estou à disposição!`}
-            rows={4}
-            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none bg-white resize-none"
-            style={{ color: '#222' }}
-          />
         </Secao>
 
         <button onClick={salvarRota} disabled={saving}
