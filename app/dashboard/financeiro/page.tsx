@@ -448,6 +448,7 @@ function AbaFiado() {
   const [motoristaMensagem, setMotoristaMensagem] = useState<string | null>(null)
   const [mostrarQuitados, setMostrarQuitados] = useState(false)
   const [modalViagem, setModalViagem] = useState<AgendamentoFiado | null>(null)
+  const [modalNovoFiado, setModalNovoFiado] = useState(false)
   const [obsMap, setObsMap] = useState<Record<string, string>>({})
   const [editandoObs, setEditandoObs] = useState<Record<string, boolean>>({})
 
@@ -547,6 +548,13 @@ function AbaFiado() {
 
   return (
     <div className="px-4 py-4">
+      <button
+        onClick={() => setModalNovoFiado(true)}
+        className="w-full py-3 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 mb-4"
+        style={{ background: '#FAEEDA', color: '#854F0B' }}>
+        📝 + Novo fiado
+      </button>
+
       {/* Resumo — 3 cards */}
       <div className="grid grid-cols-3 gap-2 mb-4">
         <div className="bg-white rounded-2xl p-3 border border-gray-100 text-center">
@@ -638,8 +646,9 @@ function AbaFiado() {
                     <div className="flex-1 min-w-0">
                       <p className="text-xs text-gray-400">
                         {format(new Date(v.data_viagem + 'T00:00:00'), 'dd/MM/yyyy')}
+                        {' • '}
+                        {v.parada_destino ? `${v.parada_origem} → ${v.parada_destino}` : v.parada_origem}
                       </p>
-                      <p className="text-sm text-gray-700">{v.parada_origem} → {v.parada_destino}</p>
                       {(v.fiado_valor_pago || 0) > 0 && (
                         <p className="text-xs mt-0.5" style={{ color: '#854F0B' }}>
                           Parcial: R$ {(v.fiado_valor_pago || 0).toFixed(2).replace('.', ',')} pago
@@ -721,6 +730,105 @@ function AbaFiado() {
           onSalvo={() => { setModalViagem(null); carregarFiados() }}
         />
       )}
+
+      {modalNovoFiado && (
+        <ModalNovoFiado
+          onFechar={() => setModalNovoFiado(false)}
+          onSalvo={() => { setModalNovoFiado(false); carregarFiados() }}
+        />
+      )}
+    </div>
+  )
+}
+
+// ─── MODAL NOVO FIADO ─────────────────────────────────────────────────────────
+
+function ModalNovoFiado({ onFechar, onSalvo }: { onFechar: () => void; onSalvo: () => void }) {
+  const [form, setForm] = useState({ nome: '', telefone: '', valor: '', descricao: '', data_combinada: '' })
+  const [saving, setSaving] = useState(false)
+  const [erro, setErro] = useState('')
+
+  async function salvar() {
+    if (!form.nome.trim() || !form.valor) { setErro('Nome e valor são obrigatórios.'); return }
+    setSaving(true)
+    setErro('')
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setErro('Não autenticado.'); setSaving(false); return }
+
+    const { data: rota } = await supabase.from('rotas').select('id').eq('motorista_id', user.id).limit(1).single()
+
+    const { error } = await supabase.from('agendamentos').insert({
+      motorista_id: user.id,
+      rota_id: rota?.id ?? null,
+      nome_passageiro: form.nome.trim(),
+      telefone_passageiro: form.telefone.trim() || null,
+      parada_origem: form.descricao.trim() || 'Entrada manual',
+      parada_destino: '',
+      data_viagem: format(new Date(), 'yyyy-MM-dd'),
+      turno: 'ida',
+      valor: parseFloat(form.valor),
+      forma_pagamento: 'fiado',
+      fiado_pago: false,
+      status: 'agendado',
+      fiado_data_combinada: form.data_combinada || null,
+    })
+
+    if (error) { setErro('Erro: ' + error.message); setSaving(false); return }
+    setSaving(false)
+    onSalvo()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end" style={{ background: 'rgba(0,0,0,0.4)' }}>
+      <div className="w-full bg-white rounded-t-2xl p-6 pb-16 flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <p className="text-base font-bold text-gray-800">Novo fiado</p>
+          <button onClick={onFechar} className="text-gray-400 text-xl leading-none">✕</button>
+        </div>
+
+        <div>
+          <p className="text-xs font-medium text-gray-500 mb-1">Nome do devedor *</p>
+          <input value={form.nome} onChange={e => setForm(f => ({ ...f, nome: e.target.value }))}
+            placeholder="Ex: João Silva"
+            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none bg-white focus:border-green-600" />
+        </div>
+
+        <div>
+          <p className="text-xs font-medium text-gray-500 mb-1">Telefone (opcional)</p>
+          <input value={form.telefone} onChange={e => setForm(f => ({ ...f, telefone: e.target.value }))}
+            placeholder="(95) 99999-9999" type="tel"
+            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none bg-white focus:border-green-600" />
+        </div>
+
+        <div>
+          <p className="text-xs font-medium text-gray-500 mb-1">Valor (R$) *</p>
+          <input value={form.valor} onChange={e => setForm(f => ({ ...f, valor: e.target.value }))}
+            placeholder="0,00" type="number" step="0.01"
+            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none bg-white focus:border-green-600" />
+        </div>
+
+        <div>
+          <p className="text-xs font-medium text-gray-500 mb-1">Descrição da viagem (opcional)</p>
+          <input value={form.descricao} onChange={e => setForm(f => ({ ...f, descricao: e.target.value }))}
+            placeholder="Ex: Ida Campinas 10/06"
+            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none bg-white focus:border-green-600" />
+        </div>
+
+        <div>
+          <p className="text-xs font-medium text-gray-500 mb-1">Data combinada para pagar (opcional)</p>
+          <input value={form.data_combinada} onChange={e => setForm(f => ({ ...f, data_combinada: e.target.value }))}
+            type="date"
+            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none bg-white focus:border-green-600" />
+        </div>
+
+        {erro && <p className="text-xs text-red-500 bg-red-50 px-3 py-2 rounded-xl">{erro}</p>}
+
+        <button onClick={salvar} disabled={saving || !form.nome || !form.valor}
+          className="w-full py-3.5 rounded-xl text-white text-sm font-semibold disabled:opacity-40"
+          style={{ background: '#1D9E75' }}>
+          {saving ? 'Salvando...' : '✓ Lançar fiado'}
+        </button>
+      </div>
     </div>
   )
 }

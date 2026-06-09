@@ -271,7 +271,7 @@ export default function ConfiguracoesPage() {
     if (!rota) return
     setSaving(true)
     await supabase.from('rotas').update({
-      nome: rota.nome, horario_ida: rota.horario_ida, horario_volta: rota.horario_volta, capacidade: rota.capacidade || 15,
+      nome: rota.nome, horario_ida: rota.horario_ida, horario_volta: rota.horario_volta, capacidade: rota.capacidade || 1,
     }).eq('id', rota.id)
     await supabase.from('paradas').delete().eq('rota_id', rota.id)
     if (paradas.length > 0) {
@@ -455,9 +455,9 @@ export default function ConfiguracoesPage() {
               </Campo>
             </div>
             <Campo label="🚐 Capacidade da van (passageiros)">
-              <input type="number" value={rota?.capacidade || 15}
-                onChange={e => setRota((r: any) => ({ ...r, capacidade: parseInt(e.target.value) || 1 }))}
-                min={1} placeholder="Ex: 15" className="campo-input" />
+              <input type="number" value={rota?.capacidade ?? 0}
+                onChange={e => setRota((r: any) => ({ ...r, capacidade: parseInt(e.target.value) || 0 }))}
+                min={1} max={100} placeholder="Ex: 15" className="campo-input" />
             </Campo>
             <div style={{ background: '#E1F5EE' }} className="rounded-xl p-3">
               <p className="text-xs" style={{ color: '#085041' }}>

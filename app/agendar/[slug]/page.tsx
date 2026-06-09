@@ -437,11 +437,10 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
 
                   {!motorista.pagamento_obrigatorio && (
                     <Campo label="Forma de pagamento">
-                      <div className="grid grid-cols-3 gap-2">
+                      <div className="grid grid-cols-2 gap-2">
                         {([
                           { value: 'dinheiro', label: 'Dinheiro' },
                           { value: 'pix', label: 'Pix' },
-                          { value: 'fiado', label: 'Fiado' },
                         ] as const).map(op => (
                           <button key={op.value} onClick={() => setForm(f => ({ ...f, forma_pagamento: op.value }))}
                             className="py-2.5 rounded-xl text-sm font-medium border transition-all"
