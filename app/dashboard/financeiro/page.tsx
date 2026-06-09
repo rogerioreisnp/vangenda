@@ -38,6 +38,15 @@ type AgendamentoFiado = {
   data_viagem: string
   fiado_valor_pago: number
   fiado_data_combinada?: string
+  fiado_observacao?: string
+}
+
+type FiadoQuitado = {
+  id: string
+  nome_passageiro: string
+  valor: number
+  data_viagem: string
+  fiado_forma_pagamento?: string
 }
 
 const categoriasReceita = [
@@ -435,7 +444,11 @@ export default function FinanceiroPage() {
 function AbaFiado() {
   const [loading, setLoading] = useState(true)
   const [fiados, setFiados] = useState<AgendamentoFiado[]>([])
+  const [quitados, setQuitados] = useState<FiadoQuitado[]>([])
+  const [motoristaMensagem, setMotoristaMensagem] = useState<string | null>(null)
+  const [mostrarQuitados, setMostrarQuitados] = useState(false)
   const [modalViagem, setModalViagem] = useState<AgendamentoFiado | null>(null)
+  const [obsMap, setObsMap] = useState<Record<string, string>>({})
 
   useEffect(() => { carregarFiados() }, [])
 
@@ -443,42 +456,109 @@ function AbaFiado() {
     setLoading(true)
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-    const { data } = await supabase
-      .from('agendamentos')
-      .select('id, nome_passageiro, telefone_passageiro, parada_origem, parada_destino, valor, data_viagem, fiado_valor_pago, fiado_data_combinada')
-      .eq('motorista_id', user.id)
-      .eq('forma_pagamento', 'fiado')
-      .neq('fiado_pago', true)
-      .neq('status', 'cancelado')
-      .order('data_viagem', { ascending: false })
-    if (data) setFiados(data)
+
+    const [{ data: abertos }, { data: pagos }, { data: mot }] = await Promise.all([
+      supabase.from('agendamentos')
+        .select('id, nome_passageiro, telefone_passageiro, parada_origem, parada_destino, valor, data_viagem, fiado_valor_pago, fiado_data_combinada, fiado_observacao')
+        .eq('motorista_id', user.id)
+        .eq('forma_pagamento', 'fiado')
+        .neq('fiado_pago', true)
+        .neq('status', 'cancelado')
+        .order('data_viagem', { ascending: false }),
+      supabase.from('agendamentos')
+        .select('id, nome_passageiro, valor, data_viagem, fiado_forma_pagamento')
+        .eq('motorista_id', user.id)
+        .eq('forma_pagamento', 'fiado')
+        .eq('fiado_pago', true)
+        .neq('status', 'cancelado')
+        .order('data_viagem', { ascending: false }),
+      supabase.from('motoristas').select('mensagem_fiado_whatsapp').eq('id', user.id).single(),
+    ])
+
+    if (abertos) {
+      setFiados(abertos)
+      const init: Record<string, string> = {}
+      const seen = new Set<string>()
+      abertos.forEach(f => {
+        if (!seen.has(f.nome_passageiro)) {
+          seen.add(f.nome_passageiro)
+          init[f.nome_passageiro] = f.fiado_observacao || ''
+        }
+      })
+      setObsMap(init)
+    }
+    if (pagos) setQuitados(pagos)
+    if (mot) setMotoristaMensagem(mot.mensagem_fiado_whatsapp || null)
     setLoading(false)
   }
 
+  async function salvarObservacao(nome: string, viagens: AgendamentoFiado[]) {
+    const ids = viagens.map(v => v.id)
+    await supabase.from('agendamentos').update({ fiado_observacao: obsMap[nome] || null }).in('id', ids)
+  }
+
+  const hoje = new Date()
+  const inicioMes = startOfMonth(hoje)
+  const fimMes = endOfMonth(hoje)
+
   const devedoresMap = fiados.reduce((acc, f) => {
     const key = f.nome_passageiro
-    if (!acc[key]) acc[key] = { nome: f.nome_passageiro, telefone: f.telefone_passageiro, total: 0, viagens: [] }
-    const saldo = f.valor - (f.fiado_valor_pago || 0)
-    acc[key].total += saldo
+    if (!acc[key]) acc[key] = { nome: f.nome_passageiro, telefone: f.telefone_passageiro, total: 0, viagens: [], temVencido: false }
+    acc[key].total += f.valor - (f.fiado_valor_pago || 0)
     acc[key].viagens.push(f)
+    if (f.fiado_data_combinada && new Date(f.fiado_data_combinada + 'T00:00:00') < hoje) {
+      acc[key].temVencido = true
+    }
     return acc
-  }, {} as Record<string, { nome: string; telefone?: string; total: number; viagens: AgendamentoFiado[] }>)
+  }, {} as Record<string, { nome: string; telefone?: string; total: number; viagens: AgendamentoFiado[]; temVencido: boolean }>)
 
-  const devedores = Object.values(devedoresMap).sort((a, b) => b.total - a.total)
+  const devedores = Object.values(devedoresMap).sort((a, b) => {
+    if (a.temVencido !== b.temVencido) return a.temVencido ? -1 : 1
+    return b.total - a.total
+  })
+
   const totalGeral = devedores.reduce((s, d) => s + d.total, 0)
+  const totalQuitadoMes = quitados
+    .filter(q => { const d = new Date(q.data_viagem + 'T00:00:00'); return d >= inicioMes && d <= fimMes })
+    .reduce((s, q) => s + q.valor, 0)
+
+  const quitadosMap = quitados.reduce((acc, q) => {
+    if (!acc[q.nome_passageiro]) acc[q.nome_passageiro] = { nome: q.nome_passageiro, total: 0, viagens: [] }
+    acc[q.nome_passageiro].total += q.valor
+    acc[q.nome_passageiro].viagens.push(q)
+    return acc
+  }, {} as Record<string, { nome: string; total: number; viagens: FiadoQuitado[] }>)
+  const devedoresQuitados = Object.values(quitadosMap)
+
+  function abrirWhatsApp(devedor: { nome: string; telefone?: string; total: number }) {
+    if (!devedor.telefone) return
+    const tel = devedor.telefone.replace(/\D/g, '')
+    const template = motoristaMensagem ||
+      'Olá [nome]! Passando para lembrar que você tem um valor em aberto de R$[total] referente às suas viagens. Qualquer dúvida estou à disposição!'
+    const msg = template
+      .replace('[nome]', devedor.nome.split(' ')[0])
+      .replace('[total]', devedor.total.toFixed(2).replace('.', ','))
+    window.open(`https://wa.me/55${tel}?text=${encodeURIComponent(msg)}`, '_blank')
+  }
 
   if (loading) return <p className="text-center text-gray-400 text-sm py-10">Carregando...</p>
 
   return (
     <div className="px-4 py-4">
-      <div className="bg-white rounded-2xl p-4 border border-gray-100 mb-4">
-        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Total em aberto</p>
-        <p className="text-2xl font-bold" style={{ color: '#A32D2D' }}>
-          R$ {totalGeral.toFixed(2).replace('.', ',')}
-        </p>
-        <p className="text-xs text-gray-400 mt-1">
-          {fiados.length} viagem{fiados.length !== 1 ? 's' : ''} · {devedores.length} devedor{devedores.length !== 1 ? 'es' : ''}
-        </p>
+      {/* Resumo — 3 cards */}
+      <div className="grid grid-cols-3 gap-2 mb-4">
+        <div className="bg-white rounded-2xl p-3 border border-gray-100 text-center">
+          <p className="text-[10px] text-gray-400 uppercase leading-tight mb-1">Em aberto</p>
+          <p className="text-sm font-bold" style={{ color: '#A32D2D' }}>R$ {totalGeral.toFixed(0)}</p>
+        </div>
+        <div className="bg-white rounded-2xl p-3 border border-gray-100 text-center">
+          <p className="text-[10px] text-gray-400 uppercase leading-tight mb-1">Quitado/mês</p>
+          <p className="text-sm font-bold" style={{ color: '#0F6E56' }}>R$ {totalQuitadoMes.toFixed(0)}</p>
+        </div>
+        <div className="bg-white rounded-2xl p-3 border border-gray-100 text-center">
+          <p className="text-[10px] text-gray-400 uppercase leading-tight mb-1">Devedores</p>
+          <p className="text-sm font-bold text-gray-800">{devedores.length}</p>
+        </div>
       </div>
 
       {devedores.length === 0 ? (
@@ -490,24 +570,50 @@ function AbaFiado() {
         <div className="flex flex-col gap-4">
           {devedores.map(devedor => (
             <div key={devedor.nome} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-              <div className="px-4 py-3 flex items-center justify-between"
-                style={{ background: '#FFF5F5', borderBottom: '1px solid #FDE8E8' }}>
-                <div>
-                  <p className="text-sm font-bold text-gray-800">{devedor.nome}</p>
-                  {devedor.telefone && (
-                    <p className="text-xs text-gray-400">{devedor.telefone}</p>
-                  )}
+              {/* Header do devedor */}
+              <div className="px-4 pt-3 pb-2"
+                style={{ background: devedor.temVencido ? '#FFF0F0' : '#FFF5F5', borderBottom: '1px solid #FDE8E8' }}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      {devedor.temVencido && <span className="text-base leading-none">⚠️</span>}
+                      <p className="text-sm font-bold text-gray-800 truncate">{devedor.nome}</p>
+                    </div>
+                    {devedor.telefone && (
+                      <p className="text-xs text-gray-400">{devedor.telefone}</p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {devedor.telefone && (
+                      <button onClick={() => abrirWhatsApp(devedor)}
+                        className="px-3 py-1.5 rounded-lg text-xs font-bold"
+                        style={{ background: '#E7F9EE', color: '#128C7E' }}>
+                        💬
+                      </button>
+                    )}
+                    <div className="text-right">
+                      <p className="text-[10px] text-gray-400 uppercase">Deve</p>
+                      <p className="text-sm font-bold" style={{ color: '#A32D2D' }}>
+                        R$ {devedor.total.toFixed(2).replace('.', ',')}
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-[10px] text-gray-400 uppercase">Total devido</p>
-                  <p className="text-base font-bold" style={{ color: '#A32D2D' }}>
-                    R$ {devedor.total.toFixed(2).replace('.', ',')}
-                  </p>
-                </div>
+                <textarea
+                  value={obsMap[devedor.nome] || ''}
+                  onChange={e => setObsMap(prev => ({ ...prev, [devedor.nome]: e.target.value }))}
+                  onBlur={() => salvarObservacao(devedor.nome, devedor.viagens)}
+                  placeholder="Observações (ex: vai pagar na sexta)..."
+                  rows={1}
+                  className="w-full mt-2 text-xs px-3 py-2 rounded-xl border border-gray-200 resize-none outline-none bg-white"
+                  style={{ color: '#444' }}
+                />
               </div>
 
+              {/* Viagens em aberto */}
               {devedor.viagens.map(v => {
                 const saldo = v.valor - (v.fiado_valor_pago || 0)
+                const vencida = !!v.fiado_data_combinada && new Date(v.fiado_data_combinada + 'T00:00:00') < hoje
                 return (
                   <div key={v.id} className="px-4 py-3 border-b border-gray-50 last:border-0 flex items-center gap-3">
                     <div className="flex-1 min-w-0">
@@ -521,8 +627,9 @@ function AbaFiado() {
                         </p>
                       )}
                       {v.fiado_data_combinada && (
-                        <p className="text-xs text-gray-400 mt-0.5">
-                          Combina: {format(new Date(v.fiado_data_combinada + 'T00:00:00'), 'dd/MM/yyyy')}
+                        <p className="text-xs mt-0.5" style={{ color: vencida ? '#A32D2D' : '#6b7280' }}>
+                          {vencida ? '⚠️ Venceu: ' : 'Combina: '}
+                          {format(new Date(v.fiado_data_combinada + 'T00:00:00'), 'dd/MM/yyyy')}
                         </p>
                       )}
                     </div>
@@ -544,6 +651,52 @@ function AbaFiado() {
           ))}
         </div>
       )}
+
+      {/* Seção Quitados */}
+      <div className="mt-5">
+        <button
+          onClick={() => setMostrarQuitados(m => !m)}
+          className="w-full py-3 rounded-2xl text-sm font-medium border border-gray-200 flex items-center justify-center gap-2"
+          style={{ background: mostrarQuitados ? '#E1F5EE' : 'white', color: mostrarQuitados ? '#0F6E56' : '#666' }}>
+          {mostrarQuitados ? '▲ Esconder quitados' : `▼ Ver quitados (${quitados.length})`}
+        </button>
+
+        {mostrarQuitados && (
+          <div className="flex flex-col gap-3 mt-3">
+            {devedoresQuitados.length === 0 ? (
+              <p className="text-center text-gray-400 text-sm py-4">Nenhum fiado quitado ainda</p>
+            ) : devedoresQuitados.map(dq => (
+              <div key={dq.nome} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+                <div className="px-4 py-3 flex items-center justify-between"
+                  style={{ background: '#F0FDF4', borderBottom: '1px solid #D1FAE5' }}>
+                  <p className="text-sm font-bold text-gray-800">{dq.nome}</p>
+                  <div className="text-right">
+                    <p className="text-[10px] text-gray-400 uppercase">Quitado</p>
+                    <p className="text-sm font-bold" style={{ color: '#0F6E56' }}>
+                      R$ {dq.total.toFixed(2).replace('.', ',')}
+                    </p>
+                  </div>
+                </div>
+                {dq.viagens.map(v => (
+                  <div key={v.id} className="px-4 py-2.5 border-b border-gray-50 last:border-0 flex items-center justify-between gap-2">
+                    <p className="text-xs text-gray-500">
+                      {format(new Date(v.data_viagem + 'T00:00:00'), 'dd/MM/yyyy')}
+                      {v.fiado_forma_pagamento && (
+                        <span className="ml-2">
+                          {v.fiado_forma_pagamento === 'dinheiro' ? '💵' : '📱'} {v.fiado_forma_pagamento}
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-sm font-semibold shrink-0" style={{ color: '#0F6E56' }}>
+                      R$ {v.valor.toFixed(2).replace('.', ',')}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       <div className="h-24" />
 
