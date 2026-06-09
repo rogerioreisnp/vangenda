@@ -422,6 +422,7 @@ function FormAgendamento({ data, rotas, onFechar, onSalvo }: {
   })
   const [valorAuto, setValorAuto] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
+  const [erroSalvar, setErroSalvar] = useState('')
   const [filtroCliente, setFiltroCliente] = useState('')
   const [vagasOcupadas, setVagasOcupadas] = useState(0)
 
@@ -493,6 +494,7 @@ function FormAgendamento({ data, rotas, onFechar, onSalvo }: {
   async function salvar() {
     if (!podeSalvar) return
     setSaving(true)
+    setErroSalvar('')
     const { data: { user } } = await supabase.auth.getUser()
     const registros = Array.from({ length: form.quantidade }, (_, i) => ({
       rota_id: form.rota_id,
@@ -504,6 +506,7 @@ function FormAgendamento({ data, rotas, onFechar, onSalvo }: {
       turno: form.turno,
       valor: parseFloat(form.valor),
       forma_pagamento: form.forma_pagamento,
+      fiado_pago: false,
       data_viagem: form.data_viagem,
       rua: form.rua || null,
       numero: form.numero || null,
@@ -512,8 +515,12 @@ function FormAgendamento({ data, rotas, onFechar, onSalvo }: {
       cep: form.cep || null,
       referencia: form.referencia || null,
     }))
-    await supabase.from('agendamentos').insert(registros)
+    const { error } = await supabase.from('agendamentos').insert(registros)
     setSaving(false)
+    if (error) {
+      setErroSalvar('Erro ao salvar: ' + error.message)
+      return
+    }
     onSalvo()
   }
 
@@ -681,6 +688,9 @@ function FormAgendamento({ data, rotas, onFechar, onSalvo }: {
       </div>
 
       <div style={{ padding: '8px 16px 80px', background: 'white', borderTop: '1px solid #e5e7eb' }}>
+        {erroSalvar && (
+          <p className="text-xs text-red-600 bg-red-50 rounded-xl px-3 py-2 mb-2">{erroSalvar}</p>
+        )}
         <button onClick={salvar} disabled={!podeSalvar}
           className="w-full py-3.5 rounded-xl text-white text-sm font-semibold transition-opacity disabled:opacity-40"
           style={{ background: '#1D9E75' }}>

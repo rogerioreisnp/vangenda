@@ -448,7 +448,7 @@ function AbaFiado() {
       .select('id, nome_passageiro, telefone_passageiro, parada_origem, parada_destino, valor, data_viagem, fiado_valor_pago, fiado_data_combinada')
       .eq('motorista_id', user.id)
       .eq('forma_pagamento', 'fiado')
-      .eq('fiado_pago', false)
+      .neq('fiado_pago', true)
       .neq('status', 'cancelado')
       .order('data_viagem', { ascending: false })
     if (data) setFiados(data)
