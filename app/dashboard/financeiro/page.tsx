@@ -449,6 +449,7 @@ function AbaFiado() {
   const [mostrarQuitados, setMostrarQuitados] = useState(false)
   const [modalViagem, setModalViagem] = useState<AgendamentoFiado | null>(null)
   const [obsMap, setObsMap] = useState<Record<string, string>>({})
+  const [editandoObs, setEditandoObs] = useState<Record<string, boolean>>({})
 
   useEffect(() => { carregarFiados() }, [])
 
@@ -492,9 +493,10 @@ function AbaFiado() {
     setLoading(false)
   }
 
-  async function salvarObservacao(nome: string, viagens: AgendamentoFiado[]) {
+  async function salvarObservacao(nome: string, viagens: AgendamentoFiado[], valor: string) {
     const ids = viagens.map(v => v.id)
-    await supabase.from('agendamentos').update({ fiado_observacao: obsMap[nome] || null }).in('id', ids)
+    await supabase.from('agendamentos').update({ fiado_observacao: valor || null }).in('id', ids)
+    setEditandoObs(prev => ({ ...prev, [nome]: false }))
   }
 
   const hoje = new Date()
@@ -599,20 +601,37 @@ function AbaFiado() {
                     </div>
                   </div>
                 </div>
-                <textarea
-                  value={obsMap[devedor.nome] || ''}
-                  onChange={e => setObsMap(prev => ({ ...prev, [devedor.nome]: e.target.value }))}
-                  onBlur={() => salvarObservacao(devedor.nome, devedor.viagens)}
-                  placeholder="Observações (ex: vai pagar na sexta)..."
-                  rows={1}
-                  className="w-full mt-2 text-xs px-3 py-2 rounded-xl border border-gray-200 resize-none outline-none bg-white"
-                  style={{ color: '#444' }}
-                />
+                {obsMap[devedor.nome] && !editandoObs[devedor.nome] ? (
+                  <div className="flex items-center gap-2 mt-2">
+                    <p className="text-xs text-gray-500 flex-1 leading-relaxed">{obsMap[devedor.nome]}</p>
+                    <button
+                      onClick={() => setEditandoObs(prev => ({ ...prev, [devedor.nome]: true }))}
+                      className="text-sm shrink-0 p-1">
+                      ✏️
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2 mt-2">
+                    <textarea
+                      value={obsMap[devedor.nome] || ''}
+                      onChange={e => setObsMap(prev => ({ ...prev, [devedor.nome]: e.target.value }))}
+                      placeholder="Observações (ex: vai pagar na sexta)..."
+                      rows={1}
+                      className="flex-1 text-xs px-3 py-2 rounded-xl border border-gray-200 resize-none outline-none bg-white"
+                      style={{ color: '#444' }}
+                    />
+                    <button
+                      onClick={() => salvarObservacao(devedor.nome, devedor.viagens, obsMap[devedor.nome] || '')}
+                      className="text-xs px-3 py-2 rounded-xl font-semibold shrink-0"
+                      style={{ background: '#E1F5EE', color: '#0F6E56' }}>
+                      Salvar
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Viagens em aberto */}
               {devedor.viagens.map(v => {
-                const saldo = v.valor - (v.fiado_valor_pago || 0)
                 const vencida = !!v.fiado_data_combinada && new Date(v.fiado_data_combinada + 'T00:00:00') < hoje
                 return (
                   <div key={v.id} className="px-4 py-3 border-b border-gray-50 last:border-0 flex items-center gap-3">
@@ -633,17 +652,12 @@ function AbaFiado() {
                         </p>
                       )}
                     </div>
-                    <div className="text-right shrink-0">
-                      <p className="text-sm font-bold" style={{ color: '#A32D2D' }}>
-                        R$ {saldo.toFixed(2).replace('.', ',')}
-                      </p>
-                      <button
-                        onClick={() => setModalViagem(v)}
-                        className="text-xs px-3 py-1.5 rounded-lg font-medium mt-1"
-                        style={{ background: '#E1F5EE', color: '#0F6E56' }}>
-                        Dar baixa
-                      </button>
-                    </div>
+                    <button
+                      onClick={() => setModalViagem(v)}
+                      className="text-xs px-3 py-1.5 rounded-lg font-medium shrink-0"
+                      style={{ background: '#E1F5EE', color: '#0F6E56' }}>
+                      Dar baixa
+                    </button>
                   </div>
                 )
               })}
