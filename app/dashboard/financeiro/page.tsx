@@ -2,6 +2,7 @@
 import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import CaderninhoDigital from '@/components/CaderninhoDigital'
 import { format, startOfMonth, endOfMonth, subMonths, addMonths, subDays, startOfDay, endOfDay } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import ModalNovaEncomenda from '@/components/ModalNovaEncomenda'
@@ -272,9 +273,9 @@ function FinanceiroContent() {
       </div>
 
       {aba === 'fiado' ? (
-        <AbaFiado />
+        <CaderninhoDigital categoria="fiado" />
       ) : aba === 'encomendas' ? (
-        <AbaEncomendas />
+        <CaderninhoDigital categoria="encomenda" />
       ) : (
         <div className="px-4 py-4">
           <div className="grid grid-cols-2 gap-3 mb-5">

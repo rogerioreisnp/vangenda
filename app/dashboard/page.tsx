@@ -53,7 +53,7 @@ export default function DashboardPage() {
       supabase.from('receitas').select('valor').eq('motorista_id', user.id).gte('data_receita', inicioMes).lte('data_receita', fimMes),
       supabase.from('despesas').select('valor').eq('motorista_id', user.id).gte('data_despesa', inicioMes).lte('data_despesa', fimMes),
       supabase.from('agendamentos').select('valor').eq('motorista_id', user.id).neq('status', 'cancelado').gte('data_viagem', inicioMes).lte('data_viagem', fimMes),
-      supabase.from('agendamentos').select('valor, fiado_data_combinada').eq('motorista_id', user.id).eq('forma_pagamento', 'fiado').neq('fiado_pago', true).neq('status', 'cancelado'),
+      supabase.from('agendamentos').select('valor, fiado_valor_pago, fiado_data_combinada').eq('motorista_id', user.id).eq('forma_pagamento', 'fiado').neq('fiado_pago', true).neq('status', 'cancelado'),
     ])
 
     if (mot) setMotorista(mot)
@@ -77,7 +77,7 @@ export default function DashboardPage() {
     setDespesasMes(totalDesps)
 
     if (fiadosAbertos && fiadosAbertos.length > 0) {
-      const total = fiadosAbertos.reduce((s, f) => s + (f.valor || 0), 0)
+      const total = fiadosAbertos.reduce((s, f) => s + ((f.valor || 0) - (f.fiado_valor_pago || 0)), 0)
       const temVencido = fiadosAbertos.some(f =>
         f.fiado_data_combinada && new Date(f.fiado_data_combinada + 'T23:59:59') < hoje
       )
