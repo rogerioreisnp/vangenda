@@ -987,13 +987,10 @@ function AbaEncomendas() {
   const [loading, setLoading] = useState(true)
   const [encomendas, setEncomendas] = useState<Encomenda[]>([])
   const [quitadas, setQuitadas] = useState<Encomenda[]>([])
-  const [modalNova, setModalNova] = useState(false)
+  const [modalNova, setModalNova] = useState<{nome?: string; telefone?: string} | null>(null)
   const [modalBaixa, setModalBaixa] = useState<Encomenda | null>(null)
+  const [editEncomenda, setEditEncomenda] = useState<Encomenda | null>(null)
   const [mostrarQuitadas, setMostrarQuitadas] = useState(false)
-  const [obsEdit, setObsEdit] = useState<Record<string, boolean>>({})
-  const [obsTemp, setObsTemp] = useState<Record<string, string>>({})
-  const [valorEdit, setValorEdit] = useState<Record<string, boolean>>({})
-  const [valorTemp, setValorTemp] = useState<Record<string, string>>({})
   const [expandidos, setExpandidos] = useState<Record<string, boolean>>({})
 
   useEffect(() => { carregarEncomendas() }, [])
@@ -1008,32 +1005,9 @@ function AbaEncomendas() {
       supabase.from('encomendas').select('*').eq('motorista_id', user.id).eq('pago', true).order('criado_em', { ascending: false }),
     ])
 
-    if (abertas) {
-      setEncomendas(abertas)
-      const initObs: Record<string, string> = {}
-      const initValor: Record<string, string> = {}
-      abertas.forEach(e => {
-        initObs[e.id] = e.observacao || ''
-        initValor[e.id] = e.valor.toFixed(2)
-      })
-      setObsTemp(initObs)
-      setValorTemp(initValor)
-    }
+    if (abertas) setEncomendas(abertas)
     if (pagas) setQuitadas(pagas)
     setLoading(false)
-  }
-
-  async function salvarObs(enc: Encomenda, valor: string) {
-    await supabase.from('encomendas').update({ observacao: valor || null }).eq('id', enc.id)
-    setObsEdit(prev => ({ ...prev, [enc.id]: false }))
-  }
-
-  async function salvarValor(enc: Encomenda, novoValor: string) {
-    const v = parseFloat(novoValor.replace(',', '.'))
-    if (isNaN(v) || v <= 0) return
-    await supabase.from('encomendas').update({ valor: v }).eq('id', enc.id)
-    setValorEdit(prev => ({ ...prev, [enc.id]: false }))
-    carregarEncomendas()
   }
 
   const hoje = new Date()
@@ -1078,7 +1052,7 @@ function AbaEncomendas() {
 
   return (
     <div className="px-4 py-4">
-      <button onClick={() => setModalNova(true)}
+      <button onClick={() => setModalNova({})}
         className="w-full py-3 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 mb-4"
         style={{ background: '#FAEEDA', color: '#854F0B' }}>
         📦 + Nova encomenda
@@ -1145,89 +1119,63 @@ function AbaEncomendas() {
                 </div>
               </button>
 
-              {aberto && pedidor.encomendas.map(enc => {
-                const vencida = !!enc.data_combinada && new Date(enc.data_combinada + 'T00:00:00') < hoje
-                const saldoEnc = enc.valor - (enc.valor_pago || 0)
-                return (
-                  <div key={enc.id} className="px-4 py-3 border-b border-gray-50 last:border-0">
-                    <div className="flex items-start gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1 flex-wrap mb-1">
-                          <span className="text-xs text-gray-400">
-                            {format(new Date(enc.criado_em), 'dd/MM/yyyy')}
-                          </span>
-                          {enc.data_combinada && (
-                            <span className="text-xs" style={{ color: vencida ? '#A32D2D' : '#6b7280' }}>
-                              {' • '}{vencida ? '⚠️ Venceu: ' : 'Pagar: '}
-                              {format(new Date(enc.data_combinada + 'T00:00:00'), 'dd/MM')}
-                            </span>
-                          )}
+              {aberto && (
+                <>
+                  {pedidor.encomendas.map(enc => {
+                    const vencida = !!enc.data_combinada && new Date(enc.data_combinada + 'T00:00:00') < hoje
+                    const saldoEnc = enc.valor - (enc.valor_pago || 0)
+                    return (
+                      <div key={enc.id} className="px-4 py-3 border-b border-gray-50 last:border-b">
+                        <div className="flex items-start gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1 flex-wrap mb-1">
+                              <span className="text-xs text-gray-400">
+                                {format(new Date(enc.criado_em), 'dd/MM/yyyy')}
+                              </span>
+                              {enc.data_combinada && (
+                                <span className="text-xs" style={{ color: vencida ? '#A32D2D' : '#6b7280' }}>
+                                  {' • '}{vencida ? '⚠️ Venceu: ' : 'Pagar: '}
+                                  {format(new Date(enc.data_combinada + 'T00:00:00'), 'dd/MM')}
+                                </span>
+                              )}
+                            </div>
+                            {enc.observacao
+                              ? <p className="text-xs text-gray-600 mb-1">{enc.observacao}</p>
+                              : <p className="text-xs text-gray-300 italic mb-1">Sem observação</p>}
+                            {(enc.valor_pago || 0) > 0 && (
+                              <p className="text-xs" style={{ color: '#854F0B' }}>
+                                Parcial: R$ {(enc.valor_pago || 0).toFixed(2).replace('.', ',')} pago
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex flex-col items-end gap-1.5 shrink-0">
+                            <div className="flex items-center gap-1">
+                              <p className="text-sm font-bold" style={{ color: '#A32D2D' }}>
+                                R$ {saldoEnc.toFixed(2).replace('.', ',')}
+                              </p>
+                              <button onClick={() => setEditEncomenda(enc)}
+                                className="text-sm p-0.5 opacity-40 active:opacity-100">✏️</button>
+                            </div>
+                            <button onClick={() => setModalBaixa(enc)}
+                              className="text-xs px-3 py-1.5 rounded-lg font-medium"
+                              style={{ background: '#E1F5EE', color: '#0F6E56' }}>
+                              Dar baixa
+                            </button>
+                          </div>
                         </div>
-                        {obsEdit[enc.id] ? (
-                          <div className="flex gap-2 mb-1">
-                            <textarea
-                              value={obsTemp[enc.id] || ''}
-                              onChange={e => setObsTemp(prev => ({ ...prev, [enc.id]: e.target.value }))}
-                              placeholder="Ex: buscar correio capital, caixa azul, dia 15"
-                              rows={2}
-                              className="flex-1 text-xs px-3 py-2 rounded-xl border border-gray-200 resize-none outline-none bg-white"
-                              style={{ color: '#444' }}
-                            />
-                            <button onClick={() => salvarObs(enc, obsTemp[enc.id] || '')}
-                              className="text-xs px-3 py-2 rounded-xl font-semibold shrink-0 self-start"
-                              style={{ background: '#E1F5EE', color: '#0F6E56' }}>
-                              Salvar
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-1 mb-1">
-                            {obsTemp[enc.id]
-                              ? <p className="text-xs text-gray-600 flex-1">{obsTemp[enc.id]}</p>
-                              : <p className="text-xs text-gray-300 italic flex-1">Sem observação</p>}
-                            <button onClick={() => setObsEdit(prev => ({ ...prev, [enc.id]: true }))}
-                              className="text-sm shrink-0 p-0.5">✏️</button>
-                          </div>
-                        )}
-                        {(enc.valor_pago || 0) > 0 && (
-                          <p className="text-xs mt-0.5" style={{ color: '#854F0B' }}>
-                            Parcial: R$ {(enc.valor_pago || 0).toFixed(2).replace('.', ',')} pago
-                          </p>
-                        )}
                       </div>
-                      <div className="flex flex-col items-end gap-1.5 shrink-0">
-                        {valorEdit[enc.id] ? (
-                          <div className="flex items-center gap-1">
-                            <input
-                              value={valorTemp[enc.id] ?? ''}
-                              onChange={e => setValorTemp(prev => ({ ...prev, [enc.id]: e.target.value }))}
-                              type="number" step="0.01"
-                              className="w-20 text-xs px-2 py-1 rounded-lg border border-gray-200 outline-none text-right"
-                            />
-                            <button onClick={() => salvarValor(enc, valorTemp[enc.id] || '')}
-                              className="text-xs px-2 py-1 rounded-lg font-semibold"
-                              style={{ background: '#E1F5EE', color: '#0F6E56' }}>
-                              ✓
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-1">
-                            <p className="text-sm font-bold" style={{ color: '#A32D2D' }}>
-                              R$ {saldoEnc.toFixed(2).replace('.', ',')}
-                            </p>
-                            <button onClick={() => setValorEdit(prev => ({ ...prev, [enc.id]: true }))}
-                              className="text-xs p-0.5 opacity-50">✏️</button>
-                          </div>
-                        )}
-                        <button onClick={() => setModalBaixa(enc)}
-                          className="text-xs px-3 py-1.5 rounded-lg font-medium"
-                          style={{ background: '#E1F5EE', color: '#0F6E56' }}>
-                          Dar baixa
-                        </button>
-                      </div>
-                    </div>
+                    )
+                  })}
+                  <div className="px-4 pb-3 pt-2">
+                    <button
+                      onClick={() => setModalNova({ nome: pedidor.nome, telefone: pedidor.telefone })}
+                      className="w-full py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5"
+                      style={{ background: '#FAEEDA', color: '#854F0B' }}>
+                      ➕ Adicionar encomenda para {pedidor.nome.split(' ')[0]}
+                    </button>
                   </div>
-                )
-              })}
+                </>
+              )}
             </div>
           )})
           ))}
@@ -1279,10 +1227,19 @@ function AbaEncomendas() {
 
       <div className="h-24" />
 
-      {modalNova && (
+      {modalNova !== null && (
         <ModalNovaEncomenda
-          onFechar={() => setModalNova(false)}
-          onSalvo={() => { setModalNova(false); carregarEncomendas() }}
+          nomeInicial={modalNova.nome}
+          telefoneInicial={modalNova.telefone}
+          onFechar={() => setModalNova(null)}
+          onSalvo={() => { setModalNova(null); carregarEncomendas() }}
+        />
+      )}
+      {editEncomenda && (
+        <ModalEditarEncomenda
+          encomenda={editEncomenda}
+          onFechar={() => setEditEncomenda(null)}
+          onSalvo={() => { setEditEncomenda(null); carregarEncomendas() }}
         />
       )}
       {modalBaixa && (
@@ -1292,6 +1249,80 @@ function AbaEncomendas() {
           onSalvo={() => { setModalBaixa(null); carregarEncomendas() }}
         />
       )}
+    </div>
+  )
+}
+
+// ─── MODAL EDITAR ENCOMENDA ───────────────────────────────────────────────────
+
+function ModalEditarEncomenda({ encomenda, onFechar, onSalvo }: {
+  encomenda: Encomenda; onFechar: () => void; onSalvo: () => void
+}) {
+  const [form, setForm] = useState({
+    valor: encomenda.valor.toFixed(2),
+    observacao: encomenda.observacao ?? '',
+    data_combinada: encomenda.data_combinada ?? '',
+  })
+  const [saving, setSaving] = useState(false)
+  const [erro, setErro] = useState('')
+
+  async function salvar() {
+    const v = parseFloat(form.valor.replace(',', '.'))
+    if (isNaN(v) || v <= 0) { setErro('Informe um valor válido.'); return }
+    setSaving(true)
+    const { error } = await supabase.from('encomendas').update({
+      valor: v,
+      observacao: form.observacao.trim() || null,
+      data_combinada: form.data_combinada || null,
+    }).eq('id', encomenda.id)
+    if (error) { setErro('Erro: ' + error.message); setSaving(false); return }
+    setSaving(false)
+    onSalvo()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end" style={{ background: 'rgba(0,0,0,0.4)' }}>
+      <div className="w-full bg-white rounded-t-2xl p-6 pb-16 flex flex-col gap-4" style={{ maxHeight: '90dvh', overflowY: 'auto' }}>
+        <div className="flex items-center justify-between">
+          <p className="text-base font-bold text-gray-800">Editar encomenda</p>
+          <button onClick={onFechar} className="text-gray-400 text-xl leading-none">✕</button>
+        </div>
+
+        <div className="px-3 py-2 rounded-xl text-xs" style={{ background: '#f5f5f5' }}>
+          <span className="font-semibold text-gray-700">{encomenda.nome}</span>
+          {encomenda.telefone && <span className="text-gray-400"> · {encomenda.telefone}</span>}
+        </div>
+
+        <div>
+          <p className="text-xs font-medium text-gray-500 mb-1">Valor (R$) *</p>
+          <input value={form.valor} onChange={e => setForm(f => ({ ...f, valor: e.target.value }))}
+            type="number" step="0.01"
+            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none bg-white focus:border-green-600" />
+        </div>
+
+        <div>
+          <p className="text-xs font-medium text-gray-500 mb-1">Observação (opcional)</p>
+          <textarea value={form.observacao} onChange={e => setForm(f => ({ ...f, observacao: e.target.value }))}
+            placeholder="Ex: buscar correio capital, caixa azul, dia 15"
+            rows={3}
+            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none bg-white resize-none focus:border-green-600" />
+        </div>
+
+        <div>
+          <p className="text-xs font-medium text-gray-500 mb-1">Data combinada (opcional)</p>
+          <input value={form.data_combinada} onChange={e => setForm(f => ({ ...f, data_combinada: e.target.value }))}
+            type="date"
+            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none bg-white focus:border-green-600" />
+        </div>
+
+        {erro && <p className="text-xs text-red-500 bg-red-50 px-3 py-2 rounded-xl">{erro}</p>}
+
+        <button onClick={salvar} disabled={saving || !form.valor}
+          className="w-full py-3.5 rounded-xl text-white text-sm font-semibold disabled:opacity-40"
+          style={{ background: '#1D9E75' }}>
+          {saving ? 'Salvando...' : '✓ Salvar alterações'}
+        </button>
+      </div>
     </div>
   )
 }

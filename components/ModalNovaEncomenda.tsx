@@ -2,9 +2,14 @@
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 
-export default function ModalNovaEncomenda({ onFechar, onSalvo }: { onFechar: () => void; onSalvo: () => void }) {
+export default function ModalNovaEncomenda({ onFechar, onSalvo, nomeInicial, telefoneInicial }: {
+  onFechar: () => void
+  onSalvo: () => void
+  nomeInicial?: string
+  telefoneInicial?: string
+}) {
   const [form, setForm] = useState({
-    nome: '', telefone: '', valor: '', observacao: '',
+    nome: nomeInicial ?? '', telefone: telefoneInicial ?? '', valor: '', observacao: '',
     status: 'fiado' as 'fiado' | 'pago_na_hora',
     forma_pagamento: 'dinheiro',
   })

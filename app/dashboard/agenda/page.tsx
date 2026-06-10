@@ -174,6 +174,7 @@ export default function AgendaPage() {
           style={{ background: '#FAEEDA', color: '#854F0B' }}>
           📦 Agendar encomenda neste dia
         </button>
+        <div className="h-20" />
       </div>
 
       {agendamentoDetalhe && (
