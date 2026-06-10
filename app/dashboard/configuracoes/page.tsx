@@ -242,6 +242,7 @@ export default function ConfiguracoesPage() {
   const [mostrarGuia, setMostrarGuia] = useState(false)
   const dragIdx = useRef<number | null>(null)
   const dragOverIdx = useRef<number | null>(null)
+  const [draggingIdx, setDraggingIdx] = useState<number | null>(null)
 
   useEffect(() => { carregarDados() }, [])
 
@@ -343,7 +344,10 @@ export default function ConfiguracoesPage() {
     router.push('/')
   }
 
-  function onDragStart(idx: number) { dragIdx.current = idx }
+  function onDragStart(idx: number) {
+    dragIdx.current = idx
+    setDraggingIdx(idx)
+  }
 
   function onDragEnter(idx: number) {
     dragOverIdx.current = idx
@@ -352,6 +356,7 @@ export default function ConfiguracoesPage() {
     const item = novas.splice(dragIdx.current, 1)[0]
     novas.splice(idx, 0, item)
     dragIdx.current = idx
+    setDraggingIdx(idx)
     const atualizadas = novas.map((p, i) => ({ ...p, ordem: i }))
     setParadas(atualizadas)
     gerarPrecos(atualizadas)
@@ -360,6 +365,60 @@ export default function ConfiguracoesPage() {
   function onDragEnd() {
     dragIdx.current = null
     dragOverIdx.current = null
+    setDraggingIdx(null)
+  }
+
+  function handleTouchStartHandle(e: React.TouchEvent, idx: number) {
+    e.preventDefault()
+    dragIdx.current = idx
+    setDraggingIdx(idx)
+
+    let currentParadas = [...paradas]
+    let currentPrecos = [...precos]
+    let currentDragIdx = idx
+
+    function move(ev: TouchEvent) {
+      ev.preventDefault()
+      const touch = ev.touches[0]
+      const el = document.elementFromPoint(touch.clientX, touch.clientY)
+      if (!el) return
+      const itemEl = el.closest('[data-drag-idx]') as HTMLElement
+      if (!itemEl) return
+      const newIdx = parseInt(itemEl.dataset.dragIdx ?? '-1')
+      if (isNaN(newIdx) || newIdx < 0 || newIdx === currentDragIdx) return
+
+      const novas = [...currentParadas]
+      const moved = novas.splice(currentDragIdx, 1)[0]
+      novas.splice(newIdx, 0, moved)
+      currentDragIdx = newIdx
+      currentParadas = novas
+
+      const novosPrecos: any[] = []
+      for (let i = 0; i < novas.length; i++) {
+        for (let j = i + 1; j < novas.length; j++) {
+          const existe = currentPrecos.find(p =>
+            p.parada_origem === novas[i].nome && p.parada_destino === novas[j].nome
+          )
+          novosPrecos.push({ parada_origem: novas[i].nome, parada_destino: novas[j].nome, valor: existe?.valor || 0 })
+        }
+      }
+      currentPrecos = novosPrecos
+
+      dragIdx.current = newIdx
+      setDraggingIdx(newIdx)
+      setParadas(novas.map((p, i) => ({ ...p, ordem: i })))
+      setPrecos(novosPrecos)
+    }
+
+    function end() {
+      dragIdx.current = null
+      setDraggingIdx(null)
+      document.removeEventListener('touchmove', move)
+      document.removeEventListener('touchend', end)
+    }
+
+    document.addEventListener('touchmove', move, { passive: false })
+    document.addEventListener('touchend', end)
   }
 
   if (loading) return (
@@ -474,13 +533,17 @@ export default function ConfiguracoesPage() {
           <div className="flex flex-col">
             {paradas.map((p, i) => (
               <div key={i} draggable
+                data-drag-idx={i}
                 onDragStart={() => onDragStart(i)}
                 onDragEnter={() => onDragEnter(i)}
                 onDragEnd={onDragEnd}
                 onDragOver={e => e.preventDefault()}
-                className="flex items-center gap-2 mb-2 rounded-xl transition-all cursor-grab active:cursor-grabbing"
-                style={{ background: dragIdx.current === i ? '#E1F5EE' : 'transparent', padding: '4px 0' }}>
-                <div className="flex flex-col gap-0.5 px-1 flex-shrink-0">
+                className="flex items-center gap-2 mb-2 rounded-xl transition-all"
+                style={{ background: draggingIdx === i ? '#E1F5EE' : 'transparent', padding: '4px 0' }}>
+                <div
+                  className="flex flex-col gap-0.5 px-1 flex-shrink-0 cursor-grab active:cursor-grabbing"
+                  style={{ touchAction: 'none' }}
+                  onTouchStart={(e) => handleTouchStartHandle(e, i)}>
                   <div className="w-4 h-0.5 rounded" style={{ background: '#9FE1CB' }} />
                   <div className="w-4 h-0.5 rounded" style={{ background: '#9FE1CB' }} />
                   <div className="w-4 h-0.5 rounded" style={{ background: '#9FE1CB' }} />
