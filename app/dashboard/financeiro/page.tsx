@@ -279,12 +279,12 @@ function FinanceiroContent() {
           <div className="grid grid-cols-2 gap-3 mb-5">
             <button onClick={() => setModal('receita')}
               className="py-3.5 rounded-2xl text-sm font-bold flex items-center justify-center gap-2"
-              style={{ background: '#E1F5EE', color: '#0F6E56' }}>
+              style={{ background: '#0F6E56', color: '#fff' }}>
               <span className="text-lg">💰</span> + Receita
             </button>
             <button onClick={() => setModal('despesa')}
               className="py-3.5 rounded-2xl text-sm font-bold flex items-center justify-center gap-2"
-              style={{ background: '#FAEEDA', color: '#854F0B' }}>
+              style={{ background: '#A32D2D', color: '#fff' }}>
               <span className="text-lg">🧾</span> + Despesa
             </button>
           </div>
