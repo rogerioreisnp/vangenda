@@ -154,7 +154,7 @@ export default function DashboardPage() {
           {[
             { emoji: '✅', label: 'Receita', href: '/dashboard/financeiro' },
             { emoji: '⛽', label: 'Despesa', href: '/dashboard/financeiro' },
-            { emoji: '💸', label: 'Fiado', href: '/dashboard/financeiro?aba=fiado' },
+            { emoji: '💸', label: 'A receber', href: '/dashboard/financeiro?aba=fiado' },
             { emoji: '📦', label: 'Encomenda', href: '/dashboard/financeiro?aba=encomendas' },
           ].map((item) => (
             <Link key={item.label} href={item.href}
