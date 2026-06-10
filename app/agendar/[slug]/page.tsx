@@ -164,6 +164,16 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
   const lotado = vagasDisponiveis <= 0
   const vagasInsuficientes = form.quantidade > vagasDisponiveis
 
+  const diasTrabalho: number[] = motorista?.dias_trabalho ?? []
+  const nomeDias = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+  const nomeDiasCompletos = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
+  const diaSelecionadoNum = form.data ? new Date(form.data + 'T00:00:00').getDay() : -1
+  const isDiaTrabalho = diasTrabalho.length === 0 || diasTrabalho.includes(diaSelecionadoNum)
+  const diasNomes = diasTrabalho.map(d => nomeDiasCompletos[d])
+  const diasTexto = diasNomes.length === 0 ? 'todos os dias'
+    : diasNomes.length === 1 ? diasNomes[0]
+    : diasNomes.slice(0, -1).join(', ') + ' e ' + diasNomes[diasNomes.length - 1]
+
   async function enviarNotificacao(qtd: number) {
     try {
       await fetch('/api/notificar-agendamento', {
@@ -295,6 +305,29 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
 
         {etapa === 'form' && (
           <div className="flex flex-col gap-4">
+
+            {diasTrabalho.length > 0 && (
+              <div className="bg-white rounded-2xl p-4 border border-gray-100">
+                <p className="text-xs text-gray-500 mb-2.5">
+                  Dias de rota de <span className="font-semibold text-gray-700">{motorista.nome}</span>:
+                </p>
+                <div className="grid grid-cols-7 gap-1">
+                  {nomeDias.map((dia, i) => {
+                    const ativo = diasTrabalho.includes(i)
+                    return (
+                      <div key={i}
+                        className="py-2 rounded-xl text-xs font-semibold text-center border"
+                        style={ativo
+                          ? { background: '#0F6E56', color: '#fff', borderColor: '#0F6E56' }
+                          : { background: '#fff', color: '#d1d5db', borderColor: '#e5e7eb' }}>
+                        {dia}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
             <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-3">
               <p className="text-sm font-semibold text-gray-700">Seus dados</p>
               <Campo label="Seu nome completo">
@@ -313,6 +346,19 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
                 <input value={form.data} onChange={e => setForm(f => ({ ...f, data: e.target.value }))}
                   type="date" min={format(addDays(new Date(), 1), 'yyyy-MM-dd')} className="campo-input" />
               </Campo>
+
+              {!isDiaTrabalho && form.data && diasTrabalho.length > 0 && (
+                <div style={{ background: '#FCEBEB', borderColor: '#F5BCBC' }}
+                  className="border rounded-xl px-4 py-3">
+                  <p className="text-sm font-semibold" style={{ color: '#A32D2D' }}>
+                    🚫 {motorista.nome.split(' ')[0]} não faz rota neste dia
+                  </p>
+                  <p className="text-xs mt-1" style={{ color: '#7f1d1d' }}>
+                    Dias disponíveis: {diasTexto}
+                  </p>
+                </div>
+              )}
+
               <Campo label="Turno">
                 <div className="grid grid-cols-2 gap-2">
                   {(['ida', 'volta'] as const).map(t => (
@@ -506,13 +552,15 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
             )}
 
             <button onClick={agendar}
-              disabled={salvando || !form.nome || !form.origem || !form.destino || !form.data || lotado || vagasInsuficientes}
+              disabled={salvando || !form.nome || !form.origem || !form.destino || !form.data || lotado || vagasInsuficientes || !isDiaTrabalho}
               className="w-full py-4 rounded-2xl text-white text-base font-bold disabled:opacity-40"
-              style={{ background: lotado ? '#ccc' : '#1D9E75' }}>
+              style={{ background: lotado || !isDiaTrabalho ? '#ccc' : '#1D9E75' }}>
               {salvando
                 ? 'Agendando...'
                 : lotado
                 ? '🚫 Van lotada'
+                : !isDiaTrabalho
+                ? '🚫 Sem rota neste dia'
                 : motorista.pagamento_obrigatorio
                 ? `→ Avançar para pagamento${form.quantidade > 1 ? ` (${form.quantidade} passageiros)` : ''}`
                 : `✓ Confirmar agendamento${form.quantidade > 1 ? ` (${form.quantidade} passageiros)` : ''}`}
