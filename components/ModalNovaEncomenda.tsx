@@ -26,7 +26,7 @@ export default function ModalNovaEncomenda({ onFechar, onSalvo, nomeInicial, tel
     const valor = parseFloat(form.valor)
     const pago = form.status === 'pago_na_hora'
 
-    const { error } = await supabase.from('encomendas').insert({
+    const { data: novaEnc, error } = await supabase.from('encomendas').insert({
       motorista_id: user.id,
       nome: form.nome.trim(),
       telefone: form.telefone.trim() || null,
@@ -35,9 +35,20 @@ export default function ModalNovaEncomenda({ onFechar, onSalvo, nomeInicial, tel
       pago,
       valor_pago: pago ? valor : 0,
       forma_pagamento: pago ? form.forma_pagamento : null,
-    })
+    }).select('id').single()
 
     if (error) { setErro('Erro: ' + error.message); setSaving(false); return }
+    if (!pago && novaEnc) {
+      await supabase.from('movimentacoes').insert({
+        motorista_id: user.id,
+        cliente_nome: form.nome.trim(),
+        tipo: 'divida',
+        valor,
+        descricao: 'Encomenda' + (form.observacao.trim() ? ': ' + form.observacao.trim() : ''),
+        categoria: 'encomenda',
+        referencia_id: novaEnc.id,
+      })
+    }
     setSaving(false)
     onSalvo()
   }

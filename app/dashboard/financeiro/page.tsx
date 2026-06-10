@@ -273,9 +273,9 @@ function FinanceiroContent() {
       </div>
 
       {aba === 'fiado' ? (
-        <CaderninhoDigital categoria="fiado" />
+        <AbaFiado />
       ) : aba === 'encomendas' ? (
-        <CaderninhoDigital categoria="encomenda" />
+        <AbaEncomendas />
       ) : (
         <div className="px-4 py-4">
           <div className="grid grid-cols-2 gap-3 mb-5">
@@ -535,6 +535,10 @@ function AbaFiado() {
   const [modalNovoFiado, setModalNovoFiado] = useState(false)
   const [obsMap, setObsMap] = useState<Record<string, string>>({})
   const [editandoObs, setEditandoObs] = useState<Record<string, boolean>>({})
+  const [historicos, setHistoricos] = useState<Record<string, { tipo: string; valor: number; descricao: string | null; created_at: string }[]>>({})
+  const [expandidoHist, setExpandidoHist] = useState<Record<string, boolean>>({})
+  const [carregandoHist, setCarregandoHist] = useState<Record<string, boolean>>({})
+  const [modalAdicionarDivida, setModalAdicionarDivida] = useState<string | null>(null)
 
   useEffect(() => { carregarFiados() }, [])
 
@@ -576,6 +580,31 @@ function AbaFiado() {
     if (pagos) setQuitados(pagos)
     if (mot) setMotoristaMensagem(mot.mensagem_fiado_whatsapp || null)
     setLoading(false)
+  }
+
+  async function carregarHistorico(nome: string) {
+    setCarregandoHist(prev => ({ ...prev, [nome]: true }))
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    const { data } = await supabase
+      .from('movimentacoes')
+      .select('tipo, valor, descricao, created_at')
+      .eq('motorista_id', user.id)
+      .eq('cliente_nome', nome)
+      .in('categoria', ['fiado', 'encomenda'])
+      .order('created_at', { ascending: true })
+    if (data) setHistoricos(prev => ({ ...prev, [nome]: data }))
+    setCarregandoHist(prev => ({ ...prev, [nome]: false }))
+  }
+
+  function toggleHistorico(nome: string) {
+    const abrindo = !expandidoHist[nome]
+    setExpandidoHist(prev => ({ ...prev, [nome]: abrindo }))
+    if (abrindo && !historicos[nome]) carregarHistorico(nome)
+  }
+
+  function invalidarHistorico(nome: string) {
+    setHistoricos(prev => { const n = { ...prev }; delete n[nome]; return n })
   }
 
   async function salvarObservacao(nome: string, viagens: AgendamentoFiado[], valor: string) {
@@ -726,7 +755,7 @@ function AbaFiado() {
               {devedor.viagens.map(v => {
                 const vencida = !!v.fiado_data_combinada && new Date(v.fiado_data_combinada + 'T00:00:00') < hoje
                 return (
-                  <div key={v.id} className="px-4 py-3 border-b border-gray-50 last:border-0 flex items-center gap-3">
+                  <div key={v.id} className="px-4 py-3 border-b border-gray-50 flex items-center gap-3">
                     <div className="flex-1 min-w-0">
                       <p className="text-xs text-gray-400">
                         {format(new Date(v.data_viagem + 'T00:00:00'), 'dd/MM/yyyy')}
@@ -754,6 +783,60 @@ function AbaFiado() {
                   </div>
                 )
               })}
+
+              {/* Histórico de movimentações */}
+              <div className="px-4 py-2.5 border-t border-gray-50">
+                <button
+                  onClick={() => toggleHistorico(devedor.nome)}
+                  className="w-full flex items-center justify-between text-xs font-medium py-0.5"
+                  style={{ color: '#6b7280' }}>
+                  <span>📋 {expandidoHist[devedor.nome] ? 'Ocultar histórico' : 'Ver histórico'}</span>
+                  <span>{expandidoHist[devedor.nome] ? '▲' : '▼'}</span>
+                </button>
+
+                {expandidoHist[devedor.nome] && (
+                  <div className="mt-2">
+                    {carregandoHist[devedor.nome] ? (
+                      <p className="text-xs text-gray-400 py-1">Carregando...</p>
+                    ) : !historicos[devedor.nome]?.length ? (
+                      <p className="text-xs text-gray-400 py-1">Nenhum lançamento registrado ainda.</p>
+                    ) : (
+                      <div className="flex flex-col gap-1.5">
+                        {historicos[devedor.nome].map((m, i) => (
+                          <div key={i} className="flex items-center justify-between py-1 border-b border-gray-50 last:border-0">
+                            <div className="flex-1 min-w-0">
+                              <span className="text-xs font-medium"
+                                style={{ color: m.tipo === 'divida' ? '#A32D2D' : '#0F6E56' }}>
+                                {m.tipo === 'divida' ? '+ ' : '− '}
+                              </span>
+                              <span className="text-xs text-gray-600 truncate">
+                                {m.descricao || (m.tipo === 'divida' ? 'Dívida' : 'Pagamento')}
+                              </span>
+                              <span className="text-xs text-gray-400 ml-1">
+                                · {format(new Date(m.created_at), 'dd/MM/yy')}
+                              </span>
+                            </div>
+                            <span className="text-xs font-semibold shrink-0 ml-2"
+                              style={{ color: m.tipo === 'divida' ? '#A32D2D' : '#0F6E56' }}>
+                              R$ {m.valor.toFixed(2).replace('.', ',')}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Botão adicionar dívida */}
+              <div className="px-4 pb-3 pt-1">
+                <button
+                  onClick={() => setModalAdicionarDivida(devedor.nome)}
+                  className="w-full py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5"
+                  style={{ background: '#FAEEDA', color: '#854F0B' }}>
+                  📝 + Adicionar dívida
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -811,7 +894,11 @@ function AbaFiado() {
         <ModalDarBaixa
           viagem={modalViagem}
           onFechar={() => setModalViagem(null)}
-          onSalvo={() => { setModalViagem(null); carregarFiados() }}
+          onSalvo={() => {
+            invalidarHistorico(modalViagem.nome_passageiro)
+            setModalViagem(null)
+            carregarFiados()
+          }}
         />
       )}
 
@@ -819,6 +906,18 @@ function AbaFiado() {
         <ModalNovoFiado
           onFechar={() => setModalNovoFiado(false)}
           onSalvo={() => { setModalNovoFiado(false); carregarFiados() }}
+        />
+      )}
+
+      {modalAdicionarDivida && (
+        <ModalAdicionarDivida
+          nome={modalAdicionarDivida}
+          onFechar={() => setModalAdicionarDivida(null)}
+          onSalvo={() => {
+            invalidarHistorico(modalAdicionarDivida)
+            setModalAdicionarDivida(null)
+            carregarFiados()
+          }}
         />
       )}
     </div>
@@ -841,7 +940,7 @@ function ModalNovoFiado({ onFechar, onSalvo }: { onFechar: () => void; onSalvo: 
 
     const { data: rota } = await supabase.from('rotas').select('id').eq('motorista_id', user.id).limit(1).single()
 
-    const { error } = await supabase.from('agendamentos').insert({
+    const { data: novoAg, error } = await supabase.from('agendamentos').insert({
       motorista_id: user.id,
       rota_id: rota?.id ?? null,
       nome_passageiro: form.nome.trim(),
@@ -855,9 +954,20 @@ function ModalNovoFiado({ onFechar, onSalvo }: { onFechar: () => void; onSalvo: 
       fiado_pago: false,
       status: 'agendado',
       fiado_data_combinada: form.data_combinada || null,
-    })
+    }).select('id').single()
 
     if (error) { setErro('Erro: ' + error.message); setSaving(false); return }
+    if (novoAg) {
+      await supabase.from('movimentacoes').insert({
+        motorista_id: user.id,
+        cliente_nome: form.nome.trim(),
+        tipo: 'divida',
+        valor: parseFloat(form.valor),
+        descricao: form.descricao.trim() || 'Passagem fiada',
+        categoria: 'fiado',
+        referencia_id: novoAg.id,
+      })
+    }
     setSaving(false)
     onSalvo()
   }
@@ -917,6 +1027,95 @@ function ModalNovoFiado({ onFechar, onSalvo }: { onFechar: () => void; onSalvo: 
   )
 }
 
+// ─── MODAL ADICIONAR DÍVIDA ───────────────────────────────────────────────────
+
+function ModalAdicionarDivida({ nome, onFechar, onSalvo }: {
+  nome: string
+  onFechar: () => void
+  onSalvo: () => void
+}) {
+  const [form, setForm] = useState({ descricao: '', valor: '' })
+  const [saving, setSaving] = useState(false)
+  const [erro, setErro] = useState('')
+
+  async function salvar() {
+    if (!form.descricao.trim() || !form.valor) { setErro('Descrição e valor são obrigatórios.'); return }
+    const valorNum = parseFloat(form.valor)
+    if (isNaN(valorNum) || valorNum <= 0) { setErro('Informe um valor válido.'); return }
+    setSaving(true); setErro('')
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setErro('Não autenticado.'); setSaving(false); return }
+
+    const { data: rota } = await supabase.from('rotas').select('id').eq('motorista_id', user.id).limit(1).single()
+
+    const { data: novoAg, error } = await supabase.from('agendamentos').insert({
+      motorista_id: user.id,
+      rota_id: rota?.id ?? null,
+      nome_passageiro: nome,
+      parada_origem: form.descricao.trim(),
+      parada_destino: '',
+      data_viagem: format(new Date(), 'yyyy-MM-dd'),
+      turno: 'ida',
+      valor: valorNum,
+      forma_pagamento: 'fiado',
+      fiado_pago: false,
+      status: 'agendado',
+    }).select('id').single()
+
+    if (error) { setErro('Erro: ' + error.message); setSaving(false); return }
+    if (novoAg) {
+      await supabase.from('movimentacoes').insert({
+        motorista_id: user.id,
+        cliente_nome: nome,
+        tipo: 'divida',
+        valor: valorNum,
+        descricao: form.descricao.trim(),
+        categoria: 'fiado',
+        referencia_id: novoAg.id,
+      })
+    }
+    setSaving(false)
+    onSalvo()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end" style={{ background: 'rgba(0,0,0,0.4)' }}>
+      <div className="w-full bg-white rounded-t-2xl p-6 pb-16 flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-base font-bold text-gray-800">Adicionar dívida</p>
+            <p className="text-xs text-gray-400 mt-0.5">{nome}</p>
+          </div>
+          <button onClick={onFechar} className="text-gray-400 text-xl leading-none">✕</button>
+        </div>
+
+        <div>
+          <p className="text-xs font-medium text-gray-500 mb-1">Descrição *</p>
+          <input value={form.descricao} onChange={e => setForm(f => ({ ...f, descricao: e.target.value }))}
+            placeholder="Ex: Passagem, Encomenda Correios..."
+            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none bg-white focus:border-green-600" />
+        </div>
+
+        <div>
+          <p className="text-xs font-medium text-gray-500 mb-1">Valor (R$) *</p>
+          <input value={form.valor} onChange={e => setForm(f => ({ ...f, valor: e.target.value }))}
+            placeholder="0,00" type="number" step="0.01"
+            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none bg-white focus:border-green-600" />
+        </div>
+
+        {erro && <p className="text-xs text-red-500 bg-red-50 px-3 py-2 rounded-xl">{erro}</p>}
+
+        <button onClick={salvar} disabled={saving || !form.descricao || !form.valor}
+          className="w-full py-3.5 rounded-xl text-white text-sm font-semibold disabled:opacity-40"
+          style={{ background: '#854F0B' }}>
+          {saving ? 'Salvando...' : '✓ Adicionar à conta'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ─── MODAL DAR BAIXA ──────────────────────────────────────────────────────────
 
 function ModalDarBaixa({ viagem, onFechar, onSalvo }: {
@@ -937,6 +1136,7 @@ function ModalDarBaixa({ viagem, onFechar, onSalvo }: {
   async function confirmar() {
     if (!vr || vr <= 0) return
     setSaving(true)
+    const { data: { user } } = await supabase.auth.getUser()
     const novoPago = (viagem.fiado_valor_pago || 0) + vr
     const updates: Record<string, unknown> = {
       fiado_valor_pago: parseFloat(Math.min(novoPago, viagem.valor).toFixed(2)),
@@ -948,6 +1148,17 @@ function ModalDarBaixa({ viagem, onFechar, onSalvo }: {
       updates.fiado_data_combinada = dataCombinada
     }
     await supabase.from('agendamentos').update(updates).eq('id', viagem.id)
+    if (user) {
+      await supabase.from('movimentacoes').insert({
+        motorista_id: user.id,
+        cliente_nome: viagem.nome_passageiro,
+        tipo: 'pagamento',
+        valor: parseFloat(vr.toFixed(2)),
+        descricao: 'Pagamento recebido (' + formaPagamento + ')',
+        categoria: 'fiado',
+        referencia_id: viagem.id,
+      })
+    }
     setSaving(false)
     onSalvo()
   }
