@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { format, startOfMonth, endOfMonth, subMonths, addMonths, subDays, startOfDay, endOfDay } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -95,7 +96,9 @@ type Encomenda = {
 }
 
 export default function FinanceiroPage() {
-  const [aba, setAba] = useState<Aba>('geral')
+  const searchParams = useSearchParams()
+  const abaInicial = (searchParams.get('aba') as Aba | null) ?? 'geral'
+  const [aba, setAba] = useState<Aba>(abaInicial)
   const [filtro, setFiltro] = useState<Filtro>('mes')
   const [mes, setMes] = useState(new Date())
   const [receitasManuais, setReceitasManuais] = useState<Receita[]>([])
