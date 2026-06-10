@@ -828,7 +828,7 @@ function AbaFiado() {
         </div>
 
         {/* Footer fixo */}
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-4 pt-3 pb-6 flex gap-3 z-40">
+        <div className="fixed bottom-20 left-0 right-0 bg-white border-t border-gray-100 px-4 pt-3 pb-3 flex gap-3 z-40">
           <button onClick={() => setModalAdicionarDivida(clienteSelecionado)}
             className="flex-1 py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1"
             style={{ background: '#FAEEDA', color: '#854F0B' }}>
@@ -1675,7 +1675,7 @@ function AbaEncomendas() {
         </div>
 
         {/* Footer fixo */}
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-4 pt-3 pb-6 flex gap-3 z-40">
+        <div className="fixed bottom-20 left-0 right-0 bg-white border-t border-gray-100 px-4 pt-3 pb-3 flex gap-3 z-40">
           <button onClick={() => setModalNova({ nome: pedidor.nome, telefone: pedidor.telefone })}
             className="flex-1 py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1"
             style={{ background: '#FAEEDA', color: '#854F0B' }}>
