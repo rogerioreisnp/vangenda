@@ -107,23 +107,6 @@ export default function DashboardPage() {
 
       <div className="px-4 py-4 flex flex-col gap-3">
 
-        {/* Ações rápidas */}
-        <div className="grid grid-cols-4 gap-2">
-          {[
-            { emoji: '✅', label: 'Receita', href: '/dashboard/financeiro' },
-            { emoji: '⛽', label: 'Despesa', href: '/dashboard/financeiro' },
-            { emoji: '💸', label: 'Fiado', href: '/dashboard/financeiro?aba=fiado' },
-            { emoji: '📦', label: 'Encomenda', href: '/dashboard/financeiro?aba=encomendas' },
-          ].map((item) => (
-            <Link key={item.label} href={item.href}
-              className="bg-white rounded-2xl flex flex-col items-center justify-center py-3 gap-1 active:opacity-75"
-              style={{ border: '1px solid #f0f0f0', boxShadow: '0 1px 6px rgba(0,0,0,0.06)' }}>
-              <span className="text-xl leading-none">{item.emoji}</span>
-              <span className="text-[10px] font-medium text-gray-500">{item.label}</span>
-            </Link>
-          ))}
-        </div>
-
         {/* Card Hoje */}
         <Link href="/dashboard/agenda"
           className="bg-white rounded-2xl p-4 block active:opacity-75"
@@ -165,6 +148,23 @@ export default function DashboardPage() {
             </div>
           )}
         </Link>
+
+        {/* Ações rápidas */}
+        <div className="grid grid-cols-2 gap-3">
+          {[
+            { emoji: '✅', label: 'Receita', href: '/dashboard/financeiro' },
+            { emoji: '⛽', label: 'Despesa', href: '/dashboard/financeiro' },
+            { emoji: '💸', label: 'Fiado', href: '/dashboard/financeiro?aba=fiado' },
+            { emoji: '📦', label: 'Encomenda', href: '/dashboard/financeiro?aba=encomendas' },
+          ].map((item) => (
+            <Link key={item.label} href={item.href}
+              className="bg-white rounded-2xl flex flex-col items-center justify-center py-5 gap-2 active:opacity-75"
+              style={{ border: '1px solid #f0f0f0', boxShadow: '0 1px 6px rgba(0,0,0,0.06)' }}>
+              <span className="text-3xl leading-none">{item.emoji}</span>
+              <span className="text-base font-semibold text-gray-600">{item.label}</span>
+            </Link>
+          ))}
+        </div>
 
         {/* Card Encomendas — só aparece se houver pendentes */}
         {encomendasPendentes > 0 && (
