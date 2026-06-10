@@ -98,6 +98,7 @@ type Encomenda = {
 function FinanceiroContent() {
   const searchParams = useSearchParams()
   const abaInicial = (searchParams.get('aba') as Aba | null) ?? 'geral'
+  const modalInicial = (searchParams.get('modal') as 'receita' | 'despesa' | null) ?? null
   const [aba, setAba] = useState<Aba>(abaInicial)
   const [filtro, setFiltro] = useState<Filtro>('mes')
   const [mes, setMes] = useState(new Date())
@@ -106,7 +107,7 @@ function FinanceiroContent() {
   const [receitasEncomendas, setReceitasEncomendas] = useState<EncomendaReceita[]>([])
   const [despesas, setDespesas] = useState<Despesa[]>([])
   const [loading, setLoading] = useState(true)
-  const [modal, setModal] = useState<null | 'receita' | 'despesa'>(null)
+  const [modal, setModal] = useState<null | 'receita' | 'despesa'>(modalInicial)
   const [editandoReceita, setEditandoReceita] = useState<Receita | null>(null)
   const [editandoDespesa, setEditandoDespesa] = useState<Despesa | null>(null)
 

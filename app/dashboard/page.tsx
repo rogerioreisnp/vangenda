@@ -152,8 +152,8 @@ export default function DashboardPage() {
         {/* Ações rápidas */}
         <div className="grid grid-cols-2 gap-3">
           {[
-            { emoji: '✅', label: 'Receita', href: '/dashboard/financeiro' },
-            { emoji: '⛽', label: 'Despesa', href: '/dashboard/financeiro' },
+            { emoji: '✅', label: 'Receita', href: '/dashboard/financeiro?modal=receita' },
+            { emoji: '⛽', label: 'Despesa', href: '/dashboard/financeiro?modal=despesa' },
             { emoji: '💸', label: 'A receber', href: '/dashboard/financeiro?aba=fiado' },
             { emoji: '📦', label: 'Encomenda', href: '/dashboard/financeiro?aba=encomendas' },
           ].map((item) => (
