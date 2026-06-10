@@ -828,16 +828,17 @@ function AbaFiado() {
         </div>
 
         {/* Footer fixo */}
-        <div className="fixed bottom-20 left-0 right-0 bg-white border-t border-gray-100 px-4 pt-3 pb-3 flex gap-3 z-40">
+        <div className="fixed bottom-20 left-0 right-0 bg-white border-t border-gray-100 flex gap-2 z-40"
+          style={{ padding: '12px 16px 12px 16px' }}>
           <button onClick={() => setModalAdicionarDivida(clienteSelecionado)}
-            className="flex-1 py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1"
-            style={{ background: '#FAEEDA', color: '#854F0B' }}>
+            className="flex-1 flex items-center justify-center"
+            style={{ height: 48, background: '#FFF3E0', color: '#E65100', border: '1px solid #FFB74D', borderRadius: 12, fontSize: 14, fontWeight: 500 }}>
             📝 + Adicionar
           </button>
           <button
             onClick={() => setModalBaixaCliente({ nome: devedor.nome, total: devedor.total, viagens: devedor.viagens })}
-            className="flex-[2] py-3 rounded-xl text-sm font-bold flex items-center justify-center"
-            style={{ background: '#0F6E56', color: '#fff' }}>
+            className="flex-1 flex items-center justify-center"
+            style={{ height: 48, background: '#1B5E20', color: '#fff', borderRadius: 12, fontSize: 14, fontWeight: 500 }}>
             ✓ Dar baixa — R$ {devedor.total.toFixed(2).replace('.', ',')}
           </button>
         </div>
@@ -1675,16 +1676,17 @@ function AbaEncomendas() {
         </div>
 
         {/* Footer fixo */}
-        <div className="fixed bottom-20 left-0 right-0 bg-white border-t border-gray-100 px-4 pt-3 pb-3 flex gap-3 z-40">
+        <div className="fixed bottom-20 left-0 right-0 bg-white border-t border-gray-100 flex gap-2 z-40"
+          style={{ padding: '12px 16px 12px 16px' }}>
           <button onClick={() => setModalNova({ nome: pedidor.nome, telefone: pedidor.telefone })}
-            className="flex-1 py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1"
-            style={{ background: '#FAEEDA', color: '#854F0B' }}>
+            className="flex-1 flex items-center justify-center"
+            style={{ height: 48, background: '#FFF3E0', color: '#E65100', border: '1px solid #FFB74D', borderRadius: 12, fontSize: 14, fontWeight: 500 }}>
             📦 + Adicionar
           </button>
           <button
             onClick={() => setModalBaixaClienteEncomenda({ nome: pedidor.nome, total: pedidor.total, encomendas: pedidor.encomendas })}
-            className="flex-[2] py-3 rounded-xl text-sm font-bold flex items-center justify-center"
-            style={{ background: '#0F6E56', color: '#fff' }}>
+            className="flex-1 flex items-center justify-center"
+            style={{ height: 48, background: '#1B5E20', color: '#fff', borderRadius: 12, fontSize: 14, fontWeight: 500 }}>
             ✓ Dar baixa — R$ {pedidor.total.toFixed(2).replace('.', ',')}
           </button>
         </div>
