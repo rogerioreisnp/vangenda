@@ -116,6 +116,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       return
     }
 
+    if (motorista.assinatura_status === 'inativo') {
+      setStatusAcesso('bloqueado')
+      setChecando(false)
+      return
+    }
+
     // Usa criado_em como fallback se trial_inicio for null (usuários antigos)
     const trialInicio = new Date(motorista.trial_inicio ?? motorista.criado_em)
     const agora = new Date()
