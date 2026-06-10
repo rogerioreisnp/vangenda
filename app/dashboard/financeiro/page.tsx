@@ -523,6 +523,13 @@ function FinanceiroContent() {
   )
 }
 
+// ─── HELPERS ─────────────────────────────────────────────────────────────────
+
+function corAvatar(nome: string) {
+  const cores = ['#0F6E56', '#854F0B', '#A32D2D', '#1D4ED8', '#7C3AED', '#B45309']
+  return cores[nome.charCodeAt(0) % cores.length]
+}
+
 // ─── ABA FIADO ────────────────────────────────────────────────────────────────
 
 function AbaFiado() {
@@ -531,7 +538,7 @@ function AbaFiado() {
   const [quitados, setQuitados] = useState<FiadoQuitado[]>([])
   const [motoristaMensagem, setMotoristaMensagem] = useState<string | null>(null)
   const [mostrarQuitados, setMostrarQuitados] = useState(false)
-  const [modalViagem, setModalViagem] = useState<AgendamentoFiado | null>(null)
+  const [modalBaixaCliente, setModalBaixaCliente] = useState<{ nome: string; total: number; viagens: AgendamentoFiado[] } | null>(null)
   const [modalNovoFiado, setModalNovoFiado] = useState(false)
   const [obsMap, setObsMap] = useState<Record<string, string>>({})
   const [editandoObs, setEditandoObs] = useState<Record<string, boolean>>({})
@@ -539,8 +546,16 @@ function AbaFiado() {
   const [expandidoHist, setExpandidoHist] = useState<Record<string, boolean>>({})
   const [carregandoHist, setCarregandoHist] = useState<Record<string, boolean>>({})
   const [modalAdicionarDivida, setModalAdicionarDivida] = useState<string | null>(null)
+  const [clienteSelecionado, setClienteSelecionado] = useState<string | null>(null)
 
   useEffect(() => { carregarFiados() }, [])
+
+  useEffect(() => {
+    if (clienteSelecionado && !historicos[clienteSelecionado] && !carregandoHist[clienteSelecionado]) {
+      carregarHistorico(clienteSelecionado)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clienteSelecionado])
 
   async function carregarFiados() {
     setLoading(true)
@@ -659,6 +674,205 @@ function AbaFiado() {
 
   if (loading) return <p className="text-center text-gray-400 text-sm py-10">Carregando...</p>
 
+  // ── EXTRATO: tela de detalhe do cliente ──────────────────────────────
+  if (clienteSelecionado !== null) {
+    const devedor = devedoresMap[clienteSelecionado]
+    if (!devedor) {
+      setTimeout(() => setClienteSelecionado(null), 0)
+      return null
+    }
+    const totalCobrado = devedor.viagens.reduce((s, v) => s + v.valor, 0)
+    const totalRecebido = devedor.viagens.reduce((s, v) => s + (v.fiado_valor_pago || 0), 0)
+    const pagamentosHist = (historicos[clienteSelecionado] || []).filter(m => m.tipo === 'pagamento')
+    const iniciais = devedor.nome.split(' ').slice(0, 2).map(p => p[0] || '').join('').toUpperCase()
+    const entradas = [
+      ...devedor.viagens.map(v => ({
+        tipo: 'divida' as const,
+        data: v.data_viagem,
+        descricao: v.parada_destino
+          ? `${v.parada_origem} → ${v.parada_destino}`
+          : (v.parada_origem || 'Passagem fiada'),
+        valor: v.valor,
+        valorPago: v.fiado_valor_pago || 0,
+        dataCombinada: v.fiado_data_combinada as string | undefined,
+      })),
+      ...pagamentosHist.map(p => ({
+        tipo: 'pagamento' as const,
+        data: p.created_at.substring(0, 10),
+        descricao: p.descricao || 'Pagamento recebido',
+        valor: p.valor,
+        valorPago: 0,
+        dataCombinada: undefined as string | undefined,
+      })),
+    ].sort((a, b) => a.data.localeCompare(b.data))
+
+    return (
+      <div style={{ background: '#f0f0ec', minHeight: '100%' }}>
+        {/* Header */}
+        <div className="bg-white px-4 py-3 flex items-center gap-3 border-b border-gray-100">
+          <button onClick={() => setClienteSelecionado(null)}
+            className="text-2xl text-gray-400 leading-none pr-2 active:opacity-50">‹</button>
+          <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0"
+            style={{ background: corAvatar(devedor.nome) }}>
+            {iniciais}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-gray-800 truncate">{devedor.nome}</p>
+            <p className="text-xs text-gray-400">
+              {devedor.viagens.length} lançamento{devedor.viagens.length !== 1 ? 's' : ''}
+            </p>
+          </div>
+          {devedor.telefone && (
+            <button onClick={() => abrirWhatsApp(devedor)}
+              className="w-9 h-9 rounded-xl flex items-center justify-center"
+              style={{ background: '#E7F9EE' }}>💬</button>
+          )}
+        </div>
+
+        <div className="px-4 pt-4 pb-40 flex flex-col gap-4">
+          {/* Barra de resumo */}
+          <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+            <div className="grid grid-cols-3 divide-x divide-gray-100">
+              <div className="p-3 text-center">
+                <p className="text-[10px] text-gray-400 uppercase leading-tight mb-1">Cobrado</p>
+                <p className="text-sm font-bold text-gray-800">R$ {totalCobrado.toFixed(0)}</p>
+              </div>
+              <div className="p-3 text-center">
+                <p className="text-[10px] text-gray-400 uppercase leading-tight mb-1">Recebido</p>
+                <p className="text-sm font-bold" style={{ color: '#0F6E56' }}>R$ {totalRecebido.toFixed(0)}</p>
+              </div>
+              <div className="p-3 text-center">
+                <p className="text-[10px] text-gray-400 uppercase leading-tight mb-1">Saldo</p>
+                <p className="text-sm font-bold" style={{ color: '#A32D2D' }}>R$ {devedor.total.toFixed(0)}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Observação */}
+          <div>
+            {obsMap[devedor.nome] && !editandoObs[devedor.nome] ? (
+              <div className="flex items-center gap-2 bg-white rounded-xl px-3 py-2.5 border border-gray-100">
+                <p className="text-xs text-gray-500 flex-1 leading-relaxed">{obsMap[devedor.nome]}</p>
+                <button onClick={() => setEditandoObs(prev => ({ ...prev, [devedor.nome]: true }))}
+                  className="text-sm shrink-0">✏️</button>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <textarea
+                  value={obsMap[devedor.nome] || ''}
+                  onChange={e => setObsMap(prev => ({ ...prev, [devedor.nome]: e.target.value }))}
+                  placeholder="Observação (ex: vai pagar na sexta)..."
+                  rows={1}
+                  className="flex-1 text-xs px-3 py-2 rounded-xl border border-gray-200 resize-none outline-none bg-white"
+                  style={{ color: '#444' }}
+                />
+                <button
+                  onClick={() => salvarObservacao(devedor.nome, devedor.viagens, obsMap[devedor.nome] || '')}
+                  className="text-xs px-3 py-2 rounded-xl font-semibold shrink-0"
+                  style={{ background: '#E1F5EE', color: '#0F6E56' }}>Salvar</button>
+              </div>
+            )}
+          </div>
+
+          {/* Lista cronológica */}
+          {carregandoHist[clienteSelecionado] && entradas.length === 0 ? (
+            <p className="text-center text-gray-400 text-sm py-4">Carregando histórico...</p>
+          ) : (
+            <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+              {entradas.length === 0 ? (
+                <p className="text-center text-gray-400 text-sm py-6">Nenhum lançamento</p>
+              ) : entradas.map((e, i) => {
+                const vencida = e.tipo === 'divida' && e.dataCombinada
+                  ? new Date(e.dataCombinada + 'T00:00:00') < hoje : false
+                return (
+                  <div key={i} className="px-4 py-3 border-b border-gray-50 last:border-0 flex items-start gap-3">
+                    <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-0.5"
+                      style={e.tipo === 'divida'
+                        ? { background: '#FCEBEB', color: '#A32D2D' }
+                        : { background: '#E1F5EE', color: '#0F6E56' }}>
+                      {e.tipo === 'divida' ? '+' : '−'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-gray-700 leading-relaxed">{e.descricao}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {format(new Date(e.data + 'T00:00:00'), 'dd/MM/yyyy')}
+                      </p>
+                      {e.tipo === 'divida' && e.valorPago > 0 && (
+                        <p className="text-xs mt-0.5" style={{ color: '#854F0B' }}>
+                          Parcial: R$ {e.valorPago.toFixed(2).replace('.', ',')} pago
+                        </p>
+                      )}
+                      {e.tipo === 'divida' && e.dataCombinada && (
+                        <p className="text-xs mt-0.5" style={{ color: vencida ? '#A32D2D' : '#6b7280' }}>
+                          {vencida ? '⚠️ Venceu: ' : 'Combina: '}
+                          {format(new Date(e.dataCombinada + 'T00:00:00'), 'dd/MM/yyyy')}
+                        </p>
+                      )}
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className="text-sm font-semibold"
+                        style={{ color: e.tipo === 'divida' ? '#A32D2D' : '#0F6E56' }}>
+                        {e.tipo === 'divida' ? '+' : '−'} R$ {e.valor.toFixed(2).replace('.', ',')}
+                      </p>
+                      {e.tipo === 'divida' && e.valorPago > 0 && (
+                        <p className="text-[10px] text-gray-400 mt-0.5">
+                          saldo R$ {(e.valor - e.valorPago).toFixed(2).replace('.', ',')}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Footer fixo */}
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-4 pt-3 pb-6 flex gap-3 z-40">
+          <button onClick={() => setModalAdicionarDivida(clienteSelecionado)}
+            className="flex-1 py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1"
+            style={{ background: '#FAEEDA', color: '#854F0B' }}>
+            📝 + Adicionar
+          </button>
+          <button
+            onClick={() => setModalBaixaCliente({ nome: devedor.nome, total: devedor.total, viagens: devedor.viagens })}
+            className="flex-[2] py-3 rounded-xl text-sm font-bold flex items-center justify-center"
+            style={{ background: '#0F6E56', color: '#fff' }}>
+            ✓ Dar baixa — R$ {devedor.total.toFixed(2).replace('.', ',')}
+          </button>
+        </div>
+
+        {modalBaixaCliente && (
+          <ModalDarBaixaCliente
+            cliente={modalBaixaCliente}
+            onFechar={() => setModalBaixaCliente(null)}
+            onSalvo={() => {
+              const nome = modalBaixaCliente.nome
+              invalidarHistorico(nome)
+              setModalBaixaCliente(null)
+              carregarFiados()
+              carregarHistorico(nome)
+            }}
+          />
+        )}
+        {modalAdicionarDivida && (
+          <ModalAdicionarDivida
+            nome={modalAdicionarDivida}
+            onFechar={() => setModalAdicionarDivida(null)}
+            onSalvo={() => {
+              const nome = modalAdicionarDivida
+              invalidarHistorico(nome)
+              setModalAdicionarDivida(null)
+              carregarFiados()
+              carregarHistorico(nome)
+            }}
+          />
+        )}
+      </div>
+    )
+  }
+
+  // ── LISTA: tela principal ─────────────────────────────────────────────
   return (
     <div className="px-4 py-4">
       <button
@@ -668,7 +882,7 @@ function AbaFiado() {
         📝 + Novo fiado
       </button>
 
-      {/* Resumo — 3 cards */}
+      {/* Resumo */}
       <div className="grid grid-cols-3 gap-2 mb-4">
         <div className="bg-white rounded-2xl p-3 border border-gray-100 text-center">
           <p className="text-[10px] text-gray-400 uppercase leading-tight mb-1">Em aberto</p>
@@ -690,159 +904,42 @@ function AbaFiado() {
           <p className="text-gray-600 font-medium text-sm">Nenhum fiado em aberto</p>
         </div>
       ) : (
-        <div className="flex flex-col gap-4">
-          {devedores.map(devedor => (
-            <div key={devedor.nome} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-              {/* Header do devedor */}
-              <div className="px-4 pt-3 pb-2"
-                style={{ background: devedor.temVencido ? '#FFF0F0' : '#FFF5F5', borderBottom: '1px solid #FDE8E8' }}>
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      {devedor.temVencido && <span className="text-base leading-none">⚠️</span>}
-                      <p className="text-sm font-bold text-gray-800 truncate">{devedor.nome}</p>
-                    </div>
-                    {devedor.telefone && (
-                      <p className="text-xs text-gray-400">{devedor.telefone}</p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    {devedor.telefone && (
-                      <button onClick={() => abrirWhatsApp(devedor)}
-                        className="px-3 py-1.5 rounded-lg text-xs font-bold"
-                        style={{ background: '#E7F9EE', color: '#128C7E' }}>
-                        💬
-                      </button>
-                    )}
-                    <div className="text-right">
-                      <p className="text-[10px] text-gray-400 uppercase">Deve</p>
-                      <p className="text-sm font-bold" style={{ color: '#A32D2D' }}>
-                        R$ {devedor.total.toFixed(2).replace('.', ',')}
-                      </p>
-                    </div>
-                  </div>
+        <div className="flex flex-col gap-3">
+          {devedores.map(devedor => {
+            const iniciais = devedor.nome.split(' ').slice(0, 2).map(p => p[0] || '').join('').toUpperCase()
+            const ultimaData = devedor.viagens[0]?.data_viagem
+            return (
+              <button key={devedor.nome}
+                onClick={() => setClienteSelecionado(devedor.nome)}
+                className="w-full bg-white rounded-2xl px-4 py-3 flex items-center gap-3 text-left active:opacity-75"
+                style={{ border: '1px solid #f0f0f0', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
+                <div className="w-11 h-11 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0"
+                  style={{ background: corAvatar(devedor.nome) }}>
+                  {iniciais}
                 </div>
-                {obsMap[devedor.nome] && !editandoObs[devedor.nome] ? (
-                  <div className="flex items-center gap-2 mt-2">
-                    <p className="text-xs text-gray-500 flex-1 leading-relaxed">{obsMap[devedor.nome]}</p>
-                    <button
-                      onClick={() => setEditandoObs(prev => ({ ...prev, [devedor.nome]: true }))}
-                      className="text-sm shrink-0 p-1">
-                      ✏️
-                    </button>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    {devedor.temVencido && <span className="text-xs leading-none">⚠️</span>}
+                    <p className="text-sm font-bold text-gray-800 truncate">{devedor.nome}</p>
                   </div>
-                ) : (
-                  <div className="flex gap-2 mt-2">
-                    <textarea
-                      value={obsMap[devedor.nome] || ''}
-                      onChange={e => setObsMap(prev => ({ ...prev, [devedor.nome]: e.target.value }))}
-                      placeholder="Observações (ex: vai pagar na sexta)..."
-                      rows={1}
-                      className="flex-1 text-xs px-3 py-2 rounded-xl border border-gray-200 resize-none outline-none bg-white"
-                      style={{ color: '#444' }}
-                    />
-                    <button
-                      onClick={() => salvarObservacao(devedor.nome, devedor.viagens, obsMap[devedor.nome] || '')}
-                      className="text-xs px-3 py-2 rounded-xl font-semibold shrink-0"
-                      style={{ background: '#E1F5EE', color: '#0F6E56' }}>
-                      Salvar
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Viagens em aberto */}
-              {devedor.viagens.map(v => {
-                const vencida = !!v.fiado_data_combinada && new Date(v.fiado_data_combinada + 'T00:00:00') < hoje
-                return (
-                  <div key={v.id} className="px-4 py-3 border-b border-gray-50 flex items-center gap-3">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-gray-400">
-                        {format(new Date(v.data_viagem + 'T00:00:00'), 'dd/MM/yyyy')}
-                        {' • '}
-                        {v.parada_destino ? `${v.parada_origem} → ${v.parada_destino}` : v.parada_origem}
-                      </p>
-                      {(v.fiado_valor_pago || 0) > 0 && (
-                        <p className="text-xs mt-0.5" style={{ color: '#854F0B' }}>
-                          Parcial: R$ {(v.fiado_valor_pago || 0).toFixed(2).replace('.', ',')} pago
-                        </p>
-                      )}
-                      {v.fiado_data_combinada && (
-                        <p className="text-xs mt-0.5" style={{ color: vencida ? '#A32D2D' : '#6b7280' }}>
-                          {vencida ? '⚠️ Venceu: ' : 'Combina: '}
-                          {format(new Date(v.fiado_data_combinada + 'T00:00:00'), 'dd/MM/yyyy')}
-                        </p>
-                      )}
-                    </div>
-                    <button
-                      onClick={() => setModalViagem(v)}
-                      className="text-xs px-3 py-1.5 rounded-lg font-medium shrink-0"
-                      style={{ background: '#E1F5EE', color: '#0F6E56' }}>
-                      Dar baixa
-                    </button>
-                  </div>
-                )
-              })}
-
-              {/* Histórico de movimentações */}
-              <div className="px-4 py-2.5 border-t border-gray-50">
-                <button
-                  onClick={() => toggleHistorico(devedor.nome)}
-                  className="w-full flex items-center justify-between text-xs font-medium py-0.5"
-                  style={{ color: '#6b7280' }}>
-                  <span>📋 {expandidoHist[devedor.nome] ? 'Ocultar histórico' : 'Ver histórico'}</span>
-                  <span>{expandidoHist[devedor.nome] ? '▲' : '▼'}</span>
-                </button>
-
-                {expandidoHist[devedor.nome] && (
-                  <div className="mt-2">
-                    {carregandoHist[devedor.nome] ? (
-                      <p className="text-xs text-gray-400 py-1">Carregando...</p>
-                    ) : !historicos[devedor.nome]?.length ? (
-                      <p className="text-xs text-gray-400 py-1">Nenhum lançamento registrado ainda.</p>
-                    ) : (
-                      <div className="flex flex-col gap-1.5">
-                        {historicos[devedor.nome].map((m, i) => (
-                          <div key={i} className="flex items-center justify-between py-1 border-b border-gray-50 last:border-0">
-                            <div className="flex-1 min-w-0">
-                              <span className="text-xs font-medium"
-                                style={{ color: m.tipo === 'divida' ? '#A32D2D' : '#0F6E56' }}>
-                                {m.tipo === 'divida' ? '+ ' : '− '}
-                              </span>
-                              <span className="text-xs text-gray-600 truncate">
-                                {m.descricao || (m.tipo === 'divida' ? 'Dívida' : 'Pagamento')}
-                              </span>
-                              <span className="text-xs text-gray-400 ml-1">
-                                · {format(new Date(m.created_at), 'dd/MM/yy')}
-                              </span>
-                            </div>
-                            <span className="text-xs font-semibold shrink-0 ml-2"
-                              style={{ color: m.tipo === 'divida' ? '#A32D2D' : '#0F6E56' }}>
-                              R$ {m.valor.toFixed(2).replace('.', ',')}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Botão adicionar dívida */}
-              <div className="px-4 pb-3 pt-1">
-                <button
-                  onClick={() => setModalAdicionarDivida(devedor.nome)}
-                  className="w-full py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5"
-                  style={{ background: '#FAEEDA', color: '#854F0B' }}>
-                  📝 + Adicionar dívida
-                </button>
-              </div>
-            </div>
-          ))}
+                  <p className="text-xs text-gray-400">
+                    {devedor.viagens.length} lançamento{devedor.viagens.length !== 1 ? 's' : ''}
+                    {ultimaData && ` · último ${format(new Date(ultimaData + 'T00:00:00'), 'dd/MM')}`}
+                  </p>
+                </div>
+                <div className="shrink-0 text-right">
+                  <p className="text-sm font-bold" style={{ color: '#A32D2D' }}>
+                    R$ {devedor.total.toFixed(2).replace('.', ',')}
+                  </p>
+                  <p className="text-xs text-gray-300">›</p>
+                </div>
+              </button>
+            )
+          })}
         </div>
       )}
 
-      {/* Seção Quitados */}
+      {/* Quitados */}
       <div className="mt-5">
         <button
           onClick={() => setMostrarQuitados(m => !m)}
@@ -890,34 +987,10 @@ function AbaFiado() {
 
       <div className="h-24" />
 
-      {modalViagem && (
-        <ModalDarBaixa
-          viagem={modalViagem}
-          onFechar={() => setModalViagem(null)}
-          onSalvo={() => {
-            invalidarHistorico(modalViagem.nome_passageiro)
-            setModalViagem(null)
-            carregarFiados()
-          }}
-        />
-      )}
-
       {modalNovoFiado && (
         <ModalNovoFiado
           onFechar={() => setModalNovoFiado(false)}
           onSalvo={() => { setModalNovoFiado(false); carregarFiados() }}
-        />
-      )}
-
-      {modalAdicionarDivida && (
-        <ModalAdicionarDivida
-          nome={modalAdicionarDivida}
-          onFechar={() => setModalAdicionarDivida(null)}
-          onSalvo={() => {
-            invalidarHistorico(modalAdicionarDivida)
-            setModalAdicionarDivida(null)
-            carregarFiados()
-          }}
         />
       )}
     </div>
@@ -1249,6 +1322,132 @@ function ModalDarBaixa({ viagem, onFechar, onSalvo }: {
   )
 }
 
+// ─── MODAL DAR BAIXA CLIENTE (FIADO) ─────────────────────────────────────────
+
+function ModalDarBaixaCliente({ cliente, onFechar, onSalvo }: {
+  cliente: { nome: string; total: number; viagens: AgendamentoFiado[] }
+  onFechar: () => void
+  onSalvo: () => void
+}) {
+  const [valorRecebido, setValorRecebido] = useState(cliente.total.toFixed(2))
+  const [formaPagamento, setFormaPagamento] = useState('dinheiro')
+  const [saving, setSaving] = useState(false)
+
+  const vr = parseFloat(valorRecebido) || 0
+  const isTotal = vr >= cliente.total - 0.001
+  const novoSaldo = Math.max(0, cliente.total - vr)
+
+  async function confirmar() {
+    if (!vr || vr <= 0) return
+    setSaving(true)
+    const { data: { user } } = await supabase.auth.getUser()
+
+    const viagensOrdenadas = [...cliente.viagens].sort((a, b) => a.data_viagem.localeCompare(b.data_viagem))
+    let restante = vr
+    for (const v of viagensOrdenadas) {
+      if (restante <= 0.001) break
+      const saldo = v.valor - (v.fiado_valor_pago || 0)
+      if (saldo <= 0.001) continue
+      const pagar = Math.min(saldo, restante)
+      restante = parseFloat((restante - pagar).toFixed(2))
+      const novoPago = parseFloat(Math.min((v.fiado_valor_pago || 0) + pagar, v.valor).toFixed(2))
+      const updates: Record<string, unknown> = {
+        fiado_valor_pago: novoPago,
+        fiado_forma_pagamento: formaPagamento,
+      }
+      if (novoPago >= v.valor - 0.001) updates.fiado_pago = true
+      await supabase.from('agendamentos').update(updates).eq('id', v.id)
+    }
+
+    if (user) {
+      await supabase.from('movimentacoes').insert({
+        motorista_id: user.id,
+        cliente_nome: cliente.nome,
+        tipo: 'pagamento',
+        valor: parseFloat(vr.toFixed(2)),
+        descricao: 'Pagamento recebido (' + formaPagamento + ')',
+        categoria: 'fiado',
+        referencia_id: null,
+      })
+    }
+    setSaving(false)
+    onSalvo()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end" style={{ background: 'rgba(0,0,0,0.4)' }}>
+      <div className="w-full bg-white rounded-t-2xl p-6 pb-16 flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <p className="text-base font-bold text-gray-800">Dar baixa no fiado</p>
+          <button onClick={onFechar} className="text-gray-400 text-xl leading-none">✕</button>
+        </div>
+
+        <div className="rounded-xl p-3" style={{ background: '#f0f0ec' }}>
+          <p className="text-sm font-bold text-gray-800">{cliente.nome}</p>
+          <p className="text-xs text-gray-500 mt-0.5">{cliente.viagens.length} lançamento{cliente.viagens.length !== 1 ? 's' : ''} em aberto</p>
+          <p className="text-sm font-bold mt-1" style={{ color: '#A32D2D' }}>
+            Total em aberto: R$ {cliente.total.toFixed(2).replace('.', ',')}
+          </p>
+        </div>
+
+        <div>
+          <p className="text-xs font-medium text-gray-500 mb-1">Valor recebido (R$)</p>
+          <input
+            type="number" step="0.01" value={valorRecebido}
+            onChange={e => setValorRecebido(e.target.value)}
+            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none bg-white focus:border-green-600" />
+        </div>
+
+        {vr > 0 && !isTotal && (
+          <div className="border rounded-xl px-4 py-3"
+            style={{ background: '#FAEEDA', borderColor: '#FAC775' }}>
+            <p className="text-xs" style={{ color: '#854F0B' }}>
+              Pagando R$ {vr.toFixed(2).replace('.', ',')} — ainda ficará devendo R$ {novoSaldo.toFixed(2).replace('.', ',')}
+            </p>
+          </div>
+        )}
+
+        <div>
+          <p className="text-xs font-medium text-gray-500 mb-2">Forma de recebimento</p>
+          <div className="grid grid-cols-2 gap-2">
+            {([
+              { value: 'dinheiro', label: '💵 Dinheiro' },
+              { value: 'pix', label: '📱 Pix' },
+            ] as const).map(f => (
+              <button key={f.value} onClick={() => setFormaPagamento(f.value)}
+                className="py-2.5 rounded-xl text-sm font-medium border transition-all"
+                style={formaPagamento === f.value
+                  ? { background: '#0F6E56', color: '#fff', borderColor: '#0F6E56' }
+                  : { background: '#fff', color: '#666', borderColor: '#e5e7eb' }}>
+                {f.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {vr > 0 && isTotal && (
+          <div className="border rounded-xl px-4 py-3"
+            style={{ background: '#E1F5EE', borderColor: '#9FE1CB' }}>
+            <p className="text-xs font-semibold" style={{ color: '#0F6E56' }}>
+              ✓ Quitação total — todos os fiados serão marcados como pagos
+            </p>
+          </div>
+        )}
+
+        <button onClick={confirmar} disabled={saving || vr <= 0}
+          className="w-full py-3.5 rounded-xl text-white text-sm font-semibold disabled:opacity-40"
+          style={{ background: '#1D9E75' }}>
+          {saving
+            ? 'Salvando...'
+            : isTotal
+            ? '✓ Confirmar quitação'
+            : '✓ Registrar pagamento parcial'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ─── ABA ENCOMENDAS ───────────────────────────────────────────────────────────
 
 function AbaEncomendas() {
@@ -1256,12 +1455,21 @@ function AbaEncomendas() {
   const [encomendas, setEncomendas] = useState<Encomenda[]>([])
   const [quitadas, setQuitadas] = useState<Encomenda[]>([])
   const [modalNova, setModalNova] = useState<{nome?: string; telefone?: string} | null>(null)
-  const [modalBaixa, setModalBaixa] = useState<Encomenda | null>(null)
+  const [modalBaixaClienteEncomenda, setModalBaixaClienteEncomenda] = useState<{ nome: string; total: number; encomendas: Encomenda[] } | null>(null)
   const [editEncomenda, setEditEncomenda] = useState<Encomenda | null>(null)
   const [mostrarQuitadas, setMostrarQuitadas] = useState(false)
-  const [expandidos, setExpandidos] = useState<Record<string, boolean>>({})
+  const [clienteSelecionadoEnc, setClienteSelecionadoEnc] = useState<string | null>(null)
+  const [historicosEnc, setHistoricosEnc] = useState<Record<string, { tipo: string; valor: number; descricao: string | null; created_at: string }[]>>({})
+  const [carregandoHistEnc, setCarregandoHistEnc] = useState<Record<string, boolean>>({})
 
   useEffect(() => { carregarEncomendas() }, [])
+
+  useEffect(() => {
+    if (clienteSelecionadoEnc && !historicosEnc[clienteSelecionadoEnc] && !carregandoHistEnc[clienteSelecionadoEnc]) {
+      carregarHistoricoEnc(clienteSelecionadoEnc)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clienteSelecionadoEnc])
 
   async function carregarEncomendas() {
     setLoading(true)
@@ -1276,6 +1484,25 @@ function AbaEncomendas() {
     if (abertas) setEncomendas(abertas)
     if (pagas) setQuitadas(pagas)
     setLoading(false)
+  }
+
+  async function carregarHistoricoEnc(nome: string) {
+    setCarregandoHistEnc(prev => ({ ...prev, [nome]: true }))
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    const { data } = await supabase
+      .from('movimentacoes')
+      .select('tipo, valor, descricao, created_at')
+      .eq('motorista_id', user.id)
+      .eq('cliente_nome', nome)
+      .eq('categoria', 'encomenda')
+      .order('created_at', { ascending: true })
+    if (data) setHistoricosEnc(prev => ({ ...prev, [nome]: data }))
+    setCarregandoHistEnc(prev => ({ ...prev, [nome]: false }))
+  }
+
+  function invalidarHistoricoEnc(nome: string) {
+    setHistoricosEnc(prev => { const n = { ...prev }; delete n[nome]; return n })
   }
 
   const hoje = new Date()
@@ -1318,6 +1545,183 @@ function AbaEncomendas() {
 
   if (loading) return <p className="text-center text-gray-400 text-sm py-10">Carregando...</p>
 
+  // ── EXTRATO: tela de detalhe do cliente ──────────────────────────────
+  if (clienteSelecionadoEnc !== null) {
+    const pedidor = pedidoresMap[clienteSelecionadoEnc]
+    if (!pedidor) {
+      setTimeout(() => setClienteSelecionadoEnc(null), 0)
+      return null
+    }
+    const totalCobrado = pedidor.encomendas.reduce((s, e) => s + e.valor, 0)
+    const totalRecebido = pedidor.encomendas.reduce((s, e) => s + (e.valor_pago || 0), 0)
+    const pagamentosHist = (historicosEnc[clienteSelecionadoEnc] || []).filter(m => m.tipo === 'pagamento')
+    const iniciais = pedidor.nome.split(' ').slice(0, 2).map(p => p[0] || '').join('').toUpperCase()
+    const entradas = [
+      ...pedidor.encomendas.map(enc => ({
+        tipo: 'divida' as const,
+        data: enc.criado_em.substring(0, 10),
+        descricao: enc.observacao || 'Encomenda',
+        valor: enc.valor,
+        valorPago: enc.valor_pago || 0,
+        dataCombinada: enc.data_combinada as string | undefined,
+      })),
+      ...pagamentosHist.map(p => ({
+        tipo: 'pagamento' as const,
+        data: p.created_at.substring(0, 10),
+        descricao: p.descricao || 'Pagamento recebido',
+        valor: p.valor,
+        valorPago: 0,
+        dataCombinada: undefined as string | undefined,
+      })),
+    ].sort((a, b) => a.data.localeCompare(b.data))
+
+    return (
+      <div style={{ background: '#f0f0ec', minHeight: '100%' }}>
+        {/* Header */}
+        <div className="bg-white px-4 py-3 flex items-center gap-3 border-b border-gray-100">
+          <button onClick={() => setClienteSelecionadoEnc(null)}
+            className="text-2xl text-gray-400 leading-none pr-2 active:opacity-50">‹</button>
+          <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0"
+            style={{ background: corAvatar(pedidor.nome) }}>
+            {iniciais}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-gray-800 truncate">{pedidor.nome}</p>
+            <p className="text-xs text-gray-400">
+              {pedidor.encomendas.length} encomenda{pedidor.encomendas.length !== 1 ? 's' : ''}
+            </p>
+          </div>
+          {pedidor.telefone && (
+            <button onClick={() => abrirWhatsApp(pedidor)}
+              className="w-9 h-9 rounded-xl flex items-center justify-center"
+              style={{ background: '#E7F9EE' }}>💬</button>
+          )}
+        </div>
+
+        <div className="px-4 pt-4 pb-40 flex flex-col gap-4">
+          {/* Barra de resumo */}
+          <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+            <div className="grid grid-cols-3 divide-x divide-gray-100">
+              <div className="p-3 text-center">
+                <p className="text-[10px] text-gray-400 uppercase leading-tight mb-1">Cobrado</p>
+                <p className="text-sm font-bold text-gray-800">R$ {totalCobrado.toFixed(0)}</p>
+              </div>
+              <div className="p-3 text-center">
+                <p className="text-[10px] text-gray-400 uppercase leading-tight mb-1">Recebido</p>
+                <p className="text-sm font-bold" style={{ color: '#0F6E56' }}>R$ {totalRecebido.toFixed(0)}</p>
+              </div>
+              <div className="p-3 text-center">
+                <p className="text-[10px] text-gray-400 uppercase leading-tight mb-1">Saldo</p>
+                <p className="text-sm font-bold" style={{ color: '#A32D2D' }}>R$ {pedidor.total.toFixed(0)}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Lista cronológica */}
+          {carregandoHistEnc[clienteSelecionadoEnc] && entradas.length === 0 ? (
+            <p className="text-center text-gray-400 text-sm py-4">Carregando histórico...</p>
+          ) : (
+            <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+              {entradas.length === 0 ? (
+                <p className="text-center text-gray-400 text-sm py-6">Nenhum lançamento</p>
+              ) : entradas.map((e, i) => {
+                const vencida = e.tipo === 'divida' && e.dataCombinada
+                  ? new Date(e.dataCombinada + 'T00:00:00') < hoje : false
+                return (
+                  <div key={i} className="px-4 py-3 border-b border-gray-50 last:border-0 flex items-start gap-3">
+                    <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-0.5"
+                      style={e.tipo === 'divida'
+                        ? { background: '#FAEEDA', color: '#854F0B' }
+                        : { background: '#E1F5EE', color: '#0F6E56' }}>
+                      {e.tipo === 'divida' ? '+' : '−'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-gray-700 leading-relaxed">{e.descricao}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {format(new Date(e.data + 'T00:00:00'), 'dd/MM/yyyy')}
+                      </p>
+                      {e.tipo === 'divida' && e.valorPago > 0 && (
+                        <p className="text-xs mt-0.5" style={{ color: '#854F0B' }}>
+                          Parcial: R$ {e.valorPago.toFixed(2).replace('.', ',')} pago
+                        </p>
+                      )}
+                      {e.tipo === 'divida' && e.dataCombinada && (
+                        <p className="text-xs mt-0.5" style={{ color: vencida ? '#A32D2D' : '#6b7280' }}>
+                          {vencida ? '⚠️ Venceu: ' : 'Pagar até: '}
+                          {format(new Date(e.dataCombinada + 'T00:00:00'), 'dd/MM/yyyy')}
+                        </p>
+                      )}
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className="text-sm font-semibold"
+                        style={{ color: e.tipo === 'divida' ? '#854F0B' : '#0F6E56' }}>
+                        {e.tipo === 'divida' ? '+' : '−'} R$ {e.valor.toFixed(2).replace('.', ',')}
+                      </p>
+                      {e.tipo === 'divida' && e.valorPago > 0 && (
+                        <p className="text-[10px] text-gray-400 mt-0.5">
+                          saldo R$ {(e.valor - e.valorPago).toFixed(2).replace('.', ',')}
+                        </p>
+                      )}
+                      {e.tipo === 'divida' && (
+                        <button onClick={() => setEditEncomenda(pedidor.encomendas.find(x => x.criado_em.startsWith(e.data)) || null)}
+                          className="text-xs opacity-30 active:opacity-100 mt-0.5">✏️</button>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Footer fixo */}
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-4 pt-3 pb-6 flex gap-3 z-40">
+          <button onClick={() => setModalNova({ nome: pedidor.nome, telefone: pedidor.telefone })}
+            className="flex-1 py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1"
+            style={{ background: '#FAEEDA', color: '#854F0B' }}>
+            📦 + Adicionar
+          </button>
+          <button
+            onClick={() => setModalBaixaClienteEncomenda({ nome: pedidor.nome, total: pedidor.total, encomendas: pedidor.encomendas })}
+            className="flex-[2] py-3 rounded-xl text-sm font-bold flex items-center justify-center"
+            style={{ background: '#0F6E56', color: '#fff' }}>
+            ✓ Dar baixa — R$ {pedidor.total.toFixed(2).replace('.', ',')}
+          </button>
+        </div>
+
+        {modalNova !== null && (
+          <ModalNovaEncomenda
+            nomeInicial={modalNova.nome}
+            telefoneInicial={modalNova.telefone}
+            onFechar={() => setModalNova(null)}
+            onSalvo={() => { setModalNova(null); carregarEncomendas() }}
+          />
+        )}
+        {editEncomenda && (
+          <ModalEditarEncomenda
+            encomenda={editEncomenda}
+            onFechar={() => setEditEncomenda(null)}
+            onSalvo={() => { setEditEncomenda(null); carregarEncomendas() }}
+          />
+        )}
+        {modalBaixaClienteEncomenda && (
+          <ModalDarBaixaClienteEncomenda
+            cliente={modalBaixaClienteEncomenda}
+            onFechar={() => setModalBaixaClienteEncomenda(null)}
+            onSalvo={() => {
+              const nome = modalBaixaClienteEncomenda.nome
+              invalidarHistoricoEnc(nome)
+              setModalBaixaClienteEncomenda(null)
+              carregarEncomendas()
+              carregarHistoricoEnc(nome)
+            }}
+          />
+        )}
+      </div>
+    )
+  }
+
+  // ── LISTA: tela principal ─────────────────────────────────────────────
   return (
     <div className="px-4 py-4">
       <button onClick={() => setModalNova({})}
@@ -1347,109 +1751,42 @@ function AbaEncomendas() {
           <p className="text-gray-600 font-medium text-sm">Nenhuma encomenda pendente</p>
         </div>
       ) : (
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-3">
           {pedidores.map(pedidor => {
-            const aberto = !!expandidos[pedidor.nome]
+            const iniciais = pedidor.nome.split(' ').slice(0, 2).map(p => p[0] || '').join('').toUpperCase()
+            const ultimaData = pedidor.encomendas[0]?.criado_em
             return (
-            <div key={pedidor.nome} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-              {/* Cabeçalho clicável — toque para expandir/colapsar */}
-              <button
-                onClick={() => setExpandidos(prev => ({ ...prev, [pedidor.nome]: !prev[pedidor.nome] }))}
-                className="w-full px-4 pt-3 pb-2 text-left"
-                style={{ background: pedidor.temVencido ? '#FFF0F0' : '#FFF5F5', borderBottom: aberto ? '1px solid #FDE8E8' : 'none' }}>
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      {pedidor.temVencido && <span className="text-base leading-none">⚠️</span>}
-                      <p className="text-sm font-bold text-gray-800 truncate">{pedidor.nome}</p>
-                      <span className="text-[10px] text-gray-400 ml-1">
-                        {pedidor.encomendas.length} item{pedidor.encomendas.length !== 1 ? 's' : ''}
-                      </span>
-                    </div>
-                    {pedidor.telefone && <p className="text-xs text-gray-400">{pedidor.telefone}</p>}
+              <button key={pedidor.nome}
+                onClick={() => setClienteSelecionadoEnc(pedidor.nome)}
+                className="w-full bg-white rounded-2xl px-4 py-3 flex items-center gap-3 text-left active:opacity-75"
+                style={{ border: '1px solid #f0f0f0', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
+                <div className="w-11 h-11 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0"
+                  style={{ background: corAvatar(pedidor.nome) }}>
+                  {iniciais}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    {pedidor.temVencido && <span className="text-xs leading-none">⚠️</span>}
+                    <p className="text-sm font-bold text-gray-800 truncate">{pedidor.nome}</p>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    {pedidor.telefone && (
-                      <span onClick={e => { e.stopPropagation(); abrirWhatsApp(pedidor) }}
-                        className="px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer"
-                        style={{ background: '#E7F9EE', color: '#128C7E' }}>
-                        💬
-                      </span>
-                    )}
-                    <div className="text-right">
-                      <p className="text-[10px] text-gray-400 uppercase">Deve</p>
-                      <p className="text-sm font-bold" style={{ color: '#A32D2D' }}>
-                        R$ {pedidor.total.toFixed(2).replace('.', ',')}
-                      </p>
-                    </div>
-                    <span className="text-gray-300 text-sm ml-1">{aberto ? '▲' : '▼'}</span>
-                  </div>
+                  <p className="text-xs text-gray-400">
+                    {pedidor.encomendas.length} encomenda{pedidor.encomendas.length !== 1 ? 's' : ''}
+                    {ultimaData && ` · último ${format(new Date(ultimaData.substring(0, 10) + 'T00:00:00'), 'dd/MM')}`}
+                  </p>
+                </div>
+                <div className="shrink-0 text-right">
+                  <p className="text-sm font-bold" style={{ color: '#854F0B' }}>
+                    R$ {pedidor.total.toFixed(2).replace('.', ',')}
+                  </p>
+                  <p className="text-xs text-gray-300">›</p>
                 </div>
               </button>
-
-              {aberto && (
-                <>
-                  {pedidor.encomendas.map(enc => {
-                    const vencida = !!enc.data_combinada && new Date(enc.data_combinada + 'T00:00:00') < hoje
-                    const saldoEnc = enc.valor - (enc.valor_pago || 0)
-                    return (
-                      <div key={enc.id} className="px-4 py-3 border-b border-gray-50 last:border-b">
-                        <div className="flex items-start gap-3">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-1 flex-wrap mb-1">
-                              <span className="text-xs text-gray-400">
-                                {format(new Date(enc.criado_em), 'dd/MM/yyyy')}
-                              </span>
-                              {enc.data_combinada && (
-                                <span className="text-xs" style={{ color: vencida ? '#A32D2D' : '#6b7280' }}>
-                                  {' • '}{vencida ? '⚠️ Venceu: ' : 'Pagar: '}
-                                  {format(new Date(enc.data_combinada + 'T00:00:00'), 'dd/MM')}
-                                </span>
-                              )}
-                            </div>
-                            {enc.observacao
-                              ? <p className="text-xs text-gray-600 mb-1">{enc.observacao}</p>
-                              : <p className="text-xs text-gray-300 italic mb-1">Sem observação</p>}
-                            {(enc.valor_pago || 0) > 0 && (
-                              <p className="text-xs" style={{ color: '#854F0B' }}>
-                                Parcial: R$ {(enc.valor_pago || 0).toFixed(2).replace('.', ',')} pago
-                              </p>
-                            )}
-                          </div>
-                          <div className="flex flex-col items-end gap-1.5 shrink-0">
-                            <div className="flex items-center gap-1">
-                              <p className="text-sm font-bold" style={{ color: '#A32D2D' }}>
-                                R$ {saldoEnc.toFixed(2).replace('.', ',')}
-                              </p>
-                              <button onClick={() => setEditEncomenda(enc)}
-                                className="text-sm p-0.5 opacity-40 active:opacity-100">✏️</button>
-                            </div>
-                            <button onClick={() => setModalBaixa(enc)}
-                              className="text-xs px-3 py-1.5 rounded-lg font-medium"
-                              style={{ background: '#E1F5EE', color: '#0F6E56' }}>
-                              Dar baixa
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })}
-                  <div className="px-4 pb-3 pt-2">
-                    <button
-                      onClick={() => setModalNova({ nome: pedidor.nome, telefone: pedidor.telefone })}
-                      className="w-full py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5"
-                      style={{ background: '#FAEEDA', color: '#854F0B' }}>
-                      ➕ Adicionar encomenda para {pedidor.nome.split(' ')[0]}
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          )
-        })}
+            )
+          })}
         </div>
       )}
 
+      {/* Quitadas */}
       <div className="mt-5">
         <button onClick={() => setMostrarQuitadas(m => !m)}
           className="w-full py-3 rounded-2xl text-sm font-medium border border-gray-200 flex items-center justify-center gap-2"
@@ -1501,20 +1838,6 @@ function AbaEncomendas() {
           telefoneInicial={modalNova.telefone}
           onFechar={() => setModalNova(null)}
           onSalvo={() => { setModalNova(null); carregarEncomendas() }}
-        />
-      )}
-      {editEncomenda && (
-        <ModalEditarEncomenda
-          encomenda={editEncomenda}
-          onFechar={() => setEditEncomenda(null)}
-          onSalvo={() => { setEditEncomenda(null); carregarEncomendas() }}
-        />
-      )}
-      {modalBaixa && (
-        <ModalDarBaixaEncomenda
-          encomenda={modalBaixa}
-          onFechar={() => setModalBaixa(null)}
-          onSalvo={() => { setModalBaixa(null); carregarEncomendas() }}
         />
       )}
     </div>
@@ -1701,6 +2024,135 @@ function ModalDarBaixaEncomenda({ encomenda, onFechar, onSalvo }: {
           className="w-full py-3.5 rounded-xl text-white text-sm font-semibold disabled:opacity-40"
           style={{ background: '#1D9E75' }}>
           {saving ? 'Salvando...' : isTotal ? '✓ Confirmar quitação' : '✓ Registrar pagamento parcial'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ─── MODAL DAR BAIXA CLIENTE ENCOMENDA ───────────────────────────────────────
+
+function ModalDarBaixaClienteEncomenda({ cliente, onFechar, onSalvo }: {
+  cliente: { nome: string; total: number; encomendas: Encomenda[] }
+  onFechar: () => void
+  onSalvo: () => void
+}) {
+  const [valorRecebido, setValorRecebido] = useState(cliente.total.toFixed(2))
+  const [formaPagamento, setFormaPagamento] = useState('dinheiro')
+  const [saving, setSaving] = useState(false)
+
+  const vr = parseFloat(valorRecebido) || 0
+  const isTotal = vr >= cliente.total - 0.001
+  const novoSaldo = Math.max(0, cliente.total - vr)
+
+  async function confirmar() {
+    if (!vr || vr <= 0) return
+    setSaving(true)
+    const { data: { user } } = await supabase.auth.getUser()
+
+    const encOrdenadas = [...cliente.encomendas].sort((a, b) => a.criado_em.localeCompare(b.criado_em))
+    let restante = vr
+    for (const enc of encOrdenadas) {
+      if (restante <= 0.001) break
+      const saldo = enc.valor - (enc.valor_pago || 0)
+      if (saldo <= 0.001) continue
+      const pagar = Math.min(saldo, restante)
+      restante = parseFloat((restante - pagar).toFixed(2))
+      const novoPago = parseFloat(Math.min((enc.valor_pago || 0) + pagar, enc.valor).toFixed(2))
+      const updates: Record<string, unknown> = {
+        valor_pago: novoPago,
+        forma_pagamento: formaPagamento,
+      }
+      if (novoPago >= enc.valor - 0.001) {
+        updates.pago = true
+        updates.data_pago = format(new Date(), 'yyyy-MM-dd')
+      }
+      await supabase.from('encomendas').update(updates).eq('id', enc.id)
+    }
+
+    if (user) {
+      await supabase.from('movimentacoes').insert({
+        motorista_id: user.id,
+        cliente_nome: cliente.nome,
+        tipo: 'pagamento',
+        valor: parseFloat(vr.toFixed(2)),
+        descricao: 'Pagamento recebido (' + formaPagamento + ')',
+        categoria: 'encomenda',
+        referencia_id: null,
+      })
+    }
+    setSaving(false)
+    onSalvo()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end" style={{ background: 'rgba(0,0,0,0.4)' }}>
+      <div className="w-full bg-white rounded-t-2xl p-6 pb-16 flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <p className="text-base font-bold text-gray-800">Dar baixa nas encomendas</p>
+          <button onClick={onFechar} className="text-gray-400 text-xl leading-none">✕</button>
+        </div>
+
+        <div className="rounded-xl p-3" style={{ background: '#f0f0ec' }}>
+          <p className="text-sm font-bold text-gray-800">{cliente.nome}</p>
+          <p className="text-xs text-gray-500 mt-0.5">{cliente.encomendas.length} encomenda{cliente.encomendas.length !== 1 ? 's' : ''} em aberto</p>
+          <p className="text-sm font-bold mt-1" style={{ color: '#A32D2D' }}>
+            Total em aberto: R$ {cliente.total.toFixed(2).replace('.', ',')}
+          </p>
+        </div>
+
+        <div>
+          <p className="text-xs font-medium text-gray-500 mb-1">Valor recebido (R$)</p>
+          <input
+            type="number" step="0.01" value={valorRecebido}
+            onChange={e => setValorRecebido(e.target.value)}
+            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none bg-white focus:border-green-600" />
+        </div>
+
+        {vr > 0 && !isTotal && (
+          <div className="border rounded-xl px-4 py-3"
+            style={{ background: '#FAEEDA', borderColor: '#FAC775' }}>
+            <p className="text-xs" style={{ color: '#854F0B' }}>
+              Pagando R$ {vr.toFixed(2).replace('.', ',')} — ainda ficará devendo R$ {novoSaldo.toFixed(2).replace('.', ',')}
+            </p>
+          </div>
+        )}
+
+        <div>
+          <p className="text-xs font-medium text-gray-500 mb-2">Forma de recebimento</p>
+          <div className="grid grid-cols-2 gap-2">
+            {([
+              { value: 'dinheiro', label: '💵 Dinheiro' },
+              { value: 'pix', label: '📱 Pix' },
+            ] as const).map(f => (
+              <button key={f.value} onClick={() => setFormaPagamento(f.value)}
+                className="py-2.5 rounded-xl text-sm font-medium border transition-all"
+                style={formaPagamento === f.value
+                  ? { background: '#0F6E56', color: '#fff', borderColor: '#0F6E56' }
+                  : { background: '#fff', color: '#666', borderColor: '#e5e7eb' }}>
+                {f.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {vr > 0 && isTotal && (
+          <div className="border rounded-xl px-4 py-3"
+            style={{ background: '#E1F5EE', borderColor: '#9FE1CB' }}>
+            <p className="text-xs font-semibold" style={{ color: '#0F6E56' }}>
+              ✓ Quitação total — todas as encomendas serão marcadas como pagas
+            </p>
+          </div>
+        )}
+
+        <button onClick={confirmar} disabled={saving || vr <= 0}
+          className="w-full py-3.5 rounded-xl text-white text-sm font-semibold disabled:opacity-40"
+          style={{ background: '#1D9E75' }}>
+          {saving
+            ? 'Salvando...'
+            : isTotal
+            ? '✓ Confirmar quitação'
+            : '✓ Registrar pagamento parcial'}
         </button>
       </div>
     </div>
