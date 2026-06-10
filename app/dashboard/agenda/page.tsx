@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, isSameDay, isSameMonth, addMonths, subMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import ModalNovaEncomenda from '@/components/ModalNovaEncomenda'
 
 type Agendamento = {
   id: string
@@ -30,6 +31,7 @@ export default function AgendaPage() {
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([])
   const [loading, setLoading] = useState(true)
   const [mostrarForm, setMostrarForm] = useState(false)
+  const [modalEncomenda, setModalEncomenda] = useState(false)
   const [rotas, setRotas] = useState<any[]>([])
   const [agendamentoDetalhe, setAgendamentoDetalhe] = useState<Agendamento | null>(null)
 
@@ -167,6 +169,11 @@ export default function AgendaPage() {
           style={{ background: '#1D9E75' }}>
           + Agendar passageiro neste dia
         </button>
+        <button onClick={() => setModalEncomenda(true)}
+          className="w-full py-3 rounded-xl text-sm font-semibold mt-2 flex items-center justify-center gap-2"
+          style={{ background: '#FAEEDA', color: '#854F0B' }}>
+          📦 Agendar encomenda neste dia
+        </button>
       </div>
 
       {agendamentoDetalhe && (
@@ -183,6 +190,13 @@ export default function AgendaPage() {
           rotas={rotas}
           onFechar={() => setMostrarForm(false)}
           onSalvo={() => { setMostrarForm(false); carregarMes() }}
+        />
+      )}
+
+      {modalEncomenda && (
+        <ModalNovaEncomenda
+          onFechar={() => setModalEncomenda(false)}
+          onSalvo={() => setModalEncomenda(false)}
         />
       )}
     </div>

@@ -11,6 +11,7 @@ type Despesa = {
   categoria: string
   valor: number
   data_despesa: string
+  quilometragem?: number
 }
 
 type Receita = {
@@ -381,7 +382,10 @@ export default function FinanceiroPage() {
                           <span className="text-xl mr-1">{cat?.emoji}</span>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-gray-800 truncate">{d.descricao}</p>
-                            <p className="text-xs text-gray-400">{format(new Date(d.data_despesa + 'T00:00:00'), "dd/MM/yyyy")}</p>
+                            <p className="text-xs text-gray-400">
+                              {format(new Date(d.data_despesa + 'T00:00:00'), "dd/MM/yyyy")}
+                              {d.quilometragem ? <span className="ml-1 text-gray-300">· {d.quilometragem.toLocaleString('pt-BR')} km</span> : null}
+                            </p>
                           </div>
                           <span className="text-sm font-semibold shrink-0" style={{ color: '#A32D2D' }}>- R$ {d.valor.toFixed(2).replace('.', ',')}</span>
                           <button
@@ -988,6 +992,9 @@ function AbaEncomendas() {
   const [mostrarQuitadas, setMostrarQuitadas] = useState(false)
   const [obsEdit, setObsEdit] = useState<Record<string, boolean>>({})
   const [obsTemp, setObsTemp] = useState<Record<string, string>>({})
+  const [valorEdit, setValorEdit] = useState<Record<string, boolean>>({})
+  const [valorTemp, setValorTemp] = useState<Record<string, string>>({})
+  const [expandidos, setExpandidos] = useState<Record<string, boolean>>({})
 
   useEffect(() => { carregarEncomendas() }, [])
 
@@ -1003,9 +1010,14 @@ function AbaEncomendas() {
 
     if (abertas) {
       setEncomendas(abertas)
-      const init: Record<string, string> = {}
-      abertas.forEach(e => { init[e.id] = e.observacao || '' })
-      setObsTemp(init)
+      const initObs: Record<string, string> = {}
+      const initValor: Record<string, string> = {}
+      abertas.forEach(e => {
+        initObs[e.id] = e.observacao || ''
+        initValor[e.id] = e.valor.toFixed(2)
+      })
+      setObsTemp(initObs)
+      setValorTemp(initValor)
     }
     if (pagas) setQuitadas(pagas)
     setLoading(false)
@@ -1014,6 +1026,14 @@ function AbaEncomendas() {
   async function salvarObs(enc: Encomenda, valor: string) {
     await supabase.from('encomendas').update({ observacao: valor || null }).eq('id', enc.id)
     setObsEdit(prev => ({ ...prev, [enc.id]: false }))
+  }
+
+  async function salvarValor(enc: Encomenda, novoValor: string) {
+    const v = parseFloat(novoValor.replace(',', '.'))
+    if (isNaN(v) || v <= 0) return
+    await supabase.from('encomendas').update({ valor: v }).eq('id', enc.id)
+    setValorEdit(prev => ({ ...prev, [enc.id]: false }))
+    carregarEncomendas()
   }
 
   const hoje = new Date()
@@ -1086,25 +1106,33 @@ function AbaEncomendas() {
         </div>
       ) : (
         <div className="flex flex-col gap-4">
-          {pedidores.map(pedidor => (
+          {pedidores.map(pedidor => {
+            const aberto = !!expandidos[pedidor.nome]
+            return (
             <div key={pedidor.nome} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-              <div className="px-4 pt-3 pb-2"
-                style={{ background: pedidor.temVencido ? '#FFF0F0' : '#FFF5F5', borderBottom: '1px solid #FDE8E8' }}>
+              {/* Cabeçalho clicável — toque para expandir/colapsar */}
+              <button
+                onClick={() => setExpandidos(prev => ({ ...prev, [pedidor.nome]: !prev[pedidor.nome] }))}
+                className="w-full px-4 pt-3 pb-2 text-left"
+                style={{ background: pedidor.temVencido ? '#FFF0F0' : '#FFF5F5', borderBottom: aberto ? '1px solid #FDE8E8' : 'none' }}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
                       {pedidor.temVencido && <span className="text-base leading-none">⚠️</span>}
                       <p className="text-sm font-bold text-gray-800 truncate">{pedidor.nome}</p>
+                      <span className="text-[10px] text-gray-400 ml-1">
+                        {pedidor.encomendas.length} item{pedidor.encomendas.length !== 1 ? 's' : ''}
+                      </span>
                     </div>
                     {pedidor.telefone && <p className="text-xs text-gray-400">{pedidor.telefone}</p>}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     {pedidor.telefone && (
-                      <button onClick={() => abrirWhatsApp(pedidor)}
-                        className="px-3 py-1.5 rounded-lg text-xs font-bold"
+                      <span onClick={e => { e.stopPropagation(); abrirWhatsApp(pedidor) }}
+                        className="px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer"
                         style={{ background: '#E7F9EE', color: '#128C7E' }}>
                         💬
-                      </button>
+                      </span>
                     )}
                     <div className="text-right">
                       <p className="text-[10px] text-gray-400 uppercase">Deve</p>
@@ -1112,11 +1140,12 @@ function AbaEncomendas() {
                         R$ {pedidor.total.toFixed(2).replace('.', ',')}
                       </p>
                     </div>
+                    <span className="text-gray-300 text-sm ml-1">{aberto ? '▲' : '▼'}</span>
                   </div>
                 </div>
-              </div>
+              </button>
 
-              {pedidor.encomendas.map(enc => {
+              {aberto && pedidor.encomendas.map(enc => {
                 const vencida = !!enc.data_combinada && new Date(enc.data_combinada + 'T00:00:00') < hoje
                 const saldoEnc = enc.valor - (enc.valor_pago || 0)
                 return (
@@ -1166,9 +1195,29 @@ function AbaEncomendas() {
                         )}
                       </div>
                       <div className="flex flex-col items-end gap-1.5 shrink-0">
-                        <p className="text-sm font-bold" style={{ color: '#A32D2D' }}>
-                          R$ {saldoEnc.toFixed(2).replace('.', ',')}
-                        </p>
+                        {valorEdit[enc.id] ? (
+                          <div className="flex items-center gap-1">
+                            <input
+                              value={valorTemp[enc.id] ?? ''}
+                              onChange={e => setValorTemp(prev => ({ ...prev, [enc.id]: e.target.value }))}
+                              type="number" step="0.01"
+                              className="w-20 text-xs px-2 py-1 rounded-lg border border-gray-200 outline-none text-right"
+                            />
+                            <button onClick={() => salvarValor(enc, valorTemp[enc.id] || '')}
+                              className="text-xs px-2 py-1 rounded-lg font-semibold"
+                              style={{ background: '#E1F5EE', color: '#0F6E56' }}>
+                              ✓
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1">
+                            <p className="text-sm font-bold" style={{ color: '#A32D2D' }}>
+                              R$ {saldoEnc.toFixed(2).replace('.', ',')}
+                            </p>
+                            <button onClick={() => setValorEdit(prev => ({ ...prev, [enc.id]: true }))}
+                              className="text-xs p-0.5 opacity-50">✏️</button>
+                          </div>
+                        )}
                         <button onClick={() => setModalBaixa(enc)}
                           className="text-xs px-3 py-1.5 rounded-lg font-medium"
                           style={{ background: '#E1F5EE', color: '#0F6E56' }}>
@@ -1180,6 +1229,7 @@ function AbaEncomendas() {
                 )
               })}
             </div>
+          )})
           ))}
         </div>
       )}
@@ -1486,11 +1536,13 @@ function FormDespesa({
   onFechar: () => void
   onSalvo: () => void
 }) {
+  const categoriasComKm = ['combustivel', 'manutencao', 'pneu', 'outros']
   const [form, setForm] = useState({
     descricao: despesa?.descricao ?? '',
     categoria: despesa?.categoria ?? 'combustivel',
     valor: despesa?.valor?.toString() ?? '',
     data_despesa: despesa?.data_despesa ?? format(new Date(), 'yyyy-MM-dd'),
+    quilometragem: despesa?.quilometragem?.toString() ?? '',
   })
   const [saving, setSaving] = useState(false)
   const [erro, setErro] = useState('')
@@ -1508,6 +1560,8 @@ function FormDespesa({
       categoria: form.categoria,
       valor: parseFloat(form.valor),
       data_despesa: form.data_despesa,
+      quilometragem: (categoriasComKm.includes(form.categoria) && form.quilometragem)
+        ? parseInt(form.quilometragem) : null,
     }
 
     let error
@@ -1567,6 +1621,16 @@ function FormDespesa({
               className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none bg-white focus:border-green-600" />
           </div>
         ))}
+
+        {categoriasComKm.includes(form.categoria) && (
+          <div>
+            <p className="text-xs font-medium text-gray-500 mb-1">Quilometragem (km) <span className="text-gray-300 font-normal">— opcional</span></p>
+            <input value={form.quilometragem}
+              onChange={e => setForm(prev => ({ ...prev, quilometragem: e.target.value }))}
+              type="number" placeholder="Ex: 45000"
+              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none bg-white focus:border-green-600" />
+          </div>
+        )}
 
         {erro && <p className="text-xs text-red-500 bg-red-50 px-3 py-2 rounded-xl">{erro}</p>}
       </div>
