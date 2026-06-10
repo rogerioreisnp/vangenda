@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { format, startOfMonth, endOfMonth, subMonths, addMonths, subDays, startOfDay, endOfDay } from 'date-fns'
@@ -95,7 +95,7 @@ type Encomenda = {
   data_pago?: string
 }
 
-export default function FinanceiroPage() {
+function FinanceiroContent() {
   const searchParams = useSearchParams()
   const abaInicial = (searchParams.get('aba') as Aba | null) ?? 'geral'
   const [aba, setAba] = useState<Aba>(abaInicial)
@@ -1730,5 +1730,13 @@ function FormDespesa({
         </button>
       </div>
     </div>
+  )
+}
+
+export default function FinanceiroPage() {
+  return (
+    <Suspense>
+      <FinanceiroContent />
+    </Suspense>
   )
 }
