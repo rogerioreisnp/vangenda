@@ -1177,8 +1177,8 @@ function AbaEncomendas() {
                 </>
               )}
             </div>
-          )})
-          ))}
+          )
+        })}
         </div>
       )}
 
