@@ -288,6 +288,7 @@ export default function ConfiguracoesPage() {
     if (motorista) {
       await supabase.from('motoristas').update({
         pix_tipo: motorista.pix_tipo, pix_chave: motorista.pix_chave, pagamento_obrigatorio: motorista.pagamento_obrigatorio,
+        dias_trabalho: motorista.dias_trabalho ?? [1, 2, 3, 4, 5],
       }).eq('id', motorista.id)
     }
     setSaving(false)
@@ -492,6 +493,39 @@ export default function ConfiguracoesPage() {
               </>
             )}
           </div>
+        </Secao>
+
+        <Secao titulo="📅 Dias de trabalho">
+          <p className="text-xs text-gray-400 mb-3">
+            Selecione os dias em que você trabalha. Na Agenda, dias fora da sua escala ficam acinzentados.
+          </p>
+          <div className="grid grid-cols-7 gap-1">
+            {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((dia, i) => {
+              const diasAtivos: number[] = motorista?.dias_trabalho ?? [1, 2, 3, 4, 5]
+              const ativo = diasAtivos.includes(i)
+              return (
+                <button key={i}
+                  onClick={() => {
+                    const atual: number[] = motorista?.dias_trabalho ?? [1, 2, 3, 4, 5]
+                    const novo = ativo
+                      ? atual.filter((d: number) => d !== i)
+                      : [...atual, i].sort((a, b) => a - b)
+                    setMotorista((m: any) => ({ ...m, dias_trabalho: novo }))
+                  }}
+                  className="py-2 rounded-xl text-xs font-semibold border transition-all"
+                  style={ativo
+                    ? { background: '#0F6E56', color: '#fff', borderColor: '#0F6E56' }
+                    : { background: '#fff', color: '#9ca3af', borderColor: '#e5e7eb' }}>
+                  {dia}
+                </button>
+              )
+            })}
+          </div>
+          {((motorista?.dias_trabalho ?? [1, 2, 3, 4, 5]).length === 0) && (
+            <p className="text-xs mt-2" style={{ color: '#A32D2D' }}>
+              ⚠️ Nenhum dia selecionado — selecione ao menos um dia.
+            </p>
+          )}
         </Secao>
 
         <Secao titulo="🛣️ Dados da rota">

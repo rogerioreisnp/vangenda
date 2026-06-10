@@ -34,6 +34,7 @@ export default function AgendaPage() {
   const [modalEncomenda, setModalEncomenda] = useState(false)
   const [rotas, setRotas] = useState<any[]>([])
   const [agendamentoDetalhe, setAgendamentoDetalhe] = useState<Agendamento | null>(null)
+  const [diasTrabalho, setDiasTrabalho] = useState<number[]>([])
 
   useEffect(() => { carregarMes() }, [mesAtual])
 
@@ -45,18 +46,16 @@ export default function AgendaPage() {
     const inicio = format(startOfMonth(mesAtual), 'yyyy-MM-dd')
     const fim = format(endOfMonth(mesAtual), 'yyyy-MM-dd')
 
-    const { data } = await supabase
-      .from('agendamentos')
-      .select('*')
-      .eq('motorista_id', user.id)
-      .gte('data_viagem', inicio)
-      .lte('data_viagem', fim)
-      .neq('status', 'cancelado')
+    const [{ data }, { data: rts }, { data: mot }] = await Promise.all([
+      supabase.from('agendamentos').select('*').eq('motorista_id', user.id)
+        .gte('data_viagem', inicio).lte('data_viagem', fim).neq('status', 'cancelado'),
+      supabase.from('rotas').select('*').eq('motorista_id', user.id),
+      supabase.from('motoristas').select('dias_trabalho').eq('id', user.id).single(),
+    ])
 
     if (data) setAgendamentos(data)
-
-    const { data: rts } = await supabase.from('rotas').select('*').eq('motorista_id', user.id)
     if (rts) setRotas(rts)
+    if (mot?.dias_trabalho) setDiasTrabalho(mot.dias_trabalho)
 
     setLoading(false)
   }
@@ -105,12 +104,14 @@ export default function AgendaPage() {
             const isHoje = isSameDay(dia, hoje)
             const isSel = isSameDay(dia, diaSelecionado)
             const isOutro = !isSameMonth(dia, mesAtual)
+            const isDiaTrabalho = diasTrabalho.length === 0 || diasTrabalho.includes(dia.getDay())
+            const opacity = isOutro ? 0.3 : !isDiaTrabalho ? 0.3 : 1
             return (
               <button key={i} onClick={() => setDiaSelecionado(dia)}
                 className="h-9 rounded-lg flex flex-col items-center justify-center gap-0.5 transition-colors"
                 style={{
-                  background: isSel ? '#E1F5EE' : isHoje ? '#085041' : 'transparent',
-                  opacity: isOutro ? 0.3 : 1,
+                  background: isSel ? '#E1F5EE' : isHoje ? '#085041' : !isDiaTrabalho && !isOutro ? '#062e26' : 'transparent',
+                  opacity,
                 }}>
                 <span className="text-xs leading-none font-medium"
                   style={{ color: isSel ? '#085041' : '#E1F5EE' }}>

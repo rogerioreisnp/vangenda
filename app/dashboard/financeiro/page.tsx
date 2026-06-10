@@ -51,6 +51,15 @@ type FiadoQuitado = {
   fiado_forma_pagamento?: string
 }
 
+type EncomendaReceita = {
+  id: string
+  nome: string
+  valor: number
+  data_pago?: string
+  criado_em: string
+  forma_pagamento?: string
+}
+
 const categoriasReceita = [
   { value: 'rota_diaria', label: 'Rota diária', emoji: '🚐' },
   { value: 'passagens_avulsas', label: 'Passagens avulsas', emoji: '💵' },
@@ -82,6 +91,7 @@ type Encomenda = {
   forma_pagamento?: string
   data_combinada?: string
   criado_em: string
+  data_pago?: string
 }
 
 export default function FinanceiroPage() {
@@ -90,6 +100,7 @@ export default function FinanceiroPage() {
   const [mes, setMes] = useState(new Date())
   const [receitasManuais, setReceitasManuais] = useState<Receita[]>([])
   const [receitasAgendamentos, setReceitasAgendamentos] = useState<AgendamentoReceita[]>([])
+  const [receitasEncomendas, setReceitasEncomendas] = useState<EncomendaReceita[]>([])
   const [despesas, setDespesas] = useState<Despesa[]>([])
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState<null | 'receita' | 'despesa'>(null)
@@ -113,19 +124,32 @@ export default function FinanceiroPage() {
 
     const { inicio, fim } = getPeriodo()
 
-    const [{ data: recs }, { data: desps }, { data: agends }] = await Promise.all([
+    const [{ data: recs }, { data: desps }, { data: agends }, { data: encs }] = await Promise.all([
       supabase.from('receitas').select('*').eq('motorista_id', user.id)
         .gte('data_receita', inicio).lte('data_receita', fim).order('data_receita', { ascending: false }),
       supabase.from('despesas').select('*').eq('motorista_id', user.id)
         .gte('data_despesa', inicio).lte('data_despesa', fim).order('data_despesa', { ascending: false }),
       supabase.from('agendamentos').select('valor, data_viagem, nome_passageiro, parada_origem, parada_destino')
         .eq('motorista_id', user.id).neq('status', 'cancelado')
-        .gte('data_viagem', inicio).lte('data_viagem', fim),
+        .gte('data_viagem', inicio).lte('data_viagem', fim)
+        .or('forma_pagamento.neq.fiado,forma_pagamento.is.null,fiado_pago.eq.true'),
+      supabase.from('encomendas').select('id, nome, valor, data_pago, criado_em, forma_pagamento')
+        .eq('motorista_id', user.id).eq('pago', true),
     ])
 
     if (recs) setReceitasManuais(recs)
     if (desps) setDespesas(desps)
     if (agends) setReceitasAgendamentos(agends)
+
+    // Filtra encomendas pagas pelo período usando data_pago (ou criado_em como fallback)
+    if (encs) {
+      const encsFiltradas = encs.filter(e => {
+        const data = e.data_pago ?? e.criado_em.split('T')[0]
+        return data >= inicio && data <= fim
+      })
+      setReceitasEncomendas(encsFiltradas)
+    }
+
     setLoading(false)
   }
 
@@ -145,7 +169,8 @@ export default function FinanceiroPage() {
 
   const totalReceitasManuais = receitasManuais.reduce((s, r) => s + r.valor, 0)
   const totalReceitasAgendamentos = receitasAgendamentos.reduce((s, r) => s + r.valor, 0)
-  const totalReceitas = totalReceitasManuais + totalReceitasAgendamentos
+  const totalReceitasEncomendas = receitasEncomendas.reduce((s, e) => s + e.valor, 0)
+  const totalReceitas = totalReceitasManuais + totalReceitasAgendamentos + totalReceitasEncomendas
   const totalDespesas = despesas.reduce((s, d) => s + d.valor, 0)
   const lucro = totalReceitas - totalDespesas
 
@@ -350,7 +375,7 @@ export default function FinanceiroPage() {
 
               {receitasAgendamentos.length > 0 && (
                 <div className="mb-5">
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Receitas via agendamento</p>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Receitas via passagem</p>
                   <div className="bg-white rounded-2xl overflow-hidden border border-gray-100">
                     {receitasAgendamentos.slice(0, 10).map((r, i) => (
                       <div key={i} className="flex items-center px-4 py-3 border-b border-gray-50 last:border-0">
@@ -364,6 +389,33 @@ export default function FinanceiroPage() {
                     ))}
                     {receitasAgendamentos.length > 10 && (
                       <p className="text-center text-xs text-gray-400 py-2">+ {receitasAgendamentos.length - 10} registros</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {receitasEncomendas.length > 0 && (
+                <div className="mb-5">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Receitas via encomendas</p>
+                  <div className="bg-white rounded-2xl overflow-hidden border border-gray-100">
+                    {receitasEncomendas.slice(0, 10).map((e, i) => {
+                      const data = e.data_pago ?? e.criado_em.split('T')[0]
+                      return (
+                        <div key={i} className="flex items-center px-4 py-3 border-b border-gray-50 last:border-0">
+                          <span className="text-xl mr-3">📦</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-800 truncate">{e.nome}</p>
+                            <p className="text-xs text-gray-400">
+                              {format(new Date(data + 'T00:00:00'), 'dd/MM')}
+                              {e.forma_pagamento ? ` · ${e.forma_pagamento === 'dinheiro' ? '💵' : '📱'} ${e.forma_pagamento}` : ''}
+                            </p>
+                          </div>
+                          <span className="text-sm font-semibold" style={{ color: '#0F6E56' }}>+ R$ {e.valor.toFixed(2).replace('.', ',')}</span>
+                        </div>
+                      )
+                    })}
+                    {receitasEncomendas.length > 10 && (
+                      <p className="text-center text-xs text-gray-400 py-2">+ {receitasEncomendas.length - 10} registros</p>
                     )}
                   </div>
                 </div>
@@ -1354,6 +1406,7 @@ function ModalDarBaixaEncomenda({ encomenda, onFechar, onSalvo }: {
     }
     if (isTotal) {
       updates.pago = true
+      updates.data_pago = format(new Date(), 'yyyy-MM-dd')
     } else if (dataCombinada) {
       updates.data_combinada = dataCombinada
     }
