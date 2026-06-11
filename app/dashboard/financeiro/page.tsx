@@ -1479,6 +1479,8 @@ function AbaEncomendas() {
   const [modalNova, setModalNova] = useState<{nome?: string; telefone?: string} | null>(null)
   const [modalBaixaClienteEncomenda, setModalBaixaClienteEncomenda] = useState<{ nome: string; total: number; encomendas: Encomenda[] } | null>(null)
   const [editEncomenda, setEditEncomenda] = useState<Encomenda | null>(null)
+  const [encExcluindo, setEncExcluindo] = useState<Encomenda | null>(null)
+  const [excluindo, setExcluindo] = useState(false)
   const [mostrarQuitadas, setMostrarQuitadas] = useState(false)
   const [clienteSelecionadoEnc, setClienteSelecionadoEnc] = useState<string | null>(null)
   const [historicosEnc, setHistoricosEnc] = useState<Record<string, { tipo: string; valor: number; descricao: string | null; created_at: string }[]>>({})
@@ -1525,6 +1527,16 @@ function AbaEncomendas() {
 
   function invalidarHistoricoEnc(nome: string) {
     setHistoricosEnc(prev => { const n = { ...prev }; delete n[nome]; return n })
+  }
+
+  async function excluirEncomenda(enc: Encomenda) {
+    setExcluindo(true)
+    const { error } = await supabase.from('encomendas').delete().eq('id', enc.id)
+    setExcluindo(false)
+    if (error) return
+    setEncExcluindo(null)
+    if (clienteSelecionadoEnc) invalidarHistoricoEnc(clienteSelecionadoEnc)
+    await carregarEncomendas()
   }
 
   const hoje = new Date()
@@ -1693,8 +1705,12 @@ function AbaEncomendas() {
                         </p>
                       )}
                       {e.tipo === 'divida' && (
-                        <button onClick={() => setEditEncomenda(pedidor.encomendas.find(x => x.criado_em.startsWith(e.data)) || null)}
-                          className="text-xs opacity-30 active:opacity-100 mt-0.5">✏️</button>
+                        <div className="flex items-center gap-1.5 mt-0.5 justify-end">
+                          <button onClick={() => setEditEncomenda(pedidor.encomendas.find(x => x.criado_em.startsWith(e.data)) || null)}
+                            className="text-xs opacity-30 active:opacity-100">✏️</button>
+                          <button onClick={() => setEncExcluindo(pedidor.encomendas.find(x => x.criado_em.startsWith(e.data)) || null)}
+                            className="text-xs opacity-30 active:opacity-100">🗑️</button>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -1736,6 +1752,31 @@ function AbaEncomendas() {
             onFechar={() => setEditEncomenda(null)}
             onSalvo={() => { setEditEncomenda(null); carregarEncomendas() }}
           />
+        )}
+        {encExcluindo && (
+          <div className="fixed inset-0 z-50 flex items-end" style={{ background: 'rgba(0,0,0,0.5)' }}
+            onClick={ev => { if (ev.target === ev.currentTarget) setEncExcluindo(null) }}>
+            <div className="w-full bg-white rounded-t-2xl p-6 pb-16">
+              <p className="text-base font-bold text-gray-800 mb-1">Excluir encomenda</p>
+              <p className="text-sm text-gray-600 mb-1">{encExcluindo.observacao || 'Encomenda'}</p>
+              <p className="text-sm font-semibold mb-4" style={{ color: '#854F0B' }}>
+                R$ {encExcluindo.valor.toFixed(2).replace('.', ',')}
+              </p>
+              <p className="text-xs text-gray-400 mb-5">Essa ação não pode ser desfeita.</p>
+              <div className="flex gap-3">
+                <button onClick={() => setEncExcluindo(null)}
+                  className="flex-1 py-3.5 rounded-xl text-sm font-semibold border border-gray-200"
+                  style={{ color: '#6b7280' }}>
+                  Cancelar
+                </button>
+                <button onClick={() => excluirEncomenda(encExcluindo)} disabled={excluindo}
+                  className="flex-1 py-3.5 rounded-xl text-sm font-bold disabled:opacity-50"
+                  style={{ background: '#FCEBEB', color: '#A32D2D' }}>
+                  {excluindo ? 'Excluindo...' : 'Excluir'}
+                </button>
+              </div>
+            </div>
+          </div>
         )}
         {modalBaixaClienteEncomenda && (
           <ModalDarBaixaClienteEncomenda
