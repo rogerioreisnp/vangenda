@@ -156,7 +156,7 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
       {/* Header */}
       <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-6 text-center">
         <div className="text-4xl mb-2">🚐</div>
-        <h1 style={{ color: '#E1F5EE' }} className="text-lg font-bold">VanGenda</h1>
+        <h1 style={{ color: '#E1F5EE' }} className="text-lg font-bold">RotaGenda</h1>
         <p style={{ color: '#9FE1CB' }} className="text-sm mt-1">Agendamento — {motorista.nome}</p>
         {rota && (
           <div style={{ background: '#085041' }} className="mt-3 rounded-xl px-4 py-2 inline-block">

@@ -1,6 +1,6 @@
 {
-  "name": "VanGenda",
-  "short_name": "VanGenda",
+  "name": "RotaGenda",
+  "short_name": "RotaGenda",
   "description": "Agendamentos para motoristas de van",
   "start_url": "/",
   "display": "standalone",

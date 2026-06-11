@@ -1,5 +1,5 @@
 -- =====================================================
--- VANGENDA - Script de criação do banco de dados
+-- ROTAGENDA - Script de criação do banco de dados
 -- Execute este SQL no Supabase: SQL Editor → New Query
 -- =====================================================
 

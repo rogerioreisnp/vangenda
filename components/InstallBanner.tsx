@@ -62,7 +62,7 @@ export default function InstallBanner() {
         <span style={{ fontSize: '22px' }}>🚐</span>
         <div style={{ lineHeight: '1.3' }}>
           <strong style={{ display: 'block', marginBottom: '2px' }}>
-            Instale o VanGenda no seu celular
+            Instale o RotaGenda no seu celular
           </strong>
           <span style={{ fontSize: '12px', opacity: 0.9 }}>
             {isIOS

@@ -278,6 +278,8 @@ function ExtratoCliente({
   const [form, setForm] = useState({ descricao: '', valor: '' })
   const [saving, setSaving] = useState(false)
   const [erro, setErro] = useState('')
+  const [movEditando, setMovEditando] = useState<Mov | null>(null)
+  const [movExcluindo, setMovExcluindo] = useState<Mov | null>(null)
 
   useEffect(() => { carregar() }, [clienteNome, categoria])
 
@@ -366,6 +368,49 @@ function ExtratoCliente({
     }
   }
 
+  async function editarMov() {
+    if (!movEditando) return
+    if (!form.descricao.trim()) { setErro('Informe a descrição.'); return }
+    const valor = parseFloat(form.valor.replace(',', '.'))
+    if (isNaN(valor) || valor <= 0) { setErro('Informe um valor válido.'); return }
+    setSaving(true); setErro('')
+
+    const { error } = await supabase
+      .from('movimentacoes')
+      .update({ descricao: form.descricao.trim(), valor })
+      .eq('id', movEditando.id)
+
+    setSaving(false)
+    if (error) { setErro('Erro ao editar.'); return }
+    setMovEditando(null)
+    setForm({ descricao: '', valor: '' })
+    await carregar()
+  }
+
+  async function excluirMov() {
+    if (!movExcluindo) return
+    setSaving(true)
+
+    const { error } = await supabase
+      .from('movimentacoes')
+      .delete()
+      .eq('id', movExcluindo.id)
+
+    setSaving(false)
+    if (error) { setMovExcluindo(null); return }
+
+    const novasMovs = movs.filter(m => m.id !== movExcluindo.id)
+    const novoSaldo = novasMovs.filter(m => m.tipo === 'divida').reduce((s, m) => s + m.valor, 0)
+                   - novasMovs.filter(m => m.tipo === 'pagamento').reduce((s, m) => s + m.valor, 0)
+
+    setMovExcluindo(null)
+    if (novoSaldo <= 0.001 || novasMovs.length === 0) {
+      onVoltar()
+    } else {
+      await carregar()
+    }
+  }
+
   const cor = corAvatar(clienteNome)
 
   return (
@@ -432,7 +477,7 @@ function ExtratoCliente({
             {movs.map(m => {
               const isDivida = m.tipo === 'divida'
               return (
-                <div key={m.id} className="flex items-center gap-3 px-3 py-3 rounded-xl"
+                <div key={m.id} className="flex items-center gap-2 px-3 py-3 rounded-xl"
                   style={{ background: '#1a1d27', border: '1px solid rgba(255,255,255,0.05)' }}>
                   <div
                     className="w-7 h-7 rounded-lg flex-shrink-0 flex items-center justify-center text-sm"
@@ -452,6 +497,26 @@ function ExtratoCliente({
                     style={{ color: isDivida ? '#f09595' : '#5dcaa5' }}>
                     {isDivida ? '+' : '−'} R$ {brl(m.valor)}
                   </p>
+                  <button
+                    onClick={() => { setMovEditando(m); setForm({ descricao: m.descricao || '', valor: String(m.valor) }); setErro('') }}
+                    className="w-7 h-7 rounded-lg flex-shrink-0 flex items-center justify-center active:opacity-60"
+                    style={{ background: 'rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.5)' }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => setMovExcluindo(m)}
+                    className="w-7 h-7 rounded-lg flex-shrink-0 flex items-center justify-center active:opacity-60"
+                    style={{ background: 'rgba(226,75,74,0.12)', color: '#f09595' }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="3 6 5 6 21 6"/>
+                      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                      <path d="M10 11v6M14 11v6"/>
+                      <path d="M9 6V4h6v2"/>
+                    </svg>
+                  </button>
                 </div>
               )
             })}
@@ -518,6 +583,86 @@ function ExtratoCliente({
                 className="w-full py-3.5 rounded-xl text-sm font-bold mt-1 disabled:opacity-50 active:opacity-70"
                 style={{ background: 'rgba(226,75,74,0.2)', color: '#f09595', border: '1px solid rgba(226,75,74,0.3)' }}>
                 {saving ? 'Salvando...' : 'Confirmar dívida'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Editar lançamento */}
+      {movEditando && (
+        <div className="fixed inset-0 z-50 flex items-end"
+          style={{ background: 'rgba(0,0,0,0.75)' }}
+          onClick={e => { if (e.target === e.currentTarget) setMovEditando(null) }}>
+          <div className="w-full rounded-t-2xl p-5 pb-10" style={{ background: '#1a1d27' }}>
+            <p className="text-base font-bold mb-4" style={{ color: '#fff' }}>Editar lançamento</p>
+            <div className="flex flex-col gap-3">
+              <div>
+                <p className="text-[10px] uppercase mb-1.5" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                  Descrição
+                </p>
+                <input
+                  value={form.descricao}
+                  onChange={e => setForm(f => ({ ...f, descricao: e.target.value }))}
+                  className="w-full px-3 py-3 rounded-xl text-sm outline-none"
+                  style={{ background: 'rgba(255,255,255,0.07)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)' }}
+                />
+              </div>
+              <div>
+                <p className="text-[10px] uppercase mb-1.5" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                  Valor (R$)
+                </p>
+                <input
+                  value={form.valor}
+                  onChange={e => setForm(f => ({ ...f, valor: e.target.value }))}
+                  inputMode="decimal"
+                  className="w-full px-3 py-3 rounded-xl text-sm outline-none"
+                  style={{ background: 'rgba(255,255,255,0.07)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)' }}
+                />
+              </div>
+              {erro && <p className="text-xs" style={{ color: '#f09595' }}>{erro}</p>}
+              <button
+                onClick={editarMov}
+                disabled={saving}
+                className="w-full py-3.5 rounded-xl text-sm font-bold mt-1 disabled:opacity-50 active:opacity-70"
+                style={{ background: 'rgba(255,255,255,0.1)', color: '#fff', border: '1px solid rgba(255,255,255,0.15)' }}>
+                {saving ? 'Salvando...' : 'Salvar alterações'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal confirmar exclusão */}
+      {movExcluindo && (
+        <div className="fixed inset-0 z-50 flex items-end"
+          style={{ background: 'rgba(0,0,0,0.75)' }}
+          onClick={e => { if (e.target === e.currentTarget) setMovExcluindo(null) }}>
+          <div className="w-full rounded-t-2xl p-5 pb-10" style={{ background: '#1a1d27' }}>
+            <p className="text-base font-bold mb-1" style={{ color: '#fff' }}>Excluir lançamento</p>
+            <p className="text-sm mb-1 mt-2" style={{ color: 'rgba(255,255,255,0.7)' }}>
+              {movExcluindo.descricao || (movExcluindo.tipo === 'divida' ? 'Dívida' : 'Pagamento')}
+            </p>
+            <p className="text-sm font-semibold mb-5"
+              style={{ color: movExcluindo.tipo === 'divida' ? '#f09595' : '#5dcaa5' }}>
+              R$ {brl(movExcluindo.valor)}
+            </p>
+            <p className="text-xs mb-5" style={{ color: 'rgba(255,255,255,0.4)' }}>
+              Essa ação não pode ser desfeita.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setMovExcluindo(null)}
+                className="flex-1 py-3.5 rounded-xl text-sm font-semibold active:opacity-70"
+                style={{ background: 'rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.6)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                Cancelar
+              </button>
+              <button
+                onClick={excluirMov}
+                disabled={saving}
+                className="flex-1 py-3.5 rounded-xl text-sm font-bold disabled:opacity-50 active:opacity-70"
+                style={{ background: 'rgba(226,75,74,0.2)', color: '#f09595', border: '1px solid rgba(226,75,74,0.3)' }}>
+                {saving ? 'Excluindo...' : 'Excluir'}
               </button>
             </div>
           </div>

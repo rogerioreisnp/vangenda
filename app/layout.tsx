@@ -2,13 +2,13 @@ import type { Metadata, Viewport } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'VanGenda',
+  title: 'RotaGenda',
   description: 'Sistema de agendamento para motoristas de van',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'VanGenda',
+    title: 'RotaGenda',
   },
   icons: {
     icon: [

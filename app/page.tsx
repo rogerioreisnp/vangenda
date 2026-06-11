@@ -54,7 +54,7 @@ export default function LoginPage() {
           style={{ background: '#0F6E56' }}>
           <span className="text-3xl">🚐</span>
         </div>
-        <h1 className="text-2xl font-bold" style={{ color: '#0F6E56' }}>VanGenda</h1>
+        <h1 className="text-2xl font-bold" style={{ color: '#0F6E56' }}>RotaGenda</h1>
         <p className="text-sm mt-1" style={{ color: '#666' }}>Agendamentos para motoristas de van</p>
       </div>
 
@@ -121,7 +121,7 @@ export default function LoginPage() {
       </div>
 
       <p className="text-xs text-gray-400 mt-6 text-center">
-        VanGenda © {new Date().getFullYear()}
+        RotaGenda © {new Date().getFullYear()}
       </p>
     </div>
   )

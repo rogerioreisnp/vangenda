@@ -1,4 +1,4 @@
-# 🚐 VanGenda
+# 🚐 RotaGenda
 
 Sistema de agendamento para motoristas de van intermunicipal.
 

@@ -10,7 +10,7 @@ function GuiaPage({ onFechar }: { onFechar: () => void }) {
         <button onClick={onFechar} style={{ color: '#9FE1CB' }} className="text-2xl">‹</button>
         <div>
           <p style={{ color: '#E1F5EE' }} className="text-sm font-semibold">Guia de uso</p>
-          <p style={{ color: '#5DCAA5' }} className="text-xs">Como usar o VanGenda</p>
+          <p style={{ color: '#5DCAA5' }} className="text-xs">Como usar o RotaGenda</p>
         </div>
       </div>
 
@@ -18,7 +18,7 @@ function GuiaPage({ onFechar }: { onFechar: () => void }) {
 
         <div className="text-center mb-8">
           <div className="text-5xl mb-3">🚐</div>
-          <h1 className="text-xl font-bold mb-2" style={{ color: '#0F6E56' }}>Bem-vindo ao VanGenda!</h1>
+          <h1 className="text-xl font-bold mb-2" style={{ color: '#0F6E56' }}>Bem-vindo ao RotaGenda!</h1>
           <p className="text-sm text-gray-500 leading-relaxed">
             Este guia explica tudo que você precisa saber para organizar sua van com o app.
           </p>
@@ -29,9 +29,9 @@ function GuiaPage({ onFechar }: { onFechar: () => void }) {
         {/* SEÇÃO 1 */}
         <h2 className="text-base font-bold mb-4" style={{ color: '#0F6E56' }}>🚀 Primeiros passos</h2>
 
-        <p className="text-sm font-semibold text-gray-800 mb-1">1. Instale o VanGenda no seu celular</p>
+        <p className="text-sm font-semibold text-gray-800 mb-1">1. Instale o RotaGenda no seu celular</p>
         <p className="text-sm text-gray-600 leading-relaxed mb-4">
-          Abra o site <strong>vangenda.vercel.app</strong> no navegador do seu celular. No Android, toque nos 3 pontinhos e selecione "Adicionar à tela inicial". No iPhone, toque no ícone de compartilhar e selecione "Adicionar à Tela de Início". Assim o VanGenda fica como um app no seu celular!
+          Abra o site <strong>vangenda.vercel.app</strong> no navegador do seu celular. No Android, toque nos 3 pontinhos e selecione "Adicionar à tela inicial". No iPhone, toque no ícone de compartilhar e selecione "Adicionar à Tela de Início". Assim o RotaGenda fica como um app no seu celular!
         </p>
 
         <p className="text-sm font-semibold text-gray-800 mb-1">2. Cadastre-se com seu e-mail</p>
@@ -636,7 +636,7 @@ export default function ConfiguracoesPage() {
         <button onClick={() => setMostrarGuia(true)}
           className="w-full py-3.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
           style={{ background: '#E1F5EE', color: '#0F6E56' }}>
-          📖 Guia de uso do VanGenda
+          📖 Guia de uso do RotaGenda
         </button>
 
         <button onClick={sair}

@@ -197,7 +197,7 @@ function TelaBloqueio() {
     <div className="min-h-dvh flex flex-col" style={{ background: '#f0f0ec' }}>
       <div style={{ background: '#0F6E56' }} className="px-4 pt-14 pb-8 text-center">
         <div className="text-5xl mb-3">🚐</div>
-        <h1 style={{ color: '#E1F5EE' }} className="text-xl font-bold">VanGenda</h1>
+        <h1 style={{ color: '#E1F5EE' }} className="text-xl font-bold">RotaGenda</h1>
         <p style={{ color: '#9FE1CB' }} className="text-sm mt-1">Gerencie sua van com profissionalismo</p>
       </div>
 
@@ -205,7 +205,7 @@ function TelaBloqueio() {
         <div className="bg-white rounded-2xl p-4 border border-gray-100 text-center">
           <p className="text-2xl mb-2">⏰</p>
           <p className="text-base font-bold text-gray-800 mb-1">Seu período gratuito encerrou</p>
-          <p className="text-sm text-gray-500">Escolha um plano para continuar usando o VanGenda e não perder seus agendamentos!</p>
+          <p className="text-sm text-gray-500">Escolha um plano para continuar usando o RotaGenda e não perder seus agendamentos!</p>
         </div>
 
         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide text-center">Escolha seu plano</p>
