@@ -549,6 +549,7 @@ function AbaFiado() {
   const [clienteSelecionado, setClienteSelecionado] = useState<string | null>(null)
   const [agExcluindo, setAgExcluindo] = useState<{ id: string; descricao: string; valor: number } | null>(null)
   const [excluindoAg, setExcluindoAg] = useState(false)
+  const [fiadoEditando, setFiadoEditando] = useState<AgendamentoFiado | null>(null)
 
   useEffect(() => { carregarFiados() }, [])
 
@@ -859,9 +860,13 @@ function AbaFiado() {
                         </p>
                       )}
                       {e.tipo === 'divida' && e.id && (
-                        <button
-                          onClick={() => setAgExcluindo({ id: e.id!, descricao: e.descricao, valor: e.valor })}
-                          className="text-xs opacity-30 active:opacity-100 mt-0.5">🗑️</button>
+                        <div className="flex items-center gap-1.5 mt-0.5 justify-end">
+                          <button onClick={() => setFiadoEditando(devedor.viagens.find(v => v.id === e.id) || null)}
+                            className="text-xs opacity-30 active:opacity-100">✏️</button>
+                          <button
+                            onClick={() => setAgExcluindo({ id: e.id!, descricao: e.descricao, valor: e.valor })}
+                            className="text-xs opacity-30 active:opacity-100">🗑️</button>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -939,6 +944,19 @@ function AbaFiado() {
               </div>
             </div>
           </div>
+        )}
+        {fiadoEditando && (
+          <ModalEditarFiado
+            ag={fiadoEditando}
+            onFechar={() => setFiadoEditando(null)}
+            onSalvo={() => {
+              const nome = clienteSelecionado!
+              invalidarHistorico(nome)
+              setFiadoEditando(null)
+              carregarFiados()
+              carregarHistorico(nome)
+            }}
+          />
         )}
       </div>
     )
@@ -1959,6 +1977,87 @@ function AbaEncomendas() {
           onSalvo={() => { setModalNova(null); carregarEncomendas() }}
         />
       )}
+    </div>
+  )
+}
+
+// ─── MODAL EDITAR FIADO ───────────────────────────────────────────────────────
+
+function ModalEditarFiado({ ag, onFechar, onSalvo }: {
+  ag: AgendamentoFiado; onFechar: () => void; onSalvo: () => void
+}) {
+  const [form, setForm] = useState({
+    valor: ag.valor.toFixed(2),
+    fiado_observacao: ag.fiado_observacao ?? '',
+    fiado_data_combinada: ag.fiado_data_combinada ?? '',
+  })
+  const [saving, setSaving] = useState(false)
+  const [erro, setErro] = useState('')
+
+  async function salvar() {
+    const v = parseFloat(form.valor.replace(',', '.'))
+    if (isNaN(v) || v <= 0) { setErro('Informe um valor válido.'); return }
+    setSaving(true)
+    const [{ error: e1 }, { error: e2 }] = await Promise.all([
+      supabase.from('agendamentos').update({
+        valor: v,
+        fiado_observacao: form.fiado_observacao.trim() || null,
+        fiado_data_combinada: form.fiado_data_combinada || null,
+      }).eq('id', ag.id),
+      supabase.from('movimentacoes').update({ valor: v }).eq('referencia_id', ag.id),
+    ])
+    if (e1 || e2) { setErro('Erro ao salvar.'); setSaving(false); return }
+    setSaving(false)
+    onSalvo()
+  }
+
+  const descricao = ag.parada_destino
+    ? `${ag.parada_origem} → ${ag.parada_destino}`
+    : (ag.parada_origem || 'Passagem fiada')
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end" style={{ background: 'rgba(0,0,0,0.4)' }}>
+      <div className="w-full bg-white rounded-t-2xl p-6 pb-16 flex flex-col gap-4" style={{ maxHeight: '90dvh', overflowY: 'auto' }}>
+        <div className="flex items-center justify-between">
+          <p className="text-base font-bold text-gray-800">Editar lançamento</p>
+          <button onClick={onFechar} className="text-gray-400 text-xl leading-none">✕</button>
+        </div>
+
+        <div className="px-3 py-2 rounded-xl text-xs" style={{ background: '#f5f5f5' }}>
+          <span className="font-semibold text-gray-700">{ag.nome_passageiro}</span>
+          <span className="text-gray-400"> · {descricao}</span>
+        </div>
+
+        <div>
+          <p className="text-xs font-medium text-gray-500 mb-1">Valor (R$) *</p>
+          <input value={form.valor} onChange={e => setForm(f => ({ ...f, valor: e.target.value }))}
+            type="number" step="0.01"
+            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none bg-white focus:border-green-600" />
+        </div>
+
+        <div>
+          <p className="text-xs font-medium text-gray-500 mb-1">Observação (opcional)</p>
+          <textarea value={form.fiado_observacao} onChange={e => setForm(f => ({ ...f, fiado_observacao: e.target.value }))}
+            placeholder="Ex: vai pagar na sexta"
+            rows={3}
+            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none bg-white resize-none focus:border-green-600" />
+        </div>
+
+        <div>
+          <p className="text-xs font-medium text-gray-500 mb-1">Data combinada (opcional)</p>
+          <input value={form.fiado_data_combinada} onChange={e => setForm(f => ({ ...f, fiado_data_combinada: e.target.value }))}
+            type="date"
+            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none bg-white focus:border-green-600" />
+        </div>
+
+        {erro && <p className="text-xs text-red-500 bg-red-50 px-3 py-2 rounded-xl">{erro}</p>}
+
+        <button onClick={salvar} disabled={saving || !form.valor}
+          className="w-full py-3.5 rounded-xl text-white text-sm font-semibold disabled:opacity-40"
+          style={{ background: '#1D9E75' }}>
+          {saving ? 'Salvando...' : '✓ Salvar alterações'}
+        </button>
+      </div>
     </div>
   )
 }
