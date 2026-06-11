@@ -547,6 +547,8 @@ function AbaFiado() {
   const [carregandoHist, setCarregandoHist] = useState<Record<string, boolean>>({})
   const [modalAdicionarDivida, setModalAdicionarDivida] = useState<string | null>(null)
   const [clienteSelecionado, setClienteSelecionado] = useState<string | null>(null)
+  const [agExcluindo, setAgExcluindo] = useState<{ id: string; descricao: string; valor: number } | null>(null)
+  const [excluindoAg, setExcluindoAg] = useState(false)
 
   useEffect(() => { carregarFiados() }, [])
 
@@ -620,6 +622,18 @@ function AbaFiado() {
 
   function invalidarHistorico(nome: string) {
     setHistoricos(prev => { const n = { ...prev }; delete n[nome]; return n })
+  }
+
+  async function excluirAgendamento(id: string) {
+    setExcluindoAg(true)
+    await Promise.all([
+      supabase.from('agendamentos').delete().eq('id', id),
+      supabase.from('movimentacoes').delete().eq('referencia_id', id),
+    ])
+    setExcluindoAg(false)
+    setAgExcluindo(null)
+    if (clienteSelecionado) invalidarHistorico(clienteSelecionado)
+    await carregarFiados()
   }
 
   async function salvarObservacao(nome: string, viagens: AgendamentoFiado[], valor: string) {
@@ -709,6 +723,7 @@ function AbaFiado() {
             valor: v.valor,
             valorPago: v.fiado_valor_pago || 0,
             dataCombinada: v.fiado_data_combinada as string | undefined,
+            id: v.id,
           })),
           ...pagamentosHist.map(p => ({
             tipo: 'pagamento' as const,
@@ -717,6 +732,7 @@ function AbaFiado() {
             valor: p.valor,
             valorPago: 0,
             dataCombinada: undefined as string | undefined,
+            id: undefined as string | undefined,
           })),
         ].sort((a, b) => a.data.localeCompare(b.data))
       : hist.map(m => ({
@@ -726,6 +742,7 @@ function AbaFiado() {
           valor: m.valor,
           valorPago: 0,
           dataCombinada: undefined as string | undefined,
+          id: undefined as string | undefined,
         })).sort((a, b) => a.data.localeCompare(b.data))
 
     return (
@@ -841,6 +858,11 @@ function AbaFiado() {
                           saldo R$ {(e.valor - e.valorPago).toFixed(2).replace('.', ',')}
                         </p>
                       )}
+                      {e.tipo === 'divida' && e.id && (
+                        <button
+                          onClick={() => setAgExcluindo({ id: e.id!, descricao: e.descricao, valor: e.valor })}
+                          className="text-xs opacity-30 active:opacity-100 mt-0.5">🗑️</button>
+                      )}
                     </div>
                   </div>
                 )
@@ -892,6 +914,31 @@ function AbaFiado() {
               carregarHistorico(nome)
             }}
           />
+        )}
+        {agExcluindo && (
+          <div className="fixed inset-0 z-50 flex items-end" style={{ background: 'rgba(0,0,0,0.5)' }}
+            onClick={ev => { if (ev.target === ev.currentTarget) setAgExcluindo(null) }}>
+            <div className="w-full bg-white rounded-t-2xl p-6 pb-16">
+              <p className="text-base font-bold text-gray-800 mb-1">Excluir lançamento</p>
+              <p className="text-sm text-gray-600 mb-1">{agExcluindo.descricao}</p>
+              <p className="text-sm font-semibold mb-4" style={{ color: '#A32D2D' }}>
+                R$ {agExcluindo.valor.toFixed(2).replace('.', ',')}
+              </p>
+              <p className="text-xs text-gray-400 mb-5">Essa ação não pode ser desfeita.</p>
+              <div className="flex gap-3">
+                <button onClick={() => setAgExcluindo(null)}
+                  className="flex-1 py-3.5 rounded-xl text-sm font-semibold border border-gray-200"
+                  style={{ color: '#6b7280' }}>
+                  Cancelar
+                </button>
+                <button onClick={() => excluirAgendamento(agExcluindo.id)} disabled={excluindoAg}
+                  className="flex-1 py-3.5 rounded-xl text-sm font-bold disabled:opacity-50"
+                  style={{ background: '#FCEBEB', color: '#A32D2D' }}>
+                  {excluindoAg ? 'Excluindo...' : 'Excluir'}
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     )
