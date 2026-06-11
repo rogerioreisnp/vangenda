@@ -3,7 +3,7 @@ import './globals.css'
 
 export const metadata: Metadata = {
   title: 'RotaGenda',
-  description: 'Sistema de agendamento para motoristas de van',
+  description: 'RotaGenda: Gestão de agendamentos, passagens e finanças para vans, táxis, transfers e operadores de turismo',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,

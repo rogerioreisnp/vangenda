@@ -198,7 +198,7 @@ function TelaBloqueio() {
       <div style={{ background: '#0F6E56' }} className="px-4 pt-14 pb-8 text-center">
         <div className="text-5xl mb-3">🚐</div>
         <h1 style={{ color: '#E1F5EE' }} className="text-xl font-bold">RotaGenda</h1>
-        <p style={{ color: '#9FE1CB' }} className="text-sm mt-1">Gerencie sua van com profissionalismo</p>
+        <p style={{ color: '#9FE1CB' }} className="text-sm mt-1">Gestão de agendamentos, passagens e finanças para vans, táxis, transfers e operadores de turismo</p>
       </div>
 
       <div className="px-4 py-6 flex flex-col gap-4 max-w-md mx-auto w-full">

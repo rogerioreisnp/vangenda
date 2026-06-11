@@ -55,7 +55,7 @@ export default function LoginPage() {
           <span className="text-3xl">🚐</span>
         </div>
         <h1 className="text-2xl font-bold" style={{ color: '#0F6E56' }}>RotaGenda</h1>
-        <p className="text-sm mt-1" style={{ color: '#666' }}>Agendamentos para motoristas de van</p>
+        <p className="text-sm mt-1" style={{ color: '#666' }}>Gestão de agendamentos, passagens e finanças para vans, táxis, transfers e operadores de turismo</p>
       </div>
 
       {/* Card */}

@@ -1,7 +1,7 @@
 {
   "name": "RotaGenda",
   "short_name": "RotaGenda",
-  "description": "Agendamentos para motoristas de van",
+  "description": "Gestão de agendamentos, passagens e finanças para vans, táxis, transfers e operadores de turismo",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0F6E56",
