@@ -676,35 +676,57 @@ function AbaFiado() {
 
   // ── EXTRATO: tela de detalhe do cliente ──────────────────────────────
   if (clienteSelecionado !== null) {
-    const devedor = devedoresMap[clienteSelecionado]
-    if (!devedor) {
+    const devedorAtivo = devedoresMap[clienteSelecionado]
+    const quitadoGrupo = !devedorAtivo ? quitadosMap[clienteSelecionado] : null
+    if (!devedorAtivo && !quitadoGrupo) {
       setTimeout(() => setClienteSelecionado(null), 0)
       return null
     }
-    const totalCobrado = devedor.viagens.reduce((s, v) => s + v.valor, 0)
-    const totalRecebido = devedor.viagens.reduce((s, v) => s + (v.fiado_valor_pago || 0), 0)
-    const pagamentosHist = (historicos[clienteSelecionado] || []).filter(m => m.tipo === 'pagamento')
+    const hist = historicos[clienteSelecionado] || []
+    const devedor = devedorAtivo ?? {
+      nome: quitadoGrupo!.nome,
+      total: 0,
+      telefone: undefined as string | undefined,
+      viagens: [] as AgendamentoFiado[],
+      temVencido: false,
+    }
+    const totalCobrado = devedorAtivo
+      ? devedor.viagens.reduce((s, v) => s + v.valor, 0)
+      : hist.filter(m => m.tipo === 'divida').reduce((s, m) => s + m.valor, 0)
+    const totalRecebido = devedorAtivo
+      ? devedor.viagens.reduce((s, v) => s + (v.fiado_valor_pago || 0), 0)
+      : hist.filter(m => m.tipo === 'pagamento').reduce((s, m) => s + m.valor, 0)
+    const pagamentosHist = hist.filter(m => m.tipo === 'pagamento')
     const iniciais = devedor.nome.split(' ').slice(0, 2).map(p => p[0] || '').join('').toUpperCase()
-    const entradas = [
-      ...devedor.viagens.map(v => ({
-        tipo: 'divida' as const,
-        data: v.data_viagem,
-        descricao: v.parada_destino
-          ? `${v.parada_origem} → ${v.parada_destino}`
-          : (v.parada_origem || 'Passagem fiada'),
-        valor: v.valor,
-        valorPago: v.fiado_valor_pago || 0,
-        dataCombinada: v.fiado_data_combinada as string | undefined,
-      })),
-      ...pagamentosHist.map(p => ({
-        tipo: 'pagamento' as const,
-        data: p.created_at.substring(0, 10),
-        descricao: p.descricao || 'Pagamento recebido',
-        valor: p.valor,
-        valorPago: 0,
-        dataCombinada: undefined as string | undefined,
-      })),
-    ].sort((a, b) => a.data.localeCompare(b.data))
+    const entradas = devedorAtivo
+      ? [
+          ...devedor.viagens.map(v => ({
+            tipo: 'divida' as const,
+            data: v.data_viagem,
+            descricao: v.parada_destino
+              ? `${v.parada_origem} → ${v.parada_destino}`
+              : (v.parada_origem || 'Passagem fiada'),
+            valor: v.valor,
+            valorPago: v.fiado_valor_pago || 0,
+            dataCombinada: v.fiado_data_combinada as string | undefined,
+          })),
+          ...pagamentosHist.map(p => ({
+            tipo: 'pagamento' as const,
+            data: p.created_at.substring(0, 10),
+            descricao: p.descricao || 'Pagamento recebido',
+            valor: p.valor,
+            valorPago: 0,
+            dataCombinada: undefined as string | undefined,
+          })),
+        ].sort((a, b) => a.data.localeCompare(b.data))
+      : hist.map(m => ({
+          tipo: m.tipo as 'divida' | 'pagamento',
+          data: m.created_at.substring(0, 10),
+          descricao: m.descricao || (m.tipo === 'divida' ? 'Passagem fiada' : 'Pagamento recebido'),
+          valor: m.valor,
+          valorPago: 0,
+          dataCombinada: undefined as string | undefined,
+        })).sort((a, b) => a.data.localeCompare(b.data))
 
     return (
       <div style={{ background: '#f0f0ec', minHeight: '100%' }}>
@@ -835,12 +857,14 @@ function AbaFiado() {
             style={{ height: 48, background: '#FFF3E0', color: '#E65100', border: '1px solid #FFB74D', borderRadius: 12, fontSize: 14, fontWeight: 500 }}>
             📝 + Adicionar
           </button>
-          <button
-            onClick={() => setModalBaixaCliente({ nome: devedor.nome, total: devedor.total, viagens: devedor.viagens })}
-            className="flex-1 flex items-center justify-center"
-            style={{ height: 48, background: '#1B5E20', color: '#fff', borderRadius: 12, fontSize: 14, fontWeight: 500 }}>
-            ✓ Dar baixa — R$ {devedor.total.toFixed(2).replace('.', ',')}
-          </button>
+          {devedor.total > 0.001 && (
+            <button
+              onClick={() => setModalBaixaCliente({ nome: devedor.nome, total: devedor.total, viagens: devedor.viagens })}
+              className="flex-1 flex items-center justify-center"
+              style={{ height: 48, background: '#1B5E20', color: '#fff', borderRadius: 12, fontSize: 14, fontWeight: 500 }}>
+              ✓ Dar baixa — R$ {devedor.total.toFixed(2).replace('.', ',')}
+            </button>
+          )}
         </div>
 
         {modalBaixaCliente && (
@@ -953,35 +977,32 @@ function AbaFiado() {
           <div className="flex flex-col gap-3 mt-3">
             {devedoresQuitados.length === 0 ? (
               <p className="text-center text-gray-400 text-sm py-4">Nenhum fiado quitado ainda</p>
-            ) : devedoresQuitados.map(dq => (
-              <div key={dq.nome} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-                <div className="px-4 py-3 flex items-center justify-between"
-                  style={{ background: '#F0FDF4', borderBottom: '1px solid #D1FAE5' }}>
-                  <p className="text-sm font-bold text-gray-800">{dq.nome}</p>
-                  <div className="text-right">
-                    <p className="text-[10px] text-gray-400 uppercase">Quitado</p>
-                    <p className="text-sm font-bold" style={{ color: '#0F6E56' }}>
-                      R$ {dq.total.toFixed(2).replace('.', ',')}
+            ) : devedoresQuitados.map(dq => {
+              const ini = dq.nome.split(' ').slice(0, 2).map((p: string) => p[0] || '').join('').toUpperCase()
+              const ultima = dq.viagens[0]?.data_viagem
+              return (
+                <button key={dq.nome} onClick={() => setClienteSelecionado(dq.nome)}
+                  className="w-full bg-white rounded-2xl px-4 py-3 flex items-center gap-3 text-left active:opacity-75"
+                  style={{ border: '1px solid #f0f0f0', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
+                  <div className="w-11 h-11 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0"
+                    style={{ background: corAvatar(dq.nome) }}>
+                    {ini}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-gray-800 truncate">{dq.nome}</p>
+                    <p className="text-xs text-gray-400">
+                      {dq.viagens.length} lançamento{dq.viagens.length !== 1 ? 's' : ''}
+                      {ultima && ` · último ${format(new Date(ultima + 'T00:00:00'), 'dd/MM')}`}
                     </p>
                   </div>
-                </div>
-                {dq.viagens.map(v => (
-                  <div key={v.id} className="px-4 py-2.5 border-b border-gray-50 last:border-0 flex items-center justify-between gap-2">
-                    <p className="text-xs text-gray-500">
-                      {format(new Date(v.data_viagem + 'T00:00:00'), 'dd/MM/yyyy')}
-                      {v.fiado_forma_pagamento && (
-                        <span className="ml-2">
-                          {v.fiado_forma_pagamento === 'dinheiro' ? '💵' : '📱'} {v.fiado_forma_pagamento}
-                        </span>
-                      )}
-                    </p>
-                    <p className="text-sm font-semibold shrink-0" style={{ color: '#0F6E56' }}>
-                      R$ {v.valor.toFixed(2).replace('.', ',')}
-                    </p>
+                  <div className="shrink-0 text-right">
+                    <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold"
+                      style={{ background: '#D1FAE5', color: '#065F46' }}>Quitado ✓</span>
+                    <p className="text-xs text-gray-300 mt-0.5">›</p>
                   </div>
-                ))}
-              </div>
-            ))}
+                </button>
+              )
+            })}
           </div>
         )}
       </div>
@@ -1548,10 +1569,18 @@ function AbaEncomendas() {
 
   // ── EXTRATO: tela de detalhe do cliente ──────────────────────────────
   if (clienteSelecionadoEnc !== null) {
-    const pedidor = pedidoresMap[clienteSelecionadoEnc]
-    if (!pedidor) {
+    const pedidorAtivo = pedidoresMap[clienteSelecionadoEnc]
+    const quitadoGrupoEnc = !pedidorAtivo ? quitadasMap[clienteSelecionadoEnc] : null
+    if (!pedidorAtivo && !quitadoGrupoEnc) {
       setTimeout(() => setClienteSelecionadoEnc(null), 0)
       return null
+    }
+    const pedidor = pedidorAtivo ?? {
+      nome: quitadoGrupoEnc!.nome,
+      total: 0,
+      telefone: quitadoGrupoEnc!.encomendas[0]?.telefone,
+      encomendas: quitadoGrupoEnc!.encomendas,
+      temVencido: false,
     }
     const totalCobrado = pedidor.encomendas.reduce((s, e) => s + e.valor, 0)
     const totalRecebido = pedidor.encomendas.reduce((s, e) => s + (e.valor_pago || 0), 0)
@@ -1683,12 +1712,14 @@ function AbaEncomendas() {
             style={{ height: 48, background: '#FFF3E0', color: '#E65100', border: '1px solid #FFB74D', borderRadius: 12, fontSize: 14, fontWeight: 500 }}>
             📦 + Adicionar
           </button>
-          <button
-            onClick={() => setModalBaixaClienteEncomenda({ nome: pedidor.nome, total: pedidor.total, encomendas: pedidor.encomendas })}
-            className="flex-1 flex items-center justify-center"
-            style={{ height: 48, background: '#1B5E20', color: '#fff', borderRadius: 12, fontSize: 14, fontWeight: 500 }}>
-            ✓ Dar baixa — R$ {pedidor.total.toFixed(2).replace('.', ',')}
-          </button>
+          {pedidor.total > 0.001 && (
+            <button
+              onClick={() => setModalBaixaClienteEncomenda({ nome: pedidor.nome, total: pedidor.total, encomendas: pedidor.encomendas })}
+              className="flex-1 flex items-center justify-center"
+              style={{ height: 48, background: '#1B5E20', color: '#fff', borderRadius: 12, fontSize: 14, fontWeight: 500 }}>
+              ✓ Dar baixa — R$ {pedidor.total.toFixed(2).replace('.', ',')}
+            </button>
+          )}
         </div>
 
         {modalNova !== null && (
@@ -1800,34 +1831,32 @@ function AbaEncomendas() {
           <div className="flex flex-col gap-3 mt-3">
             {pedidoresQuitados.length === 0 ? (
               <p className="text-center text-gray-400 text-sm py-4">Nenhuma encomenda quitada ainda</p>
-            ) : pedidoresQuitados.map(pq => (
-              <div key={pq.nome} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-                <div className="px-4 py-3 flex items-center justify-between"
-                  style={{ background: '#F0FDF4', borderBottom: '1px solid #D1FAE5' }}>
-                  <p className="text-sm font-bold text-gray-800">{pq.nome}</p>
-                  <div className="text-right">
-                    <p className="text-[10px] text-gray-400 uppercase">Quitado</p>
-                    <p className="text-sm font-bold" style={{ color: '#0F6E56' }}>
-                      R$ {pq.total.toFixed(2).replace('.', ',')}
+            ) : pedidoresQuitados.map(pq => {
+              const ini = pq.nome.split(' ').slice(0, 2).map((p: string) => p[0] || '').join('').toUpperCase()
+              const ultima = pq.encomendas[0]?.criado_em
+              return (
+                <button key={pq.nome} onClick={() => setClienteSelecionadoEnc(pq.nome)}
+                  className="w-full bg-white rounded-2xl px-4 py-3 flex items-center gap-3 text-left active:opacity-75"
+                  style={{ border: '1px solid #f0f0f0', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
+                  <div className="w-11 h-11 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0"
+                    style={{ background: corAvatar(pq.nome) }}>
+                    {ini}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-gray-800 truncate">{pq.nome}</p>
+                    <p className="text-xs text-gray-400">
+                      {pq.encomendas.length} encomenda{pq.encomendas.length !== 1 ? 's' : ''}
+                      {ultima && ` · último ${format(new Date(ultima), 'dd/MM')}`}
                     </p>
                   </div>
-                </div>
-                {pq.encomendas.map(e => (
-                  <div key={e.id} className="px-4 py-2.5 border-b border-gray-50 last:border-0 flex items-center justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-gray-500">
-                        {format(new Date(e.criado_em), 'dd/MM/yyyy')}
-                        {e.forma_pagamento && ` · ${e.forma_pagamento === 'dinheiro' ? '💵' : '📱'} ${e.forma_pagamento}`}
-                      </p>
-                      {e.observacao && <p className="text-xs text-gray-400 truncate">{e.observacao}</p>}
-                    </div>
-                    <p className="text-sm font-semibold shrink-0" style={{ color: '#0F6E56' }}>
-                      R$ {e.valor.toFixed(2).replace('.', ',')}
-                    </p>
+                  <div className="shrink-0 text-right">
+                    <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold"
+                      style={{ background: '#D1FAE5', color: '#065F46' }}>Quitado ✓</span>
+                    <p className="text-xs text-gray-300 mt-0.5">›</p>
                   </div>
-                ))}
-              </div>
-            ))}
+                </button>
+              )
+            })}
           </div>
         )}
       </div>
