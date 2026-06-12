@@ -262,7 +262,9 @@ export default function ConfiguracoesPage() {
       const { data: pars } = await supabase.from('paradas').select('*').eq('rota_id', rts.id).order('ordem')
       const { data: prs } = await supabase.from('precos').select('*').eq('rota_id', rts.id)
       if (pars) setParadas(pars)
-      if (prs) setPrecos(prs)
+      // Gera tabela bidirecional (ida e volta) a partir dos preços já salvos no banco
+      if (pars && prs) gerarPrecos(pars, prs)
+      else if (prs) setPrecos(prs)
     } else {
       const { data: { user: u } } = await supabase.auth.getUser()
       const { data: novaRota } = await supabase.from('rotas').insert({
@@ -366,12 +368,31 @@ export default function ConfiguracoesPage() {
     gerarPrecos(novas)
   }
 
-  function gerarPrecos(pars: any[]) {
+  // precosBase: quando chamado na carga inicial, passa os preços do banco direto
+  // para evitar race condition com o estado do React. Em mudanças de parada,
+  // omitir e usar o estado atual (que já é bidirecional).
+  function gerarPrecos(pars: any[], precosBase?: any[]) {
+    const base = precosBase ?? precos
     const novosPrecos: any[] = []
     for (let i = 0; i < pars.length; i++) {
       for (let j = i + 1; j < pars.length; j++) {
-        const existe = precos.find(p => p.parada_origem === pars[i].nome && p.parada_destino === pars[j].nome)
-        novosPrecos.push({ parada_origem: pars[i].nome, parada_destino: pars[j].nome, valor: existe?.valor || 0 })
+        const existeIda = base.find(p =>
+          p.parada_origem === pars[i].nome && p.parada_destino === pars[j].nome
+        )
+        novosPrecos.push({
+          parada_origem: pars[i].nome,
+          parada_destino: pars[j].nome,
+          valor: existeIda?.valor || 0,
+        })
+        // Direção inversa (volta): pré-popula com o valor da ida se não houver valor próprio
+        const existeVolta = base.find(p =>
+          p.parada_origem === pars[j].nome && p.parada_destino === pars[i].nome
+        )
+        novosPrecos.push({
+          parada_origem: pars[j].nome,
+          parada_destino: pars[i].nome,
+          valor: existeVolta?.valor ?? existeIda?.valor ?? 0,
+        })
       }
     }
     setPrecos(novosPrecos)

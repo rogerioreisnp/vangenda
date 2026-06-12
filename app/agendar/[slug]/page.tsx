@@ -154,7 +154,10 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
 
   useEffect(() => {
     if (form.origem && form.destino) {
+      // Busca o preço exato (A→B). Se não existir, tenta o inverso (B→A) como fallback
+      // para motoristas que configuraram a rota antes da atualização bidirecional.
       const preco = precos.find(p => p.parada_origem === form.origem && p.parada_destino === form.destino)
+        ?? precos.find(p => p.parada_origem === form.destino && p.parada_destino === form.origem)
       setValorUnitario(preco ? preco.valor : null)
     }
   }, [form.origem, form.destino, precos])
