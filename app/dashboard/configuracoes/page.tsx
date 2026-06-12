@@ -236,12 +236,14 @@ export default function ConfiguracoesPage() {
   const [novaParada, setNovaParada] = useState('')
   const [saving, setSaving] = useState(false)
   const [savedMsg, setSavedMsg] = useState(false)
+  const [erroSalvar, setErroSalvar] = useState('')
   const [loading, setLoading] = useState(true)
   const [motorista, setMotorista] = useState<any>(null)
   const [linkCopiado, setLinkCopiado] = useState(false)
   const [mostrarGuia, setMostrarGuia] = useState(false)
   const dragIdx = useRef<number | null>(null)
   const dragOverIdx = useRef<number | null>(null)
+  const diasTrabalhoExiste = useRef(false)
   const [draggingIdx, setDraggingIdx] = useState<number | null>(null)
 
   useEffect(() => { carregarDados() }, [])
@@ -250,7 +252,10 @@ export default function ConfiguracoesPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
     const { data: mot } = await supabase.from('motoristas').select('*').eq('id', user.id).single()
-    if (mot) setMotorista(mot)
+    if (mot) {
+      setMotorista(mot)
+      diasTrabalhoExiste.current = 'dias_trabalho' in mot
+    }
     const { data: rts } = await supabase.from('rotas').select('*').eq('motorista_id', user.id).limit(1).single()
     if (rts) {
       setRota(rts)
@@ -269,15 +274,35 @@ export default function ConfiguracoesPage() {
   }
 
   async function salvarRota() {
-    if (!rota) return
+    if (!rota) {
+      setErroSalvar('Nenhuma rota encontrada. Recarregue a página e tente novamente.')
+      return
+    }
     setSaving(true)
-    await supabase.from('rotas').update({
+    setErroSalvar('')
+
+    const { error: erroRota } = await supabase.from('rotas').update({
       nome: rota.nome, horario_ida: rota.horario_ida, horario_volta: rota.horario_volta, capacidade: rota.capacidade || 1,
     }).eq('id', rota.id)
+
+    if (erroRota) {
+      setErroSalvar('Erro ao salvar horários: ' + erroRota.message)
+      setSaving(false)
+      return
+    }
+
     await supabase.from('paradas').delete().eq('rota_id', rota.id)
     if (paradas.length > 0) {
-      await supabase.from('paradas').insert(paradas.map((p, i) => ({ rota_id: rota.id, nome: p.nome, ordem: i })))
+      const { error: erroParadas } = await supabase.from('paradas').insert(
+        paradas.map((p, i) => ({ rota_id: rota.id, nome: p.nome, ordem: i }))
+      )
+      if (erroParadas) {
+        setErroSalvar('Erro ao salvar as paradas: ' + erroParadas.message)
+        setSaving(false)
+        return
+      }
     }
+
     await supabase.from('precos').delete().eq('rota_id', rota.id)
     const precosValidos = precos.filter(p => p.valor > 0)
     if (precosValidos.length > 0) {
@@ -285,12 +310,19 @@ export default function ConfiguracoesPage() {
         rota_id: rota.id, parada_origem: p.parada_origem, parada_destino: p.parada_destino, valor: parseFloat(p.valor),
       })))
     }
+
     if (motorista) {
-      await supabase.from('motoristas').update({
-        pix_tipo: motorista.pix_tipo, pix_chave: motorista.pix_chave, pagamento_obrigatorio: motorista.pagamento_obrigatorio,
-        dias_trabalho: motorista.dias_trabalho ?? [1, 2, 3, 4, 5],
-      }).eq('id', motorista.id)
+      const motUpdate: any = {
+        pix_tipo: motorista.pix_tipo,
+        pix_chave: motorista.pix_chave,
+        pagamento_obrigatorio: motorista.pagamento_obrigatorio,
+      }
+      if (diasTrabalhoExiste.current) {
+        motUpdate.dias_trabalho = motorista.dias_trabalho ?? [1, 2, 3, 4, 5]
+      }
+      await supabase.from('motoristas').update(motUpdate).eq('id', motorista.id)
     }
+
     setSaving(false)
     setSavedMsg(true)
     setTimeout(() => setSavedMsg(false), 2000)
@@ -626,6 +658,13 @@ export default function ConfiguracoesPage() {
             </div>
           )}
         </Secao>
+
+        {erroSalvar && (
+          <div className="rounded-xl px-4 py-3 text-sm border"
+            style={{ background: '#FEF2F2', borderColor: '#FECACA', color: '#B91C1C' }}>
+            ⚠️ {erroSalvar}
+          </div>
+        )}
 
         <button onClick={salvarRota} disabled={saving}
           className="w-full py-3.5 rounded-xl text-white text-sm font-semibold transition-opacity disabled:opacity-40"
