@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
       contents: {
         pt: `${nome_passageiro} agendou ${origem} → ${destino} — ${turnoTexto} ${dataFormatada}`
       },
-      url: 'https://vangenda.vercel.app/dashboard/agenda',
+      url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://vangenda.vercel.app'}/dashboard/agenda`,
     }),
   })
 

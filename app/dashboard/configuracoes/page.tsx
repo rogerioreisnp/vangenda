@@ -215,7 +215,7 @@ function GuiaPage({ onFechar }: { onFechar: () => void }) {
          <p className="text-sm leading-relaxed mb-3" style={{ color: '#633806' }}>
             Se tiver dúvidas ou problemas, fale direto com o suporte:
           </p>
-          <a href="https://wa.me/5595984143839?text=Olá!%20Preciso%20de%20ajuda%20com%20o%20VanGenda." 
+          <a href="https://wa.me/5595984143839?text=Olá!%20Preciso%20de%20ajuda%20com%20o%20RotaGenda."
             target="_blank" rel="noopener noreferrer"
             className="flex items-center justify-center gap-2 w-full py-3 rounded-xl text-sm font-bold"
             style={{ background: '#25D366', color: '#fff' }}>
