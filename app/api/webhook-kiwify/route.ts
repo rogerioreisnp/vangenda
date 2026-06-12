@@ -64,14 +64,15 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
 
-    // Verificação de autenticidade: Kiwify envia o token configurado no painel
-    // Configure KIWIFY_WEBHOOK_TOKEN no .env.local com o valor do campo
-    // "Token de segurança" em: Kiwify → Configurações → Webhooks
+    // O Kiwify envia o token de segurança como query parameter na URL do webhook
+    // Configure a URL no painel Kiwify como:
+    //   https://seu-app.vercel.app/api/webhook-kiwify?token=SEU_TOKEN
+    // e coloque o mesmo valor em KIWIFY_WEBHOOK_TOKEN no Vercel
     const webhookToken = process.env.KIWIFY_WEBHOOK_TOKEN
     if (webhookToken) {
-      const tokenRecebido = body?.token || body?.webhook_token
+      const tokenRecebido = req.nextUrl.searchParams.get('token') ?? body?.token ?? body?.webhook_token
       if (tokenRecebido !== webhookToken) {
-        console.warn('[kiwify] Requisição bloqueada: token inválido')
+        console.warn('[kiwify] Requisição bloqueada: token inválido. Recebido:', tokenRecebido)
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
     }
