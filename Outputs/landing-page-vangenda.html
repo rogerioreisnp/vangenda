@@ -1,0 +1,1780 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Aplicativo simples para motoristas de van organizarem passageiros, viagens, vagas e financeiro pelo celular.">
+<title>Vangenda — Organize sua Van pelo Celular</title>
+
+<script>
+  window.pixelId = "6a26ae65a90c58743c8e001e";
+  var a = document.createElement("script");
+  a.setAttribute("async", "");
+  a.setAttribute("defer", "");
+  a.setAttribute("src", "https://cdn.utmify.com.br/scripts/pixel/pixel.js");
+  document.head.appendChild(a);
+</script>
+<script src="https://cdn.utmify.com.br/scripts/utms/latest.js" data-utmify-prevent-xcod-sck data-utmify-prevent-subids async defer></script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+/* ============================================
+   TOKENS
+   ============================================ */
+:root {
+  --ink:        #0F172A;
+  --ink-80:     #1E293B;
+  --ink-60:     #334155;
+  --mid:        #64748B;
+  --line:       #E2E8F0;
+  --surface:    #F8FAFC;
+  --white:      #FFFFFF;
+
+  --blue:       #0a3d62;
+  --blue-vivid: #2563EB;
+  --blue-light: #DBEAFE;
+
+  --amber:      #F59E0B;
+  --amber-deep: #D97706;
+  --amber-glow: rgba(245,158,11,0.35);
+
+  --green:      #059669;
+  --red:        #DC2626;
+
+  --radius-sm:  6px;
+  --radius:     14px;
+  --radius-lg:  22px;
+  --max:        1100px;
+
+  --font-display: 'Plus Jakarta Sans', sans-serif;
+  --font-body:    'Inter', sans-serif;
+}
+
+/* ============================================
+   RESET
+   ============================================ */
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+html { scroll-behavior:smooth; -webkit-text-size-adjust:100%; }
+body {
+  font-family: var(--font-body);
+  color: var(--ink-60);
+  line-height: 1.65;
+  background: var(--white);
+  overflow-x: hidden;
+}
+img { max-width:100%; height:auto; display:block; }
+a { text-decoration:none; }
+
+.container {
+  max-width: var(--max);
+  margin: 0 auto;
+  padding: 0 24px;
+  width: 100%;
+}
+
+/* ============================================
+   TOP BAR
+   ============================================ */
+.top-bar {
+  background: #DC2626;
+  color: #fff;
+  text-align: center;
+  padding: 11px 16px;
+  font-family: var(--font-display);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  line-height: 1.5;
+}
+.top-bar strong { font-weight: 900; }
+
+/* ============================================
+   HERO
+   ============================================ */
+.hero {
+  background: var(--ink);
+  color: white;
+  padding: 72px 0 60px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Estrada animada — assinatura visual */
+.hero-road {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.hero-road svg {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+}
+
+.hero-content { position: relative; z-index: 2; }
+
+.hero-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(245,158,11,0.15);
+  border: 1px solid rgba(245,158,11,0.35);
+  color: var(--amber);
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  padding: 6px 16px;
+  border-radius: 50px;
+  margin-bottom: 24px;
+}
+
+.hero h1 {
+  font-family: var(--font-display);
+  font-size: clamp(1.75rem, 5.5vw, 3.2rem);
+  font-weight: 900;
+  line-height: 1.15;
+  letter-spacing: -0.5px;
+  margin-bottom: 22px;
+  padding: 0 12px;
+  text-shadow: 0 2px 20px rgba(0,0,0,0.3);
+}
+.hero h1 em {
+  font-style: normal;
+  color: var(--amber);
+}
+
+.hero .sub {
+  font-size: clamp(1rem, 2.8vw, 1.18rem);
+  opacity: 0.85;
+  max-width: 660px;
+  margin: 0 auto 28px;
+  line-height: 1.65;
+  padding: 0 16px;
+}
+
+.hero-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  padding: 12px 22px;
+  border-radius: var(--radius-sm);
+  font-size: 0.9rem;
+  margin: 0 16px 32px;
+  border-left: 3px solid var(--amber);
+}
+
+.hero img.mockup {
+  max-width: 400px;
+  width: 86%;
+  margin: 0 auto 36px;
+  border-radius: 20px;
+  box-shadow: 0 30px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.06);
+}
+
+/* ============================================
+   CTA BUTTON
+   ============================================ */
+.cta-btn {
+  display: inline-block;
+  background: linear-gradient(135deg, #FBBF24 0%, #F59E0B 50%, #D97706 100%);
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: clamp(0.95rem, 2.8vw, 1.1rem);
+  padding: 18px 40px;
+  border-radius: 50px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  box-shadow: 0 8px 28px var(--amber-glow);
+  transition: transform 0.2s, box-shadow 0.2s;
+  border: none;
+  cursor: pointer;
+}
+.cta-btn:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 16px 40px rgba(245,158,11,0.5);
+}
+.cta-sub {
+  display: block;
+  margin-top: 14px;
+  font-size: 0.84rem;
+  opacity: 0.75;
+}
+
+/* ============================================
+   SECTION BASE
+   ============================================ */
+section { padding: 80px 0; }
+section.alt { background: var(--surface); }
+
+.section-label {
+  display: inline-block;
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 1.8px;
+  text-transform: uppercase;
+  color: var(--blue-vivid);
+  background: var(--blue-light);
+  padding: 5px 14px;
+  border-radius: 50px;
+  margin-bottom: 16px;
+}
+
+h2 {
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 4vw, 2.2rem);
+  color: var(--ink);
+  font-weight: 900;
+  line-height: 1.2;
+  margin-bottom: 16px;
+  letter-spacing: -0.3px;
+}
+h2 em {
+  font-style: normal;
+  color: var(--blue-vivid);
+}
+h2 span { color: var(--amber-deep); }
+
+h3 {
+  font-family: var(--font-display);
+  color: var(--ink);
+  font-size: clamp(0.95rem, 2.5vw, 1.1rem);
+  font-weight: 700;
+  margin-bottom: 8px;
+  line-height: 1.3;
+}
+p { font-size: clamp(0.95rem, 2.2vw, 1.02rem); margin-bottom: 14px; }
+
+/* wave divider */
+.wave-top {
+  display: block;
+  width: 100%;
+  margin-bottom: -2px;
+  line-height: 0;
+}
+.wave-bottom {
+  display: block;
+  width: 100%;
+  margin-top: -2px;
+  line-height: 0;
+}
+
+/* ============================================
+   DOR SECTION
+   ============================================ */
+.dor-box {
+  background: white;
+  border-radius: var(--radius-lg);
+  padding: 32px;
+  box-shadow: 0 4px 30px rgba(0,0,0,0.06);
+  border: 1px solid var(--line);
+  max-width: 700px;
+  margin: 0 auto;
+}
+.dor-box .intro { color: var(--mid); margin-bottom: 20px; }
+.dor-lista { list-style: none; }
+.dor-lista li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.97rem;
+  color: var(--ink-60);
+}
+.dor-lista li:last-child { border-bottom: none; }
+.dor-lista li::before {
+  content: '✕';
+  color: var(--red);
+  font-weight: 900;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+  margin-top: 2px;
+  background: #FEE2E2;
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.dor-alert {
+  background: #FFF7ED;
+  border-left: 4px solid var(--amber);
+  border-radius: var(--radius-sm);
+  padding: 16px 20px;
+  margin-top: 20px;
+  font-weight: 600;
+  color: var(--ink);
+  font-size: 0.97rem;
+}
+
+/* ============================================
+   SOLUÇÃO
+   ============================================ */
+.solucao-inner {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 48px;
+  align-items: center;
+  max-width: 960px;
+  margin: 0 auto;
+}
+.solucao-img img {
+  border-radius: var(--radius-lg);
+  box-shadow: 0 20px 50px rgba(0,0,0,0.12);
+}
+.solucao-txt .section-label { text-align: left; }
+
+/* ============================================
+   BENEFÍCIOS
+   ============================================ */
+.beneficios-cat {
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--blue-vivid);
+  margin: 48px 0 16px;
+  padding-left: 12px;
+  border-left: 3px solid var(--blue-vivid);
+}
+.beneficios-cat:first-of-type { margin-top: 32px; }
+
+.beneficios-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(255px, 1fr));
+  gap: 16px;
+}
+.ben-card {
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 24px 22px;
+  transition: box-shadow 0.2s, transform 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+.ben-card::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 4px;
+  background: var(--blue-vivid);
+  border-radius: 4px 0 0 4px;
+}
+.ben-card:hover {
+  box-shadow: 0 8px 28px rgba(37,99,235,0.10);
+  transform: translateY(-3px);
+}
+.ben-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px; height: 34px;
+  background: var(--blue-light);
+  color: var(--blue-vivid);
+  border-radius: 8px;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 0.82rem;
+  margin-bottom: 14px;
+}
+.ben-card h3 { font-size: 1rem; color: var(--ink); }
+.ben-card p { font-size: 0.9rem; color: var(--mid); margin-bottom: 0; }
+
+.ben-summary {
+  background: var(--ink);
+  border-radius: var(--radius-lg);
+  padding: 24px 28px;
+  margin-top: 40px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+}
+.ben-summary span {
+  color: rgba(255,255,255,0.85);
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ben-summary span::before { content: '✓'; color: var(--amber); font-weight: 900; }
+
+/* ============================================
+   ANTES/DEPOIS
+   ============================================ */
+.comparacao {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-top: 36px;
+  max-width: 860px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.col-antes, .col-depois {
+  border-radius: var(--radius-lg);
+  padding: 28px 24px;
+}
+.col-antes {
+  background: #FFF1F2;
+  border: 1.5px solid #FECDD3;
+}
+.col-depois {
+  background: #F0FDF4;
+  border: 1.5px solid #BBF7D0;
+}
+.col-head {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 0.92rem;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid;
+}
+.col-antes .col-head { color: var(--red); border-color: #FECDD3; }
+.col-depois .col-head { color: var(--green); border-color: #BBF7D0; }
+.col-list { list-style: none; }
+.col-list li {
+  padding: 9px 0 9px 28px;
+  position: relative;
+  border-bottom: 1px solid rgba(0,0,0,0.04);
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--ink-60);
+}
+.col-list li:last-child { border-bottom: none; }
+.col-antes .col-list li::before { content:'✕'; position:absolute; left:0; color:var(--red); font-weight:900; font-size:0.82rem; top:11px; }
+.col-depois .col-list li::before { content:'✓'; position:absolute; left:0; color:var(--green); font-weight:900; font-size:0.82rem; top:11px; }
+
+/* ============================================
+   OBJEÇÕES
+   ============================================ */
+.objecao {
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 22px 26px;
+  margin-bottom: 12px;
+}
+.objecao h3 {
+  color: var(--blue);
+  font-size: 0.97rem;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.objecao h3::before {
+  content: '?';
+  background: var(--blue-light);
+  color: var(--blue-vivid);
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  font-weight: 900;
+  flex-shrink: 0;
+}
+.objecao p { font-size: 0.93rem; color: var(--mid); margin-bottom: 0; }
+
+/* ============================================
+   COMO FUNCIONA
+   ============================================ */
+.passos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0;
+  margin-top: 40px;
+  position: relative;
+  max-width: 860px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.passo {
+  background: var(--white);
+  padding: 32px 20px 28px;
+  text-align: center;
+  position: relative;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  margin: 8px;
+}
+.passo-num {
+  width: 52px; height: 52px;
+  background: linear-gradient(135deg, var(--amber) 0%, var(--amber-deep) 100%);
+  color: var(--ink);
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  font-weight: 900;
+  margin: 0 auto 16px;
+  box-shadow: 0 4px 14px var(--amber-glow);
+}
+
+/* ============================================
+   DUAS OPÇÕES
+   ============================================ */
+.duas-opcoes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  max-width: 780px;
+  margin: 36px auto 28px;
+}
+.opcao {
+  border-radius: var(--radius-lg);
+  padding: 28px 24px;
+  border: 1.5px solid;
+}
+.opcao-1 { background: #FFF1F2; border-color: #FECDD3; }
+.opcao-2 { background: #F0FDF4; border-color: #BBF7D0; }
+.opcao-badge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.opcao-dot {
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  font-weight: 900;
+  color: white;
+  flex-shrink: 0;
+}
+.opcao-1 .opcao-dot { background: var(--red); }
+.opcao-2 .opcao-dot { background: var(--green); }
+.opcao-label {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1rem;
+}
+.opcao-1 .opcao-label { color: #991B1B; }
+.opcao-2 .opcao-label { color: #065F46; }
+.opcao p { font-size: 0.9rem; color: var(--mid); margin: 0; line-height: 1.65; }
+
+/* ============================================
+   OFERTA
+   ============================================ */
+.oferta {
+  background: var(--ink);
+  color: white;
+  padding: 80px 0;
+}
+.oferta h2 { color: white; }
+.oferta h2 em { color: var(--amber); font-style: normal; }
+
+.free-trial-box {
+  background: linear-gradient(135deg, #0F6E56, #1D9E75);
+  border-radius: var(--radius-lg);
+  padding: 32px 28px;
+  text-align: center;
+  margin: 36px auto;
+  max-width: 680px;
+  border: 1px solid rgba(255,255,255,0.08);
+}
+.free-trial-box .eyebrow {
+  color: #9FE1CB;
+  font-size: 0.75rem;
+  font-family: var(--font-display);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  margin-bottom: 8px;
+  display: block;
+}
+.free-trial-box h3 {
+  color: white;
+  font-family: var(--font-display);
+  font-size: clamp(1.3rem, 4vw, 1.8rem);
+  font-weight: 800;
+  margin-bottom: 10px;
+}
+.free-trial-box p { color: #E1F5EE; font-size: 0.95rem; margin-bottom: 22px; }
+.free-trial-btn {
+  display: inline-block;
+  background: #FAC775;
+  color: #633806;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 1rem;
+  padding: 15px 36px;
+  border-radius: 50px;
+  text-decoration: none;
+  transition: opacity 0.2s, transform 0.2s;
+}
+.free-trial-btn:hover { opacity: 0.9; transform: translateY(-2px); }
+.free-trial-box .note { color: #9FE1CB; font-size: 0.78rem; margin-top: 12px; margin-bottom: 0; }
+
+/* CONTADOR */
+.contador-wrap {
+  text-align: center;
+  margin-bottom: 4px;
+}
+.contador-oferta {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  padding: 12px 22px;
+  border-radius: 10px;
+  color: white;
+  font-size: 0.82rem;
+  font-weight: 600;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.contador-boxes { display: flex; gap: 6px; align-items: center; }
+.cbox {
+  background: rgba(255,255,255,0.08);
+  border-radius: 6px;
+  padding: 6px 10px;
+  text-align: center;
+  min-width: 48px;
+}
+.cbox .num { font-family: var(--font-display); font-size: 1.35rem; font-weight: 900; color: var(--amber); line-height: 1; }
+.cbox .lab { font-size: 9px; opacity: 0.65; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+.csep { font-size: 1.2rem; font-weight: 900; color: var(--amber); opacity: 0.7; }
+
+/* PLANOS */
+.planos-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+  gap: 20px;
+  max-width: 980px;
+  margin: 36px auto 0;
+  align-items: start;
+}
+.plano-card {
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  border: 1.5px solid rgba(255,255,255,0.12);
+  padding: 28px 24px;
+}
+.plano-card.plano-destaque {
+  border: 2.5px solid var(--amber);
+  box-shadow: 0 0 0 4px rgba(245,158,11,0.12), 0 16px 40px rgba(0,0,0,0.25);
+  position: relative;
+}
+.badge-popular {
+  background: var(--amber);
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  padding: 5px 14px;
+  border-radius: 50px;
+  display: inline-block;
+  margin-bottom: 12px;
+}
+.badge-economize {
+  background: #DCFCE7;
+  color: #14532D;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 12px;
+  display: inline-block;
+}
+.plano-nome {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 900;
+  color: var(--ink);
+  margin-bottom: 4px;
+}
+.plano-freq { font-size: 0.78rem; color: var(--mid); margin-bottom: 6px; line-height: 1.4; }
+.plano-preco {
+  font-family: var(--font-display);
+  font-size: 2.4rem;
+  font-weight: 900;
+  color: var(--ink);
+  line-height: 1;
+  margin-bottom: 2px;
+}
+.preco-cents { font-size: 1rem; font-weight: 600; }
+.plano-mes { font-size: 0.8rem; color: var(--mid); margin-bottom: 2px; }
+.plano-cobranca { font-size: 0.73rem; color: #94A3B8; margin-bottom: 6px; }
+.plano-divider { height: 1px; background: var(--line); margin: 14px 0; }
+.feat-list-oferta {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin-bottom: 22px;
+}
+.feat-list-oferta li {
+  font-size: 0.84rem;
+  color: var(--ink-60);
+  padding-left: 22px;
+  position: relative;
+  line-height: 1.4;
+}
+.feat-list-oferta li::before {
+  content: '✓';
+  position: absolute;
+  left: 0;
+  color: var(--green);
+  font-weight: 900;
+  font-size: 0.78rem;
+  top: 2px;
+}
+.plano-btn {
+  display: block;
+  width: 100%;
+  padding: 14px;
+  border-radius: 50px;
+  font-family: var(--font-display);
+  font-size: 0.92rem;
+  font-weight: 900;
+  text-align: center;
+  letter-spacing: 0.3px;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.2s;
+}
+.plano-btn:hover { opacity: 0.88; transform: translateY(-2px); }
+.plano-btn-primario { background: linear-gradient(135deg, #FBBF24, #D97706); color: var(--ink); }
+.plano-btn-secundario { background: var(--blue); color: white; }
+.plano-btn-outline { background: transparent; color: var(--ink); border: 2px solid var(--line); }
+
+/* GARANTIA OFERTA */
+.garantia-oferta {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  background: rgba(255,255,255,0.05);
+  border-radius: var(--radius);
+  border: 1px dashed rgba(255,255,255,0.2);
+  padding: 20px 26px;
+  max-width: 560px;
+  margin: 32px auto 0;
+  text-align: left;
+}
+.garantia-selo-img { width: 180px; height: 180px; object-fit: contain; flex-shrink: 0; }
+.garantia-txt h4 { font-family: var(--font-display); font-size: 1rem; font-weight: 800; color: white; margin-bottom: 4px; }
+.garantia-txt p { font-size: 0.95rem; color: rgba(255,255,255,0.6); line-height: 1.55; margin-bottom: 0; }
+
+/* ============================================
+   COMO ACESSAR
+   ============================================ */
+.acesso-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  max-width: 860px;
+  margin: 40px auto 0;
+}
+.acesso-card {
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 28px 20px;
+  text-align: center;
+}
+.acesso-icon {
+  width: 56px; height: 56px;
+  background: var(--blue-light);
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  margin: 0 auto 16px;
+}
+.acesso-card h3 {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 8px;
+  color: var(--ink);
+}
+.acesso-card p { font-size: 0.86rem; color: var(--mid); margin: 0; line-height: 1.6; }
+
+/* ============================================
+   DEPOIMENTOS
+   ============================================ */
+.depoimentos-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 20px;
+  margin-top: 36px;
+}
+.dep-card {
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 28px 24px 24px;
+  position: relative;
+}
+.dep-quote {
+  font-size: 3.5rem;
+  color: var(--amber);
+  font-family: Georgia, serif;
+  line-height: 1;
+  position: absolute;
+  top: 10px; left: 18px;
+  opacity: 0.7;
+}
+.dep-card p { font-style: italic; padding-top: 24px; font-size: 0.95rem; color: var(--ink-60); }
+.dep-autor {
+  margin-top: 14px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--blue);
+  font-style: normal;
+  font-size: 0.88rem;
+}
+
+/* ============================================
+   GARANTIA SEÇÃO
+   ============================================ */
+.garantia-box {
+  background: white;
+  max-width: 640px;
+  margin: 40px auto 0;
+  padding: 40px 32px;
+  border-radius: var(--radius-lg);
+  text-align: center;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.07);
+  border: 2px solid #BBF7D0;
+}
+.garantia-badge {
+  width: 180px; height: 180px;
+  background: linear-gradient(135deg, var(--green), #10B981);
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 5rem;
+  margin: 0 auto 18px;
+  box-shadow: 0 8px 20px rgba(5,150,105,0.25);
+}
+
+/* ============================================
+   FAQ
+   ============================================ */
+.faq-item {
+  border: 1px solid var(--line);
+  background: white;
+  margin-bottom: 8px;
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.faq-question {
+  padding: 18px 22px;
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--ink);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: background 0.2s;
+  font-size: 0.95rem;
+  gap: 12px;
+}
+.faq-question:hover { background: var(--surface); }
+.faq-icon {
+  width: 28px; height: 28px;
+  background: var(--blue-light);
+  color: var(--blue-vivid);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  font-weight: 900;
+  flex-shrink: 0;
+  transition: transform 0.3s, background 0.2s;
+}
+.faq-item.ativo .faq-icon { transform: rotate(45deg); background: var(--blue-vivid); color: white; }
+.faq-answer {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.4s ease;
+  padding: 0 22px;
+  font-size: 0.94rem;
+  color: var(--mid);
+}
+.faq-item.ativo .faq-answer { max-height: 200px; padding: 0 22px 18px; }
+
+/* ============================================
+   URGÊNCIA
+   ============================================ */
+.urgencia {
+  background: linear-gradient(135deg, #7F1D1D 0%, #DC2626 100%);
+  color: white;
+  text-align: center;
+  padding: 80px 0;
+}
+.urgencia h2 { color: white; }
+.urgencia h2 em { color: var(--amber); font-style: normal; }
+
+/* ============================================
+   FECHAMENTO
+   ============================================ */
+.fechamento {
+  background: linear-gradient(135deg, var(--ink) 0%, #1E3A8A 100%);
+  color: white;
+  text-align: center;
+  padding: 80px 0;
+}
+.fechamento h2 { color: white; }
+.fechamento h2 em { color: var(--amber); font-style: normal; }
+
+/* ============================================
+   FOOTER
+   ============================================ */
+footer {
+  background: #020617;
+  color: #64748B;
+  padding: 48px 0 24px;
+  font-size: 0.86rem;
+}
+footer .brand {
+  font-family: var(--font-display);
+  font-weight: 900;
+  color: white;
+  font-size: 1.2rem;
+  margin-bottom: 12px;
+}
+footer a { color: var(--amber); }
+footer a:hover { text-decoration: underline; }
+.footer-bottom {
+  text-align: center;
+  border-top: 1px solid #1E293B;
+  padding-top: 20px;
+  margin-top: 32px;
+}
+
+/* ============================================
+   BÔNUS (mantido do original, redesenhado)
+   ============================================ */
+.bonus-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+  margin-top: 32px;
+}
+.bonus-card {
+  background: linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%);
+  padding: 26px 22px;
+  border-radius: var(--radius-lg);
+  border: 1.5px dashed var(--amber-deep);
+}
+.bonus-tag {
+  display: inline-block;
+  background: var(--amber-deep);
+  color: white;
+  font-family: var(--font-display);
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 50px;
+  font-size: 0.78rem;
+  margin-bottom: 10px;
+  letter-spacing: 0.5px;
+}
+
+/* ============================================
+   SCROLL REVEAL
+   ============================================ */
+.reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.55s ease, transform 0.55s ease;
+}
+.reveal.visible {
+  opacity: 1;
+  transform: none;
+}
+
+/* ============================================
+   RESPONSIVE
+   ============================================ */
+@media (max-width: 768px) {
+  section { padding: 60px 0; }
+  .solucao-inner { grid-template-columns: 1fr; gap: 32px; }
+  .comparacao { grid-template-columns: 1fr; }
+  .duas-opcoes { grid-template-columns: 1fr; }
+  .garantia-oferta { flex-direction: column; text-align: center; }
+  .garantia-oferta .garantia-txt { text-align: center; }
+  .cta-btn { padding: 17px 32px; width: 100%; text-align: center; display: block; }
+  h2 { font-size: 1.55rem; }
+  .hero { padding: 56px 0 48px; }
+}
+@media (max-width: 480px) {
+  .container { padding: 0 18px; }
+  .planos-grid { grid-template-columns: 1fr; }
+  .beneficios-grid { grid-template-columns: 1fr; }
+  .passos { grid-template-columns: 1fr 1fr; }
+  .depoimentos-grid { grid-template-columns: 1fr; }
+  .acesso-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="top-bar">
+  🚀 <strong>Lançamento Exclusivo 2026</strong> · Feito para motoristas de van que querem mais passageiros e menos caos
+</div>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-road">
+    <svg viewBox="0 0 1440 500" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+      <!-- grade perspectiva estrada -->
+      <defs>
+        <linearGradient id="roadFade" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="white" stop-opacity="0"/>
+          <stop offset="50%" stop-color="white" stop-opacity="0.04"/>
+          <stop offset="100%" stop-color="white" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+      <!-- linhas horizontais de estrada -->
+      <line x1="0" y1="120" x2="1440" y2="120" stroke="rgba(245,158,11,0.07)" stroke-width="1"/>
+      <line x1="0" y1="200" x2="1440" y2="200" stroke="rgba(245,158,11,0.05)" stroke-width="1"/>
+      <line x1="0" y1="280" x2="1440" y2="280" stroke="rgba(245,158,11,0.07)" stroke-width="1"/>
+      <line x1="0" y1="360" x2="1440" y2="360" stroke="rgba(245,158,11,0.05)" stroke-width="1"/>
+      <!-- tracejado central animado -->
+      <line x1="0" y1="250" x2="1440" y2="250" stroke="rgba(245,158,11,0.18)" stroke-width="2" stroke-dasharray="40 30">
+        <animate attributeName="stroke-dashoffset" from="0" to="-140" dur="3s" repeatCount="indefinite"/>
+      </line>
+      <!-- pontos brilhantes -->
+      <circle cx="200" cy="180" r="1.5" fill="rgba(245,158,11,0.25)"/>
+      <circle cx="600" cy="320" r="1" fill="rgba(37,99,235,0.2)"/>
+      <circle cx="1100" cy="150" r="2" fill="rgba(245,158,11,0.2)"/>
+      <circle cx="900" cy="400" r="1.5" fill="rgba(37,99,235,0.15)"/>
+    </svg>
+  </div>
+
+  <div class="hero-content container">
+    <div class="hero-eyebrow">🚐 Vangenda · App para Motoristas de Van</div>
+
+    <h1>
+      <em>Atenção, motorista de van!</em><br>
+      Esse app está mudando a forma de<br>agendar passageiros em todo o Brasil
+    </h1>
+
+    <p class="sub">
+      Chega de bagunça no WhatsApp — o <strong>Vangenda</strong> dá controle total da sua agenda,
+      <strong>mais passageiros e menos dor de cabeça</strong>
+    </p>
+
+    <div class="hero-stat">
+      🚐 Mais de <strong>500 motoristas</strong> já organizaram suas vans com o Vangenda
+    </div>
+
+    <img src="https://fluxoseguro.site/wp-content/uploads/2026/05/9ec3be21-0b1f-4846-b67b-a25a0356423a_11zon_11zon.webp" alt="App Vangenda" class="mockup">
+
+    <a href="#oferta" class="cta-btn">Quero Organizar Minha Van</a>
+    <span class="cta-sub">✅ <strong>Acesso imediato</strong> • 7 dias de garantia</span>
+  </div>
+</section>
+
+
+<!-- CONSEQUÊNCIA FINANCEIRA -->
+<section>
+  <div class="container" style="text-align:center;">
+    <div class="section-label">O Problema</div>
+    <h2>Poltrona vazia na estrada é <span>dinheiro indo embora</span></h2>
+    <p style="max-width:700px; margin:0 auto 28px; color:var(--mid);">Para quem trabalha com van, cada vaga conta. Porque o óleo não espera. A manutenção não espera. A parcela da van não espera.</p>
+    <p style="max-width:700px; margin:0 auto 32px; font-weight:700; font-size:clamp(1rem,3vw,1.1rem); color:var(--red);">E quando um passageiro falta ou você perde uma reserva por desorganização, quem paga a conta é você.</p>
+
+    <div class="dor-box reveal">
+      <h3 style="margin-bottom:8px;">O problema não é falta de esforço. Você já trabalha muito.</h3>
+      <p class="intro">O problema é tentar controlar um negócio inteiro usando:</p>
+      <ul class="dor-lista">
+        <li>Caderno</li>
+        <li>Memória</li>
+        <li>Conversa perdida no WhatsApp</li>
+        <li>Áudio antigo</li>
+        <li>Mensagem marcada como não lida</li>
+        <li>Papel dentro da van</li>
+        <li>Lista feita às pressas</li>
+      </ul>
+      <div class="dor-alert">
+        Isso até funciona por um tempo. Mas quando a demanda aumenta, começa a bagunça.
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- SOLUÇÃO -->
+<section class="alt">
+  <div class="container">
+    <div class="solucao-inner">
+      <div class="solucao-img reveal">
+        <img src="https://fluxoseguro.site/wp-content/uploads/2026/05/c74704a4-39ff-476b-aa6b-602e74990b2e_11zon_11zon.webp" alt="Tela do aplicativo mostrando agenda de viagens" style="border-radius:var(--radius-lg); box-shadow:0 20px 50px rgba(0,0,0,0.12);">
+      </div>
+      <div class="solucao-txt reveal">
+        <div class="section-label">A Solução</div>
+        <h2>Conheça o <em>Vangenda</em></h2>
+        <p>O aplicativo que ajuda o motorista de van a organizar passageiros, viagens, vagas e financeiro direto pelo celular.</p>
+        <p>Não foi feito para empresa grande, nem para escritório cheio de computador. Foi pensado para o motorista que está na estrada, atende passageiro pelo celular e precisa de uma ferramenta simples para organizar a rotina.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- PROMESSA -->
+<section>
+  <div class="container" style="text-align:center;">
+    <div class="section-label">A Promessa</div>
+    <h2>Nunca mais perca passageiro porque <span>esqueceu de anotar</span> ou pediu para chamar depois</h2>
+    <p style="max-width:720px; margin:16px auto;">Com o Vangenda, você agenda passageiros para qualquer dia, horário e rota. Se o cliente ligar pedindo vaga para daqui 5, 10 ou 15 dias, você cadastra na hora e a viagem já fica organizada no sistema.</p>
+    <p style="max-width:720px; margin:0 auto 16px;">Além disso, você compartilha seu link de agendamento com os passageiros de rotina. Eles acessam quando quiserem, escolhem a data e fazem a solicitação sem precisar esperar você responder.</p>
+    <p style="max-width:720px; margin:0 auto; font-weight:700; color:var(--ink);">Você ganha tempo, evita confusão no WhatsApp e passa muito mais profissionalismo para quem viaja com você.</p>
+
+    <div class="reveal" style="max-width:720px; margin:32px auto 0; background:#F0FDF4; border-radius:var(--radius); border:1px solid #BBF7D0; padding:24px 28px; text-align:left;">
+      <p style="font-family:var(--font-display); font-weight:800; font-size:0.85rem; color:#065F46; text-transform:uppercase; letter-spacing:1.2px; margin-bottom:14px;">💰 O que isso significa para o seu bolso</p>
+      <ul style="list-style:none; display:flex; flex-direction:column; gap:11px; margin:0;">
+        <li style="padding-left:24px; position:relative; font-size:0.93rem; color:var(--ink-60); line-height:1.55;"><span style="position:absolute; left:0; color:var(--green); font-weight:900; top:1px;">✓</span>Ocupa todas as vagas disponíveis automaticamente — passageiros reservam seus lugares a qualquer hora, mesmo enquanto você está na estrada, sem deixar assento vazio</li>
+        <li style="padding-left:24px; position:relative; font-size:0.93rem; color:var(--ink-60); line-height:1.55;"><span style="position:absolute; left:0; color:var(--green); font-weight:900; top:1px;">✓</span>Permite criar planos mensais e fidelizar passageiros fixos — receita recorrente e previsível todo mês, independente de dia cheio ou vazio</li>
+        <li style="padding-left:24px; position:relative; font-size:0.93rem; color:var(--ink-60); line-height:1.55;"><span style="position:absolute; left:0; color:var(--green); font-weight:900; top:1px;">✓</span>Elimina o calote e a passagem "fiada" — você sabe exatamente quem pagou, quem está devendo e quanto vai entrar no mês</li>
+        <li style="padding-left:24px; position:relative; font-size:0.93rem; color:var(--ink-60); line-height:1.55;"><span style="position:absolute; left:0; color:var(--green); font-weight:900; top:1px;">✓</span>Abre uma nova fonte de receita com entrega de encomendas — o módulo de agendamento transforma cada viagem num serviço de logística extra, aproveitando o mesmo trajeto que você já faria</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+
+<!-- BENEFÍCIOS -->
+<section class="alt">
+  <div class="container">
+    <div style="text-align:center;">
+      <div class="section-label">Funcionalidades</div>
+      <h2>Tudo que o <em>Vangenda</em> faz por você</h2>
+      <p style="max-width:560px; margin:0 auto 8px; color:var(--mid);">Uma ferramenta completa pensada para o motorista que está na estrada e precisa de controle total pelo celular</p>
+    </div>
+
+    <div class="beneficios-cat">📅 Agendamento</div>
+    <div class="beneficios-grid">
+      <div class="ben-card reveal">
+        <div class="ben-num">1</div>
+        <h3>Agendamento completo pelo motorista</h3>
+        <p>Recebeu ligação ou mensagem? Cadastre o passageiro na hora com endereço completo e ponto de referência. Tudo salvo e organizado no sistema.</p>
+      </div>
+      <div class="ben-card reveal">
+        <div class="ben-num">2</div>
+        <h3>Passageiro instala seu app no celular</h3>
+        <p>O Vangenda é um PWA — o passageiro instala direto na tela do celular como se fosse um aplicativo de loja. Com um toque ele acessa sua agenda, escolhe a data e reserva a vaga, a qualquer hora, sem precisar falar com você.</p>
+      </div>
+      <div class="ben-card reveal">
+        <div class="ben-num">3</div>
+        <h3>Calendário visual completo</h3>
+        <p>Clique em qualquer dia e veja todos os passageiros agendados, a rota, o horário e os dados de cada um. Sem procurar nada.</p>
+      </div>
+      <div class="ben-card reveal">
+        <div class="ben-num">4</div>
+        <h3>Rota direto no Google Maps</h3>
+        <p>Cada agendamento já vem com o endereço e ponto de referência do passageiro. Um toque no botão do Maps e a rota até a casa dele já está aberta e pronta pra você sair.</p>
+      </div>
+    </div>
+
+    <div class="beneficios-cat">🗺️ Rotas & Precificação</div>
+    <div class="beneficios-grid">
+      <div class="ben-card reveal">
+        <div class="ben-num">5</div>
+        <h3>Configure suas rotas com valores</h3>
+        <p>Cadastre todos os destinos que você atende. O sistema gera automaticamente as combinações de localidades e você define o valor de cada trecho.</p>
+      </div>
+      <div class="ben-card reveal">
+        <div class="ben-num">6</div>
+        <h3>Pix gerado na hora certa</h3>
+        <p>Quando o passageiro agenda e escolhe o destino, o sistema já identifica a localidade e gera o Pix no valor exato daquele trecho. Sem você precisar calcular ou cobrar manualmente.</p>
+      </div>
+    </div>
+
+    <div class="beneficios-cat">🔗 Link & Pagamento</div>
+    <div class="beneficios-grid">
+      <div class="ben-card reveal">
+        <div class="ben-num">7</div>
+        <h3>Seu link de agendamento</h3>
+        <p>Um link exclusivo seu. Manda no grupo do WhatsApp, no status ou direto pro passageiro. Ele agenda sozinho, 24h por dia.</p>
+      </div>
+      <div class="ben-card reveal">
+        <div class="ben-num">8</div>
+        <h3>Pagamento no ato</h3>
+        <p>O passageiro paga no momento do agendamento. Você não precisa ficar cobrando depois — a vaga já vem paga.</p>
+      </div>
+      <div class="ben-card reveal">
+        <div class="ben-num">9</div>
+        <h3>Notificação automática</h3>
+        <p>Assim que o pagamento é confirmado, o passageiro recebe notificação no celular. Você também é avisado em tempo real.</p>
+      </div>
+    </div>
+
+    <div class="beneficios-cat">💬 Comunicação</div>
+    <div class="beneficios-grid">
+      <div class="ben-card reveal">
+        <div class="ben-num">10</div>
+        <h3>Confirmação com 1 clique</h3>
+        <p>Quer confirmar se o passageiro vai? Um clique envia mensagem automática via WhatsApp ou inicia uma ligação. Sem digitar nada.</p>
+      </div>
+      <div class="ben-card reveal">
+        <div class="ben-num">11</div>
+        <h3>Mensagens automáticas</h3>
+        <p>O sistema envia mensagens prontas para lembrar o passageiro da viagem, confirmar presença e reduzir faltas na van.</p>
+      </div>
+    </div>
+
+    <div class="beneficios-cat">💰 Financeiro</div>
+    <div class="beneficios-grid">
+      <div class="ben-card reveal">
+        <div class="ben-num">12</div>
+        <h3>Faturamento em tempo real</h3>
+        <p>Cada pagamento recebido entra automaticamente no financeiro. Acompanhe quanto entrou hoje, essa semana ou esse mês.</p>
+      </div>
+      <div class="ben-card reveal">
+        <div class="ben-num">13</div>
+        <h3>Lucro real — sem achismo</h3>
+        <p>Veja o lucro dos últimos 7 ou 30 dias com precisão. Receitas menos despesas igual ao que sobrou de verdade no seu bolso.</p>
+      </div>
+      <div class="ben-card reveal">
+        <div class="ben-num">14</div>
+        <h3>Receitas e despesas</h3>
+        <p>Cadastre combustível, manutenção, pedágio e qualquer gasto. Saiba exatamente onde está gastando mais.</p>
+      </div>
+      <div class="ben-card reveal">
+        <div class="ben-num">15</div>
+        <h3>Controle de fiados</h3>
+        <p>Tem passageiro que paga depois? Registre o fiado na hora e acompanhe tudo organizado em uma subaba exclusiva. Nada esquecido, nada perdido.</p>
+      </div>
+      <div class="ben-card reveal">
+        <div class="ben-num">16</div>
+        <h3>Relatório por rota</h3>
+        <p>Descubra quais rotas dão mais lucro e quais estão no prejuízo. Decida melhor onde investir seu tempo e combustível.</p>
+      </div>
+    </div>
+
+    <div class="reveal" style="margin-top:40px; background:var(--white); border:1px solid var(--line); border-radius:var(--radius-lg); padding:28px 32px;">
+      <p style="font-family:var(--font-display); font-weight:800; font-size:0.85rem; color:var(--blue-vivid); text-transform:uppercase; letter-spacing:1.2px; margin-bottom:18px;">⏱️ O que você ganha de tempo todo dia</p>
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px,1fr)); gap:12px;">
+        <div style="padding-left:24px; position:relative; font-size:0.92rem; color:var(--ink-60); line-height:1.55;"><span style="position:absolute; left:0; color:var(--amber-deep); font-weight:900; top:1px;">→</span><strong style="color:var(--ink);">Começa o dia com a agenda pronta.</strong> Ao acordar, você abre o app e já vê tudo organizado — quem vem, que horário, que endereço, sem ligar para ninguém</div>
+        <div style="padding-left:24px; position:relative; font-size:0.92rem; color:var(--ink-60); line-height:1.55;"><span style="position:absolute; left:0; color:var(--amber-deep); font-weight:900; top:1px;">→</span><strong style="color:var(--ink);">Fim das mensagens de confirmação.</strong> Passageiros agendam pelo app sozinhos, 24h por dia, sem precisar te chamar, perguntar horário ou esperar resposta</div>
+        <div style="padding-left:24px; position:relative; font-size:0.92rem; color:var(--ink-60); line-height:1.55;"><span style="position:absolute; left:0; color:var(--amber-deep); font-weight:900; top:1px;">→</span><strong style="color:var(--ink);">Financeiro em segundos.</strong> Registrar um pagamento ou cobrança pendente leva um toque — no lugar de atualizar planilha, caderno ou tentar lembrar</div>
+        <div style="padding-left:24px; position:relative; font-size:0.92rem; color:var(--ink-60); line-height:1.55;"><span style="position:absolute; left:0; color:var(--amber-deep); font-weight:900; top:1px;">→</span><strong style="color:var(--ink);">Sem confusão de agendamento.</strong> Quando tudo está no sistema, não existe "eu agendei e você não sabia" — as informações são claras para todo mundo</div>
+      </div>
+    </div>
+
+    <div class="ben-summary">
+      <span>Agenda completa</span>
+      <span>App instalável pelo passageiro</span>
+      <span>Endereço + ponto de referência</span>
+      <span>Rota no Google Maps</span>
+      <span>Pix automático por localidade</span>
+      <span>Notificações em tempo real</span>
+      <span>WhatsApp com 1 clique</span>
+      <span>Financeiro completo</span>
+      <span>Controle de fiados</span>
+      <span>Lucro real</span>
+    </div>
+  </div>
+</section>
+
+
+<!-- ANTES E DEPOIS -->
+<section>
+  <div class="container" style="text-align:center;">
+    <div class="section-label">Antes & Depois</div>
+    <h2>De um lado, a <span>bagunça</span>. Do outro, o controle da sua van</h2>
+    <p style="max-width:760px; margin:16px auto;">Ser motorista de van não é só dirigir. É responder passageiro, marcar viagem, controlar vaga, receber pagamento, pagar despesa, lembrar de quem confirmou e ainda tentar descobrir se o mês deu lucro.</p>
+    <p style="max-width:760px; margin:0 auto 28px; font-weight:700; color:var(--blue);">O Vangenda foi feito para tirar esse peso da sua cabeça e colocar sua agenda, seus passageiros e seu financeiro em um só lugar.</p>
+    <div class="comparacao reveal">
+      <div class="col-antes">
+        <div class="col-head">❌ SEM o Vangenda</div>
+        <ul class="col-list">
+          <li>Você tenta lembrar de tudo de cabeça</li>
+          <li>Passageiro fica perdido no WhatsApp</li>
+          <li>Pedido de viagem futura acaba esquecido</li>
+          <li>Você diz "me chama mais perto" e perde o cliente</li>
+          <li>Difícil saber quem confirmou e quem está pendente</li>
+          <li>Não sabe quantas vagas ainda tem disponíveis</li>
+          <li>Dinheiro entra, despesas saem e tudo se mistura</li>
+          <li>No fim do mês: "trabalhei demais, mas quanto ganhei?"</li>
+        </ul>
+      </div>
+      <div class="col-depois">
+        <div class="col-head">✅ COM o Vangenda</div>
+        <ul class="col-list">
+          <li>Cadastra passageiros na hora, pelo celular</li>
+          <li>Viagens organizadas por data, horário e rota</li>
+          <li>Agendamentos futuros salvos no sistema</li>
+          <li>Você diz com segurança: "sua vaga está marcada"</li>
+          <li>Passageiro agenda pelo seu link a qualquer hora</li>
+          <li>Acompanha melhor a lotação da van</li>
+          <li>Registra entradas, pagamentos e pendências</li>
+          <li>Vê o saldo líquido na tela — o que sobrou de verdade</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- OBJEÇÕES -->
+<section class="alt">
+  <div class="container">
+    <div style="text-align:center;">
+      <div class="section-label">Dúvidas</div>
+      <h2>Tirando suas <em>dúvidas</em></h2>
+    </div>
+    <div style="max-width:760px; margin:32px auto 0;">
+      <div class="objecao reveal">
+        <h3>"Mas eu sempre usei caderno..."</h3>
+        <p>O caderno ajuda, mas pode sumir, molhar, rasgar e ser esquecido na van. Ele não lembra você de nada, não mostra seu financeiro e não organiza viagens futuras. O Vangenda vem para fazer o que o caderno não consegue.</p>
+      </div>
+      <div class="objecao reveal">
+        <h3>"Mas eu não sou bom com tecnologia..."</h3>
+        <p>Você não precisa ser. Se sabe mexer no WhatsApp, já consegue usar. Nada de tela complicada ou linguagem de escritório. É uma ferramenta feita para motorista.</p>
+      </div>
+      <div class="objecao reveal">
+        <h3>"Mas meus passageiros vão usar?"</h3>
+        <p>O sistema é para facilitar principalmente a SUA organização. O passageiro continua falando com você como já fala hoje. A diferença é que você registra tudo no aplicativo em vez de depender da memória.</p>
+      </div>
+      <div class="objecao reveal">
+        <h3>"Será que vale a pena pagar por isso?"</h3>
+        <p>Se você perder apenas uma vaga por esquecimento, já perdeu mais do que o valor do sistema. O Vangenda não é gasto. É organização para proteger seu dinheiro.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- COMO FUNCIONA -->
+<section>
+  <div class="container" style="text-align:center;">
+    <div class="section-label">Como Funciona</div>
+    <h2>Como funciona <em>na prática</em></h2>
+    <div class="passos">
+      <div class="passo reveal">
+        <div class="passo-num">1</div>
+        <h3>Cadastre sua viagem</h3>
+        <p>Escolha a data, horário e rota.</p>
+      </div>
+      <div class="passo reveal">
+        <div class="passo-num">2</div>
+        <h3>Adicione os passageiros</h3>
+        <p>Coloque nome, contato e informações importantes.</p>
+      </div>
+      <div class="passo reveal">
+        <div class="passo-num">3</div>
+        <h3>Acompanhe sua lotação</h3>
+        <p>Veja quem confirmou e quantas vagas restam.</p>
+      </div>
+      <div class="passo reveal">
+        <div class="passo-num">4</div>
+        <h3>Controle recebimentos</h3>
+        <p>Registre pagamentos, pendências e valores.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- DUAS OPÇÕES -->
+<section class="alt">
+  <div class="container" style="text-align:center;">
+    <div class="section-label">Sua Escolha</div>
+    <h2>Agora, você tem <em>duas opções</em></h2>
+    <div class="duas-opcoes">
+      <div class="opcao opcao-1 reveal">
+        <div class="opcao-badge">
+          <div class="opcao-dot">✕</div>
+          <span class="opcao-label">Opção 1</span>
+        </div>
+        <p>Continuar tentando lembrar de tudo de cabeça, perdendo passageiro por esquecimento, sem controle do financeiro e sem saber quanto ganhou no mês.</p>
+      </div>
+      <div class="opcao opcao-2 reveal">
+        <div class="opcao-badge">
+          <div class="opcao-dot">✓</div>
+          <span class="opcao-label">Opção 2</span>
+        </div>
+        <p>Organizar sua van com o Vangenda e ter agenda, passageiros e financeiro em um só lugar pelo celular — por menos do que o prejuízo de uma vaga vazia.</p>
+      </div>
+    </div>
+    <div class="reveal" style="max-width:680px; margin:28px auto; background:var(--white); border-radius:var(--radius); border:1px solid var(--line); padding:22px 28px; text-align:left;">
+      <p style="font-family:var(--font-display); font-weight:800; font-size:0.85rem; color:#7C3AED; text-transform:uppercase; letter-spacing:1.2px; margin-bottom:14px;">😮‍💨 O que muda no seu dia a dia com a Opção 2</p>
+      <ul style="list-style:none; display:flex; flex-direction:column; gap:10px; margin:0;">
+        <li style="padding-left:24px; position:relative; font-size:0.92rem; color:var(--ink-60); line-height:1.5;"><span style="position:absolute; left:0; color:#7C3AED; font-weight:900; top:1px;">✓</span>Tira o peso mental de lembrar de tudo na cabeça — com a agenda no sistema, seu cérebro não precisa funcionar como diário vivo durante a viagem toda</li>
+        <li style="padding-left:24px; position:relative; font-size:0.92rem; color:var(--ink-60); line-height:1.5;"><span style="position:absolute; left:0; color:#7C3AED; font-weight:900; top:1px;">✓</span>Conflitos de pagamento viram coisa do passado — com o histórico registrado, você mostra na tela se foi pago ou não, sem briga, sem desgaste</li>
+        <li style="padding-left:24px; position:relative; font-size:0.92rem; color:var(--ink-60); line-height:1.5;"><span style="position:absolute; left:0; color:#7C3AED; font-weight:900; top:1px;">✓</span>Você para de ser cobrado o tempo todo por mensagem — passageiros consultam horário e agenda pelo próprio app, sem te interromper na estrada ou no descanso</li>
+      </ul>
+    </div>
+
+    <p style="max-width:580px; margin:0 auto 12px; font-size:clamp(1rem,3vw,1.1rem);">Eu sei, e <strong>você também sabe...</strong> A opção 2 é a mais inteligente e é a que você mais precisa.</p>
+    <p style="font-weight:700; color:var(--blue-vivid); font-size:0.97rem; max-width:520px; margin:0 auto 28px;">A opção 2 é a mais inteligente — então clique abaixo e garanta seu acesso agora!</p>
+    <a href="#oferta" class="cta-btn">QUERO ORGANIZAR MINHA VAN AGORA</a>
+  </div>
+</section>
+
+
+<!-- OFERTA -->
+<section id="oferta" class="oferta">
+  <div class="container" style="text-align:center;">
+    <div class="section-label" style="background:rgba(245,158,11,0.15); color:var(--amber);">Planos & Preços</div>
+    <h2>Escolha seu plano e comece a <em>organizar sua van agora</em></h2>
+    <p style="max-width:560px; margin:10px auto 0; opacity:0.75; font-size:0.97rem;">Mesmas funcionalidades em todos os planos — o que muda é só o ciclo de pagamento</p>
+
+    <div class="contador-wrap" style="margin-top:24px;">
+      <div class="contador-oferta">
+        <strong>⏳ Oferta expira em:</strong>
+        <div class="contador-boxes">
+          <div class="cbox"><div class="num" id="ch">00</div><div class="lab">horas</div></div>
+          <span class="csep">:</span>
+          <div class="cbox"><div class="num" id="cm">00</div><div class="lab">min</div></div>
+          <span class="csep">:</span>
+          <div class="cbox"><div class="num" id="cs">00</div><div class="lab">seg</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="free-trial-box">
+      <span class="eyebrow">🎁 Sem compromisso</span>
+      <h3>Experimente grátis por 10 dias</h3>
+      <p>Crie sua conta agora, use o VanGenda completo por 10 dias e só pague se gostar. Sem cartão de crédito.</p>
+      <a href="https://vangenda.vercel.app" class="free-trial-btn">🚐 Começar grátis agora</a>
+      <p class="note">Após 10 dias, escolha um dos planos abaixo para continuar</p>
+    </div>
+
+    <div class="reveal" style="max-width:860px; margin:0 auto 36px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:var(--radius); padding:22px 28px; text-align:left;">
+      <p style="font-family:var(--font-display); font-weight:800; font-size:0.82rem; color:var(--amber); text-transform:uppercase; letter-spacing:1.2px; margin-bottom:14px;">🏦 Por que cada centavo aqui é economizado em dobro lá fora</p>
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px,1fr)); gap:10px 24px;">
+        <p style="font-size:0.88rem; color:rgba(255,255,255,0.75); margin:0; padding-left:20px; position:relative; line-height:1.55;"><span style="position:absolute; left:0; color:var(--amber); font-weight:900;">✓</span>Elimina a necessidade de secretária ou assistente — o app faz o trabalho de organizar, confirmar e registrar automaticamente</p>
+        <p style="font-size:0.88rem; color:rgba(255,255,255,0.75); margin:0; padding-left:20px; position:relative; line-height:1.55;"><span style="position:absolute; left:0; color:var(--amber); font-weight:900;">✓</span>Acaba com a papelada, caderninho e anotações perdidas — sem precisar de nenhum material de escritório para controlar clientes e pagamentos</p>
+        <p style="font-size:0.88rem; color:rgba(255,255,255,0.75); margin:0; padding-left:20px; position:relative; line-height:1.55;"><span style="position:absolute; left:0; color:var(--amber); font-weight:900;">✓</span>Evita prejuízo por esquecimento ou erro de comunicação — sem passageiro esquecido, sem corrida perdida por confusão de horário</p>
+        <p style="font-size:0.88rem; color:rgba(255,255,255,0.75); margin:0; padding-left:20px; position:relative; line-height:1.55;"><span style="position:absolute; left:0; color:var(--amber); font-weight:900;">✓</span>Controle financeiro mostra exatamente onde o dinheiro está sendo desperdiçado — antes que vire um rombo no caixa</p>
+      </div>
+    </div>
+
+    <div class="planos-grid">
+      <div class="plano-card">
+        <div class="plano-nome">Plano Mensal</div>
+        <div class="plano-freq">Flexibilidade total — cancele quando quiser</div>
+        <div class="plano-divider"></div>
+        <div class="plano-preco">R$ 49<span class="preco-cents">,90</span></div>
+        <div class="plano-mes">por mês</div>
+        <div class="plano-cobranca">cobrado mensalmente</div>
+        <div class="plano-divider"></div>
+        <ul class="feat-list-oferta">
+          <li>Agenda completa de viagens</li>
+          <li>Cadastro de passageiros</li>
+          <li>Calendário visual por dia</li>
+          <li>Agendamentos futuros</li>
+          <li>Link de agendamento próprio</li>
+          <li>Pagamento no ato pelo passageiro</li>
+          <li>Notificações automáticas</li>
+          <li>Confirmação via WhatsApp</li>
+          <li>Controle financeiro completo</li>
+          <li>Receitas e despesas</li>
+          <li>Lucro real dos últimos 7 e 30 dias</li>
+          <li>Relatório por rota</li>
+          <li>Suporte ao cliente</li>
+        </ul>
+        <a href="https://pay.kiwify.com.br/XcKd7Q0" class="plano-btn plano-btn-outline">Começar com o Mensal</a>
+      </div>
+
+      <div class="plano-card plano-destaque">
+        <div style="text-align:center; margin-bottom:10px;">
+          <div class="badge-popular">⭐ Mais escolhido</div>
+        </div>
+        <div class="badge-economize">Você economiza R$ 240,00 por ano</div>
+        <div class="plano-nome">Plano Anual</div>
+        <div class="plano-freq">Melhor custo-benefício — pague uma vez por ano</div>
+        <div class="plano-divider"></div>
+        <div class="plano-preco">R$ 37<span class="preco-cents">,11</span></div>
+        <div class="plano-mes">por mês</div>
+        <div class="plano-cobranca">cobrado R$ 358,80 por ano</div>
+        <div class="plano-divider"></div>
+        <ul class="feat-list-oferta">
+          <li>Agenda completa de viagens</li>
+          <li>Cadastro de passageiros</li>
+          <li>Calendário visual por dia</li>
+          <li>Agendamentos futuros</li>
+          <li>Link de agendamento próprio</li>
+          <li>Pagamento no ato pelo passageiro</li>
+          <li>Notificações automáticas</li>
+          <li>Confirmação via WhatsApp</li>
+          <li>Controle financeiro completo</li>
+          <li>Receitas e despesas</li>
+          <li>Lucro real dos últimos 7 e 30 dias</li>
+          <li>Relatório por rota</li>
+          <li>Suporte ao cliente</li>
+        </ul>
+        <a href="https://pay.kiwify.com.br/js8Xv89" class="plano-btn plano-btn-primario">Quero o Plano Anual</a>
+      </div>
+
+      <div class="plano-card">
+        <div class="badge-economize">Você economiza R$ 50,00 por semestre</div>
+        <div class="plano-nome">Plano Semestral</div>
+        <div class="plano-freq">Compromisso de 6 meses — preço intermediário</div>
+        <div class="plano-divider"></div>
+        <div class="plano-preco">R$ 46<span class="preco-cents">,88</span></div>
+        <div class="plano-mes">por mês</div>
+        <div class="plano-cobranca">cobrado R$ 249,90 por semestre</div>
+        <div class="plano-divider"></div>
+        <ul class="feat-list-oferta">
+          <li>Agenda completa de viagens</li>
+          <li>Cadastro de passageiros</li>
+          <li>Calendário visual por dia</li>
+          <li>Agendamentos futuros</li>
+          <li>Link de agendamento próprio</li>
+          <li>Pagamento no ato pelo passageiro</li>
+          <li>Notificações automáticas</li>
+          <li>Confirmação via WhatsApp</li>
+          <li>Controle financeiro completo</li>
+          <li>Receitas e despesas</li>
+          <li>Lucro real dos últimos 7 e 30 dias</li>
+          <li>Relatório por rota</li>
+          <li>Suporte ao cliente</li>
+        </ul>
+        <a href="https://pay.kiwify.com.br/CFhm0yy" class="plano-btn plano-btn-secundario">Escolher Semestral</a>
+      </div>
+    </div>
+
+   <div class="garantia-oferta">
+  <img src="https://fluxoseguro.site/wp-content/uploads/2026/03/download-1.png" alt="Selo de garantia 7 dias" class="garantia-selo-img">
+  <div class="garantia-txt">
+    <h4>17 dias para testar sem nenhum risco</h4>
+    <p>Você começa com <strong>10 dias grátis</strong>, sem precisar cadastrar cartão. Depois, se decidir continuar, ainda tem <strong>7 dias de garantia incondicional</strong> — não gostou por qualquer motivo, devolvemos 100% do seu dinheiro. Sem perguntas, sem burocracia.</p>
+  </div>
+</div>
+    </div>
+  </div>
+</section>
+
+
+<!-- COMO ACESSAR -->
+<section class="alt">
+  <div class="container" style="text-align:center;">
+    <div class="section-label">Acesso Rápido</div>
+    <h2>Compre agora e comece a organizar sua van <em>em menos de 1 minuto!</em></h2>
+    <div class="acesso-grid">
+      <div class="acesso-card reveal">
+        <div class="acesso-icon">💳</div>
+        <h3>Faça seu pagamento</h3>
+        <p>Escolha o plano ideal para você e conclua o pagamento com segurança.</p>
+      </div>
+      <div class="acesso-card reveal">
+        <div class="acesso-icon">📧</div>
+        <h3>Acesse seu e-mail</h3>
+        <p>Em menos de 1 minuto o link de acesso já estará na sua caixa de entrada.</p>
+      </div>
+      <div class="acesso-card reveal">
+        <div class="acesso-icon">📱</div>
+        <h3>Instale na tela do celular</h3>
+        <p>Clique no link, abra o Vangenda, toque nos três pontinhos do navegador e adicione à tela inicial. Seu app está pronto!</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- DEPOIMENTOS -->
+<section>
+  <div class="container" style="text-align:center;">
+    <div class="section-label">Depoimentos</div>
+    <h2>Feito para quem vive a <em>realidade da estrada</em></h2>
+    <div class="depoimentos-grid">
+      <div class="dep-card reveal">
+        <span class="dep-quote">"</span>
+        <p>Antes eu ficava perdido nas mensagens. Agora consigo ver quem está marcado para cada dia.</p>
+        <p class="dep-autor">— José Carlos, motorista de van</p>
+      </div>
+      <div class="dep-card reveal">
+        <span class="dep-quote">"</span>
+        <p>O que eu mais gostei foi poder marcar viagem futura sem medo de esquecer.</p>
+        <p class="dep-autor">— Marcos Silva, dono de van</p>
+      </div>
+      <div class="dep-card reveal">
+        <span class="dep-quote">"</span>
+        <p>Minha esposa me ajuda no financeiro e ficou muito mais fácil saber o que entrou e o que ficou pendente.</p>
+        <p class="dep-autor">— Antônio Pereira, transporte intermunicipal</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- URGÊNCIA -->
+<section class="urgencia">
+  <div class="container">
+    <h2>Enquanto você adia, outro motorista pode estar ficando com o <em>passageiro que seria seu</em></h2>
+    <p style="max-width:640px; margin:18px auto; opacity:0.9; font-size:clamp(0.95rem,2.5vw,1.05rem);">Quando um passageiro pede vaga e você diz "me chama mais perto da data", ele pode procurar outro motorista mais organizado.</p>
+    <p style="font-weight:700; margin-bottom:24px; font-size:1.05rem;">Com o Vangenda, você marca na hora e mostra profissionalismo.</p>
+
+    <div class="reveal" style="max-width:640px; margin:0 auto 32px; background:rgba(255,255,255,0.07); border-left:3px solid var(--amber); border-radius:var(--radius-sm); padding:18px 24px; text-align:left;">
+      <p style="font-family:var(--font-display); font-weight:800; font-size:0.82rem; color:var(--amber); text-transform:uppercase; letter-spacing:1px; margin-bottom:10px;">🏆 Quem tem sistema, tem respeito</p>
+      <p style="font-size:0.92rem; color:rgba(255,255,255,0.82); margin:0; line-height:1.6;">Quando o passageiro agenda pelo app e recebe confirmação automática, ele percebe que está lidando com um <strong style="color:white;">profissional sério</strong> — não com um serviço improvisado no caderninho. Num mercado onde a maioria ainda opera no WhatsApp e na memória, quem tem sistema vira referência: é o motorista mais confiável, mais indicado e melhor tratado da região.</p>
+    </div>
+
+    <a href="#oferta" class="cta-btn">QUERO COMEÇAR AGORA</a>
+  </div>
+</section>
+
+
+<!-- FAQ -->
+<section class="alt">
+  <div class="container">
+    <div style="text-align:center;">
+      <div class="section-label">FAQ</div>
+      <h2>Perguntas <em>Frequentes</em></h2>
+    </div>
+    <div style="max-width:740px; margin:32px auto 0;">
+      <div class="faq-item">
+        <div class="faq-question">Preciso saber mexer muito em tecnologia? <span class="faq-icon">+</span></div>
+        <div class="faq-answer"><p>Não. O sistema foi pensado para ser simples. Se você usa WhatsApp, já tem familiaridade suficiente para começar.</p></div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-question">Funciona no celular? <span class="faq-icon">+</span></div>
+        <div class="faq-answer"><p>Sim. A ideia é justamente facilitar sua organização pelo celular, onde você já está o dia todo.</p></div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-question">Posso agendar passageiro para dias futuros? <span class="faq-icon">+</span></div>
+        <div class="faq-answer"><p>Sim. Essa é uma das principais vantagens. Você organiza reservas futuras sem depender da memória.</p></div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-question">Serve para motorista autônomo? <span class="faq-icon">+</span></div>
+        <div class="faq-answer"><p>Sim. O sistema é ideal para motorista de van, dono de van e transportador que trabalha com passageiros intermunicipais.</p></div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-question">Ajuda no financeiro? <span class="faq-icon">+</span></div>
+        <div class="faq-answer"><p>Sim. O sistema possui área completa para controle financeiro da sua operação — receitas, despesas e lucro real.</p></div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-question">Meus passageiros precisam baixar aplicativo? <span class="faq-icon">+</span></div>
+        <div class="faq-answer"><p>O principal objetivo é facilitar a sua organização. Você continua atendendo seus passageiros pelos canais que já usa hoje.</p></div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-question">E se eu tiver dificuldade? <span class="faq-icon">+</span></div>
+        <div class="faq-answer"><p>Você conta com suporte ao cliente em todos os planos. Nossa equipe está disponível para te ajudar.</p></div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-question">Posso cancelar depois? <span class="faq-icon">+</span></div>
+        <div class="faq-answer"><p>Sim. Você pode cancelar a qualquer momento entrando em contato com nosso suporte.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- FECHAMENTO -->
+<section class="fechamento">
+  <div class="container">
+    <h2>Sua van é mais que um veículo.<br><em>É o sustento da sua família.</em></h2>
+    <p style="max-width:640px; margin:18px auto; opacity:0.85;">Você não trabalha pouco. Você não precisa se esforçar mais.</p>
+    <p style="font-weight:700; font-size:clamp(1.1rem,3vw,1.3rem); margin-bottom:16px; color:white;">Você precisa se organizar melhor.</p>
+    <p style="max-width:640px; margin:0 auto 28px; opacity:0.85;">O Vangenda ajuda você a cuidar da sua agenda, dos seus passageiros e do dinheiro que entra no seu negócio. Porque motorista de van profissional não pode depender só de caderno, memória e WhatsApp lotado.</p>
+
+    <div class="reveal" style="max-width:620px; margin:0 auto 36px; text-align:left; background:rgba(255,255,255,0.05); border-radius:var(--radius); padding:22px 26px; border:1px solid rgba(255,255,255,0.1);">
+      <p style="font-family:var(--font-display); font-weight:800; font-size:0.82rem; color:var(--amber); text-transform:uppercase; letter-spacing:1px; margin-bottom:14px;">😊 O que muda na sua vida quando você se organiza</p>
+      <ul style="list-style:none; display:flex; flex-direction:column; gap:10px; margin:0;">
+        <li style="padding-left:22px; position:relative; font-size:0.91rem; color:rgba(255,255,255,0.78); line-height:1.55;"><span style="position:absolute; left:0; color:var(--amber); font-weight:900; top:1px;">✓</span>Dorme tranquilo sabendo que a agenda do amanhã já está organizada — sem a ansiedade de "será que vai ter passageiro?" ou "será que esqueci alguém?"</li>
+        <li style="padding-left:22px; position:relative; font-size:0.91rem; color:rgba(255,255,255,0.78); line-height:1.55;"><span style="position:absolute; left:0; color:var(--amber); font-weight:900; top:1px;">✓</span>Separa o trabalho da vida pessoal — quando o negócio tem sistema, você consegue desligar no horário de folga de verdade, sem o trabalho te perseguindo no celular</li>
+        <li style="padding-left:22px; position:relative; font-size:0.91rem; color:rgba(255,255,255,0.78); line-height:1.55;"><span style="position:absolute; left:0; color:var(--amber); font-weight:900; top:1px;">✓</span>Renda previsível gera paz financeira em casa — saber quanto vai entrar no mês e ter os recebimentos registrados diminui a tensão que adoece e desgasta a família</li>
+      </ul>
+    </div>
+
+    <a href="#oferta" class="cta-btn">QUERO ACESSAR O VANGENDA AGORA</a>
+  </div>
+</section>
+
+
+<!-- FOOTER -->
+<footer>
+  <div class="container">
+    <div class="brand">Vangenda</div>
+    <p>O aplicativo simples que ajuda motoristas de van a organizar passageiros, viagens, vagas e financeiro pelo celular.</p>
+    <br>
+    <p><strong style="color:white;">Disclaimer:</strong> Este site não é afiliado ao Facebook, Instagram, WhatsApp ou Meta Platforms, Inc. Também não possui qualquer vínculo oficial com Google, YouTube ou outras plataformas de anúncios. As marcas citadas pertencem aos seus respectivos proprietários.</p>
+    <br>
+    <p>Os resultados podem variar de acordo com o uso do sistema, organização do motorista, volume de passageiros, região de atuação, preço da passagem, frequência das viagens e outros fatores operacionais. O Vangenda é uma ferramenta de apoio à organização e gestão de agendamentos, não garantindo resultados financeiros específicos.</p>
+    <br>
+    <p>
+      <a href="#">Política de Privacidade</a> |
+      <a href="#">Termos de Uso</a>
+    </p>
+    <br>
+    <p><strong style="color:white;">Contato:</strong> contato@seudominio.com.br</p>
+    <div class="footer-bottom">
+      <p>© 2026 Vangenda. Todos os direitos reservados.</p>
+    </div>
+  </div>
+</footer>
+
+
+<script>
+/* ---- CONTADOR ---- */
+(function(){
+  const fim = new Date().getTime() + (23 * 3600000 + 47 * 60000);
+  function tick() {
+    const diff = Math.max(0, fim - new Date().getTime());
+    const h = Math.floor(diff / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    const s = Math.floor((diff % 60000) / 1000);
+    const elH = document.getElementById('ch');
+    const elM = document.getElementById('cm');
+    const elS = document.getElementById('cs');
+    if (elH) elH.textContent = String(h).padStart(2,'0');
+    if (elM) elM.textContent = String(m).padStart(2,'0');
+    if (elS) elS.textContent = String(s).padStart(2,'0');
+    if (diff > 0) setTimeout(tick, 1000);
+  }
+  tick();
+})();
+
+/* ---- FAQ ---- */
+document.querySelectorAll('.faq-question').forEach(q => {
+  q.addEventListener('click', () => {
+    const item = q.parentElement;
+    const aberto = item.classList.contains('ativo');
+    document.querySelectorAll('.faq-item').forEach(i => i.classList.remove('ativo'));
+    if (!aberto) item.classList.add('ativo');
+  });
+});
+
+/* ---- SCROLL REVEAL ---- */
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      e.target.classList.add('visible');
+      observer.unobserve(e.target);
+    }
+  });
+}, { threshold: 0.12 });
+document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+</script>
+
+</body>
+</html>

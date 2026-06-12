@@ -25,3 +25,11 @@ Quando eu subir livros, PDFs ou imagens nesta pasta, você deve:
 - Nunca invente técnicas. Use apenas o que aprendeu dos materiais
 - Se não tiver material suficiente, peça mais antes de criar
 - Priorize sempre headlines que geram curiosidade, dor ou desejo intenso
+
+## Skills Obrigatórios
+
+Ao trabalhar neste projeto, leia e aplique os seguintes skills disponíveis em `/materiais`:
+
+- **[SKILL.md](materiais/SKILL.md)** — Skill de Página de Vendas High-Converting: estrutura dos 12 blocos psicológicos, especificações técnicas de HTML, regras de copywriting e checklist final para geração de páginas de vendas completas.
+
+- **[SKILL-COPY.md](materiais/SKILL-COPY.md)** — Skill de Copy Persuasiva (Sistema Ray Edwards): framework P.A.S.T.O.R., 5 modelos de headline, 21 tipos de bullet point, fórmula de garantia de 10 partes e 5 modelos de fechamento.
