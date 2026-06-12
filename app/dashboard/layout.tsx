@@ -99,36 +99,54 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       .single()
 
     if (!motorista) {
+      console.warn('[acesso] motorista não encontrado — bloqueando')
       setStatusAcesso('bloqueado')
       setChecando(false)
       return
     }
 
+    console.log('[acesso] dados do motorista:', {
+      assinatura_status: motorista.assinatura_status,
+      assinatura_expira: motorista.assinatura_expira,
+      trial_inicio: motorista.trial_inicio,
+      criado_em: motorista.criado_em,
+    })
+
     if (motorista.assinatura_status === 'ativo') {
       const expira = new Date(motorista.assinatura_expira)
-      if (expira > new Date()) {
+      const agora = new Date()
+      console.log('[acesso] status=ativo | expira:', expira.toISOString(), '| expirou?', expira <= agora)
+      if (expira > agora) {
         setStatusAcesso('ok')
         setChecando(false)
         return
       }
+      console.warn('[acesso] assinatura expirada — bloqueando')
       setStatusAcesso('bloqueado')
       setChecando(false)
       return
     }
 
     if (motorista.assinatura_status === 'inativo') {
+      console.warn('[acesso] status=inativo — bloqueando')
       setStatusAcesso('bloqueado')
       setChecando(false)
       return
     }
 
-    // Usa criado_em como fallback se trial_inicio for null (usuários antigos)
-    const trialInicio = new Date(motorista.trial_inicio ?? motorista.criado_em)
+    // null / qualquer outro valor → verifica trial
+    const referenciaInicio = motorista.trial_inicio ?? motorista.criado_em
+    const trialInicio = new Date(referenciaInicio)
     const agora = new Date()
     const diasUsados = Math.floor((agora.getTime() - trialInicio.getTime()) / (1000 * 60 * 60 * 24))
     const diasRestantesTrial = 10 - diasUsados
 
+    console.log('[acesso] trial | status:', motorista.assinatura_status, '| referência usada:', referenciaInicio,
+      '| trialInicio:', trialInicio.toISOString(), '| agora:', agora.toISOString(),
+      '| diasUsados:', diasUsados, '| diasRestantes:', diasRestantesTrial)
+
     if (diasRestantesTrial <= 0) {
+      console.warn('[acesso] trial expirado — bloqueando')
       setStatusAcesso('bloqueado')
     } else if (diasRestantesTrial <= 3) {
       setStatusAcesso('aviso')
