@@ -273,6 +273,12 @@ export default function ConfiguracoesPage() {
     setLoading(false)
   }
 
+  // Normaliza horário para HH:MM — Supabase retorna "HH:MM:SS" mas iOS exige "HH:MM"
+  function normalizarHorario(h: string | null | undefined, fallback: string): string {
+    if (!h) return fallback
+    return h.slice(0, 5)
+  }
+
   async function salvarRota() {
     if (!rota) {
       setErroSalvar('Nenhuma rota encontrada. Recarregue a página e tente novamente.')
@@ -281,9 +287,21 @@ export default function ConfiguracoesPage() {
     setSaving(true)
     setErroSalvar('')
 
+    const horarioIda = normalizarHorario(rota.horario_ida, '05:00')
+    const horarioVolta = normalizarHorario(rota.horario_volta, '14:00')
+
+    console.log('[configuracoes] salvando rota:', {
+      horario_ida: horarioIda,
+      horario_volta: horarioVolta,
+      nome: rota.nome,
+      capacidade: rota.capacidade,
+    })
+
     const { error: erroRota } = await supabase.from('rotas').update({
-      nome: rota.nome, horario_ida: rota.horario_ida, horario_volta: rota.horario_volta, capacidade: rota.capacidade || 1,
+      nome: rota.nome, horario_ida: horarioIda, horario_volta: horarioVolta, capacidade: rota.capacidade || 1,
     }).eq('id', rota.id)
+
+    console.log('[configuracoes] resultado UPDATE rotas:', erroRota ?? 'ok')
 
     if (erroRota) {
       setErroSalvar('Erro ao salvar horários: ' + erroRota.message)
@@ -568,13 +586,17 @@ export default function ConfiguracoesPage() {
             </Campo>
             <div className="grid grid-cols-2 gap-2">
               <Campo label="Saída ida">
-                <input type="time" value={rota?.horario_ida || '05:00'}
+                <input type="time"
+                  value={normalizarHorario(rota?.horario_ida, '05:00')}
                   onChange={e => setRota((r: any) => ({ ...r, horario_ida: e.target.value }))}
+                  onBlur={e => { if (e.target.value) setRota((r: any) => ({ ...r, horario_ida: e.target.value })) }}
                   className="campo-input" />
               </Campo>
               <Campo label="Saída volta">
-                <input type="time" value={rota?.horario_volta || '14:00'}
+                <input type="time"
+                  value={normalizarHorario(rota?.horario_volta, '14:00')}
                   onChange={e => setRota((r: any) => ({ ...r, horario_volta: e.target.value }))}
+                  onBlur={e => { if (e.target.value) setRota((r: any) => ({ ...r, horario_volta: e.target.value })) }}
                   className="campo-input" />
               </Campo>
             </div>
