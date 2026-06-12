@@ -24,20 +24,20 @@ const PLANOS = [
   {
     id: 'semestral',
     label: 'Semestral',
-    preco: 'R$ 34,90',
-    periodo: '/mês',
+    preco: 'R$ 249,90',
+    periodo: '/semestre',
     economia: 'Economia de 30%',
     destaque: false,
-    kiwifyUrl: 'https://pay.kiwify.com.br/xg8cesy',
+    kiwifyUrl: 'https://pay.kiwify.com.br/CFhm0yy',
   },
   {
     id: 'anual',
     label: 'Anual',
-    preco: 'R$ 24,90',
-    periodo: '/mês',
+    preco: 'R$ 358,80',
+    periodo: '/ano',
     economia: 'Economia de 50%',
     destaque: true,
-    kiwifyUrl: 'https://pay.kiwify.com.br/HjK0cEC',
+    kiwifyUrl: 'https://pay.kiwify.com.br/js8Xv89',
   },
 ]
 
