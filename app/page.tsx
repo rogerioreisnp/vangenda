@@ -50,6 +50,7 @@ export default function LoginPage() {
         'Invalid login credentials': 'E-mail ou senha incorretos.',
         'User already registered': 'Este e-mail já está cadastrado.',
         'Password should be at least 6 characters': 'A senha precisa ter pelo menos 6 caracteres.',
+        'Database error saving new user': 'Erro ao criar perfil. Tente novamente ou fale com o suporte.',
       }
       setErro(msgs[err.message] || 'Ocorreu um erro. Tente novamente.')
     } finally {
