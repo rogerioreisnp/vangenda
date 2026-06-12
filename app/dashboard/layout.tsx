@@ -12,7 +12,19 @@ const navItems = [
   { href: '/dashboard/configuracoes', label: 'Config.', emoji: '⚙' },
 ]
 
-const PLANOS = [
+type PlanoAssinatura = {
+  id: string
+  label: string
+  preco: string
+  periodo?: string
+  precoVista?: string
+  economia?: string
+  badge?: string
+  destaque: boolean
+  kiwifyUrl: string
+}
+
+const PLANOS: PlanoAssinatura[] = [
   {
     id: 'mensal',
     label: 'Mensal',
@@ -24,8 +36,8 @@ const PLANOS = [
   {
     id: 'semestral',
     label: 'Semestral',
-    preco: 'R$ 249,90',
-    periodo: '/semestre',
+    preco: '6x de R$ 46,88',
+    precoVista: 'ou R$ 249,90 à vista',
     economia: 'Economia de 30%',
     destaque: false,
     kiwifyUrl: 'https://pay.kiwify.com.br/CFhm0yy',
@@ -33,9 +45,10 @@ const PLANOS = [
   {
     id: 'anual',
     label: 'Anual',
-    preco: 'R$ 358,80',
-    periodo: '/ano',
+    preco: '12x de R$ 37,11',
+    precoVista: 'ou R$ 358,80 à vista',
     economia: 'Economia de 50%',
+    badge: '⭐ Melhor custo-benefício',
     destaque: true,
     kiwifyUrl: 'https://pay.kiwify.com.br/js8Xv89',
   },
@@ -235,10 +248,10 @@ function TelaBloqueio() {
               background: plano.destaque ? '#0F6E56' : '#fff',
               borderColor: plano.destaque ? '#0F6E56' : '#e5e7eb',
             }}>
-            {plano.destaque && (
-              <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-xs font-bold"
+            {plano.badge && (
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap"
                 style={{ background: '#FAC775', color: '#854F0B' }}>
-                ⭐ Mais popular
+                {plano.badge}
               </div>
             )}
             <div className="flex items-center justify-between mb-3">
@@ -253,12 +266,19 @@ function TelaBloqueio() {
                 )}
               </div>
               <div className="text-right">
-                <p className="text-2xl font-bold" style={{ color: plano.destaque ? '#fff' : '#0F6E56' }}>
+                <p className="text-xl font-bold leading-tight" style={{ color: plano.destaque ? '#fff' : '#0F6E56' }}>
                   {plano.preco}
                 </p>
-                <p className="text-xs" style={{ color: plano.destaque ? '#9FE1CB' : '#888' }}>
-                  {plano.periodo}
-                </p>
+                {plano.periodo && (
+                  <p className="text-xs" style={{ color: plano.destaque ? '#9FE1CB' : '#888' }}>
+                    {plano.periodo}
+                  </p>
+                )}
+                {plano.precoVista && (
+                  <p className="text-xs mt-0.5" style={{ color: plano.destaque ? '#9FE1CB' : '#999' }}>
+                    {plano.precoVista}
+                  </p>
+                )}
               </div>
             </div>
             <a href={plano.kiwifyUrl} target="_blank" rel="noopener noreferrer"
