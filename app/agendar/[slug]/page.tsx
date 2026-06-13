@@ -81,31 +81,26 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
     if (form.data && form.turno && rota) verificarVagas()
   }, [form.data, form.turno, rota])
 
+  // Encerra qualquer sessão de motorista ativa neste dispositivo.
+  // A página de agendamento é pública — sessões de motorista aqui causam
+  // o bug onde o cliente vê o painel de gestão ao instalar o app.
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) supabase.auth.signOut()
+    })
+  }, [])
+
   useEffect(() => {
     if (!motorista) return
-    const manifestData = {
-      name: `RotaGenda - ${motorista.nome}`,
-      short_name: motorista.nome.split(' ')[0].substring(0, 12),
-      description: `Agende sua viagem com ${motorista.nome}`,
-      start_url: `/agendar/${params.slug}`,
-      scope: `/`,
-      display: 'standalone',
-      orientation: 'portrait',
-      background_color: '#f0f0ec',
-      theme_color: '#0F6E56',
-      icons: [
-        { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
-        { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
-      ]
-    }
-    const stringManifest = JSON.stringify(manifestData)
-    const blob = new Blob([stringManifest], { type: 'application/json' })
-    const manifestURL = URL.createObjectURL(blob)
+    // Aponta para a rota de API que serve o manifest correto com
+    // start_url e scope específicos deste link de agendamento.
+    // Blob URLs são ignorados pelo iOS Safari para instalação de PWA.
+    const manifestUrl = `/api/agendar/${params.slug}/manifest.json`
     const oldLink = document.querySelector('link[rel="manifest"]')
     if (oldLink) oldLink.remove()
     const link = document.createElement('link')
     link.rel = 'manifest'
-    link.href = manifestURL
+    link.href = manifestUrl
     link.id = 'dynamic-manifest'
     document.head.appendChild(link)
     let themeColor = document.querySelector('meta[name="theme-color"]')
@@ -116,7 +111,6 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
     }
     themeColor.setAttribute('content', '#0F6E56')
     document.title = `RotaGenda - ${motorista.nome}`
-    return () => { URL.revokeObjectURL(manifestURL) }
   }, [motorista, params.slug])
 
   async function carregarMotorista() {
