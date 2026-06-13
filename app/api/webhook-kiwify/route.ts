@@ -15,14 +15,29 @@ const PRODUCT_ID_MAP: Record<string, 'mensal' | 'semestral' | 'anual'> = {
   // 'ID_DO_PRODUTO_ANUAL_AQUI': 'anual',
 }
 
-function detectarPlano(nomeProduto: string, idProduto: string): 'mensal' | 'semestral' | 'anual' {
+function detectarPlano(nomeProduto: string, idProduto: string, chargeFrequency?: string): 'mensal' | 'semestral' | 'anual' {
   if (PRODUCT_ID_MAP[idProduto]) return PRODUCT_ID_MAP[idProduto]
 
+  // charge_frequency é o campo oficial da Kiwify — mais confiável que inferir pelo nome
+  if (chargeFrequency) {
+    const freq = chargeFrequency.toLowerCase()
+    if (freq === 'annual' || freq === 'yearly' || freq === 'anual') return 'anual'
+    if (freq === 'semiannual' || freq === 'semestral' || freq === 'biannual') return 'semestral'
+    if (freq === 'monthly' || freq === 'mensal') return 'mensal'
+  }
+
   const nome = nomeProduto.toLowerCase()
-  if (nome.includes('anual') || nome.includes('annual') || nome.includes('year') || nome.includes('12 mes') || nome.includes('12mes')) {
+  if (
+    nome.includes('anual') || nome.includes('annual') || nome.includes('year') ||
+    nome.includes('12 mes') || nome.includes('12mes') ||
+    nome.includes('1 ano') || nome.includes('1ano') || nome.includes('365')
+  ) {
     return 'anual'
   }
-  if (nome.includes('semestral') || nome.includes('semestre') || nome.includes('6 mes') || nome.includes('6mes') || nome.includes('6-mes')) {
+  if (
+    nome.includes('semestral') || nome.includes('semestre') ||
+    nome.includes('6 mes') || nome.includes('6mes') || nome.includes('6-mes')
+  ) {
     return 'semestral'
   }
   return 'mensal'
@@ -92,7 +107,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, msg: `Status ignorado: ${status}` })
     }
 
-    const tipoPlan = detectarPlano(nomeProduto, idProduto)
+    const chargeFrequency = body?.Subscription?.charge_frequency || body?.subscription?.charge_frequency || ''
+    const tipoPlan = detectarPlano(nomeProduto, idProduto, chargeFrequency)
     const expira = calcularExpiracao(tipoPlan)
 
     const userId = await buscarUsuarioIdPorEmail(email)
