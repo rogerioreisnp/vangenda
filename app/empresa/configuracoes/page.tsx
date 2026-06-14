@@ -22,6 +22,8 @@ type Empresa = {
   whatsapp_comercial: string | null
   cor_destaque: string | null
   logo_url: string | null
+  trial_fim: string | null
+  slug: string | null
 }
 
 const PLANO_LABEL: Record<string, string> = { starter: 'Starter', pro: 'Pro', fleet: 'Fleet' }
@@ -50,7 +52,7 @@ export default function ConfiguracoesEmpresaPage() {
 
     const { data: emp } = await supabase
       .from('empresas')
-      .select('id, nome, telefone, tipo_operacao, plano, status, cnpj, email_comercial, cidade, estado, qtd_veiculos, descricao, chave_pix, tipo_chave_pix, instagram, whatsapp_comercial, cor_destaque, logo_url')
+      .select('id, nome, telefone, tipo_operacao, plano, status, cnpj, email_comercial, cidade, estado, qtd_veiculos, descricao, chave_pix, tipo_chave_pix, instagram, whatsapp_comercial, cor_destaque, logo_url, trial_fim, slug')
       .eq('id', gestor.empresa_id)
       .single()
 
@@ -85,6 +87,7 @@ export default function ConfiguracoesEmpresaPage() {
         whatsapp_comercial: empresa.whatsapp_comercial?.trim() || null,
         cor_destaque: empresa.cor_destaque || '#1D9E75',
         logo_url: empresa.logo_url?.trim() || null,
+        slug: empresa.slug?.trim() || null,
       })
       .eq('id', empresa.id)
 
@@ -127,7 +130,7 @@ export default function ConfiguracoesEmpresaPage() {
                 className="campo-input"
               />
             </Campo>
-            <Campo label="CNPJ">
+            <Campo label="CNPJ (opcional)">
               <input
                 value={empresa?.cnpj || ''}
                 onChange={e => {
@@ -209,6 +212,11 @@ export default function ConfiguracoesEmpresaPage() {
                 <p className="text-sm font-semibold text-gray-800 mt-0.5">
                   {PLANO_LABEL[empresa?.plano || ''] || empresa?.plano}
                 </p>
+                {empresa?.status === 'trial' && empresa?.trial_fim && (
+                  <p className="text-xs mt-0.5" style={{ color: '#854F0B' }}>
+                    Trial até {empresa.trial_fim.slice(8, 10)}/{empresa.trial_fim.slice(5, 7)}/{empresa.trial_fim.slice(0, 4)}
+                  </p>
+                )}
               </div>
               <span
                 className="text-xs font-semibold px-3 py-1.5 rounded-full"
@@ -222,7 +230,7 @@ export default function ConfiguracoesEmpresaPage() {
           </div>
         </Secao>
 
-        <Secao titulo="🎨 Personalização e cobrança">
+        <Secao titulo="🎨 Personalização">
           <div className="flex flex-col gap-3">
             <Campo label="Descrição curta">
               <textarea
@@ -300,6 +308,27 @@ export default function ConfiguracoesEmpresaPage() {
                   className="mt-2 h-12 object-contain rounded"
                   onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
                 />
+              )}
+            </Campo>
+            <Campo label="Slug (link público)">
+              <input
+                value={empresa?.slug || ''}
+                onChange={e => setEmpresa(emp => emp ? { ...emp, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') } : emp)}
+                placeholder="ex: transfer-rio"
+                className="campo-input"
+              />
+              {empresa?.slug && (
+                <p className="text-xs mt-1.5" style={{ color: '#6B7280' }}>
+                  Seu link será:{' '}
+                  <span className="font-medium" style={{ color: '#0F6E56' }}>
+                    rotagenda.app/agendar/{empresa.slug}
+                  </span>
+                </p>
+              )}
+              {!empresa?.slug && (
+                <p className="text-xs mt-1.5" style={{ color: '#9ca3af' }}>
+                  Seu link será: rotagenda.app/agendar/[slug]
+                </p>
               )}
             </Campo>
           </div>
