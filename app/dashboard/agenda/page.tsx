@@ -73,6 +73,10 @@ export default function AgendaPage() {
   const amanha = new Date(); amanha.setDate(hoje.getDate() + 1)
   const isAmanha = isSameDay(diaSelecionado, amanha)
 
+  const rotaPrimaria = rotas[0]
+  const horarioIda = rotaPrimaria?.horario_ida?.slice(0, 5) || '05:00'
+  const horarioVolta = rotaPrimaria?.horario_volta?.slice(0, 5) || '14:00'
+
   return (
     <div>
       <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-0">
@@ -157,10 +161,10 @@ export default function AgendaPage() {
         ) : (
           <>
             {ida.length > 0 && (
-              <BlocoTurno turno="ida" horario="05:00h" passageiros={ida} onAtualizar={carregarMes} onVerDetalhe={setAgendamentoDetalhe} />
+              <BlocoTurno turno="ida" horario={horarioIda + 'h'} passageiros={ida} onAtualizar={carregarMes} onVerDetalhe={setAgendamentoDetalhe} />
             )}
             {volta.length > 0 && (
-              <BlocoTurno turno="volta" horario="14:00h" passageiros={volta} onAtualizar={carregarMes} onVerDetalhe={setAgendamentoDetalhe} />
+              <BlocoTurno turno="volta" horario={horarioVolta + 'h'} passageiros={volta} onAtualizar={carregarMes} onVerDetalhe={setAgendamentoDetalhe} />
             )}
           </>
         )}
@@ -181,6 +185,8 @@ export default function AgendaPage() {
       {agendamentoDetalhe && (
         <DetalhePassageiro
           p={agendamentoDetalhe}
+          horarioIda={horarioIda}
+          horarioVolta={horarioVolta}
           onVoltar={() => setAgendamentoDetalhe(null)}
           onAtualizar={() => { setAgendamentoDetalhe(null); carregarMes() }}
         />
@@ -197,6 +203,7 @@ export default function AgendaPage() {
 
       {modalEncomenda && (
         <ModalNovaEncomenda
+          dataSelecionada={diaSelecionado}
           onFechar={() => setModalEncomenda(false)}
           onSalvo={() => setModalEncomenda(false)}
         />
@@ -266,11 +273,12 @@ function CardPassageiro({ p, onVerDetalhe }: { p: Agendamento, onVerDetalhe: () 
   )
 }
 
-function DetalhePassageiro({ p, onVoltar, onAtualizar }: {
-  p: Agendamento, onVoltar: () => void, onAtualizar: () => void
+function DetalhePassageiro({ p, onVoltar, onAtualizar, horarioIda, horarioVolta }: {
+  p: Agendamento, onVoltar: () => void, onAtualizar: () => void,
+  horarioIda: string, horarioVolta: string
 }) {
   const dataFmt = format(new Date(p.data_viagem + 'T00:00:00'), "EEEE, dd 'de' MMMM", { locale: ptBR })
-  const turnoLabel = p.turno === 'ida' ? 'Ida (05:00h)' : 'Volta (14:00h)'
+  const turnoLabel = p.turno === 'ida' ? `Ida (${horarioIda}h)` : `Volta (${horarioVolta}h)`
   const formaLabel: Record<string, string> = {
     dinheiro: 'Dinheiro', pix: 'Pix', cartao: 'Cartão', pendente: 'A cobrar', fiado: 'Fiado'
   }

@@ -1,17 +1,22 @@
 'use client'
 import { useState } from 'react'
+import { format } from 'date-fns'
 import { supabase } from '@/lib/supabase'
 
-export default function ModalNovaEncomenda({ onFechar, onSalvo, nomeInicial, telefoneInicial }: {
+export default function ModalNovaEncomenda({ onFechar, onSalvo, nomeInicial, telefoneInicial, dataSelecionada }: {
   onFechar: () => void
   onSalvo: () => void
   nomeInicial?: string
   telefoneInicial?: string
+  dataSelecionada?: Date
 }) {
+  const dataDefault = dataSelecionada ? format(dataSelecionada, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd')
   const [form, setForm] = useState({
     nome: nomeInicial ?? '', telefone: telefoneInicial ?? '', valor: '', observacao: '',
     status: 'fiado' as 'fiado' | 'pago_na_hora',
     forma_pagamento: 'dinheiro',
+    data_entrega: dataDefault,
+    horario_entrega: '',
   })
   const [saving, setSaving] = useState(false)
   const [erro, setErro] = useState('')
@@ -26,6 +31,9 @@ export default function ModalNovaEncomenda({ onFechar, onSalvo, nomeInicial, tel
     const valor = parseFloat(form.valor)
     const pago = form.status === 'pago_na_hora'
 
+    const dataEntrega = form.data_entrega || null
+    const horarioEntrega = form.horario_entrega || null
+
     const { data: novaEnc, error } = await supabase.from('encomendas').insert({
       motorista_id: user.id,
       nome: form.nome.trim(),
@@ -35,16 +43,26 @@ export default function ModalNovaEncomenda({ onFechar, onSalvo, nomeInicial, tel
       pago,
       valor_pago: pago ? valor : 0,
       forma_pagamento: pago ? form.forma_pagamento : null,
+      data_entrega: dataEntrega,
+      horario_entrega: horarioEntrega,
     }).select('id').single()
 
     if (error) { setErro('Erro: ' + error.message); setSaving(false); return }
+
+    const dataFmt = dataEntrega
+      ? new Date(dataEntrega + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+      : null
+    const agendamentoInfo = [dataFmt, horarioEntrega].filter(Boolean).join(' às ')
+    const descBase = agendamentoInfo ? `Encomenda - ${agendamentoInfo}` : 'Encomenda'
+    const descFinal = descBase + (form.observacao.trim() ? ': ' + form.observacao.trim() : '')
+
     if (!pago && novaEnc) {
       await supabase.from('movimentacoes').insert({
         motorista_id: user.id,
         cliente_nome: form.nome.trim(),
         tipo: 'divida',
         valor,
-        descricao: 'Encomenda' + (form.observacao.trim() ? ': ' + form.observacao.trim() : ''),
+        descricao: descFinal,
         categoria: 'encomenda',
         referencia_id: novaEnc.id,
       })
@@ -80,6 +98,21 @@ export default function ModalNovaEncomenda({ onFechar, onSalvo, nomeInicial, tel
           <input value={form.valor} onChange={e => setForm(f => ({ ...f, valor: e.target.value }))}
             placeholder="0,00" type="number" step="0.01"
             className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none bg-white focus:border-green-600" />
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <p className="text-xs font-medium text-gray-500 mb-1">Data de entrega</p>
+            <input type="date" value={form.data_entrega}
+              onChange={e => setForm(f => ({ ...f, data_entrega: e.target.value }))}
+              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none bg-white focus:border-green-600" />
+          </div>
+          <div>
+            <p className="text-xs font-medium text-gray-500 mb-1">Horário (opcional)</p>
+            <input type="time" value={form.horario_entrega}
+              onChange={e => setForm(f => ({ ...f, horario_entrega: e.target.value }))}
+              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none bg-white focus:border-green-600" />
+          </div>
         </div>
 
         <div>
