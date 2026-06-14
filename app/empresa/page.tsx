@@ -28,6 +28,39 @@ const STATUS_COR: Record<string, { bg: string; text: string; label: string }> = 
 const PLANO_LABEL: Record<string, string> = { starter: 'Starter', pro: 'Pro', fleet: 'Fleet' }
 const STATUS_EMPRESA_LABEL: Record<string, string> = { trial: 'Trial', ativo: 'Ativo', inativo: 'Inativo' }
 
+function contarContratos(corridas: { id: string; created_at: string; cliente_nome: string; origem: string; destino: string; data_hora?: string }[]): number {
+  const usados = new Set<string>()
+  let total = 0
+  for (let i = 0; i < corridas.length; i++) {
+    if (usados.has(corridas[i].id)) continue
+    const a = corridas[i]
+    let parEncontrado = false
+    for (let j = i + 1; j < corridas.length; j++) {
+      if (usados.has(corridas[j].id)) continue
+      const b = corridas[j]
+      const mesmoDia = !a.data_hora || !b.data_hora || a.data_hora.slice(0, 10) === b.data_hora.slice(0, 10)
+      if (
+        mesmoDia &&
+        a.cliente_nome === b.cliente_nome &&
+        a.origem === b.destino &&
+        a.destino === b.origem &&
+        Math.abs(new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) < 10000
+      ) {
+        usados.add(a.id)
+        usados.add(b.id)
+        total++
+        parEncontrado = true
+        break
+      }
+    }
+    if (!parEncontrado) {
+      usados.add(a.id)
+      total++
+    }
+  }
+  return total
+}
+
 export default function EmpresaPage() {
   const [nomeGestor, setNomeGestor] = useState<string | null>(null)
   const [nomeEmpresa, setNomeEmpresa] = useState<string | null>(null)
@@ -90,7 +123,7 @@ export default function EmpresaPage() {
       { data: prox },
       { data: rec7d },
     ] = await Promise.all([
-      supabase.from('corridas_empresa').select('id').eq('empresa_id', eid)
+      supabase.from('corridas_empresa').select('id, created_at, cliente_nome, origem, destino').eq('empresa_id', eid)
         .gte('data_hora', `${hoje}T00:00:00`).lte('data_hora', `${hoje}T23:59:59`)
         .neq('status', 'cancelada'),
       supabase.from('motoristas_empresa').select('id')
@@ -98,7 +131,7 @@ export default function EmpresaPage() {
       supabase.from('corridas_empresa').select('valor').eq('empresa_id', eid)
         .neq('status', 'cancelada')
         .gte('data_hora', `${inicioMes}T00:00:00`).lte('data_hora', `${fimMes}T23:59:59`),
-      supabase.from('corridas_empresa').select('id').eq('empresa_id', eid)
+      supabase.from('corridas_empresa').select('id, created_at, cliente_nome, origem, destino, data_hora').eq('empresa_id', eid)
         .eq('status', 'confirmada').gte('data_hora', agoraISO),
       supabase.from('corridas_empresa').select('id').eq('empresa_id', eid)
         .is('motorista_id', null).eq('status', 'confirmada').gte('data_hora', agoraISO),
@@ -110,10 +143,10 @@ export default function EmpresaPage() {
         .neq('status', 'cancelada').gte('data_hora', `${ha7Dias}T00:00:00`),
     ])
 
-    setCorridasHoje(cHoje?.length ?? 0)
+    setCorridasHoje(contarContratos(cHoje ?? []))
     setMotoristasAtivos(mAtivos?.length ?? 0)
     setReceitaMes(recMes?.reduce((s, c) => s + (Number(c.valor) || 0), 0) ?? 0)
-    setCorridasConfirmadas(cConf?.length ?? 0)
+    setCorridasConfirmadas(contarContratos(cConf ?? []))
     setCorridasSemMotorista(cSemMot?.length ?? 0)
     setProximas((prox as any) ?? [])
 

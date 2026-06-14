@@ -23,6 +23,7 @@ type Corrida = {
   origem: string
   destino: string
   data_hora: string
+  created_at: string
   cliente_nome: string
   cliente_telefone: string | null
   valor: number
@@ -33,6 +34,10 @@ type Corrida = {
   observacoes: string | null
   motoristas_empresa: { nome: string } | null
 }
+
+type CorridaAgrupada =
+  | { tipo: 'simples'; corrida: Corrida }
+  | { tipo: 'par'; ida: Corrida; volta: Corrida }
 
 type FormCorrida = {
   tipo_servico: string
@@ -69,10 +74,57 @@ const FORM_VAZIO: FormCorrida = {
 }
 
 const STATUS_COR: Record<string, { bg: string; text: string; label: string }> = {
-  confirmada:   { bg: '#EFF6FF', text: '#1D4ED8', label: 'Confirmada' },
-  em_andamento: { bg: '#E1F5EE', text: '#0F6E56', label: 'Em andamento' },
-  concluida:    { bg: '#F3F4F6', text: '#6B7280', label: 'Concluída' },
-  cancelada:    { bg: '#FCEBEB', text: '#A32D2D', label: 'Cancelada' },
+  confirmada:             { bg: '#EFF6FF', text: '#1D4ED8', label: 'Confirmada' },
+  em_andamento:           { bg: '#E1F5EE', text: '#0F6E56', label: 'Em andamento' },
+  concluida:              { bg: '#F3F4F6', text: '#6B7280', label: 'Concluída' },
+  cancelada:              { bg: '#FCEBEB', text: '#A32D2D', label: 'Cancelada' },
+  parcialmente_cancelada: { bg: '#FEF3C7', text: '#92400E', label: 'Parc. cancelada' },
+}
+
+function statusPar(ida: Corrida, volta: Corrida): string {
+  if (ida.status === volta.status) return ida.status
+  if (ida.status === 'cancelada' || volta.status === 'cancelada') return 'parcialmente_cancelada'
+  return ida.status
+}
+
+function agruparPares(corridas: Corrida[]): CorridaAgrupada[] {
+  const usados = new Set<string>()
+  const resultado: CorridaAgrupada[] = []
+
+  for (let i = 0; i < corridas.length; i++) {
+    if (usados.has(corridas[i].id)) continue
+    const a = corridas[i]
+    let parIdx = -1
+
+    for (let j = i + 1; j < corridas.length; j++) {
+      if (usados.has(corridas[j].id)) continue
+      const b = corridas[j]
+      if (
+        a.cliente_nome === b.cliente_nome &&
+        a.origem === b.destino &&
+        a.destino === b.origem &&
+        a.data_hora.slice(0, 10) === b.data_hora.slice(0, 10) &&
+        Math.abs(new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) < 10000
+      ) {
+        parIdx = j
+        break
+      }
+    }
+
+    if (parIdx !== -1) {
+      const b = corridas[parIdx]
+      usados.add(a.id)
+      usados.add(b.id)
+      const ida = a.data_hora <= b.data_hora ? a : b
+      const volta = a.data_hora <= b.data_hora ? b : a
+      resultado.push({ tipo: 'par', ida, volta })
+    } else {
+      usados.add(a.id)
+      resultado.push({ tipo: 'simples', corrida: a })
+    }
+  }
+
+  return resultado
 }
 
 export default function AgendamentosPage() {
@@ -117,7 +169,7 @@ export default function AgendamentosPage() {
         .order('nome'),
       supabase
         .from('corridas_empresa')
-        .select('id, rota_id, origem, destino, data_hora, cliente_nome, cliente_telefone, valor, status, motorista_id, tipo_servico, forma_pagamento, observacoes, motoristas_empresa(nome)')
+        .select('id, rota_id, origem, destino, data_hora, created_at, cliente_nome, cliente_telefone, valor, status, motorista_id, tipo_servico, forma_pagamento, observacoes, motoristas_empresa(nome)')
         .eq('empresa_id', gestor.empresa_id)
         .order('data_hora', { ascending: false })
         .limit(50),
@@ -262,9 +314,11 @@ export default function AgendamentosPage() {
     carregarDados()
   }
 
-  async function cancelarCorrida(id: string) {
-    await supabase.from('corridas_empresa').update({ status: 'cancelada' }).eq('id', id)
-    setCorridas(prev => prev.map(c => c.id === id ? { ...c, status: 'cancelada' } : c))
+  async function cancelarCorrida(ids: string[]) {
+    for (const id of ids) {
+      await supabase.from('corridas_empresa').update({ status: 'cancelada' }).eq('id', id)
+    }
+    setCorridas(prev => prev.map(c => ids.includes(c.id) ? { ...c, status: 'cancelada' } : c))
   }
 
   if (loading) {
@@ -275,7 +329,12 @@ export default function AgendamentosPage() {
     )
   }
 
-  const corridasAtivas = corridas.filter(c => c.status !== 'cancelada' && c.status !== 'concluida')
+  const corridasAgrupadas = agruparPares(corridas)
+  const eAtivo = (s: string) => s !== 'cancelada' && s !== 'concluida'
+  const qtdAtivas = corridasAgrupadas.filter(g =>
+    g.tipo === 'simples' ? eAtivo(g.corrida.status) : eAtivo(g.ida.status) || eAtivo(g.volta.status)
+  ).length
+
   const rotaManual = form.rota_id === 'manual'
   const camposRotaBloqueados = form.rota_id !== '' && form.rota_id !== 'manual'
 
@@ -286,7 +345,7 @@ export default function AgendamentosPage() {
         <div>
           <p style={{ color: '#E1F5EE' }} className="text-base font-semibold">Agendamentos</p>
           <p style={{ color: '#5DCAA5' }} className="text-xs mt-0.5">
-            {corridasAtivas.length} ativa{corridasAtivas.length !== 1 ? 's' : ''}
+            {qtdAtivas} ativa{qtdAtivas !== 1 ? 's' : ''}
           </p>
         </div>
       </div>
@@ -330,19 +389,82 @@ export default function AgendamentosPage() {
           </div>
         ) : (
           <div className="flex flex-col gap-2">
-            {corridas.map(c => {
-              const cor = STATUS_COR[c.status] ?? STATUS_COR.confirmada
-              const dt = new Date(c.data_hora)
-              const nomeMotorista = c.motoristas_empresa?.nome ?? null
+            {corridasAgrupadas.map(grupo => {
+              if (grupo.tipo === 'simples') {
+                const c = grupo.corrida
+                const cor = STATUS_COR[c.status] ?? STATUS_COR.confirmada
+                const dt = new Date(c.data_hora)
+                const nomeMotorista = c.motoristas_empresa?.nome ?? null
+                return (
+                  <div key={c.id} className="bg-white rounded-2xl p-4 border border-gray-100">
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-800 truncate">
+                          {c.origem} → {c.destino}
+                        </p>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {format(dt, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                        </p>
+                      </div>
+                      <span className="text-[10px] font-semibold px-2 py-1 rounded-full flex-shrink-0"
+                        style={{ background: cor.bg, color: cor.text }}>
+                        {cor.label}
+                      </span>
+                    </div>
+                    <div className="flex items-end justify-between gap-2" style={{ borderTop: '1px solid #f5f5f5', paddingTop: '8px' }}>
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium text-gray-700 truncate">{c.cliente_nome}</p>
+                        {nomeMotorista && (
+                          <p className="text-xs text-gray-400 mt-0.5">🚐 {nomeMotorista}</p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <p className="text-sm font-bold" style={{ color: '#0F6E56' }}>
+                          R$ {Number(c.valor).toFixed(2).replace('.', ',')}
+                        </p>
+                        {eAtivo(c.status) && (
+                          <button onClick={() => abrirEditar(c)}
+                            className="px-2.5 py-1 rounded-lg text-[10px] font-medium"
+                            style={{ background: '#E1F5EE', color: '#0F6E56' }}>
+                            ✏️
+                          </button>
+                        )}
+                        {c.status === 'confirmada' && (
+                          <button onClick={() => cancelarCorrida([c.id])}
+                            className="px-2.5 py-1 rounded-lg text-[10px] font-medium"
+                            style={{ background: '#FCEBEB', color: '#A32D2D' }}>
+                            Cancelar
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )
+              }
+
+              // Par de ida e volta
+              const { ida, volta } = grupo
+              const statusKey = statusPar(ida, volta)
+              const cor = STATUS_COR[statusKey] ?? STATUS_COR.confirmada
+              const valorTotal = Number(ida.valor) + Number(volta.valor)
+              const nomeMotorista = ida.motoristas_empresa?.nome ?? volta.motoristas_empresa?.nome ?? null
+              const idsCancelar = [ida, volta].filter(c => c.status === 'confirmada').map(c => c.id)
+
               return (
-                <div key={c.id} className="bg-white rounded-2xl p-4 border border-gray-100">
+                <div key={`${ida.id}-${volta.id}`} className="bg-white rounded-2xl p-4 border border-gray-100">
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-gray-800 truncate">
-                        {c.origem} → {c.destino}
-                      </p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-semibold text-gray-800 truncate">
+                          {ida.origem} → {ida.destino}
+                        </p>
+                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0"
+                          style={{ background: '#E1F5EE', color: '#0F6E56' }}>
+                          ↔ Ida e volta
+                        </span>
+                      </div>
                       <p className="text-xs text-gray-400 mt-0.5">
-                        {format(dt, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                        Ida {format(new Date(ida.data_hora), 'HH:mm')} · Volta {format(new Date(volta.data_hora), 'HH:mm')} · {format(new Date(ida.data_hora), 'dd/MM/yyyy', { locale: ptBR })}
                       </p>
                     </div>
                     <span className="text-[10px] font-semibold px-2 py-1 rounded-full flex-shrink-0"
@@ -352,24 +474,17 @@ export default function AgendamentosPage() {
                   </div>
                   <div className="flex items-end justify-between gap-2" style={{ borderTop: '1px solid #f5f5f5', paddingTop: '8px' }}>
                     <div className="min-w-0">
-                      <p className="text-xs font-medium text-gray-700 truncate">{c.cliente_nome}</p>
+                      <p className="text-xs font-medium text-gray-700 truncate">{ida.cliente_nome}</p>
                       {nomeMotorista && (
                         <p className="text-xs text-gray-400 mt-0.5">🚐 {nomeMotorista}</p>
                       )}
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <p className="text-sm font-bold" style={{ color: '#0F6E56' }}>
-                        R$ {Number(c.valor).toFixed(2).replace('.', ',')}
+                        R$ {valorTotal.toFixed(2).replace('.', ',')}
                       </p>
-                      {c.status !== 'cancelada' && c.status !== 'concluida' && (
-                        <button onClick={() => abrirEditar(c)}
-                          className="px-2.5 py-1 rounded-lg text-[10px] font-medium"
-                          style={{ background: '#E1F5EE', color: '#0F6E56' }}>
-                          ✏️
-                        </button>
-                      )}
-                      {c.status === 'confirmada' && (
-                        <button onClick={() => cancelarCorrida(c.id)}
+                      {idsCancelar.length > 0 && (
+                        <button onClick={() => cancelarCorrida(idsCancelar)}
                           className="px-2.5 py-1 rounded-lg text-[10px] font-medium"
                           style={{ background: '#FCEBEB', color: '#A32D2D' }}>
                           Cancelar
