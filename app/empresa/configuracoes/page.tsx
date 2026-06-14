@@ -318,7 +318,7 @@ export default function ConfiguracoesEmpresaPage() {
                 className="campo-input"
               />
               <p className="text-xs mt-2 leading-relaxed" style={{ color: '#6B7280' }}>
-                ℹ️ Esse é o endereço exclusivo do seu app. Seus clientes vão usar esse link para agendar corridas diretamente com sua empresa. Use um nome curto e fácil de lembrar. Exemplo: transfer-rio, ericleiton-transportes
+                ℹ️ Esse é o endereço exclusivo do seu app. Seus clientes vão usar esse link para agendar corridas diretamente com sua empresa. Use um nome curto e fácil de lembrar. Exemplo: minha-empresa, turismo-express
               </p>
               {empresa?.slug && (
                 <p className="text-xs mt-1.5" style={{ color: '#6B7280' }}>
