@@ -233,16 +233,6 @@ export default function EmpresaPage() {
               <p style={{ color: '#9FE1CB' }} className="text-xs mt-0.5">{nomeEmpresa}</p>
             )}
           </div>
-          {plano && (
-            <div style={{ background: '#085041' }} className="px-3 py-1.5 rounded-lg text-right">
-              <p style={{ color: '#5DCAA5' }} className="text-[11px] font-semibold leading-snug">
-                {PLANO_LABEL[plano] || plano}
-              </p>
-              <p style={{ color: '#9FE1CB' }} className="text-[10px] leading-snug">
-                {STATUS_EMPRESA_LABEL[statusEmpresa] || statusEmpresa}
-              </p>
-            </div>
-          )}
         </div>
       </div>
 
