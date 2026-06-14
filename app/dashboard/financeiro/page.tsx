@@ -1666,7 +1666,7 @@ function AbaEncomendas() {
     const entradas = [
       ...pedidor.encomendas.map(enc => ({
         tipo: 'divida' as const,
-        data: enc.criado_em.substring(0, 10),
+        data: enc.data_entrega ?? enc.criado_em.substring(0, 10),
         descricao: enc.observacao || 'Encomenda',
         valor: enc.valor,
         valorPago: enc.valor_pago || 0,
@@ -1771,9 +1771,9 @@ function AbaEncomendas() {
                       )}
                       {e.tipo === 'divida' && (
                         <div className="flex items-center gap-1.5 mt-0.5 justify-end">
-                          <button onClick={() => setEditEncomenda(pedidor.encomendas.find(x => x.criado_em.startsWith(e.data)) || null)}
+                          <button onClick={() => setEditEncomenda(pedidor.encomendas.find(x => (x.data_entrega ?? x.criado_em.substring(0, 10)) === e.data) || null)}
                             className="text-xs opacity-30 active:opacity-100">✏️</button>
-                          <button onClick={() => setEncExcluindo(pedidor.encomendas.find(x => x.criado_em.startsWith(e.data)) || null)}
+                          <button onClick={() => setEncExcluindo(pedidor.encomendas.find(x => (x.data_entrega ?? x.criado_em.substring(0, 10)) === e.data) || null)}
                             className="text-xs opacity-30 active:opacity-100">🗑️</button>
                         </div>
                       )}
@@ -1893,7 +1893,7 @@ function AbaEncomendas() {
         <div className="flex flex-col gap-3">
           {pedidores.map(pedidor => {
             const iniciais = pedidor.nome.split(' ').slice(0, 2).map(p => p[0] || '').join('').toUpperCase()
-            const ultimaData = pedidor.encomendas[0]?.criado_em
+            const ultimaData = pedidor.encomendas[0]?.data_entrega ?? pedidor.encomendas[0]?.criado_em
             return (
               <button key={pedidor.nome}
                 onClick={() => setClienteSelecionadoEnc(pedidor.nome)}
@@ -1939,7 +1939,7 @@ function AbaEncomendas() {
               <p className="text-center text-gray-400 text-sm py-4">Nenhuma encomenda quitada ainda</p>
             ) : pedidoresQuitados.map(pq => {
               const ini = pq.nome.split(' ').slice(0, 2).map((p: string) => p[0] || '').join('').toUpperCase()
-              const ultima = pq.encomendas[0]?.criado_em
+              const ultima = pq.encomendas[0]?.data_entrega ?? pq.encomendas[0]?.criado_em
               return (
                 <button key={pq.nome} onClick={() => setClienteSelecionadoEnc(pq.nome)}
                   className="w-full bg-white rounded-2xl px-4 py-3 flex items-center gap-3 text-left active:opacity-75"
@@ -1952,7 +1952,7 @@ function AbaEncomendas() {
                     <p className="text-sm font-bold text-gray-800 truncate">{pq.nome}</p>
                     <p className="text-xs text-gray-400">
                       {pq.encomendas.length} encomenda{pq.encomendas.length !== 1 ? 's' : ''}
-                      {ultima && ` · último ${format(new Date(ultima), 'dd/MM')}`}
+                      {ultima && ` · último ${format(new Date(ultima.substring(0, 10) + 'T00:00:00'), 'dd/MM')}`}
                     </p>
                   </div>
                   <div className="shrink-0 text-right">
