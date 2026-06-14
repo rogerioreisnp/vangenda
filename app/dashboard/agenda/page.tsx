@@ -423,6 +423,8 @@ function DetalhePassageiro({ p, onVoltar, onAtualizar, horarioIda, horarioVolta 
 function FormAgendamento({ data, rotas, onFechar, onSalvo }: {
   data: Date, rotas: any[], onFechar: () => void, onSalvo: () => void
 }) {
+  const horarioIda = rotas[0]?.horario_ida?.slice(0, 5) || '05:00'
+  const horarioVolta = rotas[0]?.horario_volta?.slice(0, 5) || '14:00'
   const [paradas, setParadas] = useState<any[]>([])
   const [precos, setPrecos] = useState<any[]>([])
   const [clientes, setClientes] = useState<any[]>([])
@@ -610,7 +612,7 @@ function FormAgendamento({ data, rotas, onFechar, onSalvo }: {
                 style={form.turno === t
                   ? { background: '#0F6E56', color: '#fff', borderColor: '#0F6E56' }
                   : { background: '#fff', color: '#666', borderColor: '#e5e7eb' }}>
-                {t === 'ida' ? '↑ Ida (05:00h)' : '↓ Volta (14:00h)'}
+                {t === 'ida' ? `↑ Ida (${horarioIda}h)` : `↓ Volta (${horarioVolta}h)`}
               </button>
             ))}
           </div>
