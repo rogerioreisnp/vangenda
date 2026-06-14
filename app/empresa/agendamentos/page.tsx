@@ -144,6 +144,7 @@ export default function AgendamentosPage() {
     preco: number
   } | null>(null)
   const [corridaEditando, setCorridaEditando] = useState<Corrida | null>(null)
+  const [voltaIdEditando, setVoltaIdEditando] = useState<string | null>(null)
 
   useEffect(() => { carregarDados() }, [])
 
@@ -188,15 +189,17 @@ export default function AgendamentosPage() {
 
   function abrirNovaCorrida() {
     setCorridaEditando(null)
+    setVoltaIdEditando(null)
     setForm(FORM_VAZIO)
     setErro('')
     setModalAberto(true)
   }
 
-  function abrirEditar(c: Corrida) {
+  function abrirEditar(c: Corrida, voltaId?: string) {
     const dt = new Date(c.data_hora)
     const rotaExiste = c.rota_id != null && rotasOpcoes.some(r => r.id === c.rota_id)
     setCorridaEditando(c)
+    setVoltaIdEditando(voltaId ?? null)
     setForm({
       tipo_servico: c.tipo_servico || 'transfer',
       rota_id: rotaExiste ? c.rota_id! : 'manual',
@@ -273,6 +276,25 @@ export default function AgendamentosPage() {
         setErro('Erro ao salvar: ' + error.message)
         setSalvando(false)
         return
+      }
+
+      // Se editando um par, atualiza os campos compartilhados na corrida de volta
+      if (voltaIdEditando) {
+        const { error: erroVolta } = await supabase
+          .from('corridas_empresa')
+          .update({
+            motorista_id: camposComuns.motorista_id,
+            cliente_nome: camposComuns.cliente_nome,
+            cliente_telefone: camposComuns.cliente_telefone,
+            forma_pagamento: camposComuns.forma_pagamento,
+          })
+          .eq('id', voltaIdEditando)
+
+        if (erroVolta) {
+          setErro('Erro ao salvar corrida de volta: ' + erroVolta.message)
+          setSalvando(false)
+          return
+        }
       }
     } else {
       const base = { empresa_id: empresaId, status: 'confirmada', ...camposComuns }
@@ -499,7 +521,7 @@ export default function AgendamentosPage() {
                         R$ {valorTotal.toFixed(2).replace('.', ',')}
                       </p>
                       {eAtivo(ida.status) && (
-                        <button onClick={() => abrirEditar(ida)}
+                        <button onClick={() => abrirEditar(ida, volta.id)}
                           className="px-2.5 py-1 rounded-lg text-[10px] font-medium"
                           style={{ background: '#E1F5EE', color: '#0F6E56' }}>
                           ✏️
