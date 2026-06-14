@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 
 const navItems = [
   { href: '/empresa', label: 'Painel', emoji: '⌂' },
+  { href: '/empresa/agendamentos', label: 'Corridas', emoji: '📋' },
   { href: '/empresa/motoristas', label: 'Motoristas', emoji: '🚐' },
   { href: '/empresa/rotas', label: 'Rotas', emoji: '🛣️' },
   { href: '/empresa/configuracoes', label: 'Config.', emoji: '⚙' },
@@ -56,15 +57,15 @@ export default function EmpresaLayout({ children }: { children: React.ReactNode 
       </main>
 
       <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 safe-area-bottom z-50">
-        <div className="grid grid-cols-4 max-w-lg mx-auto">
+        <div className="grid grid-cols-5 max-w-lg mx-auto">
           {navItems.map((item) => {
             const ativo = pathname === item.href
             return (
               <Link key={item.href} href={item.href}
                 className="flex flex-col items-center py-2 pb-3 gap-0.5 transition-colors"
                 style={{ color: ativo ? '#0F6E56' : '#aaa' }}>
-                <span className="text-xl leading-none">{item.emoji}</span>
-                <span className="text-[10px] font-medium">{item.label}</span>
+                <span className="text-lg leading-none">{item.emoji}</span>
+                <span className="text-[9px] font-medium">{item.label}</span>
               </Link>
             )
           })}

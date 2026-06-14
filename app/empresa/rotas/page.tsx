@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 
 type Rota = {
@@ -136,11 +137,14 @@ export default function RotasPage() {
 
   return (
     <div>
-      <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-4">
-        <p style={{ color: '#E1F5EE' }} className="text-base font-semibold">Rotas</p>
-        <p style={{ color: '#5DCAA5' }} className="text-xs mt-0.5">
-          {rotas.length} rota{rotas.length !== 1 ? 's' : ''} cadastrada{rotas.length !== 1 ? 's' : ''}
-        </p>
+      <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-4 flex items-center gap-3">
+        <Link href="/empresa" style={{ color: '#9FE1CB' }} className="text-2xl leading-none flex-shrink-0">‹</Link>
+        <div>
+          <p style={{ color: '#E1F5EE' }} className="text-base font-semibold">Rotas</p>
+          <p style={{ color: '#5DCAA5' }} className="text-xs mt-0.5">
+            {rotas.length} rota{rotas.length !== 1 ? 's' : ''} cadastrada{rotas.length !== 1 ? 's' : ''}
+          </p>
+        </div>
       </div>
 
       <div className="px-4 py-4 flex flex-col gap-3">
