@@ -42,6 +42,11 @@ export default function EmpresaLayout({ children }: { children: React.ReactNode 
     setChecando(false)
   }
 
+  async function sair() {
+    await supabase.auth.signOut()
+    router.push('/')
+  }
+
   if (checando) {
     return (
       <div className="min-h-dvh flex items-center justify-center" style={{ background: '#f0f0ec' }}>
@@ -57,7 +62,7 @@ export default function EmpresaLayout({ children }: { children: React.ReactNode 
       </main>
 
       <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 safe-area-bottom z-50">
-        <div className="grid grid-cols-5 max-w-lg mx-auto">
+        <div className="grid grid-cols-6 max-w-lg mx-auto">
           {navItems.map((item) => {
             const ativo = pathname === item.href
             return (
@@ -69,6 +74,13 @@ export default function EmpresaLayout({ children }: { children: React.ReactNode 
               </Link>
             )
           })}
+          <button
+            onClick={sair}
+            className="flex flex-col items-center py-2 pb-3 gap-0.5 transition-colors"
+            style={{ color: '#aaa' }}>
+            <span className="text-lg leading-none">🚪</span>
+            <span className="text-[9px] font-medium">Sair</span>
+          </button>
         </div>
       </nav>
     </div>
