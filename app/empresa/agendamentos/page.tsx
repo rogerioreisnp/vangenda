@@ -483,6 +483,13 @@ export default function AgendamentosPage() {
                       <p className="text-sm font-bold" style={{ color: '#0F6E56' }}>
                         R$ {valorTotal.toFixed(2).replace('.', ',')}
                       </p>
+                      {eAtivo(ida.status) && (
+                        <button onClick={() => abrirEditar(ida)}
+                          className="px-2.5 py-1 rounded-lg text-[10px] font-medium"
+                          style={{ background: '#E1F5EE', color: '#0F6E56' }}>
+                          ✏️
+                        </button>
+                      )}
                       {idsCancelar.length > 0 && (
                         <button onClick={() => cancelarCorrida(idsCancelar)}
                           className="px-2.5 py-1 rounded-lg text-[10px] font-medium"
