@@ -85,13 +85,26 @@ export default function AgendamentoPublico({
     carregarRotas()
   }, [])
 
+  const [chavePix, setChavePix] = useState<string | null>(empresa.chave_pix ?? null)
+  const [tipoChavePix, setTipoChavePix] = useState<string | null>(empresa.tipo_chave_pix ?? null)
+
   async function carregarRotas() {
-    const { data } = await supabase
-      .from('rotas_empresa')
-      .select('id, origem, destino, preco')
-      .eq('empresa_id', empresa.id)
-      .order('created_at')
-    if (data) setRotas(data)
+    const [{ data: rotasData }, { data: pixData }] = await Promise.all([
+      supabase.from('rotas_empresa')
+        .select('id, origem, destino, preco')
+        .eq('empresa_id', empresa.id)
+        .order('created_at'),
+      // Busca chave_pix diretamente — garante o valor mesmo se a prop vier sem ele
+      supabase.from('empresas')
+        .select('chave_pix, tipo_chave_pix')
+        .eq('id', empresa.id)
+        .single(),
+    ])
+    if (rotasData) setRotas(rotasData)
+    if (pixData?.chave_pix) {
+      setChavePix(pixData.chave_pix)
+      setTipoChavePix(pixData.tipo_chave_pix ?? null)
+    }
     setLoadingRotas(false)
   }
 
@@ -136,15 +149,15 @@ export default function AgendamentoPublico({
       return
     }
 
-    if (empresa.chave_pix) {
+    if (chavePix) {
       setEtapa('pix')
     } else {
       setEtapa('sucesso')
     }
   }
 
-  const pixPayload = empresa.chave_pix && rotaSelecionada
-    ? gerarPayloadPix(empresa.chave_pix, empresa.nome, Number(rotaSelecionada.preco))
+  const pixPayload = chavePix && rotaSelecionada
+    ? gerarPayloadPix(chavePix, empresa.nome, Number(rotaSelecionada.preco))
     : null
 
   if (loadingRotas) return (
@@ -315,15 +328,15 @@ export default function AgendamentoPublico({
 
               <div style={{ background: '#f0f0ec' }} className="rounded-xl p-3 mb-4 text-left">
                 <p className="text-xs text-gray-500 mb-1">Chave Pix</p>
-                <p className="text-sm font-semibold text-gray-800 break-all">{empresa.chave_pix}</p>
-                {empresa.tipo_chave_pix && (
+                <p className="text-sm font-semibold text-gray-800 break-all">{chavePix}</p>
+                {tipoChavePix && (
                   <p className="text-xs text-gray-400 mt-1 capitalize">
-                    {empresa.tipo_chave_pix.replace('_', ' ')}
+                    {tipoChavePix.replace('_', ' ')}
                   </p>
                 )}
                 <button
                   onClick={() => {
-                    navigator.clipboard.writeText(empresa.chave_pix || '')
+                    navigator.clipboard.writeText(chavePix || '')
                     alert('Chave Pix copiada!')
                   }}
                   className="mt-3 w-full py-2.5 rounded-xl text-sm font-semibold border-2 transition-all"
