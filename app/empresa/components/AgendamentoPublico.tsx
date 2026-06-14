@@ -2,6 +2,36 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 
+function gerarPayloadPix(chave: string, nome: string, valor: number, cidade: string = 'Brasil'): string {
+  const pixNome = nome.substring(0, 25).replace(/[^a-zA-Z ]/g, '')
+  const pixCidade = cidade.substring(0, 15).replace(/[^a-zA-Z ]/g, '')
+  const pixValor = valor.toFixed(2)
+  function field(id: string, value: string) {
+    return `${id}${value.length.toString().padStart(2, '0')}${value}`
+  }
+  const merchantAccountInfo = field('00', 'BR.GOV.BCB.PIX') + field('01', chave)
+  const payload =
+    field('00', '01') +
+    field('26', merchantAccountInfo) +
+    field('52', '0000') +
+    field('53', '986') +
+    field('54', pixValor) +
+    field('58', 'BR') +
+    field('59', pixNome) +
+    field('60', pixCidade) +
+    field('62', field('05', '***'))
+  function crc16(str: string): string {
+    let crc = 0xFFFF
+    for (let i = 0; i < str.length; i++) {
+      crc ^= str.charCodeAt(i) << 8
+      for (let j = 0; j < 8; j++) crc = (crc & 0x8000) ? (crc << 1) ^ 0x1021 : crc << 1
+    }
+    return (crc & 0xFFFF).toString(16).toUpperCase().padStart(4, '0')
+  }
+  const withCrc = payload + '6304'
+  return withCrc + crc16(withCrc)
+}
+
 type EmpresaPublica = {
   id: string
   nome: string
@@ -28,7 +58,7 @@ export default function AgendamentoPublico({
 
   const [rotas, setRotas] = useState<Rota[]>([])
   const [loadingRotas, setLoadingRotas] = useState(true)
-  const [etapa, setEtapa] = useState<'form' | 'sucesso'>('form')
+  const [etapa, setEtapa] = useState<'form' | 'pix' | 'sucesso'>('form')
   const [form, setForm] = useState({
     rota_id: '',
     data: '',
@@ -40,6 +70,8 @@ export default function AgendamentoPublico({
   const [rotaSelecionada, setRotaSelecionada] = useState<Rota | null>(null)
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
+  const [chavePix, setChavePix] = useState<string | null>(null)
+  const [tipoChavePix, setTipoChavePix] = useState<string | null>(null)
 
   useEffect(() => {
     document.title = `Agendar — ${empresa.nome}`
@@ -54,12 +86,17 @@ export default function AgendamentoPublico({
   }, [])
 
   async function carregarRotas() {
-    const { data } = await supabase
-      .from('rotas_empresa')
-      .select('id, origem, destino, preco')
-      .eq('empresa_id', empresa.id)
-      .order('created_at')
+    const [{ data }, { data: empExtra }] = await Promise.all([
+      supabase.from('rotas_empresa').select('id, origem, destino, preco')
+        .eq('empresa_id', empresa.id).order('created_at'),
+      supabase.from('empresas').select('chave_pix, tipo_chave_pix')
+        .eq('id', empresa.id).single(),
+    ])
     if (data) setRotas(data)
+    if (empExtra) {
+      setChavePix(empExtra.chave_pix ?? null)
+      setTipoChavePix(empExtra.tipo_chave_pix ?? null)
+    }
     setLoadingRotas(false)
   }
 
@@ -104,8 +141,16 @@ export default function AgendamentoPublico({
       return
     }
 
-    setEtapa('sucesso')
+    if (chavePix) {
+      setEtapa('pix')
+    } else {
+      setEtapa('sucesso')
+    }
   }
+
+  const pixPayload = chavePix && rotaSelecionada
+    ? gerarPayloadPix(chavePix, empresa.nome, Number(rotaSelecionada.preco))
+    : null
 
   if (loadingRotas) return (
     <div className="min-h-dvh flex items-center justify-center" style={{ background: '#f0f0ec' }}>
@@ -249,6 +294,93 @@ export default function AgendamentoPublico({
             <p className="text-center text-xs text-gray-400">
               Agendamento via RotaGenda
             </p>
+          </div>
+        )}
+
+        {etapa === 'pix' && (
+          <div className="flex flex-col gap-4">
+            <div className="bg-white rounded-2xl p-4 border border-gray-100 text-center">
+              <p className="text-2xl mb-2">💰</p>
+              <p className="text-base font-bold text-gray-800 mb-1">Pague para garantir sua reserva</p>
+              <p className="text-sm text-gray-500 mb-4">
+                Agendamento confirmado! Realize o pagamento via Pix para garantir sua vaga.
+              </p>
+
+              {pixPayload && (
+                <div className="flex justify-center mb-4">
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(pixPayload)}`}
+                    alt="QR Code Pix"
+                    className="rounded-xl border border-gray-100"
+                    width={200}
+                    height={200}
+                  />
+                </div>
+              )}
+
+              <div style={{ background: '#f0f0ec' }} className="rounded-xl p-3 mb-4 text-left">
+                <p className="text-xs text-gray-500 mb-1">Chave Pix</p>
+                <p className="text-sm font-semibold text-gray-800 break-all">{chavePix}</p>
+                {tipoChavePix && (
+                  <p className="text-xs text-gray-400 mt-1 capitalize">
+                    {tipoChavePix.replace('_', ' ')}
+                  </p>
+                )}
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(chavePix || '')
+                    alert('Chave Pix copiada!')
+                  }}
+                  className="mt-3 w-full py-2.5 rounded-xl text-sm font-semibold border-2 transition-all"
+                  style={{ borderColor: cor, color: cor, background: '#fff' }}
+                >
+                  📋 Copiar chave Pix
+                </button>
+              </div>
+
+              <div style={{ background: '#E1F5EE' }} className="rounded-xl p-3 mb-4">
+                <p className="text-xs mb-1" style={{ color: '#085041' }}>Valor a pagar</p>
+                <p className="text-2xl font-bold" style={{ color: cor }}>
+                  R$ {Number(rotaSelecionada?.preco).toFixed(2).replace('.', ',')}
+                </p>
+              </div>
+
+              {rotaSelecionada && (
+                <div
+                  style={{ background: '#FAEEDA', borderColor: '#FAC775' }}
+                  className="border rounded-xl p-3 text-left"
+                >
+                  <p className="text-xs font-semibold mb-1" style={{ color: '#854F0B' }}>📋 Resumo</p>
+                  <p className="text-xs text-gray-600">
+                    📍 {rotaSelecionada.origem} → {rotaSelecionada.destino}
+                  </p>
+                  <p className="text-xs text-gray-600">
+                    📅 {form.data.slice(8, 10)}/{form.data.slice(5, 7)}/{form.data.slice(0, 4)} às {form.horario}
+                  </p>
+                  <p className="text-xs text-gray-600">👤 {form.nome}</p>
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={() => setEtapa('sucesso')}
+              className="w-full py-3.5 rounded-2xl text-white text-sm font-semibold"
+              style={{ background: cor }}
+            >
+              ✓ Já paguei
+            </button>
+
+            <button
+              onClick={() => {
+                setEtapa('form')
+                setForm({ rota_id: '', data: '', horario: '', nome: '', telefone: '', observacoes: '' })
+                setRotaSelecionada(null)
+                setErro('')
+              }}
+              className="w-full py-3 rounded-2xl text-sm font-medium border border-gray-200 bg-white text-gray-600"
+            >
+              Fazer outro agendamento
+            </button>
           </div>
         )}
 
