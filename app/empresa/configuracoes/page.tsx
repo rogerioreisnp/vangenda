@@ -324,13 +324,13 @@ export default function ConfiguracoesEmpresaPage() {
                 <p className="text-xs mt-1.5" style={{ color: '#6B7280' }}>
                   Seu link será:{' '}
                   <span className="font-medium" style={{ color: '#0F6E56' }}>
-                    rotagenda.app/agendar/{empresa.slug}
+                    {window.location.origin}/agendar/{empresa.slug}
                   </span>
                 </p>
               )}
               {!empresa?.slug && (
                 <p className="text-xs mt-1.5" style={{ color: '#9ca3af' }}>
-                  Seu link será: rotagenda.app/agendar/[slug]
+                  Seu link será: {window.location.origin}/agendar/[slug]
                 </p>
               )}
             </Campo>
