@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { format, addDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import InstallBanner from '@/components/InstallBanner'
+import AgendamentoPublico from '@/app/empresa/components/AgendamentoPublico'
 
 function gerarPayloadPix(chave: string, nome: string, valor: number, cidade: string = 'Brasil'): string {
   const pixChave = chave
@@ -72,6 +73,7 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
   const [vagasOcupadas, setVagasOcupadas] = useState(0)
   const [verificandoVagas, setVerificandoVagas] = useState(false)
   const [erroMsg, setErroMsg] = useState<string | null>(null)
+  const [empresa, setEmpresa] = useState<any>(null)
 
   const valorTotal = valorUnitario !== null ? valorUnitario * form.quantidade : null
 
@@ -117,7 +119,17 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
     const { data: mot, error: errMot } = await supabase
       .from('motoristas').select('*').eq('id', params.slug).single()
     if (errMot) console.error('Erro motorista:', errMot)
-    if (!mot) { setLoading(false); return }
+    if (!mot) {
+      // Slug não é um motorista — verifica se é uma empresa
+      const { data: emp } = await supabase
+        .from('empresas')
+        .select('id, nome, descricao, cor_destaque, logo_url')
+        .eq('slug', params.slug)
+        .single()
+      if (emp) setEmpresa(emp)
+      setLoading(false)
+      return
+    }
     setMotorista(mot)
     const { data: rts, error: errRts } = await supabase
       .from('rotas').select('*').eq('motorista_id', mot.id).limit(1).single()
@@ -272,6 +284,8 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
       <div className="text-4xl animate-pulse">🚐</div>
     </div>
   )
+
+  if (empresa) return <AgendamentoPublico empresa={empresa} slug={params.slug} />
 
   if (!motorista) return (
     <div className="min-h-dvh flex items-center justify-center p-4" style={{ background: '#f0f0ec' }}>
