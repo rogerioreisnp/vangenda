@@ -72,6 +72,8 @@ export default function AgendamentoPublico({
   const [rotaSelecionada, setRotaSelecionada] = useState<Rota | null>(null)
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
+  const [chavePix, setChavePix] = useState<string | null>(null)
+  const [tipoChavePix, setTipoChavePix] = useState<string | null>(null)
 
   useEffect(() => {
     document.title = `Agendar — ${empresa.nome}`
@@ -85,26 +87,13 @@ export default function AgendamentoPublico({
     carregarRotas()
   }, [])
 
-  const [chavePix, setChavePix] = useState<string | null>(empresa.chave_pix ?? null)
-  const [tipoChavePix, setTipoChavePix] = useState<string | null>(empresa.tipo_chave_pix ?? null)
-
   async function carregarRotas() {
-    const [{ data: rotasData }, { data: pixData }] = await Promise.all([
-      supabase.from('rotas_empresa')
-        .select('id, origem, destino, preco')
-        .eq('empresa_id', empresa.id)
-        .order('created_at'),
-      // Busca chave_pix diretamente — garante o valor mesmo se a prop vier sem ele
-      supabase.from('empresas')
-        .select('chave_pix, tipo_chave_pix')
-        .eq('id', empresa.id)
-        .single(),
-    ])
-    if (rotasData) setRotas(rotasData)
-    if (pixData?.chave_pix) {
-      setChavePix(pixData.chave_pix)
-      setTipoChavePix(pixData.tipo_chave_pix ?? null)
-    }
+    const { data } = await supabase
+      .from('rotas_empresa')
+      .select('id, origem, destino, preco')
+      .eq('empresa_id', empresa.id)
+      .order('created_at')
+    if (data) setRotas(data)
     setLoadingRotas(false)
   }
 
@@ -141,15 +130,25 @@ export default function AgendamentoPublico({
       observacoes: form.observacoes.trim() || null,
     })
 
-    setSalvando(false)
-
     if (error) {
+      setSalvando(false)
       console.error('Erro ao agendar:', error)
       setErro('Erro ao enviar agendamento. Tente novamente.')
       return
     }
 
-    if (chavePix) {
+    // Busca chave Pix da empresa pelo slug — usa a mesma RLS pública que carrega a página
+    const { data: pixData } = await supabase
+      .from('empresas')
+      .select('chave_pix, tipo_chave_pix')
+      .eq('slug', slug)
+      .single()
+
+    setSalvando(false)
+
+    if (pixData?.chave_pix) {
+      setChavePix(pixData.chave_pix)
+      setTipoChavePix(pixData.tipo_chave_pix ?? null)
       setEtapa('pix')
     } else {
       setEtapa('sucesso')
