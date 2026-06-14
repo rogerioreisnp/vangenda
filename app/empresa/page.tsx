@@ -10,23 +10,64 @@ type ProximaCorrida = {
   origem: string
   destino: string
   data_hora: string
+  created_at: string
   valor: number
   status: string
   cliente_nome: string
   motoristas_empresa: { nome: string } | null
 }
 
+type ProximaAgrupada =
+  | { tipo: 'simples'; corrida: ProximaCorrida }
+  | { tipo: 'par'; ida: ProximaCorrida; volta: ProximaCorrida }
+
 type DiaSemana = { data: string; total: number; label: string }
 
 const STATUS_COR: Record<string, { bg: string; text: string; label: string }> = {
-  confirmada:   { bg: '#EFF6FF', text: '#1D4ED8', label: 'Confirmada' },
-  em_andamento: { bg: '#E1F5EE', text: '#0F6E56', label: 'Em andamento' },
-  concluida:    { bg: '#F3F4F6', text: '#6B7280', label: 'Concluída' },
-  cancelada:    { bg: '#FCEBEB', text: '#A32D2D', label: 'Cancelada' },
+  confirmada:             { bg: '#EFF6FF', text: '#1D4ED8', label: 'Confirmada' },
+  em_andamento:           { bg: '#E1F5EE', text: '#0F6E56', label: 'Em andamento' },
+  concluida:              { bg: '#F3F4F6', text: '#6B7280', label: 'Concluída' },
+  cancelada:              { bg: '#FCEBEB', text: '#A32D2D', label: 'Cancelada' },
+  parcialmente_cancelada: { bg: '#FEF3C7', text: '#92400E', label: 'Parc. cancelada' },
 }
 
 const PLANO_LABEL: Record<string, string> = { starter: 'Starter', pro: 'Pro', fleet: 'Fleet' }
 const STATUS_EMPRESA_LABEL: Record<string, string> = { trial: 'Trial', ativo: 'Ativo', inativo: 'Inativo' }
+
+function statusParProxima(ida: ProximaCorrida, volta: ProximaCorrida): string {
+  if (ida.status === volta.status) return ida.status
+  if (ida.status === 'cancelada' || volta.status === 'cancelada') return 'parcialmente_cancelada'
+  return ida.status
+}
+
+function agruparProximas(corridas: ProximaCorrida[]): ProximaAgrupada[] {
+  const usados = new Set<string>()
+  const resultado: ProximaAgrupada[] = []
+  for (let i = 0; i < corridas.length; i++) {
+    if (usados.has(corridas[i].id)) continue
+    const a = corridas[i]
+    let parIdx = -1
+    for (let j = i + 1; j < corridas.length; j++) {
+      if (usados.has(corridas[j].id)) continue
+      const b = corridas[j]
+      if (
+        a.cliente_nome === b.cliente_nome &&
+        Math.abs(new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) < 30000
+      ) { parIdx = j; break }
+    }
+    if (parIdx !== -1) {
+      const b = corridas[parIdx]
+      usados.add(a.id); usados.add(b.id)
+      const ida = a.data_hora <= b.data_hora ? a : b
+      const volta = a.data_hora <= b.data_hora ? b : a
+      resultado.push({ tipo: 'par', ida, volta })
+    } else {
+      usados.add(a.id)
+      resultado.push({ tipo: 'simples', corrida: a })
+    }
+  }
+  return resultado
+}
 
 function contarContratos(corridas: { id: string; created_at: string; cliente_nome: string; origem: string; destino: string; data_hora?: string }[]): number {
   const usados = new Set<string>()
@@ -38,13 +79,9 @@ function contarContratos(corridas: { id: string; created_at: string; cliente_nom
     for (let j = i + 1; j < corridas.length; j++) {
       if (usados.has(corridas[j].id)) continue
       const b = corridas[j]
-      const mesmoDia = !a.data_hora || !b.data_hora || a.data_hora.slice(0, 10) === b.data_hora.slice(0, 10)
       if (
-        mesmoDia &&
         a.cliente_nome === b.cliente_nome &&
-        a.origem === b.destino &&
-        a.destino === b.origem &&
-        Math.abs(new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) < 10000
+        Math.abs(new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) < 30000
       ) {
         usados.add(a.id)
         usados.add(b.id)
@@ -136,7 +173,7 @@ export default function EmpresaPage() {
       supabase.from('corridas_empresa').select('id').eq('empresa_id', eid)
         .is('motorista_id', null).eq('status', 'confirmada').gte('data_hora', agoraISO),
       supabase.from('corridas_empresa')
-        .select('id, origem, destino, data_hora, valor, status, cliente_nome, motoristas_empresa(nome)')
+        .select('id, origem, destino, data_hora, created_at, valor, status, cliente_nome, motoristas_empresa(nome)')
         .eq('empresa_id', eid).gte('data_hora', agoraISO)
         .order('data_hora').limit(5),
       supabase.from('corridas_empresa').select('data_hora, valor').eq('empresa_id', eid)
@@ -271,20 +308,62 @@ export default function EmpresaPage() {
             </div>
           ) : (
             <div className="flex flex-col gap-2">
-              {proximas.map(c => {
-                const cor = STATUS_COR[c.status] ?? STATUS_COR.confirmada
-                const dt = new Date(c.data_hora)
-                const motoristaNome = (c.motoristas_empresa as any)?.nome ?? null
+              {agruparProximas(proximas).map(grupo => {
+                if (grupo.tipo === 'simples') {
+                  const c = grupo.corrida
+                  const cor = STATUS_COR[c.status] ?? STATUS_COR.confirmada
+                  const dt = new Date(c.data_hora)
+                  const motoristaNome = (c.motoristas_empresa as any)?.nome ?? null
+                  return (
+                    <div key={c.id} className="bg-white rounded-2xl px-4 py-3 border border-gray-100"
+                      style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-gray-800 truncate">
+                            {c.origem} → {c.destino}
+                          </p>
+                          <p className="text-xs text-gray-400 mt-0.5">
+                            {format(dt, "dd/MM 'às' HH:mm", { locale: ptBR })}
+                            {motoristaNome
+                              ? <> · <span className="text-gray-500">{motoristaNome}</span></>
+                              : <> · <span style={{ color: '#A32D2D' }}>Sem motorista</span></>
+                            }
+                          </p>
+                        </div>
+                        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                            style={{ background: cor.bg, color: cor.text }}>
+                            {cor.label}
+                          </span>
+                          <p className="text-xs font-bold" style={{ color: '#0F6E56' }}>
+                            R$ {Number(c.valor).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                }
+                const { ida, volta } = grupo
+                const statusKey = statusParProxima(ida, volta)
+                const cor = STATUS_COR[statusKey] ?? STATUS_COR.confirmada
+                const valorTotal = Number(ida.valor) + Number(volta.valor)
+                const motoristaNome = (ida.motoristas_empresa as any)?.nome ?? (volta.motoristas_empresa as any)?.nome ?? null
                 return (
-                  <div key={c.id} className="bg-white rounded-2xl px-4 py-3 border border-gray-100"
+                  <div key={`${ida.id}-${volta.id}`} className="bg-white rounded-2xl px-4 py-3 border border-gray-100"
                     style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-gray-800 truncate">
-                          {c.origem} → {c.destino}
-                        </p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm font-semibold text-gray-800 truncate">
+                            {ida.origem} → {ida.destino}
+                          </p>
+                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0"
+                            style={{ background: '#E1F5EE', color: '#0F6E56' }}>
+                            ↔ Ida e volta
+                          </span>
+                        </div>
                         <p className="text-xs text-gray-400 mt-0.5">
-                          {format(dt, "dd/MM 'às' HH:mm", { locale: ptBR })}
+                          {format(new Date(ida.data_hora), "dd/MM", { locale: ptBR })} · Ida {format(new Date(ida.data_hora), 'HH:mm')} · Volta {format(new Date(volta.data_hora), 'HH:mm')}
                           {motoristaNome
                             ? <> · <span className="text-gray-500">{motoristaNome}</span></>
                             : <> · <span style={{ color: '#A32D2D' }}>Sem motorista</span></>
@@ -297,7 +376,7 @@ export default function EmpresaPage() {
                           {cor.label}
                         </span>
                         <p className="text-xs font-bold" style={{ color: '#0F6E56' }}>
-                          R$ {Number(c.valor).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                          R$ {valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                         </p>
                       </div>
                     </div>
