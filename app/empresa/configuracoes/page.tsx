@@ -310,13 +310,16 @@ export default function ConfiguracoesEmpresaPage() {
                 />
               )}
             </Campo>
-            <Campo label="Slug (link público)">
+            <Campo label="Link personalizado">
               <input
                 value={empresa?.slug || ''}
                 onChange={e => setEmpresa(emp => emp ? { ...emp, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') } : emp)}
                 placeholder="ex: transfer-rio"
                 className="campo-input"
               />
+              <p className="text-xs mt-2 leading-relaxed" style={{ color: '#6B7280' }}>
+                ℹ️ Esse é o endereço exclusivo do seu app. Seus clientes vão usar esse link para agendar corridas diretamente com sua empresa. Use um nome curto e fácil de lembrar. Exemplo: transfer-rio, ericleiton-transportes
+              </p>
               {empresa?.slug && (
                 <p className="text-xs mt-1.5" style={{ color: '#6B7280' }}>
                   Seu link será:{' '}
