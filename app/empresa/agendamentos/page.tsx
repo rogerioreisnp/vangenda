@@ -19,6 +19,7 @@ type MotoristaOpcao = {
 
 type Corrida = {
   id: string
+  rota_id: string | null
   origem: string
   destino: string
   data_hora: string
@@ -27,6 +28,8 @@ type Corrida = {
   valor: number
   status: string
   motorista_id: string | null
+  tipo_servico: string | null
+  forma_pagamento: string | null
   observacoes: string | null
   motoristas_empresa: { nome: string } | null
 }
@@ -83,6 +86,7 @@ export default function AgendamentosPage() {
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
   const [rotaManualParaSalvar, setRotaManualParaSalvar] = useState<{ origem: string; destino: string; preco: number } | null>(null)
+  const [corridaEditando, setCorridaEditando] = useState<Corrida | null>(null)
 
   useEffect(() => { carregarDados() }, [])
 
@@ -113,7 +117,7 @@ export default function AgendamentosPage() {
         .order('nome'),
       supabase
         .from('corridas_empresa')
-        .select('id, origem, destino, data_hora, cliente_nome, cliente_telefone, valor, status, motorista_id, observacoes, motoristas_empresa(nome)')
+        .select('id, rota_id, origem, destino, data_hora, cliente_nome, cliente_telefone, valor, status, motorista_id, tipo_servico, forma_pagamento, observacoes, motoristas_empresa(nome)')
         .eq('empresa_id', gestor.empresa_id)
         .order('data_hora', { ascending: false })
         .limit(50),
@@ -126,7 +130,32 @@ export default function AgendamentosPage() {
   }
 
   function abrirNovaCorrida() {
+    setCorridaEditando(null)
     setForm(FORM_VAZIO)
+    setErro('')
+    setModalAberto(true)
+  }
+
+  function abrirEditar(c: Corrida) {
+    const dt = new Date(c.data_hora)
+    const rotaExiste = c.rota_id != null && rotasOpcoes.some(r => r.id === c.rota_id)
+    setCorridaEditando(c)
+    setForm({
+      tipo_servico: c.tipo_servico || 'transfer',
+      rota_id: rotaExiste ? c.rota_id! : 'manual',
+      origem: c.origem,
+      destino: c.destino,
+      data: format(dt, 'yyyy-MM-dd'),
+      horario: format(dt, 'HH:mm'),
+      ida_volta: false,
+      horario_retorno: '',
+      motorista_id: c.motorista_id || '',
+      cliente_nome: c.cliente_nome,
+      cliente_telefone: c.cliente_telefone || '',
+      forma_pagamento: c.forma_pagamento || 'a_definir',
+      preco: String(c.valor),
+      observacoes: c.observacoes || '',
+    })
     setErro('')
     setModalAberto(true)
   }
@@ -164,8 +193,7 @@ export default function AgendamentosPage() {
     setSalvando(true)
     setErro('')
 
-    const base = {
-      empresa_id: empresaId,
+    const camposComuns = {
       motorista_id: form.motorista_id || null,
       rota_id: form.rota_id && form.rota_id !== 'manual' ? form.rota_id : null,
       origem: form.origem.trim(),
@@ -173,35 +201,48 @@ export default function AgendamentosPage() {
       cliente_nome: form.cliente_nome.trim(),
       cliente_telefone: form.cliente_telefone.trim() || null,
       valor: preco,
-      status: 'confirmada',
       tipo_servico: form.tipo_servico,
       forma_pagamento: form.forma_pagamento,
       observacoes: form.observacoes.trim() || null,
     }
 
-    const registros: typeof base[] = [
-      { ...base, data_hora: `${form.data}T${form.horario}:00` } as any,
-    ]
+    if (corridaEditando) {
+      const { error } = await supabase
+        .from('corridas_empresa')
+        .update({ ...camposComuns, data_hora: `${form.data}T${form.horario}:00` })
+        .eq('id', corridaEditando.id)
 
-    if (form.ida_volta && form.horario_retorno) {
-      registros.push({
-        ...base,
-        data_hora: `${form.data}T${form.horario_retorno}:00`,
-        origem: form.destino.trim(),
-        destino: form.origem.trim(),
-      } as any)
-    }
+      if (error) {
+        setErro('Erro ao salvar: ' + error.message)
+        setSalvando(false)
+        return
+      }
+    } else {
+      const base = { empresa_id: empresaId, status: 'confirmada', ...camposComuns }
+      const registros: typeof base[] = [
+        { ...base, data_hora: `${form.data}T${form.horario}:00` } as any,
+      ]
 
-    const { error } = await supabase.from('corridas_empresa').insert(registros)
+      if (form.ida_volta && form.horario_retorno) {
+        registros.push({
+          ...base,
+          data_hora: `${form.data}T${form.horario_retorno}:00`,
+          origem: form.destino.trim(),
+          destino: form.origem.trim(),
+        } as any)
+      }
 
-    if (error) {
-      setErro('Erro ao salvar: ' + error.message)
-      setSalvando(false)
-      return
-    }
+      const { error } = await supabase.from('corridas_empresa').insert(registros)
 
-    if (form.rota_id === 'manual') {
-      setRotaManualParaSalvar({ origem: form.origem.trim(), destino: form.destino.trim(), preco })
+      if (error) {
+        setErro('Erro ao salvar: ' + error.message)
+        setSalvando(false)
+        return
+      }
+
+      if (form.rota_id === 'manual') {
+        setRotaManualParaSalvar({ origem: form.origem.trim(), destino: form.destino.trim(), preco })
+      }
     }
 
     setSalvando(false)
@@ -320,6 +361,13 @@ export default function AgendamentosPage() {
                       <p className="text-sm font-bold" style={{ color: '#0F6E56' }}>
                         R$ {Number(c.valor).toFixed(2).replace('.', ',')}
                       </p>
+                      {c.status !== 'cancelada' && c.status !== 'concluida' && (
+                        <button onClick={() => abrirEditar(c)}
+                          className="px-2.5 py-1 rounded-lg text-[10px] font-medium"
+                          style={{ background: '#E1F5EE', color: '#0F6E56' }}>
+                          ✏️
+                        </button>
+                      )}
                       {c.status === 'confirmada' && (
                         <button onClick={() => cancelarCorrida(c.id)}
                           className="px-2.5 py-1 rounded-lg text-[10px] font-medium"
@@ -340,7 +388,9 @@ export default function AgendamentosPage() {
         <div className="fixed inset-0 z-50 flex flex-col" style={{ background: '#fff' }}>
           <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-4 flex items-center gap-3 flex-shrink-0">
             <button onClick={() => setModalAberto(false)} style={{ color: '#9FE1CB' }} className="text-2xl">‹</button>
-            <p style={{ color: '#E1F5EE' }} className="text-sm font-semibold">Nova corrida</p>
+            <p style={{ color: '#E1F5EE' }} className="text-sm font-semibold">
+              {corridaEditando ? 'Editar corrida' : 'Nova corrida'}
+            </p>
           </div>
 
           <div className="flex-1 overflow-y-auto px-4 pt-4 pb-20 flex flex-col gap-3">
@@ -401,22 +451,24 @@ export default function AgendamentosPage() {
               </Campo>
             </div>
 
-            <div className="flex items-center justify-between rounded-xl px-4 py-3"
-              style={{ background: '#f9fafb', border: '1px solid #e5e7eb' }}>
-              <div>
-                <p className="text-sm font-medium text-gray-700">Ida e volta?</p>
-                <p className="text-xs text-gray-400 mt-0.5">Cria dois agendamentos automaticamente</p>
+            {!corridaEditando && (
+              <div className="flex items-center justify-between rounded-xl px-4 py-3"
+                style={{ background: '#f9fafb', border: '1px solid #e5e7eb' }}>
+                <div>
+                  <p className="text-sm font-medium text-gray-700">Ida e volta?</p>
+                  <p className="text-xs text-gray-400 mt-0.5">Cria dois agendamentos automaticamente</p>
+                </div>
+                <button
+                  onClick={() => setForm(f => ({ ...f, ida_volta: !f.ida_volta, horario_retorno: '' }))}
+                  className="relative w-11 h-6 rounded-full transition-colors flex-shrink-0"
+                  style={{ background: form.ida_volta ? '#1D9E75' : '#e5e7eb' }}>
+                  <div className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all"
+                    style={{ left: form.ida_volta ? '22px' : '2px' }} />
+                </button>
               </div>
-              <button
-                onClick={() => setForm(f => ({ ...f, ida_volta: !f.ida_volta, horario_retorno: '' }))}
-                className="relative w-11 h-6 rounded-full transition-colors flex-shrink-0"
-                style={{ background: form.ida_volta ? '#1D9E75' : '#e5e7eb' }}>
-                <div className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all"
-                  style={{ left: form.ida_volta ? '22px' : '2px' }} />
-              </button>
-            </div>
+            )}
 
-            {form.ida_volta && (
+            {!corridaEditando && form.ida_volta && (
               <Campo label="Horário de retorno">
                 <input type="time" value={form.horario_retorno}
                   onChange={e => setForm(f => ({ ...f, horario_retorno: e.target.value }))}
@@ -480,7 +532,7 @@ export default function AgendamentosPage() {
               </div>
             )}
 
-            {rotaManual && (
+            {rotaManual && !corridaEditando && (
               <div className="rounded-xl px-4 py-3 text-xs"
                 style={{ background: '#FAEEDA', color: '#854F0B' }}>
                 💡 Rota manual: após confirmar, você poderá salvar essa rota para usar novamente.
@@ -492,9 +544,11 @@ export default function AgendamentosPage() {
               style={{ background: '#1D9E75' }}>
               {salvando
                 ? 'Salvando...'
-                : form.ida_volta
-                  ? '✓ Confirmar corrida (ida + volta)'
-                  : '✓ Confirmar corrida'}
+                : corridaEditando
+                  ? 'Salvar alterações'
+                  : form.ida_volta
+                    ? '✓ Confirmar corrida (ida + volta)'
+                    : '✓ Confirmar corrida'}
             </button>
           </div>
 
