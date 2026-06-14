@@ -1,8 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { format } from 'date-fns'
-import { ptBR } from 'date-fns/locale'
 import { supabase } from '@/lib/supabase'
 
 type RotaOpcao = {
@@ -196,7 +194,6 @@ export default function AgendamentosPage() {
   }
 
   function abrirEditar(c: Corrida, voltaId?: string) {
-    const dt = new Date(c.data_hora)
     const rotaExiste = c.rota_id != null && rotasOpcoes.some(r => r.id === c.rota_id)
     setCorridaEditando(c)
     setVoltaIdEditando(voltaId ?? null)
@@ -205,8 +202,8 @@ export default function AgendamentosPage() {
       rota_id: rotaExiste ? c.rota_id! : 'manual',
       origem: c.origem,
       destino: c.destino,
-      data: format(dt, 'yyyy-MM-dd'),
-      horario: format(dt, 'HH:mm'),
+      data: c.data_hora.slice(0, 10),
+      horario: c.data_hora.slice(11, 16),
       ida_volta: false,
       horario_retorno: '',
       motorista_id: c.motorista_id || '',
@@ -428,7 +425,6 @@ export default function AgendamentosPage() {
               if (grupo.tipo === 'simples') {
                 const c = grupo.corrida
                 const cor = STATUS_COR[c.status] ?? STATUS_COR.confirmada
-                const dt = new Date(c.data_hora)
                 const nomeMotorista = c.motoristas_empresa?.nome ?? null
                 return (
                   <div key={c.id} className="bg-white rounded-2xl p-4 border border-gray-100">
@@ -438,7 +434,7 @@ export default function AgendamentosPage() {
                           {c.origem} → {c.destino}
                         </p>
                         <p className="text-xs text-gray-400 mt-0.5">
-                          {format(dt, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                          {c.data_hora.slice(8, 10)}/{c.data_hora.slice(5, 7)}/{c.data_hora.slice(0, 4)} às {c.data_hora.slice(11, 16)}
                         </p>
                       </div>
                       <span className="text-[10px] font-semibold px-2 py-1 rounded-full flex-shrink-0"
@@ -500,7 +496,7 @@ export default function AgendamentosPage() {
                         </span>
                       </div>
                       <p className="text-xs text-gray-400 mt-0.5">
-                        Ida {format(new Date(ida.data_hora), 'HH:mm')} · Volta {format(new Date(volta.data_hora), 'HH:mm')} · {format(new Date(ida.data_hora), 'dd/MM/yyyy', { locale: ptBR })}
+                        Ida {ida.data_hora.slice(11, 16)} · Volta {volta.data_hora.slice(11, 16)} · {ida.data_hora.slice(8, 10)}/{ida.data_hora.slice(5, 7)}/{ida.data_hora.slice(0, 4)}
                       </p>
                     </div>
                     <span className="text-[10px] font-semibold px-2 py-1 rounded-full flex-shrink-0"

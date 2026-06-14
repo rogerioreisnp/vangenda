@@ -312,7 +312,6 @@ export default function EmpresaPage() {
                 if (grupo.tipo === 'simples') {
                   const c = grupo.corrida
                   const cor = STATUS_COR[c.status] ?? STATUS_COR.confirmada
-                  const dt = new Date(c.data_hora)
                   const motoristaNome = (c.motoristas_empresa as any)?.nome ?? null
                   return (
                     <div key={c.id} className="bg-white rounded-2xl px-4 py-3 border border-gray-100"
@@ -323,7 +322,7 @@ export default function EmpresaPage() {
                             {c.origem} → {c.destino}
                           </p>
                           <p className="text-xs text-gray-400 mt-0.5">
-                            {format(dt, "dd/MM 'às' HH:mm", { locale: ptBR })}
+                            {c.data_hora.slice(8, 10)}/{c.data_hora.slice(5, 7)} às {c.data_hora.slice(11, 16)}
                             {motoristaNome
                               ? <> · <span className="text-gray-500">{motoristaNome}</span></>
                               : <> · <span style={{ color: '#A32D2D' }}>Sem motorista</span></>
@@ -363,7 +362,7 @@ export default function EmpresaPage() {
                           </span>
                         </div>
                         <p className="text-xs text-gray-400 mt-0.5">
-                          {format(new Date(ida.data_hora), "dd/MM", { locale: ptBR })} · Ida {format(new Date(ida.data_hora), 'HH:mm')} · Volta {format(new Date(volta.data_hora), 'HH:mm')}
+                          {ida.data_hora.slice(8, 10)}/{ida.data_hora.slice(5, 7)} · Ida {ida.data_hora.slice(11, 16)} · Volta {volta.data_hora.slice(11, 16)}
                           {motoristaNome
                             ? <> · <span className="text-gray-500">{motoristaNome}</span></>
                             : <> · <span style={{ color: '#A32D2D' }}>Sem motorista</span></>
