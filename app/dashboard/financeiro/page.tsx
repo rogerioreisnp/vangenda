@@ -92,6 +92,7 @@ type Encomenda = {
   valor_pago: number
   forma_pagamento?: string
   data_combinada?: string
+  data_entrega?: string
   criado_em: string
   data_pago?: string
 }
