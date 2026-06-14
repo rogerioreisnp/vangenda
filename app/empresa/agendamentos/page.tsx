@@ -87,6 +87,8 @@ function statusPar(ida: Corrida, volta: Corrida): string {
   return ida.status
 }
 
+// Duas corridas formam um par quando têm o mesmo cliente e foram criadas
+// com menos de 30 segundos de diferença (ambas geradas pelo mesmo agendamento ida e volta).
 function agruparPares(corridas: Corrida[]): CorridaAgrupada[] {
   const usados = new Set<string>()
   const resultado: CorridaAgrupada[] = []
@@ -101,10 +103,9 @@ function agruparPares(corridas: Corrida[]): CorridaAgrupada[] {
       const b = corridas[j]
       if (
         a.cliente_nome === b.cliente_nome &&
-        a.origem === b.destino &&
-        a.destino === b.origem &&
-        a.data_hora.slice(0, 10) === b.data_hora.slice(0, 10) &&
-        Math.abs(new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) < 10000
+        Math.abs(
+          new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        ) < 30000
       ) {
         parIdx = j
         break
@@ -137,7 +138,11 @@ export default function AgendamentosPage() {
   const [form, setForm] = useState<FormCorrida>(FORM_VAZIO)
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
-  const [rotaManualParaSalvar, setRotaManualParaSalvar] = useState<{ origem: string; destino: string; preco: number } | null>(null)
+  const [rotaManualParaSalvar, setRotaManualParaSalvar] = useState<{
+    origem: string
+    destino: string
+    preco: number
+  } | null>(null)
   const [corridaEditando, setCorridaEditando] = useState<Corrida | null>(null)
 
   useEffect(() => { carregarDados() }, [])
@@ -332,7 +337,9 @@ export default function AgendamentosPage() {
   const corridasAgrupadas = agruparPares(corridas)
   const eAtivo = (s: string) => s !== 'cancelada' && s !== 'concluida'
   const qtdAtivas = corridasAgrupadas.filter(g =>
-    g.tipo === 'simples' ? eAtivo(g.corrida.status) : eAtivo(g.ida.status) || eAtivo(g.volta.status)
+    g.tipo === 'simples'
+      ? eAtivo(g.corrida.status)
+      : eAtivo(g.ida.status) || eAtivo(g.volta.status)
   ).length
 
   const rotaManual = form.rota_id === 'manual'
@@ -340,6 +347,7 @@ export default function AgendamentosPage() {
 
   return (
     <div>
+      {/* Header */}
       <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-4 flex items-center gap-3">
         <Link href="/empresa" style={{ color: '#9FE1CB' }} className="text-2xl leading-none flex-shrink-0">‹</Link>
         <div>
@@ -352,6 +360,7 @@ export default function AgendamentosPage() {
 
       <div className="px-4 py-4 flex flex-col gap-3">
 
+        {/* Banner salvar rota manual */}
         {rotaManualParaSalvar && (
           <div className="rounded-xl p-4 border" style={{ background: '#E1F5EE', borderColor: '#9FE1CB' }}>
             <p className="text-sm font-semibold mb-1" style={{ color: '#085041' }}>
@@ -375,12 +384,14 @@ export default function AgendamentosPage() {
           </div>
         )}
 
+        {/* Botão nova corrida */}
         <button onClick={abrirNovaCorrida}
           className="w-full py-3 rounded-xl text-sm font-semibold"
           style={{ background: '#1D9E75', color: '#fff' }}>
           + Nova corrida
         </button>
 
+        {/* Lista de corridas */}
         {corridas.length === 0 ? (
           <div className="bg-white rounded-2xl p-6 border border-gray-100 text-center">
             <p className="text-3xl mb-2">📋</p>
@@ -390,6 +401,8 @@ export default function AgendamentosPage() {
         ) : (
           <div className="flex flex-col gap-2">
             {corridasAgrupadas.map(grupo => {
+
+              /* ── Card simples ── */
               if (grupo.tipo === 'simples') {
                 const c = grupo.corrida
                 const cor = STATUS_COR[c.status] ?? STATUS_COR.confirmada
@@ -411,7 +424,8 @@ export default function AgendamentosPage() {
                         {cor.label}
                       </span>
                     </div>
-                    <div className="flex items-end justify-between gap-2" style={{ borderTop: '1px solid #f5f5f5', paddingTop: '8px' }}>
+                    <div className="flex items-end justify-between gap-2"
+                      style={{ borderTop: '1px solid #f5f5f5', paddingTop: '8px' }}>
                       <div className="min-w-0">
                         <p className="text-xs font-medium text-gray-700 truncate">{c.cliente_nome}</p>
                         {nomeMotorista && (
@@ -442,7 +456,7 @@ export default function AgendamentosPage() {
                 )
               }
 
-              // Par de ida e volta
+              /* ── Card par ida e volta ── */
               const { ida, volta } = grupo
               const statusKey = statusPar(ida, volta)
               const cor = STATUS_COR[statusKey] ?? STATUS_COR.confirmada
@@ -472,7 +486,8 @@ export default function AgendamentosPage() {
                       {cor.label}
                     </span>
                   </div>
-                  <div className="flex items-end justify-between gap-2" style={{ borderTop: '1px solid #f5f5f5', paddingTop: '8px' }}>
+                  <div className="flex items-end justify-between gap-2"
+                    style={{ borderTop: '1px solid #f5f5f5', paddingTop: '8px' }}>
                     <div className="min-w-0">
                       <p className="text-xs font-medium text-gray-700 truncate">{ida.cliente_nome}</p>
                       {nomeMotorista && (
@@ -506,6 +521,7 @@ export default function AgendamentosPage() {
         )}
       </div>
 
+      {/* Modal formulário nova/editar corrida */}
       {modalAberto && (
         <div className="fixed inset-0 z-50 flex flex-col" style={{ background: '#fff' }}>
           <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-4 flex items-center gap-3 flex-shrink-0">
@@ -545,7 +561,10 @@ export default function AgendamentosPage() {
                 readOnly={camposRotaBloqueados}
                 placeholder="Ex: Aeroporto Internacional"
                 className="campo-input"
-                style={{ background: camposRotaBloqueados ? '#f9fafb' : '#fff', color: camposRotaBloqueados ? '#6B7280' : '#222' }}
+                style={{
+                  background: camposRotaBloqueados ? '#f9fafb' : '#fff',
+                  color: camposRotaBloqueados ? '#6B7280' : '#222',
+                }}
               />
             </Campo>
 
@@ -556,7 +575,10 @@ export default function AgendamentosPage() {
                 readOnly={camposRotaBloqueados}
                 placeholder="Ex: Hotel Tropical"
                 className="campo-input"
-                style={{ background: camposRotaBloqueados ? '#f9fafb' : '#fff', color: camposRotaBloqueados ? '#6B7280' : '#222' }}
+                style={{
+                  background: camposRotaBloqueados ? '#f9fafb' : '#fff',
+                  color: camposRotaBloqueados ? '#6B7280' : '#222',
+                }}
               />
             </Campo>
 
@@ -633,9 +655,9 @@ export default function AgendamentosPage() {
             </Campo>
 
             <Campo label="Preço (R$) *">
-              <input type="number" step="0.01" value={form.preco}
+              <input type="number" step="0.01" min={0} value={form.preco}
                 onChange={e => setForm(f => ({ ...f, preco: e.target.value }))}
-                placeholder="0,00" className="campo-input" min={0} />
+                placeholder="0,00" className="campo-input" />
             </Campo>
 
             <Campo label="Observações">
