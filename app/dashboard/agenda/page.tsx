@@ -24,6 +24,19 @@ type Agendamento = {
   referencia?: string
 }
 
+type Encomenda = {
+  id: string
+  nome: string
+  telefone?: string
+  valor: number
+  observacao?: string
+  pago: boolean
+  valor_pago: number
+  forma_pagamento?: string
+  data_entrega?: string
+  horario_entrega?: string
+}
+
 export default function AgendaPage() {
   const hoje = new Date()
   const [mesAtual, setMesAtual] = useState(new Date())
@@ -35,8 +48,10 @@ export default function AgendaPage() {
   const [rotas, setRotas] = useState<any[]>([])
   const [agendamentoDetalhe, setAgendamentoDetalhe] = useState<Agendamento | null>(null)
   const [diasTrabalho, setDiasTrabalho] = useState<number[]>([])
+  const [encomendasDoDia, setEncomendasDoDia] = useState<Encomenda[]>([])
 
   useEffect(() => { carregarMes() }, [mesAtual])
+  useEffect(() => { carregarEncomendasDoDia(diaSelecionado) }, [diaSelecionado])
 
   async function carregarMes() {
     setLoading(true)
@@ -58,6 +73,27 @@ export default function AgendaPage() {
     if (mot?.dias_trabalho) setDiasTrabalho(mot.dias_trabalho)
 
     setLoading(false)
+  }
+
+  async function carregarEncomendasDoDia(data: Date) {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    const { data: encs } = await supabase
+      .from('encomendas')
+      .select('id, nome, telefone, valor, observacao, pago, valor_pago, forma_pagamento, data_entrega, horario_entrega')
+      .eq('motorista_id', user.id)
+      .eq('data_entrega', format(data, 'yyyy-MM-dd'))
+      .order('criado_em', { ascending: true })
+    setEncomendasDoDia(encs || [])
+  }
+
+  async function concluirEncomenda(enc: Encomenda) {
+    await supabase.from('encomendas').update({
+      pago: true,
+      valor_pago: enc.valor,
+      data_pago: format(new Date(), 'yyyy-MM-dd'),
+    }).eq('id', enc.id)
+    carregarEncomendasDoDia(diaSelecionado)
   }
 
   const inicioSemana = startOfWeek(startOfMonth(mesAtual), { weekStartsOn: 0 })
@@ -153,7 +189,7 @@ export default function AgendaPage() {
 
         {loading ? (
           <p className="text-center text-gray-400 text-sm py-6">Carregando...</p>
-        ) : agsDoDia.length === 0 ? (
+        ) : agsDoDia.length === 0 && encomendasDoDia.length === 0 ? (
           <div className="text-center py-8">
             <p className="text-3xl mb-2">📭</p>
             <p className="text-gray-400 text-sm">Nenhum passageiro neste dia</p>
@@ -165,6 +201,9 @@ export default function AgendaPage() {
             )}
             {volta.length > 0 && (
               <BlocoTurno turno="volta" horario={horarioVolta + 'h'} passageiros={volta} onAtualizar={carregarMes} onVerDetalhe={setAgendamentoDetalhe} />
+            )}
+            {encomendasDoDia.length > 0 && (
+              <BlocoEncomendas encomendas={encomendasDoDia} onConcluir={concluirEncomenda} />
             )}
           </>
         )}
@@ -205,7 +244,7 @@ export default function AgendaPage() {
         <ModalNovaEncomenda
           dataSelecionada={diaSelecionado}
           onFechar={() => setModalEncomenda(false)}
-          onSalvo={() => setModalEncomenda(false)}
+          onSalvo={() => { setModalEncomenda(false); carregarEncomendasDoDia(diaSelecionado) }}
         />
       )}
     </div>
@@ -736,6 +775,72 @@ function FormAgendamento({ data, rotas, onFechar, onSalvo }: {
         }
         .campo-input:focus { border-color: #1D9E75; }
       `}</style>
+    </div>
+  )
+}
+
+function BlocoEncomendas({ encomendas, onConcluir }: {
+  encomendas: Encomenda[]
+  onConcluir: (e: Encomenda) => void
+}) {
+  const pendentes = encomendas.filter(e => !e.pago)
+  const concluidas = encomendas.filter(e => e.pago)
+  const formaLabel: Record<string, string> = { dinheiro: 'Dinheiro', pix: 'Pix', cartao: 'Cartão' }
+
+  return (
+    <div className="mb-4">
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Encomendas</span>
+        <span className="text-[10px] px-2 py-0.5 rounded-md font-medium"
+          style={{ background: '#FAEEDA', color: '#854F0B' }}>
+          📦 {encomendas.length}
+        </span>
+      </div>
+
+      {pendentes.map(e => (
+        <div key={e.id} className="bg-white border border-gray-100 rounded-xl p-3 mb-2 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-base"
+            style={{ background: '#FAEEDA' }}>📦</div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-gray-800 truncate">{e.nome}</p>
+            {e.observacao && <p className="text-xs text-gray-400 truncate">{e.observacao}</p>}
+            <p className="text-xs text-gray-400">
+              {e.horario_entrega ? e.horario_entrega.slice(0, 5) + 'h · ' : ''}
+              {e.forma_pagamento ? (formaLabel[e.forma_pagamento] || e.forma_pagamento) : 'A cobrar'}
+            </p>
+          </div>
+          <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+            <p className="text-sm font-bold" style={{ color: '#854F0B' }}>R$ {e.valor.toFixed(0)}</p>
+            <button onClick={() => onConcluir(e)}
+              className="text-xs px-2.5 py-1 rounded-lg font-semibold"
+              style={{ background: '#E1F5EE', color: '#0F6E56' }}>
+              ✓ Concluir
+            </button>
+          </div>
+        </div>
+      ))}
+
+      {concluidas.length > 0 && (
+        <>
+          <p className="text-xs font-medium text-gray-400 mt-3 mb-2 uppercase tracking-wide">Concluídas</p>
+          {concluidas.map(e => (
+            <div key={e.id} className="border border-gray-100 rounded-xl p-3 mb-2 flex items-center gap-3"
+              style={{ background: '#f7f7f7', opacity: 0.7 }}>
+              <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-base"
+                style={{ background: '#e5e5e5' }}>📦</div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-500 truncate">{e.nome}</p>
+                {e.observacao && <p className="text-xs text-gray-400 truncate">{e.observacao}</p>}
+              </div>
+              <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                <p className="text-sm text-gray-400">R$ {e.valor.toFixed(0)}</p>
+                <span className="text-[10px] px-2 py-0.5 rounded-md font-medium"
+                  style={{ background: '#E1F5EE', color: '#0F6E56' }}>✓ Concluída</span>
+              </div>
+            </div>
+          ))}
+        </>
+      )}
     </div>
   )
 }

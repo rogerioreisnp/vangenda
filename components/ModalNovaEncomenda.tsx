@@ -29,7 +29,6 @@ export default function ModalNovaEncomenda({ onFechar, onSalvo, nomeInicial, tel
     if (!user) { setErro('Não autenticado.'); setSaving(false); return }
 
     const valor = parseFloat(form.valor)
-    const pago = form.status === 'pago_na_hora'
 
     const dataEntrega = form.data_entrega || null
     const horarioEntrega = form.horario_entrega || null
@@ -40,9 +39,9 @@ export default function ModalNovaEncomenda({ onFechar, onSalvo, nomeInicial, tel
       telefone: form.telefone.trim() || null,
       valor,
       observacao: form.observacao.trim() || null,
-      pago,
-      valor_pago: pago ? valor : 0,
-      forma_pagamento: pago ? form.forma_pagamento : null,
+      pago: false,
+      valor_pago: 0,
+      forma_pagamento: form.status === 'pago_na_hora' ? form.forma_pagamento : null,
       data_entrega: dataEntrega,
       horario_entrega: horarioEntrega,
     }).select('id').single()
@@ -56,7 +55,7 @@ export default function ModalNovaEncomenda({ onFechar, onSalvo, nomeInicial, tel
     const descBase = agendamentoInfo ? `Encomenda - ${agendamentoInfo}` : 'Encomenda'
     const descFinal = descBase + (form.observacao.trim() ? ': ' + form.observacao.trim() : '')
 
-    if (!pago && novaEnc) {
+    if (form.status === 'fiado' && novaEnc) {
       await supabase.from('movimentacoes').insert({
         motorista_id: user.id,
         cliente_nome: form.nome.trim(),
