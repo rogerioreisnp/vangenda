@@ -343,7 +343,7 @@ export default function AgendamentosPage() {
             <p style={{ color: '#E1F5EE' }} className="text-sm font-semibold">Nova corrida</p>
           </div>
 
-          <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
+          <div className="flex-1 overflow-y-auto px-4 pt-4 pb-20 flex flex-col gap-3">
 
             <Campo label="Tipo de serviço">
               <select value={form.tipo_servico}
