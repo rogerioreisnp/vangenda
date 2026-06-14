@@ -10,6 +10,18 @@ type Empresa = {
   tipo_operacao: string
   plano: string
   status: string
+  cnpj: string | null
+  email_comercial: string | null
+  cidade: string | null
+  estado: string | null
+  qtd_veiculos: number | null
+  descricao: string | null
+  chave_pix: string | null
+  tipo_chave_pix: string | null
+  instagram: string | null
+  whatsapp_comercial: string | null
+  cor_destaque: string | null
+  logo_url: string | null
 }
 
 const PLANO_LABEL: Record<string, string> = { starter: 'Starter', pro: 'Pro', fleet: 'Fleet' }
@@ -38,7 +50,7 @@ export default function ConfiguracoesEmpresaPage() {
 
     const { data: emp } = await supabase
       .from('empresas')
-      .select('id, nome, telefone, tipo_operacao, plano, status')
+      .select('id, nome, telefone, tipo_operacao, plano, status, cnpj, email_comercial, cidade, estado, qtd_veiculos, descricao, chave_pix, tipo_chave_pix, instagram, whatsapp_comercial, cor_destaque, logo_url')
       .eq('id', gestor.empresa_id)
       .single()
 
@@ -61,6 +73,18 @@ export default function ConfiguracoesEmpresaPage() {
         nome: empresa.nome.trim(),
         telefone: empresa.telefone?.trim() || null,
         tipo_operacao: empresa.tipo_operacao,
+        cnpj: empresa.cnpj?.trim() || null,
+        email_comercial: empresa.email_comercial?.trim() || null,
+        cidade: empresa.cidade?.trim() || null,
+        estado: empresa.estado || null,
+        qtd_veiculos: empresa.qtd_veiculos ?? null,
+        descricao: empresa.descricao?.trim() || null,
+        chave_pix: empresa.chave_pix?.trim() || null,
+        tipo_chave_pix: empresa.tipo_chave_pix || 'telefone',
+        instagram: empresa.instagram?.trim() || null,
+        whatsapp_comercial: empresa.whatsapp_comercial?.trim() || null,
+        cor_destaque: empresa.cor_destaque || '#1D9E75',
+        logo_url: empresa.logo_url?.trim() || null,
       })
       .eq('id', empresa.id)
 
@@ -103,11 +127,68 @@ export default function ConfiguracoesEmpresaPage() {
                 className="campo-input"
               />
             </Campo>
+            <Campo label="CNPJ">
+              <input
+                value={empresa?.cnpj || ''}
+                onChange={e => {
+                  const v = e.target.value.replace(/\D/g, '').slice(0, 14)
+                  const mask = v.length <= 2 ? v
+                    : v.length <= 5 ? `${v.slice(0,2)}.${v.slice(2)}`
+                    : v.length <= 8 ? `${v.slice(0,2)}.${v.slice(2,5)}.${v.slice(5)}`
+                    : v.length <= 12 ? `${v.slice(0,2)}.${v.slice(2,5)}.${v.slice(5,8)}/${v.slice(8)}`
+                    : `${v.slice(0,2)}.${v.slice(2,5)}.${v.slice(5,8)}/${v.slice(8,12)}-${v.slice(12)}`
+                  setEmpresa(emp => emp ? { ...emp, cnpj: mask } : emp)
+                }}
+                placeholder="XX.XXX.XXX/XXXX-XX"
+                className="campo-input"
+              />
+            </Campo>
             <Campo label="Telefone">
               <input
                 value={empresa?.telefone || ''}
                 onChange={e => setEmpresa(emp => emp ? { ...emp, telefone: e.target.value } : emp)}
                 placeholder="(XX) XXXXX-XXXX"
+                className="campo-input"
+              />
+            </Campo>
+            <Campo label="E-mail comercial">
+              <input
+                type="email"
+                value={empresa?.email_comercial || ''}
+                onChange={e => setEmpresa(emp => emp ? { ...emp, email_comercial: e.target.value } : emp)}
+                placeholder="contato@suaempresa.com"
+                className="campo-input"
+              />
+            </Campo>
+            <div className="grid grid-cols-2 gap-2">
+              <Campo label="Cidade">
+                <input
+                  value={empresa?.cidade || ''}
+                  onChange={e => setEmpresa(emp => emp ? { ...emp, cidade: e.target.value } : emp)}
+                  placeholder="Ex: Manaus"
+                  className="campo-input"
+                />
+              </Campo>
+              <Campo label="Estado">
+                <select
+                  value={empresa?.estado || ''}
+                  onChange={e => setEmpresa(emp => emp ? { ...emp, estado: e.target.value } : emp)}
+                  className="campo-input"
+                >
+                  <option value="">UF</option>
+                  {['AC','AL','AM','AP','BA','CE','DF','ES','GO','MA','MG','MS','MT','PA','PB','PE','PI','PR','RJ','RN','RO','RR','RS','SC','SE','SP','TO'].map(uf => (
+                    <option key={uf} value={uf}>{uf}</option>
+                  ))}
+                </select>
+              </Campo>
+            </div>
+            <Campo label="Quantidade de veículos">
+              <input
+                type="number"
+                min={0}
+                value={empresa?.qtd_veiculos ?? ''}
+                onChange={e => setEmpresa(emp => emp ? { ...emp, qtd_veiculos: e.target.value ? parseInt(e.target.value) : null } : emp)}
+                placeholder="Ex: 5"
                 className="campo-input"
               />
             </Campo>
@@ -121,25 +202,106 @@ export default function ConfiguracoesEmpresaPage() {
                 <option value="rota_fixa">Rota Fixa Intermunicipal</option>
               </select>
             </Campo>
+            <div className="flex items-center justify-between pt-2"
+              style={{ borderTop: '1px solid #f5f5f5', marginTop: '4px' }}>
+              <div>
+                <p className="text-xs text-gray-400">Plano contratado</p>
+                <p className="text-sm font-semibold text-gray-800 mt-0.5">
+                  {PLANO_LABEL[empresa?.plano || ''] || empresa?.plano}
+                </p>
+              </div>
+              <span
+                className="text-xs font-semibold px-3 py-1.5 rounded-full"
+                style={{
+                  background: empresa?.status === 'ativo' ? '#E1F5EE' : '#FAEEDA',
+                  color: empresa?.status === 'ativo' ? '#0F6E56' : '#854F0B',
+                }}>
+                {STATUS_LABEL[empresa?.status || ''] || empresa?.status}
+              </span>
+            </div>
           </div>
         </Secao>
 
-        <Secao titulo="📋 Plano atual">
-          <div className="flex items-center justify-between py-1">
-            <div>
-              <p className="text-sm font-semibold text-gray-800">
-                {PLANO_LABEL[empresa?.plano || ''] || empresa?.plano}
-              </p>
-              <p className="text-xs text-gray-400 mt-0.5">Plano contratado</p>
+        <Secao titulo="🎨 Personalização e cobrança">
+          <div className="flex flex-col gap-3">
+            <Campo label="Descrição curta">
+              <textarea
+                value={empresa?.descricao || ''}
+                onChange={e => setEmpresa(emp => emp ? { ...emp, descricao: e.target.value } : emp)}
+                placeholder="Ex: Transfer executivo no Rio de Janeiro"
+                className="campo-input"
+                rows={3}
+                style={{ resize: 'none' }}
+              />
+            </Campo>
+            <div className="grid grid-cols-2 gap-2">
+              <Campo label="Chave Pix">
+                <input
+                  value={empresa?.chave_pix || ''}
+                  onChange={e => setEmpresa(emp => emp ? { ...emp, chave_pix: e.target.value } : emp)}
+                  placeholder="Sua chave Pix"
+                  className="campo-input"
+                />
+              </Campo>
+              <Campo label="Tipo da chave">
+                <select
+                  value={empresa?.tipo_chave_pix || 'telefone'}
+                  onChange={e => setEmpresa(emp => emp ? { ...emp, tipo_chave_pix: e.target.value } : emp)}
+                  className="campo-input"
+                >
+                  <option value="telefone">Telefone</option>
+                  <option value="cpf_cnpj">CPF/CNPJ</option>
+                  <option value="email">E-mail</option>
+                  <option value="aleatoria">Aleatória</option>
+                </select>
+              </Campo>
             </div>
-            <span
-              className="text-xs font-semibold px-3 py-1.5 rounded-full"
-              style={{
-                background: empresa?.status === 'ativo' ? '#E1F5EE' : '#FAEEDA',
-                color: empresa?.status === 'ativo' ? '#0F6E56' : '#854F0B',
-              }}>
-              {STATUS_LABEL[empresa?.status || ''] || empresa?.status}
-            </span>
+            <Campo label="WhatsApp comercial">
+              <input
+                value={empresa?.whatsapp_comercial || ''}
+                onChange={e => setEmpresa(emp => emp ? { ...emp, whatsapp_comercial: e.target.value } : emp)}
+                placeholder="(XX) XXXXX-XXXX"
+                className="campo-input"
+              />
+            </Campo>
+            <Campo label="Instagram">
+              <input
+                value={empresa?.instagram || ''}
+                onChange={e => setEmpresa(emp => emp ? { ...emp, instagram: e.target.value } : emp)}
+                placeholder="@suaempresa"
+                className="campo-input"
+              />
+            </Campo>
+            <Campo label="Cor de destaque">
+              <div className="flex items-center gap-3">
+                <input
+                  type="color"
+                  value={empresa?.cor_destaque || '#1D9E75'}
+                  onChange={e => setEmpresa(emp => emp ? { ...emp, cor_destaque: e.target.value } : emp)}
+                  className="w-10 h-10 rounded-lg border border-gray-200 cursor-pointer p-0.5"
+                  style={{ background: '#fff' }}
+                />
+                <span className="text-sm text-gray-500 font-mono">
+                  {empresa?.cor_destaque || '#1D9E75'}
+                </span>
+              </div>
+            </Campo>
+            <Campo label="Logo da empresa (URL)">
+              <input
+                value={empresa?.logo_url || ''}
+                onChange={e => setEmpresa(emp => emp ? { ...emp, logo_url: e.target.value } : emp)}
+                placeholder="Cole o link da sua logo"
+                className="campo-input"
+              />
+              {empresa?.logo_url && (
+                <img
+                  src={empresa.logo_url}
+                  alt="Logo"
+                  className="mt-2 h-12 object-contain rounded"
+                  onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+                />
+              )}
+            </Campo>
           </div>
         </Secao>
 
