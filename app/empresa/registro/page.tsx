@@ -107,36 +107,24 @@ export default function RegistroEmpresaPage() {
       const userId = authData.user?.id
       if (!userId) throw new Error('Erro ao criar usuário. Tente novamente.')
 
-      // 2. Criar empresa com trial de 7 dias
-      const trialFim = new Date()
-      trialFim.setDate(trialFim.getDate() + 7)
-
-      const { data: empresa, error: errEmpresa } = await supabase
-        .from('empresas')
-        .insert({
-          nome:          form.nomeEmpresa.trim(),
-          telefone:      form.telefone.trim(),
-          tipo_operacao: form.tipoOperacao,
+      // 2. Inserir empresa e gestor via API route (usa service_role, bypassa RLS)
+      // O token ainda não está ativo no cliente logo após o signUp
+      const res = await fetch('/api/empresa/registro', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          nomeEmpresa:  form.nomeEmpresa.trim(),
+          nomeGestor:   form.nome.trim(),
+          email:        form.email.trim(),
+          telefone:     form.telefone.trim(),
+          tipoOperacao: form.tipoOperacao,
           plano,
-          status:        'trial',
-          trial_fim:     trialFim.toISOString().split('T')[0],
-        })
-        .select('id')
-        .single()
+        }),
+      })
 
-      if (errEmpresa) throw errEmpresa
-
-      // 3. Criar registro de gestor
-      const { error: errGestor } = await supabase
-        .from('gestores')
-        .insert({
-          user_id:    userId,
-          empresa_id: empresa.id,
-          nome:       form.nome.trim(),
-          email:      form.email.trim(),
-        })
-
-      if (errGestor) throw errGestor
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Erro ao criar empresa')
 
       router.push('/empresa')
     } catch (err: any) {
