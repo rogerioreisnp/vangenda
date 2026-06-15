@@ -495,20 +495,6 @@ function DetalhePassageiro({ p, onVoltar, onAtualizar, horarioIda, horarioVolta 
             style={{ background: '#E6F1FB', color: '#185FA5' }}>
             ✏️ Editar agendamento
           </button>
-          {statusLocal !== 'confirmado' && statusLocal !== 'cancelado' && (
-            <button onClick={confirmar}
-              className="w-full py-3 rounded-xl text-sm font-semibold"
-              style={{ background: '#E1F5EE', color: '#0F6E56' }}>
-              ✓ Confirmar presença
-            </button>
-          )}
-          {statusLocal !== 'cancelado' && (
-            <button onClick={cancelar}
-              className="w-full py-3 rounded-xl text-sm font-semibold"
-              style={{ background: '#FCEBEB', color: '#A32D2D' }}>
-              ✕ Cancelar agendamento
-            </button>
-          )}
           <button onClick={apagar}
             className="w-full py-3 rounded-xl text-sm font-semibold"
             style={{ background: '#FCEBEB', color: '#A32D2D' }}>
