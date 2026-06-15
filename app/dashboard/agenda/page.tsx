@@ -398,7 +398,7 @@ function DetalhePassageiro({ p, onVoltar, onAtualizar, horarioIda, horarioVolta 
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col" style={{ background: '#f0f0ec' }}>
+    <div className="fixed inset-0 flex flex-col" style={{ background: '#f0f0ec', zIndex: 100 }}>
       <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-4 flex items-center gap-3">
         <button onClick={onVoltar} style={{ color: '#9FE1CB' }} className="text-2xl">‹</button>
         <div className="flex-1 min-w-0">
@@ -501,6 +501,7 @@ function DetalhePassageiro({ p, onVoltar, onAtualizar, horarioIda, horarioVolta 
             🗑️ Apagar agendamento
           </button>
         </div>
+        <div className="h-8" />
       </div>
 
       {editando && (
