@@ -241,12 +241,17 @@ function EtapaPlano({
             )}
             <div className="p-5">
               {/* Cabeçalho do plano */}
-              <div className="flex items-start justify-between gap-2 mb-4">
+              <div className="flex items-start justify-between gap-2 mb-3">
                 <div>
                   <p className="text-base font-bold text-gray-800">{pl.nome}</p>
                   <p className="text-xs text-gray-400">{pl.descricao}</p>
                 </div>
                 <div className="text-right flex-shrink-0">
+                  {periodo !== 'mensal' && (
+                    <p className="text-xs line-through text-gray-400 leading-none mb-0.5">
+                      R$ {PRECOS[pl.id]['mensal']}/mês
+                    </p>
+                  )}
                   <p className="text-2xl font-bold leading-none" style={{ color: '#0F6E56' }}>
                     R$ {preco}
                   </p>
@@ -255,6 +260,14 @@ function EtapaPlano({
                   </p>
                 </div>
               </div>
+              {periodo !== 'mensal' && (
+                <div className="mb-3 flex justify-end">
+                  <span className="text-xs font-semibold px-2 py-1 rounded-lg"
+                    style={{ background: '#E1F5EE', color: '#085041' }}>
+                    Você economiza R$ {(PRECOS[pl.id]['mensal'] - preco) * (periodo === 'semestral' ? 6 : 12)} no {periodo === 'semestral' ? 'semestre' : 'ano'}
+                  </span>
+                </div>
+              )}
 
               {/* Limite */}
               <div className="flex items-center gap-2 mb-4 px-3 py-2.5 rounded-xl"
