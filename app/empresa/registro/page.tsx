@@ -235,7 +235,7 @@ function EtapaPlano({
                   : periodo === p
                     ? { background: '#9FE1CB', color: '#085041' }
                     : { background: '#fff', color: '#0F6E56' }}>
-                {p === 'semestral' ? '−10%' : '−20%'}
+                {p === 'semestral' ? '−10%' : '2 meses grátis'}
               </span>
             </button>
           ))}
@@ -257,6 +257,12 @@ function EtapaPlano({
                 ⭐ MAIS ESCOLHIDO
               </div>
             )}
+            {periodo === 'anual' && (
+              <div className="py-1.5 text-center text-xs font-bold tracking-wide"
+                style={{ background: '#FED7AA', color: '#C2410C' }}>
+                🎁 2 meses grátis
+              </div>
+            )}
             <div className="p-5">
               {/* Cabeçalho do plano */}
               <div className="flex items-start justify-between gap-2 mb-3">
@@ -265,59 +271,45 @@ function EtapaPlano({
                   <p className="text-xs text-gray-400">{pl.descricao}</p>
                 </div>
                 <div className="text-right flex-shrink-0">
-                  {periodo === 'anual' ? (
-                    <>
-                      <p className="text-xs line-through text-gray-400 leading-none mb-0.5">
-                        R$ {PROMO_ANUAL[pl.id].original}/ano
-                      </p>
-                      <p className="text-2xl font-bold leading-none" style={{ color: '#0F6E56' }}>
-                        R$ {PROMO_ANUAL[pl.id].promo}/ano
-                      </p>
-                      <p className="text-xs text-gray-400 mt-0.5">
-                        R$ {PROMO_ANUAL[pl.id].mensalEquiv}/mês
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      {periodo !== 'mensal' && (
-                        <p className="text-xs line-through text-gray-400 leading-none mb-0.5">
-                          R$ {PRECOS[pl.id]['mensal']}/mês
-                        </p>
-                      )}
-                      <p className="text-2xl font-bold leading-none" style={{ color: '#0F6E56' }}>
-                        R$ {preco}
-                      </p>
-                      <p className="text-xs text-gray-400 mt-0.5">
-                        /mês{periodo !== 'mensal' ? ` · cobrado ${periodo}` : ''}
-                      </p>
-                    </>
-                  )}
+                  <p className="text-xs line-through text-gray-400 leading-none mb-0.5"
+                    style={{ visibility: periodo === 'mensal' ? 'hidden' : 'visible' }}>
+                    R$ {PRECOS[pl.id]['mensal']}/mês
+                  </p>
+                  <p className="text-2xl font-bold leading-none" style={{ color: '#0F6E56' }}>
+                    R$ {preco}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    /mês{periodo !== 'mensal' ? ` · cobrado ${periodo}` : ''}
+                  </p>
                 </div>
               </div>
               {periodo === 'anual' ? (
-                <div className="mb-3 flex flex-col gap-1.5">
-                  <div className="flex justify-center">
-                    <span className="text-xs font-bold px-2.5 py-1 rounded-lg"
-                      style={{ background: '#FEF9C3', color: '#854D0E' }}>
-                      🎉 Promoção de lançamento
-                    </span>
+                <div className="mb-3 rounded-xl p-3" style={{ background: '#FFF7ED', border: '1px solid #FED7AA' }}>
+                  <p className="text-xs font-bold mb-2" style={{ color: '#C2410C' }}>
+                    🎉 Promoção de lançamento — pague 10, use 12
+                  </p>
+                  <div className="flex justify-between text-xs" style={{ color: '#92400E' }}>
+                    <span>10 meses × R$ {PRECOS[pl.id]['anual']}</span>
+                    <span>R$ {PRECOS[pl.id]['anual'] * 10}</span>
                   </div>
-                  <div className="flex justify-end">
-                    <span className="text-xs font-semibold px-2 py-1 rounded-lg"
-                      style={{ background: '#E1F5EE', color: '#085041' }}>
-                      Economize R$ {PROMO_ANUAL[pl.id].economia} no ano
-                    </span>
+                  <div className="flex justify-between text-xs font-semibold mt-0.5" style={{ color: '#0F6E56' }}>
+                    <span>+ 2 meses grátis</span>
+                    <span>R$ 0</span>
                   </div>
-                  <p className="text-[10px] text-center" style={{ color: '#854D0E' }}>
-                    Oferta exclusiva de lançamento — válida por tempo limitado
+                  <div className="flex justify-between text-xs font-bold mt-1.5 pt-1.5"
+                    style={{ borderTop: '1px solid #FED7AA', color: '#C2410C' }}>
+                    <span>Total anual</span>
+                    <span>R$ {PRECOS[pl.id]['anual'] * 10}</span>
+                  </div>
+                  <p className="text-[10px] mt-1.5" style={{ color: '#92400E' }}>
+                    Você economiza R$ {PRECOS[pl.id]['mensal'] * 12 - PRECOS[pl.id]['anual'] * 10} vs pagar mês a mês
                   </p>
                 </div>
               ) : periodo === 'semestral' ? (
-                <div className="mb-3 flex justify-end">
-                  <span className="text-xs font-semibold px-2 py-1 rounded-lg"
-                    style={{ background: '#E1F5EE', color: '#085041' }}>
-                    Você economiza R$ {(PRECOS[pl.id]['mensal'] - preco) * 6} no semestre
-                  </span>
+                <div className="mb-3 rounded-xl px-3 py-2.5" style={{ background: '#E1F5EE', border: '1px solid #9FE1CB' }}>
+                  <p className="text-xs font-semibold" style={{ color: '#085041' }}>
+                    💰 Você economiza R$ {(PRECOS[pl.id]['mensal'] - preco) * 6} comparado ao plano mensal
+                  </p>
                 </div>
               ) : null}
 
@@ -340,6 +332,11 @@ function EtapaPlano({
         )
       })}
 
+      {periodo === 'anual' && (
+        <p className="text-xs text-center px-2" style={{ color: '#92400E' }}>
+          ⏳ Promoção válida por tempo limitado para os primeiros clientes. Após contratar, o preço fica garantido.
+        </p>
+      )}
       <div className="text-center py-2">
         <p className="text-xs text-gray-400">
           Já tem uma conta?{' '}
