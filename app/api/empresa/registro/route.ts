@@ -21,10 +21,12 @@ export async function POST(req: NextRequest) {
       .from('empresas')
       .insert({
         nome:          nomeEmpresa,
+        email:         email,
         telefone:      telefone,
         tipo_operacao: tipoOperacao,
         plano,
         status:        'trial',
+        trial_inicio:  new Date().toISOString(),
         trial_fim:     trialFim.toISOString().split('T')[0],
       })
       .select('id')
