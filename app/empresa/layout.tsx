@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase'
 const navItems = [
   { href: '/empresa', label: 'Painel', emoji: '⌂' },
   { href: '/empresa/agendamentos', label: 'Corridas', emoji: '📋' },
-  { href: '/empresa/motoristas', label: 'Motoristas', emoji: '🚐' },
+  { href: '/empresa/financeiro', label: 'Financeiro', emoji: '💰' },
   { href: '/empresa/rotas', label: 'Rotas', emoji: '🛣️' },
   { href: '/empresa/configuracoes', label: 'Config.', emoji: '⚙' },
 ]

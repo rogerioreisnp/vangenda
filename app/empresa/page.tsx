@@ -435,8 +435,8 @@ export default function EmpresaPage() {
           <div className="grid grid-cols-3 gap-2">
             {[
               { emoji: '📋', label: 'Nova corrida', href: '/empresa/agendamentos' },
+              { emoji: '💰', label: 'Financeiro', href: '/empresa/financeiro' },
               { emoji: '🚐', label: 'Motoristas', href: '/empresa/motoristas' },
-              { emoji: '🛣️', label: 'Rotas', href: '/empresa/rotas' },
             ].map(item => (
               <Link key={item.href} href={item.href}
                 className="bg-white rounded-2xl flex flex-col items-center justify-center py-4 gap-1.5 active:opacity-75"
