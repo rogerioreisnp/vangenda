@@ -357,6 +357,46 @@ function DetalhePassageiro({ p, onVoltar, onAtualizar, horarioIda, horarioVolta 
     onAtualizar()
   }
 
+  const [editando, setEditando] = useState(false)
+  const [formEdit, setFormEdit] = useState({
+    nome_passageiro: p.nome_passageiro,
+    telefone_passageiro: p.telefone_passageiro || '',
+    parada_origem: p.parada_origem,
+    parada_destino: p.parada_destino,
+    turno: p.turno as 'ida' | 'volta',
+    valor: String(p.valor),
+    forma_pagamento: p.forma_pagamento || 'dinheiro',
+    rua: p.rua || '',
+    numero: p.numero || '',
+    bairro: p.bairro || '',
+    municipio: p.municipio || '',
+    cep: p.cep || '',
+    referencia: p.referencia || '',
+  })
+  const [salvandoEdit, setSalvandoEdit] = useState(false)
+
+  async function salvarEdicao() {
+    setSalvandoEdit(true)
+    await supabase.from('agendamentos').update({
+      nome_passageiro: formEdit.nome_passageiro,
+      telefone_passageiro: formEdit.telefone_passageiro || null,
+      parada_origem: formEdit.parada_origem,
+      parada_destino: formEdit.parada_destino,
+      turno: formEdit.turno,
+      valor: parseFloat(formEdit.valor),
+      forma_pagamento: formEdit.forma_pagamento,
+      rua: formEdit.rua || null,
+      numero: formEdit.numero || null,
+      bairro: formEdit.bairro || null,
+      municipio: formEdit.municipio || null,
+      cep: formEdit.cep || null,
+      referencia: formEdit.referencia || null,
+    }).eq('id', p.id)
+    setSalvandoEdit(false)
+    setEditando(false)
+    onAtualizar()
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex flex-col" style={{ background: '#f0f0ec' }}>
       <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-4 flex items-center gap-3">
@@ -450,6 +490,11 @@ function DetalhePassageiro({ p, onVoltar, onAtualizar, horarioIda, horarioVolta 
 
         {/* Ações */}
         <div className="flex flex-col gap-2">
+          <button onClick={() => setEditando(true)}
+            className="w-full py-3 rounded-xl text-sm font-semibold"
+            style={{ background: '#E6F1FB', color: '#185FA5' }}>
+            ✏️ Editar agendamento
+          </button>
           {statusLocal !== 'confirmado' && statusLocal !== 'cancelado' && (
             <button onClick={confirmar}
               className="w-full py-3 rounded-xl text-sm font-semibold"
@@ -457,21 +502,134 @@ function DetalhePassageiro({ p, onVoltar, onAtualizar, horarioIda, horarioVolta 
               ✓ Confirmar presença
             </button>
           )}
-          {statusLocal !== 'cancelado' ? (
+          {statusLocal !== 'cancelado' && (
             <button onClick={cancelar}
               className="w-full py-3 rounded-xl text-sm font-semibold"
               style={{ background: '#FCEBEB', color: '#A32D2D' }}>
               ✕ Cancelar agendamento
             </button>
-          ) : (
-            <button onClick={apagar}
-              className="w-full py-3 rounded-xl text-sm font-semibold"
-              style={{ background: '#FCEBEB', color: '#A32D2D' }}>
-              🗑️ Apagar agendamento
-            </button>
           )}
+          <button onClick={apagar}
+            className="w-full py-3 rounded-xl text-sm font-semibold"
+            style={{ background: '#FCEBEB', color: '#A32D2D' }}>
+            🗑️ Apagar agendamento
+          </button>
         </div>
       </div>
+
+      {editando && (
+        <div className="fixed inset-0 flex flex-col" style={{ background: '#f0f0ec', zIndex: 60 }}>
+          <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-4 flex items-center gap-3">
+            <button onClick={() => setEditando(false)} style={{ color: '#9FE1CB' }} className="text-2xl">‹</button>
+            <div>
+              <p style={{ color: '#E1F5EE' }} className="text-sm font-semibold">Editar agendamento</p>
+              <p style={{ color: '#5DCAA5' }} className="text-xs truncate">{p.nome_passageiro}</p>
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
+            <div>
+              <p className="text-xs font-medium text-gray-500 mb-1">Nome do passageiro</p>
+              <input value={formEdit.nome_passageiro} onChange={e => setFormEdit(f => ({ ...f, nome_passageiro: e.target.value }))}
+                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600 bg-white" />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-gray-500 mb-1">Telefone</p>
+              <input value={formEdit.telefone_passageiro} onChange={e => setFormEdit(f => ({ ...f, telefone_passageiro: e.target.value }))}
+                type="tel" className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600 bg-white" />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-gray-500 mb-1">Turno</p>
+              <div className="grid grid-cols-2 gap-2">
+                {(['ida', 'volta'] as const).map(t => (
+                  <button key={t} onClick={() => setFormEdit(f => ({ ...f, turno: t }))}
+                    className="py-2.5 rounded-xl text-sm font-medium border transition-all"
+                    style={formEdit.turno === t
+                      ? { background: '#0F6E56', color: '#fff', borderColor: '#0F6E56' }
+                      : { background: '#fff', color: '#666', borderColor: '#e5e7eb' }}>
+                    {t === 'ida' ? '↑ Ida' : '↓ Volta'}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <p className="text-xs font-medium text-gray-500 mb-1">Embarca em</p>
+                <input value={formEdit.parada_origem} onChange={e => setFormEdit(f => ({ ...f, parada_origem: e.target.value }))}
+                  className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600 bg-white" />
+              </div>
+              <div>
+                <p className="text-xs font-medium text-gray-500 mb-1">Desembarca em</p>
+                <input value={formEdit.parada_destino} onChange={e => setFormEdit(f => ({ ...f, parada_destino: e.target.value }))}
+                  className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600 bg-white" />
+              </div>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-gray-500 mb-1">Valor (R$)</p>
+              <input value={formEdit.valor} onChange={e => setFormEdit(f => ({ ...f, valor: e.target.value }))}
+                type="number" step="0.01"
+                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600 bg-white" />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-gray-500 mb-1">Forma de pagamento</p>
+              <select value={formEdit.forma_pagamento} onChange={e => setFormEdit(f => ({ ...f, forma_pagamento: e.target.value }))}
+                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600 bg-white">
+                <option value="dinheiro">Dinheiro</option>
+                <option value="pix">Pix</option>
+                <option value="cartao">Cartão</option>
+                <option value="fiado">Fiado</option>
+                <option value="pendente">A cobrar na viagem</option>
+              </select>
+            </div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mt-1">Endereço de embarque</p>
+            <div style={{ display: 'grid', gridTemplateColumns: '70% 30%', gap: '8px' }}>
+              <div>
+                <p className="text-xs font-medium text-gray-500 mb-1">Rua / Logradouro</p>
+                <input value={formEdit.rua} onChange={e => setFormEdit(f => ({ ...f, rua: e.target.value }))}
+                  placeholder="Ex: Rua das Flores"
+                  className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600 bg-white" />
+              </div>
+              <div>
+                <p className="text-xs font-medium text-gray-500 mb-1">Número</p>
+                <input value={formEdit.numero} onChange={e => setFormEdit(f => ({ ...f, numero: e.target.value }))}
+                  className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600 bg-white" />
+              </div>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-gray-500 mb-1">Bairro</p>
+              <input value={formEdit.bairro} onChange={e => setFormEdit(f => ({ ...f, bairro: e.target.value }))}
+                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600 bg-white" />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <p className="text-xs font-medium text-gray-500 mb-1">Município</p>
+                <input value={formEdit.municipio} onChange={e => setFormEdit(f => ({ ...f, municipio: e.target.value }))}
+                  className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600 bg-white" />
+              </div>
+              <div>
+                <p className="text-xs font-medium text-gray-500 mb-1">CEP</p>
+                <input value={formEdit.cep} onChange={e => setFormEdit(f => ({ ...f, cep: e.target.value }))}
+                  className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600 bg-white" />
+              </div>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-gray-500 mb-1">Ponto de referência</p>
+              <input value={formEdit.referencia} onChange={e => setFormEdit(f => ({ ...f, referencia: e.target.value }))}
+                placeholder="Ex: Próximo ao mercado Boa Ideia"
+                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600 bg-white" />
+            </div>
+            <div className="h-20" />
+          </div>
+
+          <div style={{ padding: '8px 16px 80px', background: 'white', borderTop: '1px solid #e5e7eb' }}>
+            <button onClick={salvarEdicao} disabled={salvandoEdit}
+              className="w-full py-3.5 rounded-xl text-white text-sm font-semibold disabled:opacity-40"
+              style={{ background: '#1D9E75' }}>
+              {salvandoEdit ? 'Salvando...' : '✓ Salvar alterações'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
