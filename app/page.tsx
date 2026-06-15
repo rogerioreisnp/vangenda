@@ -79,6 +79,7 @@ export default function LoginPage() {
     } catch (err: any) {
       const msgs: Record<string, string> = {
         'Invalid login credentials': 'E-mail ou senha incorretos.',
+        'Email not confirmed': 'E-mail não confirmado. Verifique sua caixa de entrada e clique no link de confirmação enviado no cadastro.',
         'User already registered': 'Este e-mail já está cadastrado.',
         'Password should be at least 6 characters': 'A senha precisa ter pelo menos 6 caracteres.',
         'Database error saving new user': 'Erro ao criar perfil. Tente novamente ou fale com o suporte.',
