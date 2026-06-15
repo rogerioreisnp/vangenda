@@ -345,6 +345,14 @@ export default function AgendamentosPage() {
     setCorridas(prev => prev.map(c => ids.includes(c.id) ? { ...c, status: 'cancelada' } : c))
   }
 
+  async function apagarCorrida(ids: string[]) {
+    if (!confirm('Tem certeza que deseja apagar este agendamento?')) return
+    for (const id of ids) {
+      await supabase.from('corridas_empresa').delete().eq('id', id)
+    }
+    setCorridas(prev => prev.filter(c => !ids.includes(c.id)))
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -468,6 +476,13 @@ export default function AgendamentosPage() {
                             Cancelar
                           </button>
                         )}
+                        {c.status === 'cancelada' && (
+                          <button onClick={() => apagarCorrida([c.id])}
+                            className="px-2.5 py-1 rounded-lg text-[10px] font-medium"
+                            style={{ background: '#FCEBEB', color: '#A32D2D' }}>
+                            🗑️
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -528,6 +543,13 @@ export default function AgendamentosPage() {
                           className="px-2.5 py-1 rounded-lg text-[10px] font-medium"
                           style={{ background: '#FCEBEB', color: '#A32D2D' }}>
                           Cancelar
+                        </button>
+                      )}
+                      {statusKey === 'cancelada' && (
+                        <button onClick={() => apagarCorrida([ida.id, volta.id])}
+                          className="px-2.5 py-1 rounded-lg text-[10px] font-medium"
+                          style={{ background: '#FCEBEB', color: '#A32D2D' }}>
+                          🗑️
                         </button>
                       )}
                     </div>

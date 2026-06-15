@@ -322,6 +322,7 @@ function DetalhePassageiro({ p, onVoltar, onAtualizar, horarioIda, horarioVolta 
     dinheiro: 'Dinheiro', pix: 'Pix', cartao: 'Cartão', pendente: 'A cobrar', fiado: 'Fiado'
   }
   const temEndereco = p.rua || p.numero || p.bairro || p.municipio || p.cep || p.referencia
+  const [statusLocal, setStatusLocal] = useState(p.status)
 
   function abrirWhatsApp() {
     if (!p.telefone_passageiro) return
@@ -347,6 +348,12 @@ function DetalhePassageiro({ p, onVoltar, onAtualizar, horarioIda, horarioVolta 
   async function cancelar() {
     if (!confirm('Cancelar este agendamento?')) return
     await supabase.from('agendamentos').update({ status: 'cancelado' }).eq('id', p.id)
+    setStatusLocal('cancelado')
+  }
+
+  async function apagar() {
+    if (!confirm('Tem certeza que deseja apagar este agendamento?')) return
+    await supabase.from('agendamentos').delete().eq('id', p.id)
     onAtualizar()
   }
 
@@ -359,10 +366,12 @@ function DetalhePassageiro({ p, onVoltar, onAtualizar, horarioIda, horarioVolta 
           <p style={{ color: '#5DCAA5' }} className="text-xs capitalize">{dataFmt}</p>
         </div>
         <span className="text-[11px] px-2 py-1 rounded-lg font-medium"
-          style={p.status === 'confirmado'
+          style={statusLocal === 'confirmado'
             ? { background: '#085041', color: '#9FE1CB' }
+            : statusLocal === 'cancelado'
+            ? { background: '#7a1f1f', color: '#FCEBEB' }
             : { background: '#0a5a48', color: '#9FE1CB' }}>
-          {p.status === 'confirmado' ? 'Confirmado' : 'Agendado'}
+          {statusLocal === 'confirmado' ? 'Confirmado' : statusLocal === 'cancelado' ? 'Cancelado' : 'Agendado'}
         </span>
       </div>
 
@@ -441,18 +450,26 @@ function DetalhePassageiro({ p, onVoltar, onAtualizar, horarioIda, horarioVolta 
 
         {/* Ações */}
         <div className="flex flex-col gap-2">
-          {p.status !== 'confirmado' && (
+          {statusLocal !== 'confirmado' && statusLocal !== 'cancelado' && (
             <button onClick={confirmar}
               className="w-full py-3 rounded-xl text-sm font-semibold"
               style={{ background: '#E1F5EE', color: '#0F6E56' }}>
               ✓ Confirmar presença
             </button>
           )}
-          <button onClick={cancelar}
-            className="w-full py-3 rounded-xl text-sm font-semibold"
-            style={{ background: '#FCEBEB', color: '#A32D2D' }}>
-            ✕ Cancelar agendamento
-          </button>
+          {statusLocal !== 'cancelado' ? (
+            <button onClick={cancelar}
+              className="w-full py-3 rounded-xl text-sm font-semibold"
+              style={{ background: '#FCEBEB', color: '#A32D2D' }}>
+              ✕ Cancelar agendamento
+            </button>
+          ) : (
+            <button onClick={apagar}
+              className="w-full py-3 rounded-xl text-sm font-semibold"
+              style={{ background: '#FCEBEB', color: '#A32D2D' }}>
+              🗑️ Apagar agendamento
+            </button>
+          )}
         </div>
       </div>
     </div>
