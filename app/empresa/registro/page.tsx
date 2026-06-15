@@ -5,13 +5,13 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
 type Periodo = 'mensal' | 'semestral' | 'anual'
-type Plano = 'starter' | 'pro' | 'fleet'
+type Plano = 'starter' | 'pro' | 'business'
 type Etapa = 'plano' | 'dados'
 
 const PRECOS: Record<Plano, Record<Periodo, number>> = {
-  starter: { mensal: 97,  semestral: 87,  anual: 77  },
-  pro:     { mensal: 197, semestral: 177, anual: 157 },
-  fleet:   { mensal: 29,  semestral: 26,  anual: 23  },
+  starter:  { mensal: 97,  semestral: 87,  anual: 77  },
+  pro:      { mensal: 197, semestral: 177, anual: 157 },
+  business: { mensal: 297, semestral: 267, anual: 237 },
 }
 
 const PLANOS = [
@@ -32,11 +32,11 @@ const PLANOS = [
     destaque: true,
   },
   {
-    id: 'fleet' as Plano,
-    nome: 'Fleet',
-    descricao: 'Para frotas grandes',
-    limite: 'Ilimitado · por motorista ativo',
-    emoji: '🚌',
+    id: 'business' as Plano,
+    nome: 'Business',
+    descricao: 'Para grandes operações',
+    limite: 'Ilimitado',
+    emoji: '🏢',
     destaque: false,
   },
 ]
@@ -251,8 +251,7 @@ function EtapaPlano({
                     R$ {preco}
                   </p>
                   <p className="text-xs text-gray-400 mt-0.5">
-                    {pl.id === 'fleet' ? '/mot' : ''}/mês
-                    {periodo !== 'mensal' ? ` · cobrado ${periodo}` : ''}
+                    /mês{periodo !== 'mensal' ? ` · cobrado ${periodo}` : ''}
                   </p>
                 </div>
               </div>
@@ -316,7 +315,7 @@ function EtapaDados({
         <span className="text-xl">{planoInfo.emoji}</span>
         <div>
           <p className="text-sm font-semibold" style={{ color: '#085041' }}>
-            Plano {planoInfo.nome} — R$ {preco}{plano === 'fleet' ? '/mot' : ''}/mês
+            Plano {planoInfo.nome} — R$ {preco}/mês
           </p>
           <p className="text-xs" style={{ color: '#0F6E56' }}>
             7 dias grátis · {planoInfo.limite}

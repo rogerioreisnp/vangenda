@@ -12,7 +12,7 @@ const navItems = [
   { href: '/empresa/configuracoes', label: 'Config.', emoji: '⚙' },
 ]
 
-const PLANO_LABEL: Record<string, string> = { starter: 'Starter', pro: 'Pro', fleet: 'Fleet' }
+const PLANO_LABEL: Record<string, string> = { starter: 'Starter', pro: 'Pro', fleet: 'Fleet', business: 'Business' }
 const STATUS_LABEL: Record<string, string> = { trial: 'Trial', ativo: 'Ativo', inativo: 'Inativo' }
 
 export default function EmpresaLayout({ children }: { children: React.ReactNode }) {
@@ -206,14 +206,28 @@ export default function EmpresaLayout({ children }: { children: React.ReactNode 
   )
 }
 
-const WA_ASSINAR = 'https://wa.me/5595984143839?text=Ol%C3%A1%2C%20quero%20assinar%20o%20plano%20empresarial%20do%20RotaGenda'
+type TrialPeriodo = 'mensal' | 'semestral' | 'anual'
+
+const TRIAL_PRECOS = {
+  starter:  { mensal: 97,  semestral: 87,  anual: 77  },
+  pro:      { mensal: 197, semestral: 177, anual: 157 },
+  business: { mensal: 297, semestral: 267, anual: 237 },
+}
+
+const TRIAL_PLANOS = [
+  { id: 'starter',  nome: 'Starter',  limite: 'Até 3 motoristas', destaque: false },
+  { id: 'pro',      nome: 'Pro',      limite: 'Até 8 motoristas', destaque: true  },
+  { id: 'business', nome: 'Business', limite: 'Ilimitado',         destaque: false },
+]
+
+function waAssinar(nomePlano: string) {
+  const msg = encodeURIComponent(`Olá Rogério, quero assinar o plano ${nomePlano} do RotaGenda Empresarial`)
+  return `https://wa.me/5595984143839?text=${msg}`
+}
 
 function TelaTrialExpirado({ onSair }: { onSair: () => void }) {
-  const planos = [
-    { id: 'starter', nome: 'Starter', preco: 'R$ 97/mês',     limite: 'Até 3 motoristas' },
-    { id: 'pro',     nome: 'Pro',     preco: 'R$ 197/mês',    limite: 'Até 8 motoristas' },
-    { id: 'fleet',   nome: 'Fleet',   preco: 'R$ 29/mot·mês', limite: 'Por motorista ativo' },
-  ]
+  const [periodo, setPeriodo] = useState<TrialPeriodo>('mensal')
+
   return (
     <div className="min-h-dvh flex flex-col" style={{ background: '#f0f0ec' }}>
       <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-5">
@@ -231,24 +245,56 @@ function TelaTrialExpirado({ onSair }: { onSair: () => void }) {
           </p>
         </div>
 
-        <div className="flex flex-col gap-2">
-          {planos.map(p => (
-            <div key={p.id} className="bg-white rounded-2xl p-4 border border-gray-100
-              flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-sm font-bold text-gray-800">{p.nome}</p>
-                <p className="text-xs text-gray-400">{p.limite}</p>
-              </div>
-              <div className="flex items-center gap-3 flex-shrink-0">
-                <p className="text-sm font-semibold" style={{ color: '#0F6E56' }}>{p.preco}</p>
-                <a href={WA_ASSINAR} target="_blank" rel="noopener noreferrer"
-                  className="px-3 py-1.5 rounded-xl text-xs font-semibold"
-                  style={{ background: '#1D9E75', color: '#fff' }}>
-                  Assinar
-                </a>
-              </div>
-            </div>
+        {/* Toggle período */}
+        <div className="bg-white rounded-xl p-1 flex border border-gray-100">
+          {(['mensal', 'semestral', 'anual'] as TrialPeriodo[]).map(p => (
+            <button key={p} onClick={() => setPeriodo(p)}
+              className="flex-1 py-2 rounded-lg text-xs font-semibold transition-all"
+              style={periodo === p
+                ? { background: '#0F6E56', color: '#fff' }
+                : { background: 'transparent', color: '#888' }}>
+              {p === 'mensal' ? 'Mensal' : p === 'semestral' ? 'Semestral' : 'Anual'}
+              {p === 'semestral' && <span className="ml-1 opacity-80">-10%</span>}
+              {p === 'anual'     && <span className="ml-1 opacity-80">-20%</span>}
+            </button>
           ))}
+        </div>
+
+        {/* Cards de plano */}
+        <div className="flex flex-col gap-2">
+          {TRIAL_PLANOS.map(p => {
+            const preco = TRIAL_PRECOS[p.id as keyof typeof TRIAL_PRECOS][periodo]
+            return (
+              <div key={p.id} className="bg-white rounded-2xl border overflow-hidden"
+                style={{ borderColor: p.destaque ? '#0F6E56' : '#e5e7eb' }}>
+                {p.destaque && (
+                  <div className="py-1 text-center text-xs font-bold"
+                    style={{ background: '#0F6E56', color: '#E1F5EE' }}>
+                    ⭐ MAIS ESCOLHIDO
+                  </div>
+                )}
+                <div className="p-4 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-gray-800">{p.nome}</p>
+                    <p className="text-xs text-gray-400">{p.limite}</p>
+                  </div>
+                  <div className="flex items-center gap-3 flex-shrink-0">
+                    <div className="text-right">
+                      <p className="text-sm font-semibold leading-none" style={{ color: '#0F6E56' }}>
+                        R$ {preco}
+                      </p>
+                      <p className="text-[10px] text-gray-400 mt-0.5">/mês</p>
+                    </div>
+                    <a href={waAssinar(p.nome)} target="_blank" rel="noopener noreferrer"
+                      className="px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap"
+                      style={{ background: p.destaque ? '#0F6E56' : '#1D9E75', color: '#fff' }}>
+                      Assinar agora
+                    </a>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
         </div>
 
         <div className="bg-white rounded-2xl p-4 border border-gray-100 flex items-center gap-3">
@@ -257,7 +303,7 @@ function TelaTrialExpirado({ onSair }: { onSair: () => void }) {
             <p className="text-xs font-semibold text-gray-700">Dúvidas sobre os planos?</p>
             <p className="text-xs text-gray-400">Fale com a gente pelo WhatsApp</p>
           </div>
-          <a href={WA_ASSINAR} target="_blank" rel="noopener noreferrer"
+          <a href={waAssinar('empresarial')} target="_blank" rel="noopener noreferrer"
             className="px-3 py-1.5 rounded-xl text-xs font-semibold flex-shrink-0"
             style={{ background: '#E1F5EE', color: '#0F6E56' }}>
             Contato
