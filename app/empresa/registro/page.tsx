@@ -14,6 +14,12 @@ const PRECOS: Record<Plano, Record<Periodo, number>> = {
   business: { mensal: 297, semestral: 267, anual: 237 },
 }
 
+const PROMO_ANUAL: Record<Plano, { original: number; promo: number; economia: number; mensalEquiv: string }> = {
+  starter:  { original: 924,  promo: 847,  economia: 77,  mensalEquiv: '70,58' },
+  pro:      { original: 1884, promo: 1786, economia: 98,  mensalEquiv: '148,83' },
+  business: { original: 2844, promo: 2697, economia: 147, mensalEquiv: '224,75' },
+}
+
 const PLANOS = [
   {
     id: 'starter' as Plano,
@@ -259,27 +265,61 @@ function EtapaPlano({
                   <p className="text-xs text-gray-400">{pl.descricao}</p>
                 </div>
                 <div className="text-right flex-shrink-0">
-                  {periodo !== 'mensal' && (
-                    <p className="text-xs line-through text-gray-400 leading-none mb-0.5">
-                      R$ {PRECOS[pl.id]['mensal']}/mês
-                    </p>
+                  {periodo === 'anual' ? (
+                    <>
+                      <p className="text-xs line-through text-gray-400 leading-none mb-0.5">
+                        R$ {PROMO_ANUAL[pl.id].original}/ano
+                      </p>
+                      <p className="text-2xl font-bold leading-none" style={{ color: '#0F6E56' }}>
+                        R$ {PROMO_ANUAL[pl.id].promo}/ano
+                      </p>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        R$ {PROMO_ANUAL[pl.id].mensalEquiv}/mês
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      {periodo !== 'mensal' && (
+                        <p className="text-xs line-through text-gray-400 leading-none mb-0.5">
+                          R$ {PRECOS[pl.id]['mensal']}/mês
+                        </p>
+                      )}
+                      <p className="text-2xl font-bold leading-none" style={{ color: '#0F6E56' }}>
+                        R$ {preco}
+                      </p>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        /mês{periodo !== 'mensal' ? ` · cobrado ${periodo}` : ''}
+                      </p>
+                    </>
                   )}
-                  <p className="text-2xl font-bold leading-none" style={{ color: '#0F6E56' }}>
-                    R$ {preco}
-                  </p>
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    /mês{periodo !== 'mensal' ? ` · cobrado ${periodo}` : ''}
-                  </p>
                 </div>
               </div>
-              {periodo !== 'mensal' && (
+              {periodo === 'anual' ? (
+                <div className="mb-3 flex flex-col gap-1.5">
+                  <div className="flex justify-center">
+                    <span className="text-xs font-bold px-2.5 py-1 rounded-lg"
+                      style={{ background: '#FEF9C3', color: '#854D0E' }}>
+                      🎉 Promoção de lançamento
+                    </span>
+                  </div>
+                  <div className="flex justify-end">
+                    <span className="text-xs font-semibold px-2 py-1 rounded-lg"
+                      style={{ background: '#E1F5EE', color: '#085041' }}>
+                      Economize R$ {PROMO_ANUAL[pl.id].economia} no ano
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-center" style={{ color: '#854D0E' }}>
+                    Oferta exclusiva de lançamento — válida por tempo limitado
+                  </p>
+                </div>
+              ) : periodo === 'semestral' ? (
                 <div className="mb-3 flex justify-end">
                   <span className="text-xs font-semibold px-2 py-1 rounded-lg"
                     style={{ background: '#E1F5EE', color: '#085041' }}>
-                    Você economiza R$ {(PRECOS[pl.id]['mensal'] - preco) * (periodo === 'semestral' ? 6 : 12)} no {periodo === 'semestral' ? 'semestre' : 'ano'}
+                    Você economiza R$ {(PRECOS[pl.id]['mensal'] - preco) * 6} no semestre
                   </span>
                 </div>
-              )}
+              ) : null}
 
               {/* Limite */}
               <div className="flex items-center gap-2 mb-4 px-3 py-2.5 rounded-xl"
