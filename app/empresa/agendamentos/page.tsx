@@ -50,6 +50,7 @@ type FormCorrida = {
   cliente_nome: string
   cliente_telefone: string
   forma_pagamento: string
+  status_pagamento: string
   preco: string
   observacoes: string
 }
@@ -67,6 +68,7 @@ const FORM_VAZIO: FormCorrida = {
   cliente_nome: '',
   cliente_telefone: '',
   forma_pagamento: 'a_definir',
+  status_pagamento: 'confirmada',
   preco: '',
   observacoes: '',
 }
@@ -216,6 +218,7 @@ export default function AgendamentosPage() {
       cliente_nome: c.cliente_nome,
       cliente_telefone: c.cliente_telefone || '',
       forma_pagamento: c.forma_pagamento || 'a_definir',
+      status_pagamento: c.status === 'concluida' ? 'concluida' : 'confirmada',
       preco: String(c.valor),
       observacoes: c.observacoes || '',
     })
@@ -300,7 +303,7 @@ export default function AgendamentosPage() {
         }
       }
     } else {
-      const base = { empresa_id: empresaId, status: 'confirmada', ...camposComuns }
+      const base = { empresa_id: empresaId, status: form.status_pagamento, ...camposComuns }
       const registros: typeof base[] = [
         { ...base, data_hora: `${form.data}T${form.horario}:00` } as any,
       ]
@@ -697,6 +700,15 @@ export default function AgendamentosPage() {
                 <option value="pix">Pix</option>
                 <option value="dinheiro">Dinheiro</option>
                 <option value="cartao">Cartão</option>
+              </select>
+            </Campo>
+
+            <Campo label="Status do pagamento">
+              <select value={form.status_pagamento}
+                onChange={e => setForm(f => ({ ...f, status_pagamento: e.target.value }))}
+                className="campo-input">
+                <option value="confirmada">A receber</option>
+                <option value="concluida">Recebido</option>
               </select>
             </Campo>
 
