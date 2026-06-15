@@ -3,12 +3,19 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 
+type MotoristaOpcao = {
+  id: string
+  nome: string
+}
+
 type Rota = {
   id: string
   origem: string
   destino: string
   distancia_km: number | null
   preco: number
+  motorista_id: string | null
+  veiculo_placa: string | null
 }
 
 type FormRota = {
@@ -16,6 +23,8 @@ type FormRota = {
   destino: string
   distancia_km: string
   preco: string
+  motorista_id: string
+  veiculo_placa: string
 }
 
 export default function RotasPage() {
@@ -25,6 +34,7 @@ export default function RotasPage() {
   const [modalAberto, setModalAberto] = useState(false)
   const [editando, setEditando] = useState<Rota | null>(null)
   const [form, setForm] = useState<FormRota>({ origem: '', destino: '', distancia_km: '', preco: '' })
+  const [motoristasOpcoes, setMotoristasOpcoes] = useState<MotoristaOpcao[]>([])
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
 
@@ -44,19 +54,28 @@ export default function RotasPage() {
 
     setEmpresaId(gestor.empresa_id)
 
-    const { data: rts } = await supabase
-      .from('rotas_empresa')
-      .select('id, origem, destino, distancia_km, preco')
-      .eq('empresa_id', gestor.empresa_id)
-      .order('created_at')
+    const [{ data: rts }, { data: mots }] = await Promise.all([
+      supabase
+        .from('rotas_empresa')
+        .select('id, origem, destino, distancia_km, preco, motorista_id, veiculo_placa')
+        .eq('empresa_id', gestor.empresa_id)
+        .order('created_at'),
+      supabase
+        .from('motoristas_empresa')
+        .select('id, nome')
+        .eq('empresa_id', gestor.empresa_id)
+        .eq('status', 'ativo')
+        .order('nome'),
+    ])
 
     if (rts) setRotas(rts)
+    if (mots) setMotoristasOpcoes(mots)
     setLoading(false)
   }
 
   function abrirAdicionar() {
     setEditando(null)
-    setForm({ origem: '', destino: '', distancia_km: '', preco: '' })
+    setForm({ origem: '', destino: '', distancia_km: '', preco: '', motorista_id: '', veiculo_placa: '' })
     setErro('')
     setModalAberto(true)
   }
@@ -68,6 +87,8 @@ export default function RotasPage() {
       destino: r.destino,
       distancia_km: r.distancia_km != null ? String(r.distancia_km) : '',
       preco: String(r.preco),
+      motorista_id: r.motorista_id || '',
+      veiculo_placa: r.veiculo_placa || '',
     })
     setErro('')
     setModalAberto(true)
@@ -92,6 +113,8 @@ export default function RotasPage() {
       destino: form.destino.trim(),
       distancia_km: form.distancia_km.trim() ? parseInt(form.distancia_km) || null : null,
       preco,
+      motorista_id: form.motorista_id || null,
+      veiculo_placa: form.veiculo_placa.trim() || null,
     }
 
     if (editando) {
@@ -230,6 +253,24 @@ export default function RotasPage() {
               <input type="number" step="0.01" value={form.preco}
                 onChange={e => setForm(f => ({ ...f, preco: e.target.value }))}
                 placeholder="Ex: 150.00" className="campo-input" min={0} />
+            </Campo>
+
+            <Campo label="Motorista responsável">
+              <select value={form.motorista_id}
+                onChange={e => setForm(f => ({ ...f, motorista_id: e.target.value }))}
+                className="campo-input">
+                <option value="">Nenhum / A definir</option>
+                {motoristasOpcoes.map(m => (
+                  <option key={m.id} value={m.id}>{m.nome}</option>
+                ))}
+              </select>
+            </Campo>
+
+            <Campo label="Placa do veículo">
+              <input value={form.veiculo_placa}
+                onChange={e => setForm(f => ({ ...f, veiculo_placa: e.target.value }))}
+                placeholder="Ex: ABC-1234"
+                className="campo-input" />
             </Campo>
 
             {erro && (

@@ -9,6 +9,7 @@ type RotaOpcao = {
   origem: string
   destino: string
   preco: number
+  motorista_id: string | null
 }
 
 type MotoristaOpcao = {
@@ -138,6 +139,7 @@ export default function AgendamentosPage() {
   const [empresaId, setEmpresaId] = useState<string | null>(null)
   const [rotasOpcoes, setRotasOpcoes] = useState<RotaOpcao[]>([])
   const [motoristasOpcoes, setMotoristasOpcoes] = useState<MotoristaOpcao[]>([])
+  const [tipoOperacao, setTipoOperacao] = useState<string>('transfer')
   const [corridas, setCorridas] = useState<Corrida[]>([])
   const [loading, setLoading] = useState(true)
   const [modalAberto, setModalAberto] = useState(false)
@@ -179,10 +181,15 @@ export default function AgendamentosPage() {
       .eq('status', 'confirmada')
       .lt('data_hora', new Date().toISOString())
 
-    const [{ data: rts }, { data: mots }, { data: corrds }] = await Promise.all([
+    const [{ data: empresa }, { data: rts }, { data: mots }, { data: corrds }] = await Promise.all([
+      supabase
+        .from('empresas')
+        .select('tipo_operacao')
+        .eq('id', gestor.empresa_id)
+        .single(),
       supabase
         .from('rotas_empresa')
-        .select('id, origem, destino, preco')
+        .select('id, origem, destino, preco, motorista_id')
         .eq('empresa_id', gestor.empresa_id)
         .order('created_at'),
       supabase
@@ -199,6 +206,7 @@ export default function AgendamentosPage() {
         .limit(50),
     ])
 
+    if (empresa) setTipoOperacao(empresa.tipo_operacao || 'transfer')
     if (rts) setRotasOpcoes(rts)
     if (mots) setMotoristasOpcoes(mots)
     if (corrds) setCorridas(corrds as any)
@@ -256,6 +264,9 @@ export default function AgendamentosPage() {
         origem: rota.origem,
         destino: rota.destino,
         preco: String(rota.preco),
+        ...(tipoOperacao === 'rota_fixa' && rota.motorista_id
+          ? { motorista_id: rota.motorista_id }
+          : {}),
       }))
     }
   }
@@ -604,16 +615,18 @@ export default function AgendamentosPage() {
 
           <div className="flex-1 overflow-y-auto px-4 pt-4 pb-20 flex flex-col gap-3">
 
-            <Campo label="Tipo de serviço">
-              <select value={form.tipo_servico}
-                onChange={e => setForm(f => ({ ...f, tipo_servico: e.target.value }))}
-                className="campo-input">
-                <option value="transfer">Transfer</option>
-                <option value="city_tour">City Tour</option>
-              </select>
-            </Campo>
+            {tipoOperacao !== 'rota_fixa' && (
+              <Campo label="Tipo de serviço">
+                <select value={form.tipo_servico}
+                  onChange={e => setForm(f => ({ ...f, tipo_servico: e.target.value }))}
+                  className="campo-input">
+                  <option value="transfer">Transfer</option>
+                  <option value="city_tour">City Tour</option>
+                </select>
+              </Campo>
+            )}
 
-            <Campo label="Rota">
+            <Campo label={tipoOperacao === 'rota_fixa' ? 'Selecionar rota *' : 'Rota'}>
               <select value={form.rota_id} onChange={e => selecionarRota(e.target.value)} className="campo-input">
                 <option value="">Selecione uma rota...</option>
                 {rotasOpcoes.map(r => (
@@ -621,7 +634,9 @@ export default function AgendamentosPage() {
                     {r.origem} → {r.destino} — R$ {Number(r.preco).toFixed(2).replace('.', ',')}
                   </option>
                 ))}
-                <option value="manual">✏️ Outra rota (digitar manualmente)</option>
+                {tipoOperacao !== 'rota_fixa' && (
+                  <option value="manual">✏️ Outra rota (digitar manualmente)</option>
+                )}
               </select>
             </Campo>
 
