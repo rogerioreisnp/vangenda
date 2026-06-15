@@ -210,18 +210,30 @@ function EtapaPlano({
       </div>
 
       {/* Toggle período */}
-      <div className="bg-white rounded-xl p-1 flex border border-gray-100">
-        {(['mensal', 'semestral', 'anual'] as Periodo[]).map(p => (
-          <button key={p} onClick={() => setPeriodo(p)}
-            className="flex-1 py-2 rounded-lg text-xs font-semibold transition-all"
-            style={periodo === p
-              ? { background: '#0F6E56', color: '#fff' }
-              : { background: 'transparent', color: '#888' }}>
-            {p === 'mensal' ? 'Mensal' : p === 'semestral' ? 'Semestral' : 'Anual'}
-            {p === 'semestral' && <span className="ml-1 opacity-80">-10%</span>}
-            {p === 'anual'     && <span className="ml-1 opacity-80">-20%</span>}
-          </button>
-        ))}
+      <div>
+        <p className="text-xs font-semibold text-center mb-2 uppercase tracking-widest" style={{ color: '#0F6E56' }}>
+          Período de cobrança
+        </p>
+        <div className="rounded-2xl p-1.5 flex border-2" style={{ background: '#E1F5EE', borderColor: '#0F6E56' }}>
+          {(['mensal', 'semestral', 'anual'] as Periodo[]).map(p => (
+            <button key={p} onClick={() => setPeriodo(p)}
+              className="flex-1 py-2.5 rounded-xl font-bold transition-all flex flex-col items-center gap-1"
+              style={periodo === p
+                ? { background: '#0F6E56', color: '#fff' }
+                : { background: 'transparent', color: '#555' }}>
+              <span className="text-xs">{p === 'mensal' ? 'Mensal' : p === 'semestral' ? 'Semestral' : 'Anual'}</span>
+              <span
+                className="text-[10px] font-extrabold px-2 py-0.5 rounded-full"
+                style={p === 'mensal'
+                  ? { visibility: 'hidden' }
+                  : periodo === p
+                    ? { background: '#9FE1CB', color: '#085041' }
+                    : { background: '#fff', color: '#0F6E56' }}>
+                {p === 'semestral' ? '−10%' : '−20%'}
+              </span>
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Cards de plano */}
