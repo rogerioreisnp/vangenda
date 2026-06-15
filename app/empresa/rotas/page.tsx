@@ -33,7 +33,7 @@ export default function RotasPage() {
   const [loading, setLoading] = useState(true)
   const [modalAberto, setModalAberto] = useState(false)
   const [editando, setEditando] = useState<Rota | null>(null)
-  const [form, setForm] = useState<FormRota>({ origem: '', destino: '', distancia_km: '', preco: '' })
+  const [form, setForm] = useState<FormRota>({ origem: '', destino: '', distancia_km: '', preco: '', motorista_id: '', veiculo_placa: '' })
   const [motoristasOpcoes, setMotoristasOpcoes] = useState<MotoristaOpcao[]>([])
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
