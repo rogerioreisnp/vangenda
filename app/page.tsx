@@ -12,12 +12,29 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [erro, setErro] = useState('')
   const [sucesso, setSucesso] = useState('')
-  const [form, setForm] = useState({ nome: '', telefone: '', email: '', senha: '' })
+  const [form, setForm] = useState({ nome: '', telefone: '', email: '', senha: '', confirmarSenha: '' })
+  const [erros, setErros] = useState<Record<string, string>>({})
+
+  const validarCadastro = () => {
+    const novosErros: Record<string, string> = {}
+    if (!form.nome.trim()) novosErros.nome = 'Este campo é obrigatório'
+    const tel = form.telefone.replace(/\D/g, '')
+    if (!form.telefone.trim()) novosErros.telefone = 'Este campo é obrigatório'
+    else if (tel.length < 10) novosErros.telefone = 'Telefone deve ter no mínimo 10 dígitos (com DDD)'
+    if (!form.email.trim()) novosErros.email = 'Este campo é obrigatório'
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) novosErros.email = 'Informe um e-mail válido'
+    if (!form.senha) novosErros.senha = 'Este campo é obrigatório'
+    else if (form.senha.length < 6) novosErros.senha = 'A senha deve ter no mínimo 6 caracteres'
+    if (!form.confirmarSenha) novosErros.confirmarSenha = 'Este campo é obrigatório'
+    else if (form.confirmarSenha !== form.senha) novosErros.confirmarSenha = 'As senhas não coincidem'
+    return novosErros
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setErro('')
     setSucesso('')
+    setErros({})
     setLoading(true)
 
     try {
@@ -43,6 +60,12 @@ export default function LoginPage() {
 
         router.push(gestor ? '/empresa' : '/dashboard')
       } else {
+        const novosErros = validarCadastro()
+        if (Object.keys(novosErros).length > 0) {
+          setErros(novosErros)
+          setLoading(false)
+          return
+        }
         const { error } = await supabase.auth.signUp({
           email: form.email,
           password: form.senha,
@@ -70,6 +93,7 @@ export default function LoginPage() {
     setModo(m)
     setErro('')
     setSucesso('')
+    setErros({})
   }
 
   return (
@@ -145,24 +169,27 @@ export default function LoginPage() {
                 <>
                   <div>
                     <label className="text-xs font-medium text-gray-500 mb-1 block">Seu nome</label>
-                    <input required value={form.nome} onChange={e => setForm(f => ({ ...f, nome: e.target.value }))}
+                    <input required value={form.nome} onChange={e => { setForm(f => ({ ...f, nome: e.target.value })); setErros(er => ({ ...er, nome: '' })) }}
                       placeholder="Ex: Cláudio Silva"
-                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600" />
+                      className={`w-full px-3 py-2.5 rounded-xl border text-sm outline-none focus:border-green-600 ${erros.nome ? 'border-red-400' : 'border-gray-200'}`} />
+                    {erros.nome && <p className="text-xs text-red-600 mt-1">{erros.nome}</p>}
                   </div>
                   <div>
                     <label className="text-xs font-medium text-gray-500 mb-1 block">Telefone / WhatsApp</label>
-                    <input value={form.telefone} onChange={e => setForm(f => ({ ...f, telefone: e.target.value }))}
+                    <input required value={form.telefone} onChange={e => { setForm(f => ({ ...f, telefone: e.target.value })); setErros(er => ({ ...er, telefone: '' })) }}
                       placeholder="(95) 99999-9999" type="tel"
-                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600" />
+                      className={`w-full px-3 py-2.5 rounded-xl border text-sm outline-none focus:border-green-600 ${erros.telefone ? 'border-red-400' : 'border-gray-200'}`} />
+                    {erros.telefone && <p className="text-xs text-red-600 mt-1">{erros.telefone}</p>}
                   </div>
                 </>
               )}
 
               <div>
                 <label className="text-xs font-medium text-gray-500 mb-1 block">E-mail</label>
-                <input required value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                <input required value={form.email} onChange={e => { setForm(f => ({ ...f, email: e.target.value })); setErros(er => ({ ...er, email: '' })) }}
                   placeholder="seuemail@email.com" type="email"
-                  className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600" />
+                  className={`w-full px-3 py-2.5 rounded-xl border text-sm outline-none focus:border-green-600 ${erros.email ? 'border-red-400' : 'border-gray-200'}`} />
+                {erros.email && <p className="text-xs text-red-600 mt-1">{erros.email}</p>}
               </div>
 
               <div>
@@ -176,20 +203,39 @@ export default function LoginPage() {
                     </button>
                   )}
                 </div>
-                <input required value={form.senha} onChange={e => setForm(f => ({ ...f, senha: e.target.value }))}
+                <input required value={form.senha} onChange={e => { setForm(f => ({ ...f, senha: e.target.value })); setErros(er => ({ ...er, senha: '' })) }}
                   placeholder="Mínimo 6 caracteres" type="password"
-                  className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600" />
+                  className={`w-full px-3 py-2.5 rounded-xl border text-sm outline-none focus:border-green-600 ${erros.senha ? 'border-red-400' : 'border-gray-200'}`} />
+                {erros.senha && <p className="text-xs text-red-600 mt-1">{erros.senha}</p>}
               </div>
+
+              {modo === 'cadastro' && (
+                <div>
+                  <label className="text-xs font-medium text-gray-500 mb-1 block">Confirmar senha</label>
+                  <input required value={form.confirmarSenha} onChange={e => { setForm(f => ({ ...f, confirmarSenha: e.target.value })); setErros(er => ({ ...er, confirmarSenha: '' })) }}
+                    placeholder="Repita a senha" type="password"
+                    className={`w-full px-3 py-2.5 rounded-xl border text-sm outline-none focus:border-green-600 ${erros.confirmarSenha ? 'border-red-400' : 'border-gray-200'}`} />
+                  {erros.confirmarSenha && <p className="text-xs text-red-600 mt-1">{erros.confirmarSenha}</p>}
+                </div>
+              )}
 
               {erro && (
                 <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-sm text-red-700">{erro}</div>
               )}
 
-              <button type="submit" disabled={loading}
-                className="w-full py-3 rounded-xl text-white font-semibold text-sm mt-1 transition-opacity"
-                style={{ background: loading ? '#9FE1CB' : '#0F6E56' }}>
-                {loading ? 'Aguarde...' : modo === 'login' ? 'Entrar' : 'Criar minha conta'}
-              </button>
+              {(() => {
+                const camposPreenchidos = modo !== 'cadastro' || (
+                  form.nome.trim() && form.telefone.trim() && form.email.trim() && form.senha && form.confirmarSenha
+                )
+                const desabilitado = loading || !camposPreenchidos
+                return (
+                  <button type="submit" disabled={desabilitado}
+                    className="w-full py-3 rounded-xl text-white font-semibold text-sm mt-1 transition-opacity"
+                    style={{ background: desabilitado ? '#9FE1CB' : '#0F6E56', cursor: desabilitado ? 'not-allowed' : 'pointer' }}>
+                    {loading ? 'Aguarde...' : modo === 'login' ? 'Entrar' : 'Criar minha conta'}
+                  </button>
+                )
+              })()}
             </form>
           </>
         )}
