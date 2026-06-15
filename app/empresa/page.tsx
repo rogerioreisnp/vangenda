@@ -456,7 +456,7 @@ export default function EmpresaPage() {
           <p className="text-sm font-semibold text-gray-700 mb-2">Atalhos rápidos</p>
           <div className="grid grid-cols-3 gap-2">
             {[
-              { emoji: '📋', label: 'Nova corrida', href: '/empresa/agendamentos' },
+              { emoji: '📋', label: 'Nova corrida', href: '/empresa/agendamentos?nova=1' },
               { emoji: '💰', label: 'Financeiro', href: '/empresa/financeiro' },
               { emoji: '🚐', label: 'Motoristas', href: '/empresa/motoristas' },
             ].map(item => (

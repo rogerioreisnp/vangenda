@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 
 type RotaOpcao = {
@@ -133,6 +134,7 @@ function agruparPares(corridas: Corrida[]): CorridaAgrupada[] {
 }
 
 export default function AgendamentosPage() {
+  const searchParams = useSearchParams()
   const [empresaId, setEmpresaId] = useState<string | null>(null)
   const [rotasOpcoes, setRotasOpcoes] = useState<RotaOpcao[]>([])
   const [motoristasOpcoes, setMotoristasOpcoes] = useState<MotoristaOpcao[]>([])
@@ -151,6 +153,12 @@ export default function AgendamentosPage() {
   const [voltaIdEditando, setVoltaIdEditando] = useState<string | null>(null)
 
   useEffect(() => { carregarDados() }, [])
+
+  useEffect(() => {
+    if (!loading && searchParams.get('nova') === '1') {
+      abrirNovaCorrida()
+    }
+  }, [loading, searchParams])
 
   async function carregarDados() {
     const { data: { session } } = await supabase.auth.getSession()
