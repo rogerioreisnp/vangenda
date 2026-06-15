@@ -17,6 +17,7 @@ type CorridaFin = {
   status: string
   cliente_nome: string
   motorista_id: string | null
+  valor_recebido: number | null
   motoristas_empresa: { nome: string; veiculo: string | null; placa: string | null } | null
 }
 
@@ -139,7 +140,7 @@ export default function FinanceiroPage() {
     const [{ data: corr }, { data: desp }] = await Promise.all([
       supabase
         .from('corridas_empresa')
-        .select('id, origem, destino, data_hora, valor, status, cliente_nome, motorista_id, motoristas_empresa(nome, veiculo, placa)')
+        .select('id, origem, destino, data_hora, valor, status, cliente_nome, motorista_id, valor_recebido, motoristas_empresa(nome, veiculo, placa)')
         .eq('empresa_id', eid)
         .gte('data_hora', `${inicio}T00:00:00`)
         .lte('data_hora', `${fim}T23:59:59`)
@@ -221,7 +222,7 @@ export default function FinanceiroPage() {
   const corridasConcluidas = corridas.filter(c => c.status === 'concluida')
   const corridasAReceber   = corridas.filter(c => c.status === 'confirmada')
   const totalRec      = corridasConcluidas.reduce((s, c) => s + Number(c.valor), 0)
-  const totalAReceber = corridasAReceber.reduce((s, c) => s + Number(c.valor), 0)
+  const totalAReceber = corridasAReceber.reduce((s, c) => s + Number(c.valor) - Number(c.valor_recebido || 0), 0)
   const totalDesp     = despesas.reduce((s, d) => s + Number(d.valor), 0)
   const lucro         = totalRec - totalDesp
   const motMap        = Object.fromEntries(motoristas.map(m => [m.id, m]))

@@ -29,6 +29,8 @@ type Corrida = {
   motorista_id: string | null
   tipo_servico: string | null
   forma_pagamento: string | null
+  status_pagamento: string | null
+  valor_recebido: number | null
   observacoes: string | null
   motoristas_empresa: { nome: string } | null
 }
@@ -51,6 +53,7 @@ type FormCorrida = {
   cliente_telefone: string
   forma_pagamento: string
   status_pagamento: string
+  valor_recebido: string
   preco: string
   observacoes: string
 }
@@ -68,7 +71,8 @@ const FORM_VAZIO: FormCorrida = {
   cliente_nome: '',
   cliente_telefone: '',
   forma_pagamento: 'a_definir',
-  status_pagamento: 'confirmada',
+  status_pagamento: 'a_receber',
+  valor_recebido: '',
   preco: '',
   observacoes: '',
 }
@@ -181,7 +185,7 @@ export default function AgendamentosPage() {
         .order('nome'),
       supabase
         .from('corridas_empresa')
-        .select('id, rota_id, origem, destino, data_hora, created_at, cliente_nome, cliente_telefone, valor, status, motorista_id, tipo_servico, forma_pagamento, observacoes, motoristas_empresa(nome)')
+        .select('id, rota_id, origem, destino, data_hora, created_at, cliente_nome, cliente_telefone, valor, status, motorista_id, tipo_servico, forma_pagamento, status_pagamento, valor_recebido, observacoes, motoristas_empresa(nome)')
         .eq('empresa_id', gestor.empresa_id)
         .order('data_hora', { ascending: false })
         .limit(50),
@@ -218,7 +222,8 @@ export default function AgendamentosPage() {
       cliente_nome: c.cliente_nome,
       cliente_telefone: c.cliente_telefone || '',
       forma_pagamento: c.forma_pagamento || 'a_definir',
-      status_pagamento: c.status === 'concluida' ? 'concluida' : 'confirmada',
+      status_pagamento: c.status_pagamento || (c.status === 'concluida' ? 'recebido' : 'a_receber'),
+      valor_recebido: c.valor_recebido != null ? String(c.valor_recebido) : '',
       preco: String(c.valor),
       observacoes: c.observacoes || '',
     })
@@ -259,6 +264,12 @@ export default function AgendamentosPage() {
     setSalvando(true)
     setErro('')
 
+    const valorRecebido = form.status_pagamento === 'recebido'
+      ? preco
+      : form.status_pagamento === 'parcial'
+      ? (parseFloat(form.valor_recebido) || 0)
+      : 0
+
     const camposComuns = {
       motorista_id: form.motorista_id || null,
       rota_id: form.rota_id && form.rota_id !== 'manual' ? form.rota_id : null,
@@ -269,6 +280,8 @@ export default function AgendamentosPage() {
       valor: preco,
       tipo_servico: form.tipo_servico,
       forma_pagamento: form.forma_pagamento,
+      status_pagamento: form.status_pagamento,
+      valor_recebido: valorRecebido,
       observacoes: form.observacoes.trim() || null,
     }
 
@@ -303,7 +316,8 @@ export default function AgendamentosPage() {
         }
       }
     } else {
-      const base = { empresa_id: empresaId, status: form.status_pagamento, ...camposComuns }
+      const statusCorrida = form.status_pagamento === 'recebido' ? 'concluida' : 'confirmada'
+      const base = { empresa_id: empresaId, status: statusCorrida, ...camposComuns }
       const registros: typeof base[] = [
         { ...base, data_hora: `${form.data}T${form.horario}:00` } as any,
       ]
@@ -705,12 +719,22 @@ export default function AgendamentosPage() {
 
             <Campo label="Status do pagamento">
               <select value={form.status_pagamento}
-                onChange={e => setForm(f => ({ ...f, status_pagamento: e.target.value }))}
+                onChange={e => setForm(f => ({ ...f, status_pagamento: e.target.value, valor_recebido: '' }))}
                 className="campo-input">
-                <option value="confirmada">A receber</option>
-                <option value="concluida">Recebido</option>
+                <option value="a_receber">A receber</option>
+                <option value="parcial">Recebido parcialmente</option>
+                <option value="recebido">Recebido</option>
               </select>
             </Campo>
+
+            {form.status_pagamento === 'parcial' && (
+              <Campo label="Valor recebido (R$)">
+                <input type="number" step="0.01" min={0}
+                  value={form.valor_recebido}
+                  onChange={e => setForm(f => ({ ...f, valor_recebido: e.target.value }))}
+                  placeholder="0,00" className="campo-input" />
+              </Campo>
+            )}
 
             <Campo label="Preço (R$) *">
               <input type="number" step="0.01" min={0} value={form.preco}
