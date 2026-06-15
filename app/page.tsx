@@ -40,10 +40,10 @@ export default function LoginPage() {
     try {
       if (modo === 'recuperar') {
         const { error } = await supabase.auth.resetPasswordForEmail(form.email, {
-          redirectTo: `${window.location.origin}/nova-senha`,
+          redirectTo: 'https://vangenda.vercel.app/redefinir-senha',
         })
         if (error) throw error
-        setSucesso('Enviamos um link de recuperação para o seu e-mail. Verifique a caixa de entrada e o spam.')
+        setSucesso('Enviamos um link de redefinição para seu e-mail. Verifique sua caixa de entrada.')
       } else if (modo === 'login') {
         const { data: authData, error } = await supabase.auth.signInWithPassword({
           email: form.email,
@@ -132,7 +132,6 @@ export default function LoginPage() {
               {sucesso && (
                 <div className="bg-green-50 border border-green-200 rounded-xl px-3 py-2 text-sm text-green-700">
                   {sucesso}
-                  <p className="text-xs text-gray-400 mt-1.5">Não encontrou? Verifique sua caixa de spam ou lixeira.</p>
                 </div>
               )}
 
