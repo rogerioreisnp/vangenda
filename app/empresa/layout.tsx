@@ -24,12 +24,14 @@ export default function EmpresaLayout({ children }: { children: React.ReactNode 
   const [emailGestor, setEmailGestor] = useState('')
   const [planoEmpresa, setPlanoEmpresa] = useState('')
   const [statusEmpresa, setStatusEmpresa] = useState('')
+  const [trialExpirado, setTrialExpirado] = useState(false)
 
   useEffect(() => {
     verificarGestor()
   }, [])
 
   async function verificarGestor() {
+    if (pathname === '/empresa/registro') { setChecando(false); return }
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) { router.push('/'); return }
 
@@ -46,13 +48,17 @@ export default function EmpresaLayout({ children }: { children: React.ReactNode 
 
     const { data: empresa } = await supabase
       .from('empresas')
-      .select('plano, status')
+      .select('plano, status, trial_fim')
       .eq('id', gestor.empresa_id)
       .single()
 
     if (empresa) {
       setPlanoEmpresa(empresa.plano || '')
       setStatusEmpresa(empresa.status || '')
+      if (empresa.status === 'trial' && empresa.trial_fim) {
+        const hoje = new Date().toISOString().split('T')[0]
+        if (empresa.trial_fim < hoje) setTrialExpirado(true)
+      }
     }
 
     setChecando(false)
@@ -71,12 +77,20 @@ export default function EmpresaLayout({ children }: { children: React.ReactNode 
     ? { background: '#FAEEDA', color: '#854F0B' }
     : { background: '#FEE2E2', color: '#DC2626' }
 
+  if (pathname === '/empresa/registro') {
+    return <div className="min-h-dvh" style={{ background: '#f0f0ec' }}>{children}</div>
+  }
+
   if (checando) {
     return (
       <div className="min-h-dvh flex items-center justify-center" style={{ background: '#f0f0ec' }}>
         <div className="text-4xl animate-pulse">🚐</div>
       </div>
     )
+  }
+
+  if (trialExpirado) {
+    return <TelaTrialExpirado onSair={sair} />
   }
 
   return (
@@ -188,6 +202,72 @@ export default function EmpresaLayout({ children }: { children: React.ReactNode 
           })}
         </div>
       </nav>
+    </div>
+  )
+}
+
+const WA_ASSINAR = 'https://wa.me/5595984143839?text=Ol%C3%A1%2C%20quero%20assinar%20o%20plano%20empresarial%20do%20RotaGenda'
+
+function TelaTrialExpirado({ onSair }: { onSair: () => void }) {
+  const planos = [
+    { id: 'starter', nome: 'Starter', preco: 'R$ 97/mês',     limite: 'Até 3 motoristas' },
+    { id: 'pro',     nome: 'Pro',     preco: 'R$ 197/mês',    limite: 'Até 8 motoristas' },
+    { id: 'fleet',   nome: 'Fleet',   preco: 'R$ 29/mot·mês', limite: 'Por motorista ativo' },
+  ]
+  return (
+    <div className="min-h-dvh flex flex-col" style={{ background: '#f0f0ec' }}>
+      <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-5">
+        <p style={{ color: '#E1F5EE' }} className="text-base font-semibold">Trial encerrado</p>
+        <p style={{ color: '#9FE1CB' }} className="text-xs mt-0.5">RotaGenda Empresarial</p>
+      </div>
+
+      <div className="px-4 py-5 flex flex-col gap-4 flex-1">
+        <div className="bg-white rounded-2xl p-5 border border-gray-100 text-center">
+          <p className="text-4xl mb-3">⏰</p>
+          <p className="text-base font-bold text-gray-800 mb-2">Período de avaliação encerrado</p>
+          <p className="text-sm text-gray-500 leading-relaxed">
+            Seu trial de 7 dias chegou ao fim. Assine um plano para continuar
+            usando o RotaGenda Empresarial com todos os seus dados preservados.
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          {planos.map(p => (
+            <div key={p.id} className="bg-white rounded-2xl p-4 border border-gray-100
+              flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-gray-800">{p.nome}</p>
+                <p className="text-xs text-gray-400">{p.limite}</p>
+              </div>
+              <div className="flex items-center gap-3 flex-shrink-0">
+                <p className="text-sm font-semibold" style={{ color: '#0F6E56' }}>{p.preco}</p>
+                <a href={WA_ASSINAR} target="_blank" rel="noopener noreferrer"
+                  className="px-3 py-1.5 rounded-xl text-xs font-semibold"
+                  style={{ background: '#1D9E75', color: '#fff' }}>
+                  Assinar
+                </a>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="bg-white rounded-2xl p-4 border border-gray-100 flex items-center gap-3">
+          <span className="text-xl flex-shrink-0">💬</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold text-gray-700">Dúvidas sobre os planos?</p>
+            <p className="text-xs text-gray-400">Fale com a gente pelo WhatsApp</p>
+          </div>
+          <a href={WA_ASSINAR} target="_blank" rel="noopener noreferrer"
+            className="px-3 py-1.5 rounded-xl text-xs font-semibold flex-shrink-0"
+            style={{ background: '#E1F5EE', color: '#0F6E56' }}>
+            Contato
+          </a>
+        </div>
+
+        <button onClick={onSair} className="text-sm text-gray-400 text-center py-2">
+          Sair da conta
+        </button>
+      </div>
     </div>
   )
 }

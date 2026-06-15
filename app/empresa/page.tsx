@@ -238,6 +238,11 @@ export default function EmpresaPage() {
 
       <div className="px-4 py-4 flex flex-col gap-4">
 
+        {/* Banner boas-vindas (primeira vez, sem motoristas) */}
+        {!loading && motoristasAtivos === 0 && corridasHoje === 0 && (
+          <BannerBoasVindas />
+        )}
+
         {/* Métricas */}
         <div className="grid grid-cols-2 gap-3">
           <CardMetrica label="Corridas hoje" valor={corridasHoje} emoji="📋" cor="#0F6E56" />
@@ -450,6 +455,39 @@ export default function EmpresaPage() {
           </div>
         </div>
 
+      </div>
+    </div>
+  )
+}
+
+function BannerBoasVindas() {
+  const passos = [
+    { num: '1', label: 'Configure sua empresa',   href: '/empresa/configuracoes' },
+    { num: '2', label: 'Cadastre seus motoristas', href: '/empresa/motoristas'   },
+    { num: '3', label: 'Adicione suas rotas',      href: '/empresa/rotas'        },
+  ]
+  return (
+    <div className="rounded-2xl p-4 border"
+      style={{ background: '#E1F5EE', borderColor: '#9FE1CB' }}>
+      <p className="text-sm font-bold mb-1" style={{ color: '#085041' }}>
+        🎉 Bem-vindo ao RotaGenda Empresarial!
+      </p>
+      <p className="text-xs mb-3" style={{ color: '#0F6E56' }}>
+        Seu trial de 7 dias começou. Siga os passos abaixo para configurar sua conta.
+      </p>
+      <div className="flex flex-col gap-2">
+        {passos.map(p => (
+          <Link key={p.num} href={p.href}
+            className="flex items-center gap-3 bg-white rounded-xl px-3 py-2.5 active:opacity-75"
+            style={{ border: '1px solid #9FE1CB' }}>
+            <span className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+              style={{ background: '#0F6E56', color: '#fff' }}>
+              {p.num}
+            </span>
+            <p className="text-xs font-semibold flex-1" style={{ color: '#085041' }}>{p.label}</p>
+            <span style={{ color: '#9FE1CB' }} className="text-sm">›</span>
+          </Link>
+        ))}
       </div>
     </div>
   )

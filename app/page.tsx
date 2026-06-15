@@ -28,12 +28,20 @@ export default function LoginPage() {
         if (error) throw error
         setSucesso('Enviamos um link de recuperação para o seu e-mail. Verifique a caixa de entrada e o spam.')
       } else if (modo === 'login') {
-        const { error } = await supabase.auth.signInWithPassword({
+        const { data: authData, error } = await supabase.auth.signInWithPassword({
           email: form.email,
           password: form.senha,
         })
         if (error) throw error
-        router.push('/dashboard')
+
+        // Verifica se o usuário é gestor de empresa → redireciona para o painel correto
+        const { data: gestor } = await supabase
+          .from('gestores')
+          .select('id')
+          .eq('user_id', authData.user.id)
+          .maybeSingle()
+
+        router.push(gestor ? '/empresa' : '/dashboard')
       } else {
         const { error } = await supabase.auth.signUp({
           email: form.email,
@@ -200,7 +208,16 @@ export default function LoginPage() {
         </div>
       </div>
 
-      <p className="text-xs text-gray-400 mt-6 text-center">
+      {/* CTA empresa */}
+      <div className="w-full max-w-sm mt-3">
+        <a href="/empresa/registro"
+          className="flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-medium border transition-colors"
+          style={{ background: 'white', borderColor: '#e5e7eb', color: '#0F6E56' }}>
+          🏢 Cadastrar minha empresa
+        </a>
+      </div>
+
+      <p className="text-xs text-gray-400 mt-4 text-center">
         RotaGenda © {new Date().getFullYear()}
       </p>
     </div>
