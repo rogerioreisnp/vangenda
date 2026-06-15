@@ -127,6 +127,13 @@ export default function FinanceiroPage() {
 
   async function carregar(eid: string) {
     setLoading(true)
+
+    await supabase.from('corridas_empresa')
+      .update({ status: 'concluida' })
+      .eq('empresa_id', eid)
+      .eq('status', 'confirmada')
+      .lt('data_hora', new Date().toISOString())
+
     const { inicio, fim } = intervalo()
 
     const [{ data: corr }, { data: desp }] = await Promise.all([
@@ -211,17 +218,19 @@ export default function FinanceiroPage() {
   }
 
   /* ── Cálculos ── */
-  const corridasRec = corridas.filter(c => c.status !== 'cancelada')
-  const totalRec  = corridasRec.reduce((s, c) => s + Number(c.valor), 0)
-  const totalDesp = despesas.reduce((s, d) => s + Number(d.valor), 0)
-  const lucro     = totalRec - totalDesp
-  const motMap    = Object.fromEntries(motoristas.map(m => [m.id, m]))
+  const corridasConcluidas = corridas.filter(c => c.status === 'concluida')
+  const corridasAReceber   = corridas.filter(c => c.status === 'confirmada')
+  const totalRec      = corridasConcluidas.reduce((s, c) => s + Number(c.valor), 0)
+  const totalAReceber = corridasAReceber.reduce((s, c) => s + Number(c.valor), 0)
+  const totalDesp     = despesas.reduce((s, d) => s + Number(d.valor), 0)
+  const lucro         = totalRec - totalDesp
+  const motMap        = Object.fromEntries(motoristas.map(m => [m.id, m]))
 
   /* ── Agrupar por veículo ── */
   type VItem = { key: string; nome: string; veiculo: string; receita: number; despesa: number; qtd: number }
   const vMap = new Map<string, VItem>()
 
-  corridasRec.forEach(c => {
+  corridasConcluidas.forEach(c => {
     const key  = c.motorista_id ?? '__sem__'
     const mot  = c.motoristas_empresa as any
     const nome = mot?.nome ?? 'Sem motorista'
@@ -302,12 +311,22 @@ export default function FinanceiroPage() {
           <div className="flex flex-col gap-3">
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-white rounded-2xl p-4 border border-gray-100">
-                <p className="text-xs text-gray-400 mb-2">💰 Receita total</p>
+                <p className="text-xs text-gray-400 mb-2">💰 Receita realizada</p>
                 <p className="text-xl font-bold" style={{ color: '#0F6E56' }}>{fmt(totalRec)}</p>
+              </div>
+              <div className="bg-white rounded-2xl p-4 border border-gray-100">
+                <p className="text-xs text-gray-400 mb-2">🕐 A receber</p>
+                <p className="text-xl font-bold" style={{ color: '#1D4ED8' }}>{fmt(totalAReceber)}</p>
               </div>
               <div className="bg-white rounded-2xl p-4 border border-gray-100">
                 <p className="text-xs text-gray-400 mb-2">📤 Despesas</p>
                 <p className="text-xl font-bold" style={{ color: '#A32D2D' }}>{fmt(totalDesp)}</p>
+              </div>
+              <div className="bg-white rounded-2xl p-4 border border-gray-100">
+                <p className="text-xs text-gray-400 mb-2">📊 Ticket médio</p>
+                <p className="text-xl font-bold" style={{ color: '#185FA5' }}>
+                  {corridasConcluidas.length > 0 ? fmt(totalRec / corridasConcluidas.length) : 'R$ 0'}
+                </p>
               </div>
 
               {/* Lucro — destaque */}
@@ -324,62 +343,89 @@ export default function FinanceiroPage() {
                 </p>
               </div>
 
-              <div className="bg-white rounded-2xl p-4 border border-gray-100">
-                <p className="text-xs text-gray-400 mb-2">🚐 Corridas</p>
-                <p className="text-xl font-bold" style={{ color: '#1D4ED8' }}>{corridasRec.length}</p>
-              </div>
-              <div className="bg-white rounded-2xl p-4 border border-gray-100">
-                <p className="text-xs text-gray-400 mb-2">📊 Ticket médio</p>
-                <p className="text-xl font-bold" style={{ color: '#185FA5' }}>
-                  {corridasRec.length > 0 ? fmt(totalRec / corridasRec.length) : 'R$ 0'}
-                </p>
+              <div className="col-span-2 bg-white rounded-2xl p-4 border border-gray-100">
+                <p className="text-xs text-gray-400 mb-2">🚐 Corridas concluídas</p>
+                <p className="text-xl font-bold" style={{ color: '#6B7280' }}>{corridasConcluidas.length}</p>
               </div>
             </div>
           </div>
 
         ) : aba === 'receitas' ? (
           /* ── Receitas ── */
-          <div>
-            <div className="flex justify-between items-center mb-3">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                {corridasRec.length} corrida{corridasRec.length !== 1 ? 's' : ''}
-              </p>
-              {corridasRec.length > 0 && (
-                <p className="text-sm font-bold" style={{ color: '#0F6E56' }}>{fmt(totalRec)}</p>
+          <div className="flex flex-col gap-4">
+            {/* Realizadas */}
+            <div>
+              <div className="flex justify-between items-center mb-2">
+                <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#0F6E56' }}>
+                  ✅ Realizadas · {corridasConcluidas.length}
+                </p>
+                {corridasConcluidas.length > 0 && (
+                  <p className="text-sm font-bold" style={{ color: '#0F6E56' }}>{fmt(totalRec)}</p>
+                )}
+              </div>
+              {corridasConcluidas.length === 0 ? (
+                <div className="text-center py-6">
+                  <p className="text-sm text-gray-400">Nenhuma corrida concluída no período</p>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {corridasConcluidas.map(c => {
+                    const mot = c.motoristas_empresa as any
+                    return (
+                      <div key={c.id} className="bg-white rounded-2xl p-3 border border-gray-100">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-gray-800 truncate">{c.origem} → {c.destino}</p>
+                            <p className="text-xs text-gray-400 mt-0.5">
+                              {c.data_hora.slice(8, 10)}/{c.data_hora.slice(5, 7)} · {c.cliente_nome}
+                            </p>
+                            {mot?.nome && <p className="text-xs text-gray-400">🚐 {mot.nome}</p>}
+                          </div>
+                          <p className="text-sm font-bold flex-shrink-0" style={{ color: '#0F6E56' }}>{fmt(Number(c.valor))}</p>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
               )}
             </div>
-            {corridasRec.length === 0 ? (
-              <div className="text-center py-12">
-                <p className="text-3xl mb-2">📭</p>
-                <p className="text-sm text-gray-400">Nenhuma receita no período</p>
+
+            {/* A receber */}
+            <div>
+              <div className="flex justify-between items-center mb-2">
+                <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#1D4ED8' }}>
+                  🕐 A receber · {corridasAReceber.length}
+                </p>
+                {corridasAReceber.length > 0 && (
+                  <p className="text-sm font-bold" style={{ color: '#1D4ED8' }}>{fmt(totalAReceber)}</p>
+                )}
               </div>
-            ) : (
-              <div className="flex flex-col gap-2">
-                {corridasRec.map(c => {
-                  const mot = c.motoristas_empresa as any
-                  return (
-                    <div key={c.id} className="bg-white rounded-2xl p-3 border border-gray-100">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-gray-800 truncate">
-                            {c.origem} → {c.destino}
-                          </p>
-                          <p className="text-xs text-gray-400 mt-0.5">
-                            {c.data_hora.slice(8, 10)}/{c.data_hora.slice(5, 7)} · {c.cliente_nome}
-                          </p>
-                          {mot?.nome && (
-                            <p className="text-xs text-gray-400">🚐 {mot.nome}</p>
-                          )}
+              {corridasAReceber.length === 0 ? (
+                <div className="text-center py-6">
+                  <p className="text-sm text-gray-400">Nenhuma corrida agendada no período</p>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {corridasAReceber.map(c => {
+                    const mot = c.motoristas_empresa as any
+                    return (
+                      <div key={c.id} className="rounded-2xl p-3 border" style={{ background: '#EFF6FF', borderColor: '#BFDBFE' }}>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-gray-800 truncate">{c.origem} → {c.destino}</p>
+                            <p className="text-xs text-gray-400 mt-0.5">
+                              {c.data_hora.slice(8, 10)}/{c.data_hora.slice(5, 7)} às {c.data_hora.slice(11, 16)} · {c.cliente_nome}
+                            </p>
+                            {mot?.nome && <p className="text-xs text-gray-400">🚐 {mot.nome}</p>}
+                          </div>
+                          <p className="text-sm font-bold flex-shrink-0" style={{ color: '#1D4ED8' }}>{fmt(Number(c.valor))}</p>
                         </div>
-                        <p className="text-sm font-bold flex-shrink-0" style={{ color: '#0F6E56' }}>
-                          {fmt(Number(c.valor))}
-                        </p>
                       </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
+                    )
+                  })}
+                </div>
+              )}
+            </div>
           </div>
 
         ) : aba === 'despesas' ? (

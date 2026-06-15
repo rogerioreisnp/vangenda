@@ -159,6 +159,12 @@ export default function AgendamentosPage() {
     if (!gestor) return
     setEmpresaId(gestor.empresa_id)
 
+    await supabase.from('corridas_empresa')
+      .update({ status: 'concluida' })
+      .eq('empresa_id', gestor.empresa_id)
+      .eq('status', 'confirmada')
+      .lt('data_hora', new Date().toISOString())
+
     const [{ data: rts }, { data: mots }, { data: corrds }] = await Promise.all([
       supabase
         .from('rotas_empresa')

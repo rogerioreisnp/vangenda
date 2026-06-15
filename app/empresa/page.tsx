@@ -107,6 +107,7 @@ export default function EmpresaPage() {
   const [corridasHoje, setCorridasHoje] = useState(0)
   const [motoristasAtivos, setMotoristasAtivos] = useState(0)
   const [receitaMes, setReceitaMes] = useState(0)
+  const [aReceberMes, setAReceberMes] = useState(0)
   const [corridasConfirmadas, setCorridasConfirmadas] = useState(0)
   const [corridasSemMotorista, setCorridasSemMotorista] = useState(0)
 
@@ -144,6 +145,12 @@ export default function EmpresaPage() {
       setStatusEmpresa(empresa.status)
     }
 
+    await supabase.from('corridas_empresa')
+      .update({ status: 'concluida' })
+      .eq('empresa_id', eid)
+      .eq('status', 'confirmada')
+      .lt('data_hora', new Date().toISOString())
+
     const agora = new Date()
     const agoraISO = agora.toISOString()
     const hoje = format(agora, 'yyyy-MM-dd')
@@ -155,6 +162,7 @@ export default function EmpresaPage() {
       { data: cHoje },
       { data: mAtivos },
       { data: recMes },
+      { data: aReceberMesData },
       { data: cConf },
       { data: cSemMot },
       { data: prox },
@@ -166,7 +174,10 @@ export default function EmpresaPage() {
       supabase.from('motoristas_empresa').select('id')
         .eq('empresa_id', eid).eq('status', 'ativo'),
       supabase.from('corridas_empresa').select('valor').eq('empresa_id', eid)
-        .neq('status', 'cancelada')
+        .eq('status', 'concluida')
+        .gte('data_hora', `${inicioMes}T00:00:00`).lte('data_hora', `${fimMes}T23:59:59`),
+      supabase.from('corridas_empresa').select('valor').eq('empresa_id', eid)
+        .eq('status', 'confirmada')
         .gte('data_hora', `${inicioMes}T00:00:00`).lte('data_hora', `${fimMes}T23:59:59`),
       supabase.from('corridas_empresa').select('id, created_at, cliente_nome, origem, destino, data_hora').eq('empresa_id', eid)
         .eq('status', 'confirmada').gte('data_hora', agoraISO),
@@ -183,6 +194,7 @@ export default function EmpresaPage() {
     setCorridasHoje(contarContratos(cHoje ?? []))
     setMotoristasAtivos(mAtivos?.length ?? 0)
     setReceitaMes(recMes?.reduce((s, c) => s + (Number(c.valor) || 0), 0) ?? 0)
+    setAReceberMes(aReceberMesData?.reduce((s, c) => s + (Number(c.valor) || 0), 0) ?? 0)
     setCorridasConfirmadas(contarContratos(cConf ?? []))
     setCorridasSemMotorista(cSemMot?.length ?? 0)
     setProximas((prox as any) ?? [])
@@ -253,7 +265,12 @@ export default function EmpresaPage() {
             emoji="💰"
             cor="#1D9E75"
           />
-          <CardMetrica label="Confirmadas" valor={corridasConfirmadas} emoji="✅" cor="#1D4ED8" />
+          <CardMetrica
+            label="A receber"
+            valor={`R$ ${aReceberMes.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
+            emoji="🕐"
+            cor="#1D4ED8"
+          />
         </div>
 
         {/* Alertas */}
