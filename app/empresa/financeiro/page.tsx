@@ -83,6 +83,7 @@ type LancamentoEmpresa = {
   observacao: string | null
   valor: number
   data: string
+  quilometragem: number | null
 }
 
 type FiltroRF = 'hoje' | '7dias' | '30dias' | 'mes'
@@ -742,7 +743,7 @@ function FinanceiroRotaFixa({ empresaId }: { empresaId: string }) {
     const { inicio, fim } = getPeriodo()
     const { data } = await supabase
       .from('cobrancas_empresa')
-      .select('id, tipo, categoria, observacao, valor, data')
+      .select('id, tipo, categoria, observacao, valor, data, quilometragem')
       .eq('empresa_id', empresaId)
       .in('tipo', ['receita', 'despesa'])
       .gte('data', inicio)
@@ -881,7 +882,10 @@ function FinanceiroRotaFixa({ empresaId }: { empresaId: string }) {
                         <span className="text-xl mr-1">{cat?.emoji || '📦'}</span>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-gray-800 truncate">{d.observacao || cat?.label || d.categoria}</p>
-                          <p className="text-xs text-gray-400">{format(new Date(d.data + 'T00:00:00'), 'dd/MM/yyyy')}</p>
+                          <p className="text-xs text-gray-400">
+                            {format(new Date(d.data + 'T00:00:00'), 'dd/MM/yyyy')}
+                            {d.quilometragem != null ? ` · ${d.quilometragem.toLocaleString('pt-BR')} km` : ''}
+                          </p>
                         </div>
                         <span className="text-sm font-semibold shrink-0" style={{ color: '#A32D2D' }}>
                           - R$ {Number(d.valor).toFixed(2).replace('.', ',')}
@@ -936,11 +940,13 @@ function FormLancamentoEmpresa({
   onSalvo: () => void
 }) {
   const categorias = tipo === 'receita' ? categoriasReceitaRF : categoriasDespesaRF
+  const CATS_COM_KM = ['combustivel', 'manutencao', 'pneu', 'outros']
   const [form, setForm] = useState({
-    categoria:  lancamento?.categoria  ?? categorias[0].value,
-    observacao: lancamento?.observacao ?? '',
-    valor:      lancamento?.valor != null ? String(lancamento.valor) : '',
-    data:       lancamento?.data ?? format(new Date(), 'yyyy-MM-dd'),
+    categoria:     lancamento?.categoria  ?? categorias[0].value,
+    observacao:    lancamento?.observacao ?? '',
+    valor:         lancamento?.valor != null ? String(lancamento.valor) : '',
+    data:          lancamento?.data ?? format(new Date(), 'yyyy-MM-dd'),
+    quilometragem: lancamento?.quilometragem != null ? String(lancamento.quilometragem) : '',
   })
   const [saving, setSaving] = useState(false)
   const [erro, setErro]     = useState('')
@@ -961,6 +967,9 @@ function FormLancamentoEmpresa({
       data:          form.data,
       cliente_nome:  tipo === 'receita' ? 'Receita' : 'Despesa',
       descricao:     catLabel,
+      quilometragem: tipo === 'despesa' && CATS_COM_KM.includes(form.categoria) && form.quilometragem
+        ? parseInt(form.quilometragem)
+        : null,
     }
 
     let error
@@ -1012,6 +1021,16 @@ function FormLancamentoEmpresa({
             type="text" placeholder="Ex: empresa tal, grupo de amigos..."
             className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none bg-white focus:border-green-600" />
         </div>
+
+        {tipo === 'despesa' && CATS_COM_KM.includes(form.categoria) && (
+          <div>
+            <p className="text-xs font-medium text-gray-500 mb-1">Quilometragem (km) — opcional</p>
+            <input value={form.quilometragem}
+              onChange={e => setForm(f => ({ ...f, quilometragem: e.target.value }))}
+              type="number" min={0} placeholder="Ex: 125000"
+              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none bg-white focus:border-green-600" />
+          </div>
+        )}
 
         <div>
           <p className="text-xs font-medium text-gray-500 mb-1">Valor (R$)</p>
