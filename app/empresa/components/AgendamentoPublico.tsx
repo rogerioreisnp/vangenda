@@ -44,8 +44,9 @@ type EmpresaPublica = {
 
 type Rota = {
   id: string
-  origem: string
-  destino: string
+  nome: string | null
+  origem: string | null
+  destino: string | null
   preco: number
 }
 
@@ -90,7 +91,7 @@ export default function AgendamentoPublico({
   async function carregarRotas() {
     const { data } = await supabase
       .from('rotas_empresa')
-      .select('id, origem, destino, preco')
+      .select('id, nome, origem, destino, preco')
       .eq('empresa_id', empresa.id)
       .order('created_at')
     if (data) setRotas(data)
@@ -232,7 +233,7 @@ export default function AgendamentoPublico({
                     <option value="">Selecione a rota...</option>
                     {rotas.map(r => (
                       <option key={r.id} value={r.id}>
-                        {r.origem} → {r.destino} — R$ {Number(r.preco).toFixed(2).replace('.', ',')}
+                        {r.nome || `${r.origem} → ${r.destino}`} — R$ {Number(r.preco).toFixed(2).replace('.', ',')}
                       </option>
                     ))}
                   </select>
