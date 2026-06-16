@@ -39,11 +39,10 @@ type RotaRF = {
   dias_semana: number[] | null
 }
 
-type ParadaRF = {
-  id?: string
-  nome: string
-  ordem: number
-  preco: string
+type PrecoRF = {
+  origem: string
+  destino: string
+  valor: string
 }
 
 type FormRotaRF = {
@@ -78,7 +77,8 @@ export default function RotasPage() {
     capacidade: '15', motorista_id: '', veiculo_placa: '',
     ativa: true, dias_semana: [1, 2, 3, 4, 5],
   })
-  const [paradasRF, setParadasRF] = useState<ParadaRF[]>([])
+  const [paradasRF, setParadasRF] = useState<string[]>([])
+  const [precosRF, setPrecosRF] = useState<PrecoRF[]>([])
   const [novaParadaRF, setNovaParadaRF] = useState('')
   const [draggingIdxRF, setDraggingIdxRF] = useState<number | null>(null)
   const [salvandoRF, setSalvandoRF] = useState(false)
@@ -214,6 +214,7 @@ export default function RotasPage() {
     setRotaRFEditando(null)
     setFormRF({ nome: '', horario_ida: '05:00', horario_volta: '14:00', capacidade: '15', motorista_id: '', veiculo_placa: '', ativa: true, dias_semana: [1, 2, 3, 4, 5] })
     setParadasRF([])
+    setPrecosRF([])
     setNovaParadaRF('')
     setErroRF('')
     setModalRFAberto(true)
@@ -231,12 +232,26 @@ export default function RotasPage() {
       ativa: r.ativa ?? true,
       dias_semana: r.dias_semana || [1, 2, 3, 4, 5],
     })
-    const { data: pars } = await supabase
+    const { data: trechos } = await supabase
       .from('paradas_empresa')
-      .select('id, nome, ordem, preco')
+      .select('nome, ordem, preco')
       .eq('rota_id', r.id)
       .order('ordem')
-    setParadasRF((pars || []).map(p => ({ ...p, preco: String(p.preco ?? 0) })))
+    const rows = trechos || []
+    const stopSet = new Set<string>()
+    const stops: string[] = []
+    rows.forEach(t => {
+      const parts = (t.nome as string).split(' → ')
+      if (parts.length === 2) {
+        if (!stopSet.has(parts[0])) { stopSet.add(parts[0]); stops.push(parts[0]) }
+        if (!stopSet.has(parts[1])) { stopSet.add(parts[1]); stops.push(parts[1]) }
+      }
+    })
+    setParadasRF(stops)
+    setPrecosRF(rows.map(t => {
+      const parts = (t.nome as string).split(' → ')
+      return { origem: parts[0] || '', destino: parts[1] || '', valor: String(t.preco ?? 0) }
+    }))
     setNovaParadaRF('')
     setErroRF('')
     setModalRFAberto(true)
@@ -271,17 +286,17 @@ export default function RotasPage() {
     }
 
     await supabase.from('paradas_empresa').delete().eq('rota_id', rotaId)
-    if (paradasRF.length > 0) {
+    if (precosRF.length > 0) {
       const { error: erroP } = await supabase.from('paradas_empresa').insert(
-        paradasRF.map((p, i) => ({
+        precosRF.map((p, i) => ({
           rota_id: rotaId,
           empresa_id: empresaId,
-          nome: p.nome,
+          nome: `${p.origem} → ${p.destino}`,
           ordem: i,
-          preco: parseFloat(p.preco) || 0,
+          preco: parseFloat(p.valor) || 0,
         }))
       )
-      if (erroP) { setErroRF('Erro ao salvar paradas: ' + erroP.message); setSalvandoRF(false); return }
+      if (erroP) { setErroRF('Erro ao salvar trechos: ' + erroP.message); setSalvandoRF(false); return }
     }
 
     setSalvandoRF(false)
@@ -296,14 +311,32 @@ export default function RotasPage() {
     setRotasRF(prev => prev.filter(r => r.id !== id))
   }
 
+  function gerarPrecosRF(pars: string[], base?: PrecoRF[]) {
+    const baseRef = base ?? precosRF
+    const novos: PrecoRF[] = []
+    for (let i = 0; i < pars.length; i++) {
+      for (let j = i + 1; j < pars.length; j++) {
+        const existeIda = baseRef.find(p => p.origem === pars[i] && p.destino === pars[j])
+        novos.push({ origem: pars[i], destino: pars[j], valor: existeIda?.valor || '0' })
+        const existeVolta = baseRef.find(p => p.origem === pars[j] && p.destino === pars[i])
+        novos.push({ origem: pars[j], destino: pars[i], valor: existeVolta?.valor ?? existeIda?.valor ?? '0' })
+      }
+    }
+    setPrecosRF(novos)
+  }
+
   function adicionarParadaRF() {
     if (!novaParadaRF.trim()) return
-    setParadasRF(prev => [...prev, { nome: novaParadaRF.trim(), ordem: prev.length, preco: '0' }])
+    const novas = [...paradasRF, novaParadaRF.trim()]
+    setParadasRF(novas)
+    gerarPrecosRF(novas)
     setNovaParadaRF('')
   }
 
   function removerParadaRF(idx: number) {
-    setParadasRF(prev => prev.filter((_, i) => i !== idx).map((p, i) => ({ ...p, ordem: i })))
+    const novas = paradasRF.filter((_, i) => i !== idx)
+    setParadasRF(novas)
+    gerarPrecosRF(novas)
   }
 
   function onDragStartRF(idx: number) {
@@ -318,7 +351,7 @@ export default function RotasPage() {
     novas.splice(idx, 0, item)
     dragIdxRF.current = idx
     setDraggingIdxRF(idx)
-    setParadasRF(novas.map((p, i) => ({ ...p, ordem: i })))
+    setParadasRF(novas)
   }
 
   function onDragEndRF() {
@@ -349,7 +382,7 @@ export default function RotasPage() {
       current = novas
       dragIdxRF.current = newIdx
       setDraggingIdxRF(newIdx)
-      setParadasRF(novas.map((p, i) => ({ ...p, ordem: i })))
+      setParadasRF(novas)
     }
 
     function end() {
@@ -533,7 +566,7 @@ export default function RotasPage() {
 
               {/* Paradas */}
               <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-3">
-                <p className="text-sm font-semibold text-gray-700">📍 Paradas e preços</p>
+                <p className="text-sm font-semibold text-gray-700">📍 Paradas</p>
                 <p className="text-xs text-gray-400">
                   Adicione na ordem do trajeto — primeira é a origem, última é o destino.{' '}
                   <span style={{ color: '#1D9E75' }}>Segure e arraste para reordenar.</span>
@@ -563,16 +596,7 @@ export default function RotasPage() {
                           <div className="w-0.5 h-5 mt-0.5" style={{ background: '#9FE1CB' }} />
                         )}
                       </div>
-                      <span className="flex-1 text-sm text-gray-800 font-medium select-none truncate">{p.nome}</span>
-                      <div className="flex items-center gap-1 flex-shrink-0">
-                        <span className="text-xs text-gray-400">R$</span>
-                        <input type="number" step="0.01" value={p.preco}
-                          onChange={e => setParadasRF(prev => prev.map((pp, ii) =>
-                            ii === i ? { ...pp, preco: e.target.value } : pp
-                          ))}
-                          className="w-16 text-right text-sm font-semibold border border-gray-200 rounded-lg px-2 py-1 outline-none bg-white"
-                          style={{ color: '#0F6E56' }} />
-                      </div>
+                      <span className="flex-1 text-sm text-gray-800 font-medium select-none truncate">{p}</span>
                       <button onClick={() => removerParadaRF(i)}
                         className="text-xs px-2 py-1 rounded-lg flex-shrink-0"
                         style={{ background: '#FCEBEB', color: '#A32D2D' }}>✕</button>
@@ -590,6 +614,30 @@ export default function RotasPage() {
                     style={{ background: '#E1F5EE', color: '#0F6E56' }}>+ Add</button>
                 </div>
               </div>
+
+              {/* Trechos e preços */}
+              {precosRF.length > 0 && (
+                <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-3">
+                  <p className="text-sm font-semibold text-gray-700">💰 Trechos e preços</p>
+                  <p className="text-xs text-gray-400">Defina o preço de cada trecho gerado automaticamente.</p>
+                  <div className="flex flex-col gap-2">
+                    {precosRF.map((p, i) => (
+                      <div key={i} className="flex items-center gap-3">
+                        <span className="flex-1 text-sm text-gray-700 truncate">{p.origem} → {p.destino}</span>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <span className="text-xs text-gray-400">R$</span>
+                          <input type="number" step="0.01" value={p.valor}
+                            onChange={e => setPrecosRF(prev => prev.map((pp, ii) =>
+                              ii === i ? { ...pp, valor: e.target.value } : pp
+                            ))}
+                            className="w-20 text-right text-sm font-semibold border border-gray-200 rounded-lg px-2 py-1.5 outline-none bg-white"
+                            style={{ color: '#0F6E56' }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {erroRF && (
                 <div className="rounded-xl px-4 py-3 text-sm border"
