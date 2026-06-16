@@ -630,17 +630,19 @@ export default function AgendamentosPage() {
               </select>
             </Campo>
 
-            <Campo label="Rota">
-              <select value={form.rota_id} onChange={e => selecionarRota(e.target.value)} className="campo-input">
-                <option value="">Selecione uma rota...</option>
-                {rotasOpcoes.map(r => (
-                  <option key={r.id} value={r.id}>
-                    {r.origem} → {r.destino} — R$ {Number(r.preco).toFixed(2).replace('.', ',')}
-                  </option>
-                ))}
-                <option value="manual">✏️ Outra rota (digitar manualmente)</option>
-              </select>
-            </Campo>
+            {tipoOperacao !== 'rota_fixa' && (
+              <Campo label="Rota">
+                <select value={form.rota_id} onChange={e => selecionarRota(e.target.value)} className="campo-input">
+                  <option value="">Selecione uma rota...</option>
+                  {rotasOpcoes.map(r => (
+                    <option key={r.id} value={r.id}>
+                      {r.origem} → {r.destino} — R$ {Number(r.preco).toFixed(2).replace('.', ',')}
+                    </option>
+                  ))}
+                  <option value="manual">✏️ Outra rota (digitar manualmente)</option>
+                </select>
+              </Campo>
+            )}
 
             <Campo label="Origem *">
               <input
