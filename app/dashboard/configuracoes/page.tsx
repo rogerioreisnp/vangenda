@@ -257,18 +257,24 @@ export default function ConfiguracoesPage() {
       setMotorista(mot)
       diasTrabalhoExiste.current = 'dias_trabalho' in mot
     }
-    const { data: motEmpresa } = await supabase
+    console.log('[cfg] auth.uid():', user.id)
+    const { data: motEmpresa, error: errMotEmpresa } = await supabase
       .from('motoristas_empresa')
       .select('empresa_id')
       .eq('motorista_id', user.id)
       .single()
+    console.log('[cfg] motoristas_empresa:', motEmpresa, 'erro:', errMotEmpresa?.message)
     if (motEmpresa?.empresa_id) {
-      const { data: empresa } = await supabase
+      const { data: empresa, error: errEmpresa } = await supabase
         .from('empresas')
         .select('slug')
         .eq('id', motEmpresa.empresa_id)
         .single()
-      if (empresa?.slug) setEmpresaSlug(empresa.slug)
+      console.log('[cfg] empresas:', empresa, 'erro:', errEmpresa?.message)
+      if (empresa?.slug) {
+        console.log('[cfg] empresaSlug encontrado:', empresa.slug)
+        setEmpresaSlug(empresa.slug)
+      }
     }
     const { data: rts } = await supabase.from('rotas').select('*').eq('motorista_id', user.id).limit(1).single()
     if (rts) {
