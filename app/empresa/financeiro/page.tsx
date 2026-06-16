@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { format, startOfMonth, endOfMonth, subDays } from 'date-fns'
+import { format, startOfMonth, endOfMonth, subDays, startOfDay, endOfDay, addMonths, subMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import Link from 'next/link'
 
@@ -74,8 +74,39 @@ const CATEGORIAS = [
 type CatValor = typeof CATEGORIAS[number]['valor']
 const catMap = Object.fromEntries(CATEGORIAS.map(c => [c.valor, c])) as Record<string, { valor: string; label: string; emoji: string }>
 
+// ─── Tipos e constantes para financeiro rota_fixa ────────────────────────────
+
+type LancamentoEmpresa = {
+  id: string
+  tipo: 'receita' | 'despesa'
+  categoria: string
+  observacao: string | null
+  valor: number
+  data: string
+}
+
+type FiltroRF = 'hoje' | '7dias' | '30dias' | 'mes'
+
+const categoriasReceitaRF = [
+  { value: 'rota_diaria',       label: 'Rota diária',      emoji: '🚐' },
+  { value: 'passagens_avulsas', label: 'Passagens avulsas', emoji: '💵' },
+  { value: 'fretamento',        label: 'Fretamento',        emoji: '🏢' },
+  { value: 'excursao',          label: 'Excursão',          emoji: '🎉' },
+  { value: 'entrega',           label: 'Entrega',           emoji: '📦' },
+  { value: 'outros',            label: 'Outros',            emoji: '➕' },
+]
+
+const categoriasDespesaRF = [
+  { value: 'combustivel', label: 'Combustível', emoji: '⛽' },
+  { value: 'manutencao',  label: 'Manutenção',  emoji: '🔧' },
+  { value: 'pedagio',     label: 'Pedágio',     emoji: '🛣️' },
+  { value: 'pneu',        label: 'Pneu',        emoji: '🔄' },
+  { value: 'outros',      label: 'Outros',      emoji: '📦' },
+]
+
 export default function FinanceiroPage() {
   const [empresaId, setEmpresaId]   = useState<string | null>(null)
+  const [tipoOperacao, setTipoOperacao] = useState<string | null>(null)
   const [periodo, setPeriodo]       = useState<Periodo>('mes_atual')
   const [aba, setAba]               = useState<Aba>('resumo')
   const [corridas, setCorridas]     = useState<CorridaFin[]>([])
@@ -89,7 +120,9 @@ export default function FinanceiroPage() {
   const [erro, setErro]             = useState('')
 
   useEffect(() => { inicializar() }, [])
-  useEffect(() => { if (empresaId) carregar(empresaId) }, [empresaId, periodo])
+  useEffect(() => {
+    if (empresaId && tipoOperacao && tipoOperacao !== 'rota_fixa') carregar(empresaId)
+  }, [empresaId, periodo, tipoOperacao])
 
   async function inicializar() {
     const { data: { session } } = await supabase.auth.getSession()
@@ -101,14 +134,22 @@ export default function FinanceiroPage() {
 
     setEmpresaId(gestor.empresa_id)
 
-    const { data: mots } = await supabase
-      .from('motoristas_empresa')
-      .select('id, nome, veiculo, placa')
-      .eq('empresa_id', gestor.empresa_id)
-      .eq('status', 'ativo')
-      .order('nome')
+    const [{ data: mots }, { data: emp }] = await Promise.all([
+      supabase
+        .from('motoristas_empresa')
+        .select('id, nome, veiculo, placa')
+        .eq('empresa_id', gestor.empresa_id)
+        .eq('status', 'ativo')
+        .order('nome'),
+      supabase
+        .from('empresas')
+        .select('tipo_operacao')
+        .eq('id', gestor.empresa_id)
+        .single(),
+    ])
 
     if (mots) setMotoristas(mots)
+    if (emp) setTipoOperacao(emp.tipo_operacao || 'transfer')
   }
 
   function intervalo(): { inicio: string; fim: string } {
@@ -261,6 +302,18 @@ export default function FinanceiroPage() {
 
   const fmt = (v: number) =>
     `R$ ${Math.abs(v).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
+
+  if (!tipoOperacao) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="text-4xl animate-pulse">💰</div>
+      </div>
+    )
+  }
+
+  if (tipoOperacao === 'rota_fixa' && empresaId) {
+    return <FinanceiroRotaFixa empresaId={empresaId} />
+  }
 
   return (
     <div>
@@ -660,6 +713,336 @@ export default function FinanceiroPage() {
           `}</style>
         </div>
       )}
+    </div>
+  )
+}
+
+// ─── FINANCEIRO ROTA FIXA ────────────────────────────────────────────────────
+
+function FinanceiroRotaFixa({ empresaId }: { empresaId: string }) {
+  const [filtro, setFiltro] = useState<FiltroRF>('mes')
+  const [mes, setMes] = useState(new Date())
+  const [lancamentos, setLancamentos] = useState<LancamentoEmpresa[]>([])
+  const [loading, setLoading] = useState(true)
+  const [modal, setModal] = useState<null | 'receita' | 'despesa'>(null)
+  const [editando, setEditando] = useState<LancamentoEmpresa | null>(null)
+
+  useEffect(() => { carregar() }, [filtro, mes])
+
+  function getPeriodo() {
+    const hoje = new Date()
+    if (filtro === 'hoje')  return { inicio: format(startOfDay(hoje), 'yyyy-MM-dd'),  fim: format(endOfDay(hoje), 'yyyy-MM-dd') }
+    if (filtro === '7dias') return { inicio: format(subDays(hoje, 6), 'yyyy-MM-dd'),   fim: format(hoje, 'yyyy-MM-dd') }
+    if (filtro === '30dias') return { inicio: format(subDays(hoje, 29), 'yyyy-MM-dd'), fim: format(hoje, 'yyyy-MM-dd') }
+    return { inicio: format(startOfMonth(mes), 'yyyy-MM-dd'), fim: format(endOfMonth(mes), 'yyyy-MM-dd') }
+  }
+
+  async function carregar() {
+    setLoading(true)
+    const { inicio, fim } = getPeriodo()
+    const { data } = await supabase
+      .from('cobrancas_empresa')
+      .select('id, tipo, categoria, observacao, valor, data')
+      .eq('empresa_id', empresaId)
+      .in('tipo', ['receita', 'despesa'])
+      .gte('data', inicio)
+      .lte('data', fim)
+      .order('data', { ascending: false })
+    setLancamentos((data as LancamentoEmpresa[]) ?? [])
+    setLoading(false)
+  }
+
+  async function excluir(id: string) {
+    if (!confirm('Excluir este lançamento?')) return
+    await supabase.from('cobrancas_empresa').delete().eq('id', id)
+    carregar()
+  }
+
+  const receitas = lancamentos.filter(l => l.tipo === 'receita')
+  const despesas = lancamentos.filter(l => l.tipo === 'despesa')
+  const totalReceitas = receitas.reduce((s, r) => s + Number(r.valor), 0)
+  const totalDespesas = despesas.reduce((s, d) => s + Number(d.valor), 0)
+  const lucro = totalReceitas - totalDespesas
+
+  const filtros: { key: FiltroRF; label: string }[] = [
+    { key: 'hoje',   label: 'Hoje'    },
+    { key: '7dias',  label: '7 dias'  },
+    { key: '30dias', label: '30 dias' },
+    { key: 'mes',    label: 'Mês'     },
+  ]
+
+  return (
+    <div>
+      <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-4">
+        <p style={{ color: '#E1F5EE' }} className="text-base font-semibold mb-3">Financeiro</p>
+
+        <div className="flex gap-2 mb-4">
+          {filtros.map(f => (
+            <button key={f.key} onClick={() => setFiltro(f.key)}
+              className="flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all"
+              style={filtro === f.key
+                ? { background: '#E1F5EE', color: '#0F6E56' }
+                : { background: '#085041', color: '#9FE1CB' }}>
+              {f.label}
+            </button>
+          ))}
+        </div>
+
+        {filtro === 'mes' && (
+          <div className="flex items-center justify-between mb-4">
+            <button onClick={() => setMes(m => subMonths(m, 1))}
+              style={{ background: '#085041', color: '#9FE1CB' }}
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-lg font-bold">‹</button>
+            <span style={{ color: '#E1F5EE' }} className="text-sm font-semibold capitalize">
+              {format(mes, 'MMMM yyyy', { locale: ptBR })}
+            </span>
+            <button onClick={() => setMes(m => addMonths(m, 1))}
+              style={{ background: '#085041', color: '#9FE1CB' }}
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-lg font-bold">›</button>
+          </div>
+        )}
+
+        <div className="grid grid-cols-3 gap-2">
+          <div style={{ background: '#085041' }} className="rounded-xl p-3">
+            <p style={{ color: '#5DCAA5' }} className="text-[10px]">Receitas</p>
+            <p style={{ color: '#E1F5EE' }} className="text-base font-bold mt-0.5">R$ {totalReceitas.toFixed(0)}</p>
+          </div>
+          <div style={{ background: '#085041' }} className="rounded-xl p-3">
+            <p style={{ color: '#5DCAA5' }} className="text-[10px]">Despesas</p>
+            <p style={{ color: '#FAC775' }} className="text-base font-bold mt-0.5">R$ {totalDespesas.toFixed(0)}</p>
+          </div>
+          <div style={{ background: lucro >= 0 ? '#085041' : '#6B1A1A' }} className="rounded-xl p-3">
+            <p style={{ color: '#5DCAA5' }} className="text-[10px]">Lucro</p>
+            <p style={{ color: lucro >= 0 ? '#E1F5EE' : '#FAC775' }} className="text-base font-bold mt-0.5">R$ {lucro.toFixed(0)}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="px-4 py-4">
+        <div className="grid grid-cols-2 gap-3 mb-5">
+          <button onClick={() => setModal('receita')}
+            className="py-3.5 rounded-2xl text-sm font-bold flex items-center justify-center gap-2"
+            style={{ background: '#0F6E56', color: '#fff' }}>
+            <span className="text-lg">💰</span> + Receita
+          </button>
+          <button onClick={() => setModal('despesa')}
+            className="py-3.5 rounded-2xl text-sm font-bold flex items-center justify-center gap-2"
+            style={{ background: '#A32D2D', color: '#fff' }}>
+            <span className="text-lg">🧾</span> + Despesa
+          </button>
+        </div>
+
+        {loading ? (
+          <p className="text-center text-gray-400 text-sm py-10">Carregando...</p>
+        ) : (
+          <>
+            <div className="mb-5">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Receitas</p>
+              {receitas.length === 0 ? (
+                <div className="text-center py-4 text-gray-400 text-sm bg-white rounded-2xl border border-gray-100">Nenhuma receita lançada</div>
+              ) : (
+                <div className="bg-white rounded-2xl overflow-hidden border border-gray-100">
+                  {receitas.map(r => {
+                    const cat = categoriasReceitaRF.find(c => c.value === r.categoria)
+                    return (
+                      <div key={r.id} className="flex items-center px-4 py-3 border-b border-gray-50 last:border-0 gap-2">
+                        <span className="text-xl mr-1">{cat?.emoji || '💵'}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-800 truncate">{cat?.label || r.categoria}</p>
+                          {r.observacao && <p className="text-xs text-gray-400 truncate">{r.observacao}</p>}
+                          <p className="text-xs text-gray-400">{format(new Date(r.data + 'T00:00:00'), 'dd/MM/yyyy')}</p>
+                        </div>
+                        <span className="text-sm font-semibold shrink-0" style={{ color: '#0F6E56' }}>
+                          + R$ {Number(r.valor).toFixed(2).replace('.', ',')}
+                        </span>
+                        <button onClick={() => setEditando(r)}
+                          className="p-1.5 rounded-lg shrink-0"
+                          style={{ background: '#E1F5EE', color: '#0F6E56' }}>✏️</button>
+                        <button onClick={() => excluir(r.id)}
+                          className="p-1.5 rounded-lg shrink-0"
+                          style={{ background: '#FDE8E8', color: '#A32D2D' }}>🗑️</button>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="mb-5">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Despesas</p>
+              {despesas.length === 0 ? (
+                <div className="text-center py-4 text-gray-400 text-sm bg-white rounded-2xl border border-gray-100">Nenhuma despesa registrada</div>
+              ) : (
+                <div className="bg-white rounded-2xl overflow-hidden border border-gray-100">
+                  {despesas.map(d => {
+                    const cat = categoriasDespesaRF.find(c => c.value === d.categoria)
+                    return (
+                      <div key={d.id} className="flex items-center px-4 py-3 border-b border-gray-50 last:border-0 gap-2">
+                        <span className="text-xl mr-1">{cat?.emoji || '📦'}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-800 truncate">{d.observacao || cat?.label || d.categoria}</p>
+                          <p className="text-xs text-gray-400">{format(new Date(d.data + 'T00:00:00'), 'dd/MM/yyyy')}</p>
+                        </div>
+                        <span className="text-sm font-semibold shrink-0" style={{ color: '#A32D2D' }}>
+                          - R$ {Number(d.valor).toFixed(2).replace('.', ',')}
+                        </span>
+                        <button onClick={() => setEditando(d)}
+                          className="p-1.5 rounded-lg shrink-0"
+                          style={{ background: '#E1F5EE', color: '#0F6E56' }}>✏️</button>
+                        <button onClick={() => excluir(d.id)}
+                          className="p-1.5 rounded-lg shrink-0"
+                          style={{ background: '#FDE8E8', color: '#A32D2D' }}>🗑️</button>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="h-24" />
+          </>
+        )}
+      </div>
+
+      {modal === 'receita' && (
+        <FormLancamentoEmpresa tipo="receita" empresaId={empresaId}
+          onFechar={() => setModal(null)} onSalvo={() => { setModal(null); carregar() }} />
+      )}
+      {modal === 'despesa' && (
+        <FormLancamentoEmpresa tipo="despesa" empresaId={empresaId}
+          onFechar={() => setModal(null)} onSalvo={() => { setModal(null); carregar() }} />
+      )}
+      {editando && (
+        <FormLancamentoEmpresa tipo={editando.tipo} empresaId={empresaId} lancamento={editando}
+          onFechar={() => setEditando(null)} onSalvo={() => { setEditando(null); carregar() }} />
+      )}
+    </div>
+  )
+}
+
+// ─── FORM LANÇAMENTO EMPRESA (RECEITA OU DESPESA) ────────────────────────────
+
+function FormLancamentoEmpresa({
+  tipo,
+  empresaId,
+  lancamento,
+  onFechar,
+  onSalvo,
+}: {
+  tipo: 'receita' | 'despesa'
+  empresaId: string
+  lancamento?: LancamentoEmpresa
+  onFechar: () => void
+  onSalvo: () => void
+}) {
+  const categorias = tipo === 'receita' ? categoriasReceitaRF : categoriasDespesaRF
+  const [form, setForm] = useState({
+    categoria:  lancamento?.categoria  ?? categorias[0].value,
+    observacao: lancamento?.observacao ?? '',
+    valor:      lancamento?.valor != null ? String(lancamento.valor) : '',
+    data:       lancamento?.data ?? format(new Date(), 'yyyy-MM-dd'),
+  })
+  const [saving, setSaving] = useState(false)
+  const [erro, setErro]     = useState('')
+
+  async function salvar() {
+    if (!form.valor) { setErro('Informe o valor'); return }
+    const valor = parseFloat(form.valor)
+    if (isNaN(valor) || valor <= 0) { setErro('Valor inválido'); return }
+    setSaving(true); setErro('')
+
+    const catLabel = categorias.find(c => c.value === form.categoria)?.label ?? form.categoria
+    const payload = {
+      empresa_id:    empresaId,
+      tipo,
+      categoria:     form.categoria,
+      observacao:    form.observacao.trim() || null,
+      valor,
+      data:          form.data,
+      cliente_nome:  tipo === 'receita' ? 'Receita' : 'Despesa',
+      descricao:     catLabel,
+    }
+
+    let error
+    if (lancamento) {
+      ;({ error } = await supabase.from('cobrancas_empresa').update(payload).eq('id', lancamento.id))
+    } else {
+      ;({ error } = await supabase.from('cobrancas_empresa').insert(payload))
+    }
+
+    setSaving(false)
+    if (error) { setErro('Erro: ' + error.message); return }
+    onSalvo()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col" style={{ background: '#f0f0ec' }}>
+      <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-4 flex items-center gap-3">
+        <button onClick={onFechar} style={{ color: '#9FE1CB' }} className="text-2xl">‹</button>
+        <p style={{ color: '#E1F5EE' }} className="text-sm font-semibold">
+          {lancamento
+            ? tipo === 'receita' ? 'Editar receita' : 'Editar despesa'
+            : tipo === 'receita' ? 'Lançar receita' : 'Nova despesa'}
+        </p>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-4">
+        <div>
+          <p className="text-xs font-medium text-gray-500 mb-2">
+            {tipo === 'receita' ? 'Tipo de receita' : 'Categoria'}
+          </p>
+          <div className="grid grid-cols-3 gap-2">
+            {categorias.map(c => (
+              <button key={c.value} onClick={() => setForm(f => ({ ...f, categoria: c.value }))}
+                className="py-2.5 rounded-xl text-xs font-medium border flex flex-col items-center gap-1 transition-all"
+                style={form.categoria === c.value
+                  ? { background: '#0F6E56', color: '#fff', borderColor: '#0F6E56' }
+                  : { background: '#fff', color: '#666', borderColor: '#e5e7eb' }}>
+                <span className="text-lg">{c.emoji}</span>
+                <span className="text-center leading-tight">{c.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <p className="text-xs font-medium text-gray-500 mb-1">Observação (opcional)</p>
+          <input value={form.observacao}
+            onChange={e => setForm(f => ({ ...f, observacao: e.target.value }))}
+            type="text" placeholder="Ex: empresa tal, grupo de amigos..."
+            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none bg-white focus:border-green-600" />
+        </div>
+
+        <div>
+          <p className="text-xs font-medium text-gray-500 mb-1">Valor (R$)</p>
+          <input value={form.valor}
+            onChange={e => setForm(f => ({ ...f, valor: e.target.value }))}
+            type="number" placeholder="0,00"
+            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none bg-white focus:border-green-600" />
+        </div>
+
+        <div>
+          <p className="text-xs font-medium text-gray-500 mb-1">Data</p>
+          <input value={form.data}
+            onChange={e => setForm(f => ({ ...f, data: e.target.value }))}
+            type="date"
+            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none bg-white focus:border-green-600" />
+        </div>
+
+        {erro && <p className="text-xs text-red-500 bg-red-50 px-3 py-2 rounded-xl">{erro}</p>}
+      </div>
+
+      <div className="px-4 pb-16 pt-4 bg-white border-t border-gray-100">
+        <button onClick={salvar} disabled={saving || !form.valor}
+          className="w-full py-3.5 rounded-xl text-white text-sm font-semibold disabled:opacity-40"
+          style={{ background: tipo === 'receita' ? '#1D9E75' : '#A32D2D' }}>
+          {saving
+            ? 'Salvando...'
+            : lancamento
+            ? '✓ Salvar alterações'
+            : tipo === 'receita' ? '💰 Salvar receita' : '✓ Salvar despesa'}
+        </button>
+      </div>
     </div>
   )
 }
