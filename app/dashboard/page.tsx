@@ -22,6 +22,11 @@ export default function DashboardPage() {
   const [despesasMes, setDespesasMes] = useState(0)
   const [fiados, setFiados] = useState<{ count: number; total: number; temVencido: boolean } | null>(null)
 
+  // undefined = checando, null = motorista avulso, object = motorista de empresa
+  const [empresaCtx, setEmpresaCtx] = useState<{ empresaId: string; motEmpresaId: string } | null | undefined>(undefined)
+  const [rotasEmpresa, setRotasEmpresa] = useState<{ id: string; nome: string | null; origem: string | null; destino: string | null }[]>([])
+  const [rotaSelecionada, setRotaSelecionada] = useState('')
+
   const hora = hoje.getHours()
   const saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite'
   const diaSemana = format(hoje, "EEE, dd 'de' MMM", { locale: ptBR })
@@ -32,6 +37,27 @@ export default function DashboardPage() {
   async function carregarDados() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
+
+    // Verifica se é motorista de empresa (RLS: policy motorista_ve_proprio_registro)
+    const { data: motEmp } = await supabase
+      .from('motoristas_empresa')
+      .select('id, empresa_id')
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (motEmp) {
+      setEmpresaCtx({ empresaId: motEmp.empresa_id, motEmpresaId: motEmp.id })
+      // Carrega rotas ativas da empresa (RLS: policy motorista_ve_rotas_empresa)
+      const { data: rotas } = await supabase
+        .from('rotas_empresa')
+        .select('id, nome, origem, destino, ativa')
+        .eq('empresa_id', motEmp.empresa_id)
+        .or('ativa.eq.true,ativa.is.null')
+        .order('nome')
+      setRotasEmpresa(rotas || [])
+    } else {
+      setEmpresaCtx(null)
+    }
 
     const inicioMes = format(startOfMonth(hoje), 'yyyy-MM-dd')
     const fimMes = format(endOfMonth(hoje), 'yyyy-MM-dd')
@@ -92,7 +118,7 @@ export default function DashboardPage() {
   return (
     <div>
       {/* Header */}
-      <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-5">
+      <div style={{ background: '#0F6E56' }} className={`px-4 pt-12 ${empresaCtx != null ? 'pb-4' : 'pb-5'}`}>
         <div className="flex justify-between items-start">
           <div>
             <p style={{ color: '#9FE1CB' }} className="text-xs">{saudacao},</p>
@@ -103,6 +129,38 @@ export default function DashboardPage() {
           <span style={{ background: '#085041', color: '#5DCAA5' }}
             className="text-xs px-3 py-1.5 rounded-lg capitalize">{diaSemana}</span>
         </div>
+
+        {/* Seletor de rota — visível apenas para motoristas de empresa */}
+        {empresaCtx != null && (
+          <div className="mt-4">
+            <p className="text-xs font-medium mb-1.5" style={{ color: '#9FE1CB' }}>Rota de hoje</p>
+            {rotasEmpresa.length > 0 ? (
+              <select
+                value={rotaSelecionada}
+                onChange={e => setRotaSelecionada(e.target.value)}
+                className="w-full rounded-xl text-sm outline-none"
+                style={{
+                  background: 'rgba(255,255,255,0.15)',
+                  color: '#E1F5EE',
+                  border: '1px solid rgba(255,255,255,0.25)',
+                  padding: '10px 12px',
+                }}>
+                <option value="" style={{ background: '#0F6E56', color: '#9FE1CB' }}>
+                  Selecione a rota...
+                </option>
+                {rotasEmpresa.map(r => (
+                  <option key={r.id} value={r.id} style={{ background: '#fff', color: '#222' }}>
+                    {r.nome || `${r.origem || ''} → ${r.destino || ''}`}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <p className="text-xs py-2" style={{ color: '#9FE1CB' }}>
+                Aguardando o gestor cadastrar rotas.
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="px-4 py-4 flex flex-col gap-3">
