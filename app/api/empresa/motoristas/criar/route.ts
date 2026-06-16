@@ -7,6 +7,8 @@ const supabaseAdmin = createClient(
 )
 
 export async function POST(req: NextRequest) {
+  let motoristaId: string | null = null
+
   try {
     const authHeader = req.headers.get('Authorization')
     if (!authHeader?.startsWith('Bearer ')) {
@@ -38,37 +40,64 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'A senha deve ter no mínimo 6 caracteres' }, { status: 400 })
     }
 
+    const emailNorm = email.trim().toLowerCase()
+    console.log('[criar-motorista] Iniciando para email:', emailNorm)
+
+    // ── Passo 1: criar usuário no Auth ──────────────────────────────────────
     const { data: authData, error: errUser } = await supabaseAdmin.auth.admin.createUser({
-      email: email.trim(),
+      email: emailNorm,
       password: senha,
       email_confirm: true,
     })
+
     if (errUser) {
-      const jaExiste = errUser.message.toLowerCase().includes('already')
-      if (jaExiste) {
+      console.error('[criar-motorista] Erro ao criar auth user:', errUser.message)
+      const msg = errUser.message.toLowerCase()
+      // GoTrue pode retornar diferentes mensagens para email duplicado
+      if (
+        msg.includes('already') ||
+        msg.includes('registered') ||
+        msg.includes('exists') ||
+        (errUser as any).status === 422
+      ) {
         return NextResponse.json({ error: 'Este e-mail já está em uso' }, { status: 400 })
       }
       throw errUser
     }
 
-    const motoristaId = authData.user.id
+    if (!authData?.user) {
+      console.error('[criar-motorista] createUser retornou sem user e sem erro')
+      return NextResponse.json({ error: 'Erro inesperado ao criar usuário' }, { status: 500 })
+    }
 
-    // Cria registro em motoristas para que /dashboard funcione (Etapa 2 refina o acesso empresa)
+    motoristaId = authData.user.id
+    console.log('[criar-motorista] Auth user criado, id:', motoristaId)
+
+    // ── Passo 2: upsert em motoristas ────────────────────────────────────────
+    // Usa upsert porque pode existir um trigger no banco que já criou o registro
+    // automaticamente ao inserir em auth.users (padrão do app individual).
     const { error: errMot } = await supabaseAdmin
       .from('motoristas')
-      .insert({
-        id: motoristaId,
-        nome: nome.trim(),
-        telefone: telefone?.trim() || null,
-        assinatura_status: 'ativo',
-        assinatura_expira: '2099-12-31T23:59:59Z',
-      })
+      .upsert(
+        {
+          id: motoristaId,
+          nome: nome.trim(),
+          telefone: telefone?.trim() || null,
+          assinatura_status: 'ativo',
+          assinatura_expira: '2099-12-31T23:59:59Z',
+        },
+        { onConflict: 'id' }
+      )
 
     if (errMot) {
-      await supabaseAdmin.auth.admin.deleteUser(motoristaId)
+      console.error('[criar-motorista] Erro no upsert motoristas:', errMot.message)
+      await rollback(motoristaId, false)
       throw errMot
     }
 
+    console.log('[criar-motorista] Upsert motoristas OK')
+
+    // ── Passo 3: inserir em motoristas_empresa ────────────────────────────────
     const { error: errMotEmp } = await supabaseAdmin
       .from('motoristas_empresa')
       .insert({
@@ -82,15 +111,32 @@ export async function POST(req: NextRequest) {
       })
 
     if (errMotEmp) {
-      await supabaseAdmin.auth.admin.deleteUser(motoristaId)
+      console.error('[criar-motorista] Erro no insert motoristas_empresa:', errMotEmp.message)
+      await rollback(motoristaId, true)
       throw errMotEmp
     }
 
+    console.log('[criar-motorista] Concluído com sucesso para:', emailNorm)
     return NextResponse.json({ success: true })
   } catch (err: any) {
+    // Se chegou aqui sem rollback ter sido chamado, ainda temos motoristaId no escopo
+    // (ex: erro inesperado antes dos passos acima). Não fazemos rollback cego aqui
+    // pois os blocos acima já chamam rollback com informação contextual.
     return NextResponse.json(
       { error: err.message || 'Erro ao criar motorista' },
       { status: 500 }
     )
   }
+}
+
+async function rollback(motoristaId: string, deletarMotoristas: boolean) {
+  console.log('[criar-motorista] Iniciando rollback para id:', motoristaId)
+  if (deletarMotoristas) {
+    const { error } = await supabaseAdmin.from('motoristas').delete().eq('id', motoristaId)
+    if (error) console.error('[criar-motorista] Rollback motoristas falhou:', error.message)
+    else console.log('[criar-motorista] Rollback: registro motoristas removido')
+  }
+  const { error } = await supabaseAdmin.auth.admin.deleteUser(motoristaId)
+  if (error) console.error('[criar-motorista] Rollback auth user falhou:', error.message)
+  else console.log('[criar-motorista] Rollback: auth user removido')
 }

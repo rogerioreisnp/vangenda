@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 
@@ -36,6 +36,7 @@ export default function MotoristasPage() {
   const [editando, setEditando] = useState<Motorista | null>(null)
   const [form, setForm] = useState<FormMotorista>({ nome: '', email: '', senha: '', telefone: '', veiculo: '', placa: '' })
   const [salvando, setSalvando] = useState(false)
+  const salvandoRef = useRef(false)
   const [erro, setErro] = useState('')
 
   useEffect(() => { carregarDados() }, [])
@@ -88,62 +89,61 @@ export default function MotoristasPage() {
   }
 
   async function salvar() {
+    if (salvandoRef.current) return // guard contra double-fire antes do re-render
     if (!form.nome.trim()) { setErro('Nome é obrigatório'); return }
     if (!empresaId) return
+
+    salvandoRef.current = true
     setSalvando(true)
     setErro('')
 
-    if (editando) {
-      const { error } = await supabase
-        .from('motoristas_empresa')
-        .update({
-          nome: form.nome.trim(),
-          telefone: form.telefone.trim() || null,
-          veiculo: form.veiculo.trim() || null,
-          placa: form.placa.trim() || null,
+    try {
+      if (editando) {
+        const { error } = await supabase
+          .from('motoristas_empresa')
+          .update({
+            nome: form.nome.trim(),
+            telefone: form.telefone.trim() || null,
+            veiculo: form.veiculo.trim() || null,
+            placa: form.placa.trim() || null,
+          })
+          .eq('id', editando.id)
+
+        if (error) { setErro('Erro ao salvar: ' + error.message); return }
+      } else {
+        if (!form.email.trim()) { setErro('E-mail é obrigatório'); return }
+        if (!form.senha) { setErro('Senha é obrigatória'); return }
+        if (form.senha.length < 6) { setErro('A senha deve ter no mínimo 6 caracteres'); return }
+
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session) { setErro('Sessão expirada. Recarregue a página.'); return }
+
+        const res = await fetch('/api/empresa/motoristas/criar', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            nome: form.nome.trim(),
+            email: form.email.trim(),
+            senha: form.senha,
+            telefone: form.telefone.trim() || null,
+            veiculo: form.veiculo.trim() || null,
+            placa: form.placa.trim() || null,
+          }),
         })
-        .eq('id', editando.id)
 
-      if (error) {
-        setErro('Erro ao salvar: ' + error.message)
-        setSalvando(false)
-        return
+        const json = await res.json()
+        if (!res.ok) { setErro(json.error || 'Erro ao adicionar motorista'); return }
       }
-    } else {
-      if (!form.email.trim()) { setErro('E-mail é obrigatório'); setSalvando(false); return }
-      if (!form.senha) { setErro('Senha é obrigatória'); setSalvando(false); return }
-      if (form.senha.length < 6) { setErro('A senha deve ter no mínimo 6 caracteres'); setSalvando(false); return }
 
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) { setErro('Sessão expirada. Recarregue a página.'); setSalvando(false); return }
-
-      const res = await fetch('/api/empresa/motoristas/criar', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
-          nome: form.nome.trim(),
-          email: form.email.trim(),
-          senha: form.senha,
-          telefone: form.telefone.trim() || null,
-          veiculo: form.veiculo.trim() || null,
-          placa: form.placa.trim() || null,
-        }),
-      })
-
-      const json = await res.json()
-      if (!res.ok) {
-        setErro(json.error || 'Erro ao adicionar motorista')
-        setSalvando(false)
-        return
-      }
+      setModalAberto(false)
+      carregarDados()
+    } finally {
+      salvandoRef.current = false
+      setSalvando(false)
     }
-
-    setSalvando(false)
-    setModalAberto(false)
-    carregarDados()
   }
 
   async function inativar(id: string) {
