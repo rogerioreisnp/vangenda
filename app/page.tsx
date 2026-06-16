@@ -51,14 +51,27 @@ export default function LoginPage() {
         })
         if (error) throw error
 
-        // Verifica se o usuário é gestor de empresa → redireciona para o painel correto
         const { data: gestor } = await supabase
           .from('gestores')
           .select('id')
           .eq('user_id', authData.user.id)
           .maybeSingle()
 
-        router.push(gestor ? '/empresa' : '/dashboard')
+        if (gestor) {
+          router.push('/empresa')
+          return
+        }
+
+        // Motoristas de empresa e avulsos vão para /dashboard.
+        // Etapa 2 adapta /dashboard para detectar motoristas_empresa via user_id.
+        const { data: motEmpresa } = await supabase
+          .from('motoristas_empresa')
+          .select('id')
+          .eq('user_id', authData.user.id)
+          .maybeSingle()
+
+        void motEmpresa // usado na Etapa 2 para customizar /dashboard
+        router.push('/dashboard')
       } else {
         const novosErros = validarCadastro()
         if (Object.keys(novosErros).length > 0) {

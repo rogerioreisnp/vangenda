@@ -14,6 +14,8 @@ type Motorista = {
 
 type FormMotorista = {
   nome: string
+  email: string
+  senha: string
   telefone: string
   veiculo: string
   placa: string
@@ -32,7 +34,7 @@ export default function MotoristasPage() {
   const [loading, setLoading] = useState(true)
   const [modalAberto, setModalAberto] = useState(false)
   const [editando, setEditando] = useState<Motorista | null>(null)
-  const [form, setForm] = useState<FormMotorista>({ nome: '', telefone: '', veiculo: '', placa: '' })
+  const [form, setForm] = useState<FormMotorista>({ nome: '', email: '', senha: '', telefone: '', veiculo: '', placa: '' })
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
 
@@ -73,23 +75,20 @@ export default function MotoristasPage() {
 
   function abrirAdicionar() {
     setEditando(null)
-    setForm({ nome: '', telefone: '', veiculo: '', placa: '' })
+    setForm({ nome: '', email: '', senha: '', telefone: '', veiculo: '', placa: '' })
     setErro('')
     setModalAberto(true)
   }
 
   function abrirEditar(m: Motorista) {
     setEditando(m)
-    setForm({ nome: m.nome, telefone: m.telefone || '', veiculo: m.veiculo || '', placa: m.placa || '' })
+    setForm({ nome: m.nome, email: '', senha: '', telefone: m.telefone || '', veiculo: m.veiculo || '', placa: m.placa || '' })
     setErro('')
     setModalAberto(true)
   }
 
   async function salvar() {
-    if (!form.nome.trim()) {
-      setErro('Nome é obrigatório')
-      return
-    }
+    if (!form.nome.trim()) { setErro('Nome é obrigatório'); return }
     if (!empresaId) return
     setSalvando(true)
     setErro('')
@@ -111,19 +110,32 @@ export default function MotoristasPage() {
         return
       }
     } else {
-      const { error } = await supabase
-        .from('motoristas_empresa')
-        .insert({
-          empresa_id: empresaId,
+      if (!form.email.trim()) { setErro('E-mail é obrigatório'); setSalvando(false); return }
+      if (!form.senha) { setErro('Senha é obrigatória'); setSalvando(false); return }
+      if (form.senha.length < 6) { setErro('A senha deve ter no mínimo 6 caracteres'); setSalvando(false); return }
+
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) { setErro('Sessão expirada. Recarregue a página.'); setSalvando(false); return }
+
+      const res = await fetch('/api/empresa/motoristas/criar', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
           nome: form.nome.trim(),
+          email: form.email.trim(),
+          senha: form.senha,
           telefone: form.telefone.trim() || null,
           veiculo: form.veiculo.trim() || null,
           placa: form.placa.trim() || null,
-          status: 'ativo',
-        })
+        }),
+      })
 
-      if (error) {
-        setErro('Erro ao adicionar: ' + error.message)
+      const json = await res.json()
+      if (!res.ok) {
+        setErro(json.error || 'Erro ao adicionar motorista')
         setSalvando(false)
         return
       }
@@ -260,6 +272,20 @@ export default function MotoristasPage() {
               <input value={form.nome} onChange={e => setForm(f => ({ ...f, nome: e.target.value }))}
                 placeholder="Nome completo" className="campo-input" />
             </Campo>
+
+            {!editando && (
+              <>
+                <Campo label="E-mail de acesso *">
+                  <input value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                    placeholder="motorista@email.com" type="email" className="campo-input" />
+                </Campo>
+                <Campo label="Senha provisória *">
+                  <input value={form.senha} onChange={e => setForm(f => ({ ...f, senha: e.target.value }))}
+                    placeholder="Mínimo 6 caracteres" type="password" className="campo-input" />
+                </Campo>
+              </>
+            )}
+
             <Campo label="Telefone">
               <input value={form.telefone} onChange={e => setForm(f => ({ ...f, telefone: e.target.value }))}
                 placeholder="(XX) XXXXX-XXXX" className="campo-input" />
