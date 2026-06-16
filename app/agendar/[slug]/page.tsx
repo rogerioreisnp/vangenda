@@ -209,6 +209,10 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
       setErroMsg('Preencha todos os campos obrigatórios.')
       return
     }
+    if (!isDiaTrabalho) {
+      setErroMsg(`${motorista.nome.split(' ')[0]} não faz rota neste dia. Dias disponíveis: ${diasTexto}.`)
+      return
+    }
     if (lotado) {
       setErroMsg('Van lotada neste dia. Tente outra data.')
       return
