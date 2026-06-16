@@ -22,6 +22,7 @@ type ProximaAgrupada =
   | { tipo: 'par'; ida: ProximaCorrida; volta: ProximaCorrida }
 
 type DiaSemana = { data: string; total: number; label: string }
+type DiaSemanaRF = { data: string; receita: number; despesa: number; label: string }
 
 const STATUS_COR: Record<string, { bg: string; text: string; label: string }> = {
   confirmada:             { bg: '#EFF6FF', text: '#1D4ED8', label: 'Confirmada' },
@@ -591,7 +592,7 @@ function DashboardRotaFixa({
   const [motoristas, setMotoristas] = useState<MotEmpresa[]>([])
   const [agsHoje, setAgsHoje] = useState<AgRF[]>([])
   const [proximas, setProximas] = useState<AgRF[]>([])
-  const [grafico, setGrafico] = useState<DiaSemana[]>([])
+  const [grafico, setGrafico] = useState<DiaSemanaRF[]>([])
 
   const hora = new Date().getHours()
   const saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite'
@@ -648,8 +649,8 @@ function DashboardRotaFixa({
       supabase.from('cobrancas_empresa').select('tipo, valor, data')
         .eq('empresa_id', empresaId).in('tipo', ['receita', 'despesa'])
         .gte('data', inicioMes).lte('data', fimMes),
-      supabase.from('cobrancas_empresa').select('valor, data')
-        .eq('empresa_id', empresaId).eq('tipo', 'receita')
+      supabase.from('cobrancas_empresa').select('tipo, valor, data')
+        .eq('empresa_id', empresaId).in('tipo', ['receita', 'despesa'])
         .gte('data', ha7Dias).lte('data', hojeStr),
     ])
 
@@ -669,19 +670,21 @@ function DashboardRotaFixa({
     setAReceber((aReceberData ?? []).reduce((s, a) => s + Number(a.valor), 0))
     setProximas((proximasData ?? []) as AgRF[])
 
-    const dias: DiaSemana[] = []
+    const cob7d = cob7dData ?? []
+    const dias: DiaSemanaRF[] = []
     for (let i = 6; i >= 0; i--) {
       const d = subDays(agora, i)
       const dStr = format(d, 'yyyy-MM-dd')
       const raw = format(d, 'EEE', { locale: ptBR })
       const label = raw.charAt(0).toUpperCase() + raw.slice(1, 3)
-      const totalAgs = (rec7dData ?? [])
+      const recAgs = (rec7dData ?? [])
         .filter(r => r.data_viagem === dStr)
         .reduce((s, r) => s + Number(r.valor), 0)
-      const totalCob = (cob7dData ?? [])
-        .filter(c => c.data === dStr)
+      const recCob = cob7d.filter(c => c.data === dStr && c.tipo === 'receita')
         .reduce((s, c) => s + Number(c.valor), 0)
-      dias.push({ data: dStr, total: totalAgs + totalCob, label })
+      const despCob = cob7d.filter(c => c.data === dStr && c.tipo === 'despesa')
+        .reduce((s, c) => s + Number(c.valor), 0)
+      dias.push({ data: dStr, receita: recAgs + recCob, despesa: despCob, label })
     }
     setGrafico(dias)
 
@@ -726,9 +729,11 @@ function DashboardRotaFixa({
   }
   const grupos = Array.from(gruposMap.values())
 
-  const maxReceita = Math.max(...grafico.map(d => d.total), 1)
-  const temDadosGrafico = grafico.some(d => d.total > 0)
-  const totalSemana = grafico.reduce((s, d) => s + d.total, 0)
+  const maxBar = Math.max(...grafico.map(d => Math.max(d.receita, d.despesa)), 1)
+  const temDadosGrafico = grafico.some(d => d.receita > 0 || d.despesa > 0)
+  const totalRecSemana = grafico.reduce((s, d) => s + d.receita, 0)
+  const totalDespSemana = grafico.reduce((s, d) => s + d.despesa, 0)
+  const lucroSemana = totalRecSemana - totalDespSemana
   const hojeStr = format(new Date(), 'yyyy-MM-dd')
   const lucroMes = receitaMes - despesasMes
 
@@ -890,42 +895,56 @@ function DashboardRotaFixa({
           )}
         </div>
 
-        {/* Gráfico de barras — receita 7 dias */}
+        {/* Gráfico comparativo Receita x Despesa — 7 dias */}
         <div className="bg-white rounded-2xl p-4 border border-gray-100"
           style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
-          <div className="flex items-baseline justify-between mb-3">
-            <p className="text-sm font-semibold text-gray-700">Receita — últimos 7 dias</p>
-            {temDadosGrafico && (
-              <p className="text-xs font-semibold" style={{ color: '#0F6E56' }}>
-                R$ {totalSemana.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-              </p>
-            )}
+          {/* Título + legenda */}
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-semibold text-gray-700">Receita x Despesa — 7 dias</p>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1">
+                <div className="w-2.5 h-2.5 rounded-sm" style={{ background: '#1D9E75' }} />
+                <span className="text-[10px] text-gray-500">Receita</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-2.5 h-2.5 rounded-sm" style={{ background: '#E24B4A' }} />
+                <span className="text-[10px] text-gray-500">Despesa</span>
+              </div>
+            </div>
           </div>
+
           {!temDadosGrafico ? (
             <div className="text-center py-5">
-              <p className="text-xs text-gray-400">Nenhuma receita nos últimos 7 dias</p>
+              <p className="text-xs text-gray-400">Nenhum dado nos últimos 7 dias</p>
             </div>
           ) : (
             <div>
-              {/* Barras — items-end alinha todas ao baseline inferior */}
-              <div className="flex items-end gap-1.5" style={{ height: '60px' }}>
+              {/* Barras agrupadas por dia */}
+              <div className="flex items-end gap-2" style={{ height: '64px' }}>
                 {grafico.map((d, i) => {
-                  const barH = maxReceita > 0
-                    ? Math.max(Math.round((d.total / maxReceita) * 56), d.total > 0 ? 4 : 0)
-                    : 0
+                  const recH = maxBar > 0 ? Math.max(Math.round((d.receita / maxBar) * 60), d.receita > 0 ? 4 : 0) : 0
+                  const despH = maxBar > 0 ? Math.max(Math.round((d.despesa / maxBar) * 60), d.despesa > 0 ? 4 : 0) : 0
                   const eHoje = d.data === hojeStr
                   return (
-                    <div key={i} className="flex-1 rounded-t-sm"
-                      style={{
-                        height: d.total > 0 ? `${barH}px` : '2px',
-                        background: d.total > 0 ? (eHoje ? '#0F6E56' : '#1D9E75') : '#f0f0ec',
-                      }}
-                    />
+                    <div key={i} className="flex-1 flex items-end gap-0.5">
+                      <div className="flex-1 rounded-t-sm"
+                        style={{
+                          height: d.receita > 0 ? `${recH}px` : '2px',
+                          background: d.receita > 0 ? '#1D9E75' : '#e5e7eb',
+                          opacity: eHoje ? 1 : 0.7,
+                        }} />
+                      <div className="flex-1 rounded-t-sm"
+                        style={{
+                          height: d.despesa > 0 ? `${despH}px` : '2px',
+                          background: d.despesa > 0 ? '#E24B4A' : '#e5e7eb',
+                          opacity: eHoje ? 1 : 0.7,
+                        }} />
+                    </div>
                   )
                 })}
               </div>
-              {/* Labels */}
-              <div className="flex gap-1.5 mt-1.5">
+              {/* Labels dos dias */}
+              <div className="flex gap-2 mt-1.5">
                 {grafico.map((d, i) => {
                   const eHoje = d.data === hojeStr
                   return (
@@ -935,6 +954,27 @@ function DashboardRotaFixa({
                     </p>
                   )
                 })}
+              </div>
+              {/* Rodapé — resumo do período */}
+              <div className="flex justify-around mt-3 pt-3 border-t border-gray-50">
+                <div className="text-center">
+                  <p className="text-[10px] text-gray-400 mb-0.5">Receita</p>
+                  <p className="text-xs font-bold" style={{ color: '#1D9E75' }}>
+                    R$ {totalRecSemana.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                  </p>
+                </div>
+                <div className="text-center">
+                  <p className="text-[10px] text-gray-400 mb-0.5">Despesa</p>
+                  <p className="text-xs font-bold" style={{ color: '#E24B4A' }}>
+                    R$ {totalDespSemana.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                  </p>
+                </div>
+                <div className="text-center">
+                  <p className="text-[10px] text-gray-400 mb-0.5">Lucro</p>
+                  <p className="text-xs font-bold" style={{ color: lucroSemana >= 0 ? '#0F6E56' : '#E24B4A' }}>
+                    R$ {Math.abs(lucroSemana).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                  </p>
+                </div>
               </div>
             </div>
           )}
