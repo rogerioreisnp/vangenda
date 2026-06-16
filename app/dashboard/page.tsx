@@ -45,19 +45,24 @@ export default function DashboardPage() {
       .eq('user_id', user.id)
       .maybeSingle()
 
+    console.log('user id:', user.id)
+
     if (motEmp) {
       setEmpresaCtx({ empresaId: motEmp.empresa_id, motEmpresaId: motEmp.id })
+      console.log('empresaCtx:', { empresaId: motEmp.empresa_id, motEmpresaId: motEmp.id })
       // Busca todas as rotas da empresa sem filtrar ativa no servidor:
       // rotas transfer têm ativa = null (ou false como default do ALTER TABLE),
       // e o .or() com is.null tem comportamento inconsistente entre versões do PostgREST.
       // A filtragem ativa !== false é feita client-side para cobrir todos os casos.
-      const { data: rotas } = await supabase
+      const { data: rotas, error: errRotas } = await supabase
         .from('rotas_empresa')
         .select('id, nome, origem, destino, ativa')
         .eq('empresa_id', motEmp.empresa_id)
         .order('created_at', { ascending: true })
+      console.log('rotasEmpresa:', rotas, 'error:', errRotas)
       setRotasEmpresa((rotas || []).filter(r => r.ativa !== false))
     } else {
+      console.log('empresaCtx: null — usuário não está em motoristas_empresa')
       setEmpresaCtx(null)
     }
 
