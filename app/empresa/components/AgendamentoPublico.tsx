@@ -40,6 +40,7 @@ type EmpresaPublica = {
   logo_url: string | null
   chave_pix: string | null
   tipo_chave_pix: string | null
+  tipo_operacao: string | null
 }
 
 type Rota = {
@@ -75,6 +76,11 @@ export default function AgendamentoPublico({
   const [erro, setErro] = useState('')
   const [chavePix, setChavePix] = useState<string | null>(null)
   const [tipoChavePix, setTipoChavePix] = useState<string | null>(null)
+  const [trechosRF, setTrechosRF] = useState<{ nome: string; preco: number }[]>([])
+  const [paradasUnicas, setParadasUnicas] = useState<string[]>([])
+  const [embarque, setEmbarque] = useState('')
+  const [desembarque, setDesembarque] = useState('')
+  const [valorTrechoRF, setValorTrechoRF] = useState<number | null>(null)
 
   useEffect(() => {
     document.title = `Agendar — ${empresa.nome}`
@@ -98,11 +104,42 @@ export default function AgendamentoPublico({
     setLoadingRotas(false)
   }
 
-  function selecionarRota(rotaId: string) {
+  async function selecionarRota(rotaId: string) {
     const rota = rotas.find(r => r.id === rotaId) || null
     setRotaSelecionada(rota)
     setForm(f => ({ ...f, rota_id: rotaId }))
+    setEmbarque('')
+    setDesembarque('')
+    setValorTrechoRF(null)
+    if (rotaId && empresa.tipo_operacao === 'rota_fixa') {
+      const { data: trechos } = await supabase
+        .from('paradas_empresa')
+        .select('nome, preco')
+        .eq('rota_id', rotaId)
+        .order('ordem')
+      const rows = trechos || []
+      setTrechosRF(rows)
+      const stopSet = new Set<string>()
+      const stops: string[] = []
+      rows.forEach(t => {
+        const parts = (t.nome as string).split(' → ')
+        if (parts.length === 2) {
+          if (!stopSet.has(parts[0])) { stopSet.add(parts[0]); stops.push(parts[0]) }
+          if (!stopSet.has(parts[1])) { stopSet.add(parts[1]); stops.push(parts[1]) }
+        }
+      })
+      setParadasUnicas(stops)
+    } else {
+      setTrechosRF([])
+      setParadasUnicas([])
+    }
   }
+
+  useEffect(() => {
+    if (!embarque || !desembarque || empresa.tipo_operacao !== 'rota_fixa') return
+    const trecho = trechosRF.find(t => t.nome === `${embarque} → ${desembarque}`)
+    setValorTrechoRF(trecho ? Number(trecho.preco) : null)
+  }, [embarque, desembarque, trechosRF])
 
   async function confirmar() {
     if (!form.nome.trim()) { setErro('Seu nome é obrigatório'); return }
@@ -110,23 +147,33 @@ export default function AgendamentoPublico({
     if (!form.rota_id) { setErro('Selecione uma rota'); return }
     if (!form.data) { setErro('Data é obrigatória'); return }
     if (!form.horario) { setErro('Horário é obrigatório'); return }
+    if (empresa.tipo_operacao === 'rota_fixa' && (!embarque || !desembarque)) {
+      setErro('Selecione o embarque e desembarque'); return
+    }
+    if (empresa.tipo_operacao === 'rota_fixa' && valorTrechoRF === null) {
+      setErro('Trecho não disponível para esta rota'); return
+    }
     if (!rotaSelecionada) return
 
     setSalvando(true)
     setErro('')
 
+    const origemSave = empresa.tipo_operacao === 'rota_fixa' ? embarque : rotaSelecionada.origem
+    const destinoSave = empresa.tipo_operacao === 'rota_fixa' ? desembarque : rotaSelecionada.destino
+    const valorSave = empresa.tipo_operacao === 'rota_fixa' ? (valorTrechoRF ?? 0) : rotaSelecionada.preco
+
     const { error } = await supabase.from('corridas_empresa').insert({
       empresa_id: empresa.id,
       rota_id: rotaSelecionada.id,
-      origem: rotaSelecionada.origem,
-      destino: rotaSelecionada.destino,
+      origem: origemSave,
+      destino: destinoSave,
       data_hora: `${form.data}T${form.horario}:00`,
       cliente_nome: form.nome.trim(),
       cliente_telefone: form.telefone.trim(),
-      valor: rotaSelecionada.preco,
+      valor: valorSave,
       status: 'confirmada',
       motorista_id: null,
-      tipo_servico: 'transfer',
+      tipo_servico: empresa.tipo_operacao === 'rota_fixa' ? 'rota_fixa' : 'transfer',
       forma_pagamento: 'a_definir',
       observacoes: form.observacoes.trim() || null,
     })
@@ -156,8 +203,9 @@ export default function AgendamentoPublico({
     }
   }
 
-  const pixPayload = chavePix && rotaSelecionada
-    ? gerarPayloadPix(chavePix, empresa.nome, Number(rotaSelecionada.preco))
+  const valorParaPix = empresa.tipo_operacao === 'rota_fixa' ? (valorTrechoRF ?? 0) : Number(rotaSelecionada?.preco ?? 0)
+  const pixPayload = chavePix && rotaSelecionada && valorParaPix > 0
+    ? gerarPayloadPix(chavePix, empresa.nome, valorParaPix)
     : null
 
   if (loadingRotas) return (
@@ -233,14 +281,54 @@ export default function AgendamentoPublico({
                     <option value="">Selecione a rota...</option>
                     {rotas.map(r => (
                       <option key={r.id} value={r.id}>
-                        {r.nome || `${r.origem} → ${r.destino}`} — R$ {Number(r.preco).toFixed(2).replace('.', ',')}
+                        {empresa.tipo_operacao === 'rota_fixa'
+                          ? (r.nome || 'Sem nome')
+                          : `${r.nome || `${r.origem} → ${r.destino}`} — R$ ${Number(r.preco).toFixed(2).replace('.', ',')}`}
                       </option>
                     ))}
                   </select>
                 )}
               </Campo>
 
-              {rotaSelecionada && (
+              {rotaSelecionada && empresa.tipo_operacao === 'rota_fixa' && (
+                <>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Campo label="Embarque *">
+                      <select value={embarque} onChange={e => setEmbarque(e.target.value)} className="campo-input">
+                        <option value="">Selecione...</option>
+                        {paradasUnicas.map(p => (
+                          <option key={p} value={p}>{p}</option>
+                        ))}
+                      </select>
+                    </Campo>
+                    <Campo label="Desembarque *">
+                      <select value={desembarque} onChange={e => setDesembarque(e.target.value)} className="campo-input">
+                        <option value="">Selecione...</option>
+                        {paradasUnicas.filter(p => p !== embarque).map(p => (
+                          <option key={p} value={p}>{p}</option>
+                        ))}
+                      </select>
+                    </Campo>
+                  </div>
+                  {valorTrechoRF !== null && (
+                    <div className="rounded-xl px-4 py-3" style={{ background: '#f0f0ec' }}>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium text-gray-600">Valor do trecho</span>
+                        <span className="text-xl font-bold" style={{ color: cor }}>
+                          R$ {valorTrechoRF.toFixed(2).replace('.', ',')}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  {embarque && desembarque && valorTrechoRF === null && (
+                    <div className="rounded-xl px-4 py-3 border" style={{ background: '#FCEBEB', borderColor: '#F5BCBC' }}>
+                      <p className="text-xs text-center" style={{ color: '#A32D2D' }}>Trecho não disponível para esta rota.</p>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {rotaSelecionada && empresa.tipo_operacao !== 'rota_fixa' && (
                 <div className="rounded-xl px-4 py-3" style={{ background: '#f0f0ec' }}>
                   <div className="flex justify-between items-center">
                     <span className="text-sm font-medium text-gray-600">Valor da corrida</span>
@@ -349,7 +437,7 @@ export default function AgendamentoPublico({
               <div style={{ background: '#E1F5EE' }} className="rounded-xl p-3 mb-4">
                 <p className="text-xs mb-1" style={{ color: '#085041' }}>Valor a pagar</p>
                 <p className="text-2xl font-bold" style={{ color: cor }}>
-                  R$ {Number(rotaSelecionada?.preco).toFixed(2).replace('.', ',')}
+                  R$ {(empresa.tipo_operacao === 'rota_fixa' ? (valorTrechoRF ?? 0) : Number(rotaSelecionada?.preco ?? 0)).toFixed(2).replace('.', ',')}
                 </p>
               </div>
 
@@ -360,7 +448,7 @@ export default function AgendamentoPublico({
                 >
                   <p className="text-xs font-semibold mb-1" style={{ color: '#854F0B' }}>📋 Resumo</p>
                   <p className="text-xs text-gray-600">
-                    📍 {rotaSelecionada.origem} → {rotaSelecionada.destino}
+                    📍 {empresa.tipo_operacao === 'rota_fixa' ? `${embarque} → ${desembarque}` : `${rotaSelecionada.origem} → ${rotaSelecionada.destino}`}
                   </p>
                   <p className="text-xs text-gray-600">
                     📅 {form.data.slice(8, 10)}/{form.data.slice(5, 7)}/{form.data.slice(0, 4)} às {form.horario}
@@ -383,6 +471,11 @@ export default function AgendamentoPublico({
                 setEtapa('form')
                 setForm({ rota_id: '', data: '', horario: '', nome: '', telefone: '', observacoes: '' })
                 setRotaSelecionada(null)
+                setEmbarque('')
+                setDesembarque('')
+                setValorTrechoRF(null)
+                setTrechosRF([])
+                setParadasUnicas([])
                 setErro('')
               }}
               className="w-full py-3 rounded-2xl text-sm font-medium border border-gray-200 bg-white text-gray-600"
@@ -407,12 +500,12 @@ export default function AgendamentoPublico({
                   <p className="text-xs font-semibold text-gray-500 mb-2">Resumo do agendamento</p>
                   <div className="flex flex-col gap-1.5">
                     <p className="text-sm text-gray-700">👤 {form.nome}</p>
-                    <p className="text-sm text-gray-700">📍 {rotaSelecionada.origem} → {rotaSelecionada.destino}</p>
+                    <p className="text-sm text-gray-700">📍 {empresa.tipo_operacao === 'rota_fixa' ? `${embarque} → ${desembarque}` : `${rotaSelecionada.origem} → ${rotaSelecionada.destino}`}</p>
                     <p className="text-sm text-gray-700">
                       📅 {form.data.slice(8, 10)}/{form.data.slice(5, 7)}/{form.data.slice(0, 4)} às {form.horario}
                     </p>
                     <p className="text-sm font-semibold" style={{ color: cor }}>
-                      💰 R$ {Number(rotaSelecionada.preco).toFixed(2).replace('.', ',')}
+                      💰 R$ {(empresa.tipo_operacao === 'rota_fixa' ? (valorTrechoRF ?? 0) : Number(rotaSelecionada.preco)).toFixed(2).replace('.', ',')}
                     </p>
                   </div>
                 </div>
@@ -424,6 +517,11 @@ export default function AgendamentoPublico({
                 setEtapa('form')
                 setForm({ rota_id: '', data: '', horario: '', nome: '', telefone: '', observacoes: '' })
                 setRotaSelecionada(null)
+                setEmbarque('')
+                setDesembarque('')
+                setValorTrechoRF(null)
+                setTrechosRF([])
+                setParadasUnicas([])
                 setErro('')
               }}
               className="w-full py-3 rounded-2xl text-sm font-medium border border-gray-200 bg-white text-gray-600"
