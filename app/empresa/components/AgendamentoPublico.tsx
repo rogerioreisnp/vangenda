@@ -116,19 +116,16 @@ export default function AgendamentoPublico({
         .from('paradas_empresa')
         .select('nome, preco')
         .eq('rota_id', rotaId)
-        .order('ordem')
-      const rows = trechos || []
-      setTrechosRF(rows)
-      const stopSet = new Set<string>()
-      const stops: string[] = []
-      rows.forEach(t => {
-        const parts = (t.nome as string).split(' → ')
-        if (parts.length === 2) {
-          if (!stopSet.has(parts[0])) { stopSet.add(parts[0]); stops.push(parts[0]) }
-          if (!stopSet.has(parts[1])) { stopSet.add(parts[1]); stops.push(parts[1]) }
+      const paradas = new Set<string>()
+      trechos?.forEach(t => {
+        const partes = t.nome.split(' → ')
+        if (partes.length === 2) {
+          paradas.add(partes[0].trim())
+          paradas.add(partes[1].trim())
         }
       })
-      setParadasUnicas(stops)
+      setParadasUnicas(Array.from(paradas))
+      setTrechosRF(trechos || [])
     } else {
       setTrechosRF([])
       setParadasUnicas([])
