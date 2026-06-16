@@ -593,11 +593,17 @@ function DashboardRotaFixa({
   const [agsHoje, setAgsHoje] = useState<AgRF[]>([])
   const [proximas, setProximas] = useState<AgRF[]>([])
   const [grafico, setGrafico] = useState<DiaSemanaRF[]>([])
+  const [periodoGrafico, setPeriodoGrafico] = useState<'semana' | 'mes' | 'ano'>('semana')
+  const [loadingGrafico, setLoadingGrafico] = useState(false)
+  const [userIdsCache, setUserIdsCache] = useState<string[]>([])
 
   const hora = new Date().getHours()
   const saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite'
 
   useEffect(() => { carregarDados() }, [])
+  useEffect(() => {
+    if (userIdsCache.length > 0) carregarGrafico(periodoGrafico, userIdsCache)
+  }, [periodoGrafico])
 
   async function carregarDados() {
     const agora = new Date()
@@ -605,7 +611,6 @@ function DashboardRotaFixa({
     const em7Dias = format(addDays(agora, 7), 'yyyy-MM-dd')
     const inicioMes = format(startOfMonth(agora), 'yyyy-MM-dd')
     const fimMes = format(endOfMonth(agora), 'yyyy-MM-dd')
-    const ha7Dias = format(subDays(agora, 6), 'yyyy-MM-dd')
 
     const { data: mots } = await supabase
       .from('motoristas_empresa')
@@ -629,9 +634,7 @@ function DashboardRotaFixa({
       { data: proximasData },
       { data: recMesData },
       { data: aReceberData },
-      { data: rec7dData },
       { data: cobMesData },
-      { data: cob7dData },
     ] = await Promise.all([
       supabase.from('agendamentos').select('*')
         .in('motorista_id', userIds).eq('data_viagem', hojeStr).neq('status', 'cancelado'),
@@ -643,15 +646,9 @@ function DashboardRotaFixa({
         .neq('status', 'cancelado'),
       supabase.from('agendamentos').select('valor')
         .in('motorista_id', userIds).eq('forma_pagamento', 'pendente').neq('status', 'cancelado'),
-      supabase.from('agendamentos').select('data_viagem, valor')
-        .in('motorista_id', userIds).gte('data_viagem', ha7Dias).lte('data_viagem', hojeStr)
-        .neq('status', 'cancelado'),
       supabase.from('cobrancas_empresa').select('tipo, valor, data')
         .eq('empresa_id', empresaId).in('tipo', ['receita', 'despesa'])
         .gte('data', inicioMes).lte('data', fimMes),
-      supabase.from('cobrancas_empresa').select('tipo, valor, data')
-        .eq('empresa_id', empresaId).in('tipo', ['receita', 'despesa'])
-        .gte('data', ha7Dias).lte('data', hojeStr),
     ])
 
     const hojeAgs = (agsHojeData ?? []) as AgRF[]
@@ -670,25 +667,97 @@ function DashboardRotaFixa({
     setAReceber((aReceberData ?? []).reduce((s, a) => s + Number(a.valor), 0))
     setProximas((proximasData ?? []) as AgRF[])
 
-    const cob7d = cob7dData ?? []
-    const dias: DiaSemanaRF[] = []
-    for (let i = 6; i >= 0; i--) {
-      const d = subDays(agora, i)
-      const dStr = format(d, 'yyyy-MM-dd')
-      const raw = format(d, 'EEE', { locale: ptBR })
-      const label = raw.charAt(0).toUpperCase() + raw.slice(1, 3)
-      const recAgs = (rec7dData ?? [])
-        .filter(r => r.data_viagem === dStr)
-        .reduce((s, r) => s + Number(r.valor), 0)
-      const recCob = cob7d.filter(c => c.data === dStr && c.tipo === 'receita')
-        .reduce((s, c) => s + Number(c.valor), 0)
-      const despCob = cob7d.filter(c => c.data === dStr && c.tipo === 'despesa')
-        .reduce((s, c) => s + Number(c.valor), 0)
-      dias.push({ data: dStr, receita: recAgs + recCob, despesa: despCob, label })
-    }
-    setGrafico(dias)
+    setUserIdsCache(userIds)
+    await carregarGrafico('semana', userIds)
 
     setLoading(false)
+  }
+
+  async function carregarGrafico(periodo: 'semana' | 'mes' | 'ano', uIds: string[]) {
+    setLoadingGrafico(true)
+    const agora = new Date()
+    const anoAtual = agora.getFullYear()
+
+    if (periodo === 'semana') {
+      const ha7 = format(subDays(agora, 6), 'yyyy-MM-dd')
+      const hoje = format(agora, 'yyyy-MM-dd')
+      const [{ data: agsData }, { data: cobData }] = await Promise.all([
+        supabase.from('agendamentos').select('data_viagem, valor')
+          .in('motorista_id', uIds).gte('data_viagem', ha7).lte('data_viagem', hoje)
+          .neq('status', 'cancelado'),
+        supabase.from('cobrancas_empresa').select('tipo, valor, data')
+          .eq('empresa_id', empresaId).in('tipo', ['receita', 'despesa'])
+          .gte('data', ha7).lte('data', hoje),
+      ])
+      const cob = cobData ?? []
+      const pontos: DiaSemanaRF[] = []
+      for (let i = 6; i >= 0; i--) {
+        const d = subDays(agora, i)
+        const dStr = format(d, 'yyyy-MM-dd')
+        const raw = format(d, 'EEE', { locale: ptBR })
+        const label = raw.charAt(0).toUpperCase() + raw.slice(1, 3)
+        const recAgs = (agsData ?? []).filter(r => r.data_viagem === dStr).reduce((s, r) => s + Number(r.valor), 0)
+        const recCob = cob.filter(c => c.data === dStr && c.tipo === 'receita').reduce((s, c) => s + Number(c.valor), 0)
+        const despCob = cob.filter(c => c.data === dStr && c.tipo === 'despesa').reduce((s, c) => s + Number(c.valor), 0)
+        pontos.push({ data: dStr, receita: recAgs + recCob, despesa: despCob, label })
+      }
+      setGrafico(pontos)
+
+    } else if (periodo === 'mes') {
+      const ini = format(startOfMonth(agora), 'yyyy-MM-dd')
+      const fim = format(endOfMonth(agora), 'yyyy-MM-dd')
+      const [{ data: agsData }, { data: cobData }] = await Promise.all([
+        supabase.from('agendamentos').select('data_viagem, valor')
+          .in('motorista_id', uIds).gte('data_viagem', ini).lte('data_viagem', fim)
+          .neq('status', 'cancelado'),
+        supabase.from('cobrancas_empresa').select('tipo, valor, data')
+          .eq('empresa_id', empresaId).in('tipo', ['receita', 'despesa'])
+          .gte('data', ini).lte('data', fim),
+      ])
+      const ags = agsData ?? []
+      const cob = cobData ?? []
+      const totalDias = endOfMonth(agora).getDate()
+      const semanasConf = [
+        { label: 'Sem 1', ini: 1,  fim: 7  },
+        { label: 'Sem 2', ini: 8,  fim: 14 },
+        { label: 'Sem 3', ini: 15, fim: 21 },
+        { label: 'Sem 4', ini: 22, fim: 28 },
+        ...(totalDias > 28 ? [{ label: 'Sem 5', ini: 29, fim: totalDias }] : []),
+      ]
+      const pontos: DiaSemanaRF[] = semanasConf.map(s => {
+        const inRange = (dateStr: string) => { const d = +dateStr.slice(8, 10); return d >= s.ini && d <= s.fim }
+        const recAgs  = ags.filter(a => inRange(a.data_viagem)).reduce((sum, a) => sum + Number(a.valor), 0)
+        const recCob  = cob.filter(c => inRange(c.data) && c.tipo === 'receita').reduce((sum, c) => sum + Number(c.valor), 0)
+        const despCob = cob.filter(c => inRange(c.data) && c.tipo === 'despesa').reduce((sum, c) => sum + Number(c.valor), 0)
+        return { data: s.label, receita: recAgs + recCob, despesa: despCob, label: s.label }
+      })
+      setGrafico(pontos)
+
+    } else {
+      const inicioAno = `${anoAtual}-01-01`
+      const fimAno   = `${anoAtual}-12-31`
+      const [{ data: agsData }, { data: cobData }] = await Promise.all([
+        supabase.from('agendamentos').select('data_viagem, valor')
+          .in('motorista_id', uIds).gte('data_viagem', inicioAno).lte('data_viagem', fimAno)
+          .neq('status', 'cancelado'),
+        supabase.from('cobrancas_empresa').select('tipo, valor, data')
+          .eq('empresa_id', empresaId).in('tipo', ['receita', 'despesa'])
+          .gte('data', inicioAno).lte('data', fimAno),
+      ])
+      const ags = agsData ?? []
+      const cob = cobData ?? []
+      const mesesLabel = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+      const pontos: DiaSemanaRF[] = mesesLabel.map((label, idx) => {
+        const prefix = `${anoAtual}-${String(idx + 1).padStart(2, '0')}`
+        const recAgs  = ags.filter(a => a.data_viagem.startsWith(prefix)).reduce((s, a) => s + Number(a.valor), 0)
+        const recCob  = cob.filter(c => c.data.startsWith(prefix) && c.tipo === 'receita').reduce((s, c) => s + Number(c.valor), 0)
+        const despCob = cob.filter(c => c.data.startsWith(prefix) && c.tipo === 'despesa').reduce((s, c) => s + Number(c.valor), 0)
+        return { data: prefix, receita: recAgs + recCob, despesa: despCob, label }
+      })
+      setGrafico(pontos)
+    }
+
+    setLoadingGrafico(false)
   }
 
   if (loading) {
@@ -895,12 +964,26 @@ function DashboardRotaFixa({
           )}
         </div>
 
-        {/* Gráfico comparativo Receita x Despesa — 7 dias */}
+        {/* Gráfico comparativo Receita x Despesa */}
         <div className="bg-white rounded-2xl p-4 border border-gray-100"
           style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+
+          {/* Seletor de período */}
+          <div className="flex gap-1.5 mb-3">
+            {(['semana', 'mes', 'ano'] as const).map(p => (
+              <button key={p} onClick={() => setPeriodoGrafico(p)}
+                className="flex-1 py-1.5 rounded-lg text-[11px] font-semibold"
+                style={periodoGrafico === p
+                  ? { background: '#0F6E56', color: '#fff' }
+                  : { background: '#f3f4f6', color: '#9ca3af' }}>
+                {p === 'semana' ? 'Semana' : p === 'mes' ? 'Mês' : 'Ano'}
+              </button>
+            ))}
+          </div>
+
           {/* Título + legenda */}
           <div className="flex items-center justify-between mb-3">
-            <p className="text-sm font-semibold text-gray-700">Receita x Despesa — 7 dias</p>
+            <p className="text-sm font-semibold text-gray-700">Receita x Despesa</p>
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-1">
                 <div className="w-2.5 h-2.5 rounded-sm" style={{ background: '#1D9E75' }} />
@@ -913,40 +996,54 @@ function DashboardRotaFixa({
             </div>
           </div>
 
-          {!temDadosGrafico ? (
+          {loadingGrafico ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="text-2xl animate-pulse">📊</div>
+            </div>
+          ) : !temDadosGrafico ? (
             <div className="text-center py-5">
-              <p className="text-xs text-gray-400">Nenhum dado nos últimos 7 dias</p>
+              <p className="text-xs text-gray-400">Nenhum dado no período</p>
             </div>
           ) : (
             <div>
-              {/* Barras agrupadas por dia */}
-              <div className="flex items-end gap-2" style={{ height: '64px' }}>
+              {/* Barras agrupadas */}
+              <div className="flex items-end" style={{ height: '64px', gap: grafico.length > 7 ? '2px' : '6px' }}>
                 {grafico.map((d, i) => {
-                  const recH = maxBar > 0 ? Math.max(Math.round((d.receita / maxBar) * 60), d.receita > 0 ? 4 : 0) : 0
-                  const despH = maxBar > 0 ? Math.max(Math.round((d.despesa / maxBar) * 60), d.despesa > 0 ? 4 : 0) : 0
-                  const eHoje = d.data === hojeStr
+                  const recH  = maxBar > 0 ? Math.max(Math.round((d.receita  / maxBar) * 60), d.receita  > 0 ? 4 : 0) : 0
+                  const despH = maxBar > 0 ? Math.max(Math.round((d.despesa  / maxBar) * 60), d.despesa  > 0 ? 4 : 0) : 0
+                  const anoMesAtual = format(new Date(), 'yyyy-MM')
+                  const eHoje = periodoGrafico === 'semana'
+                    ? d.data === hojeStr
+                    : periodoGrafico === 'ano'
+                      ? d.data === anoMesAtual
+                      : false
                   return (
-                    <div key={i} className="flex-1 flex items-end gap-0.5">
+                    <div key={i} className="flex-1 flex items-end gap-px">
                       <div className="flex-1 rounded-t-sm"
                         style={{
                           height: d.receita > 0 ? `${recH}px` : '2px',
                           background: d.receita > 0 ? '#1D9E75' : '#e5e7eb',
-                          opacity: eHoje ? 1 : 0.7,
+                          opacity: eHoje ? 1 : 0.72,
                         }} />
                       <div className="flex-1 rounded-t-sm"
                         style={{
                           height: d.despesa > 0 ? `${despH}px` : '2px',
                           background: d.despesa > 0 ? '#E24B4A' : '#e5e7eb',
-                          opacity: eHoje ? 1 : 0.7,
+                          opacity: eHoje ? 1 : 0.72,
                         }} />
                     </div>
                   )
                 })}
               </div>
-              {/* Labels dos dias */}
-              <div className="flex gap-2 mt-1.5">
+              {/* Labels */}
+              <div className="flex mt-1.5" style={{ gap: grafico.length > 7 ? '2px' : '6px' }}>
                 {grafico.map((d, i) => {
-                  const eHoje = d.data === hojeStr
+                  const anoMesAtual = format(new Date(), 'yyyy-MM')
+                  const eHoje = periodoGrafico === 'semana'
+                    ? d.data === hojeStr
+                    : periodoGrafico === 'ano'
+                      ? d.data === anoMesAtual
+                      : false
                   return (
                     <p key={i} className="flex-1 text-center leading-none"
                       style={{ fontSize: '8px', color: eHoje ? '#0F6E56' : '#9ca3af', fontWeight: eHoje ? 700 : 400 }}>
@@ -955,7 +1052,7 @@ function DashboardRotaFixa({
                   )
                 })}
               </div>
-              {/* Rodapé — resumo do período */}
+              {/* Rodapé */}
               <div className="flex justify-around mt-3 pt-3 border-t border-gray-50">
                 <div className="text-center">
                   <p className="text-[10px] text-gray-400 mb-0.5">Receita</p>
