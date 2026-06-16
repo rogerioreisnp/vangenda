@@ -49,9 +49,12 @@ export default function AgendaPage() {
   const [agendamentoDetalhe, setAgendamentoDetalhe] = useState<Agendamento | null>(null)
   const [diasTrabalho, setDiasTrabalho] = useState<number[]>([])
   const [encomendasDoDia, setEncomendasDoDia] = useState<Encomenda[]>([])
+  const [empresaCtx, setEmpresaCtx] = useState<{ empresaId: string; motEmpresaId: string } | null | undefined>(undefined)
+  const [rotasEmpresa, setRotasEmpresa] = useState<{ id: string; nome: string | null; origem: string | null; destino: string | null }[]>([])
 
   useEffect(() => { carregarMes() }, [mesAtual])
   useEffect(() => { carregarEncomendasDoDia(diaSelecionado) }, [diaSelecionado])
+  useEffect(() => { detectarEmpresa() }, [])
 
   async function carregarMes() {
     setLoading(true)
@@ -85,6 +88,27 @@ export default function AgendaPage() {
       .eq('data_entrega', format(data, 'yyyy-MM-dd'))
       .order('criado_em', { ascending: true })
     setEncomendasDoDia(encs || [])
+  }
+
+  async function detectarEmpresa() {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    const { data: motEmp } = await supabase
+      .from('motoristas_empresa')
+      .select('id, empresa_id')
+      .eq('user_id', user.id)
+      .maybeSingle()
+    if (motEmp) {
+      setEmpresaCtx({ empresaId: motEmp.empresa_id, motEmpresaId: motEmp.id })
+      const { data: rts } = await supabase
+        .from('rotas_empresa')
+        .select('id, nome, origem, destino, ativa')
+        .eq('empresa_id', motEmp.empresa_id)
+        .order('created_at', { ascending: true })
+      setRotasEmpresa((rts || []).filter(r => r.ativa !== false))
+    } else {
+      setEmpresaCtx(null)
+    }
   }
 
   async function concluirEncomenda(enc: Encomenda) {
@@ -235,6 +259,8 @@ export default function AgendaPage() {
         <FormAgendamento
           data={diaSelecionado}
           rotas={rotas}
+          empresaCtx={empresaCtx ?? null}
+          rotasEmpresa={rotasEmpresa}
           onFechar={() => setMostrarForm(false)}
           onSalvo={() => { setMostrarForm(false); carregarMes() }}
         />
@@ -621,14 +647,19 @@ function DetalhePassageiro({ p, onVoltar, onAtualizar, horarioIda, horarioVolta 
   )
 }
 
-function FormAgendamento({ data, rotas, onFechar, onSalvo }: {
-  data: Date, rotas: any[], onFechar: () => void, onSalvo: () => void
+function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSalvo }: {
+  data: Date, rotas: any[],
+  empresaCtx: { empresaId: string; motEmpresaId: string } | null,
+  rotasEmpresa: { id: string; nome: string | null; origem: string | null; destino: string | null }[],
+  onFechar: () => void, onSalvo: () => void
 }) {
   const horarioIda = rotas[0]?.horario_ida?.slice(0, 5) || '05:00'
   const horarioVolta = rotas[0]?.horario_volta?.slice(0, 5) || '14:00'
   const [paradas, setParadas] = useState<any[]>([])
   const [precos, setPrecos] = useState<any[]>([])
   const [clientes, setClientes] = useState<any[]>([])
+  const [paradasEmpresa, setParadasEmpresa] = useState<{ id: string; nome: string | null; preco: number | null }[]>([])
+  const [rotaEmpresaId, setRotaEmpresaId] = useState(rotasEmpresa[0]?.id || '')
   const [form, setForm] = useState({
     rota_id: rotas[0]?.id || '',
     nome_passageiro: '',
@@ -654,20 +685,32 @@ function FormAgendamento({ data, rotas, onFechar, onSalvo }: {
   const [vagasOcupadas, setVagasOcupadas] = useState(0)
 
   useEffect(() => {
-    if (form.rota_id) { carregarRota(form.rota_id); carregarVagas() }
+    if (!empresaCtx && form.rota_id) { carregarRota(form.rota_id); carregarVagas() }
     carregarClientes()
   }, [form.rota_id])
 
   useEffect(() => {
-    if (form.rota_id) carregarVagas()
+    if (!empresaCtx && form.rota_id) carregarVagas()
   }, [form.turno, form.data_viagem])
+
+  useEffect(() => {
+    if (empresaCtx && rotaEmpresaId) carregarParadasEmpresa(rotaEmpresaId)
+  }, [rotaEmpresaId])
+
+  useEffect(() => {
+    if (rotasEmpresa.length > 0 && !rotaEmpresaId) setRotaEmpresaId(rotasEmpresa[0].id)
+  }, [rotasEmpresa])
 
   useEffect(() => {
     if (form.parada_origem && form.parada_destino) calcularValor()
   }, [form.parada_origem, form.parada_destino])
 
+  useEffect(() => {
+    if (empresaCtx && paradasEmpresa.length > 0 && form.parada_origem && form.parada_destino) calcularValor()
+  }, [paradasEmpresa])
+
   async function carregarVagas() {
-    if (!form.rota_id) return
+    if (empresaCtx || !form.rota_id) return
     const { count } = await supabase
       .from('agendamentos')
       .select('*', { count: 'exact', head: true })
@@ -685,6 +728,14 @@ function FormAgendamento({ data, rotas, onFechar, onSalvo }: {
     if (prs) setPrecos(prs)
   }
 
+  async function carregarParadasEmpresa(rotaId: string) {
+    const { data } = await supabase
+      .from('paradas_empresa')
+      .select('id, nome, preco')
+      .eq('rota_id', rotaId)
+    if (data) setParadasEmpresa(data)
+  }
+
   async function carregarClientes() {
     const { data: { user } } = await supabase.auth.getUser()
     const { data } = await supabase.from('clientes').select('*').eq('motorista_id', user!.id).order('nome')
@@ -692,6 +743,18 @@ function FormAgendamento({ data, rotas, onFechar, onSalvo }: {
   }
 
   function calcularValor() {
+    if (empresaCtx) {
+      const trecho = paradasEmpresa.find(
+        p => p.nome === `${form.parada_origem} → ${form.parada_destino}`
+      )
+      if (trecho?.preco != null) {
+        setValorAuto(trecho.preco)
+        setForm(f => ({ ...f, valor: String(trecho.preco) }))
+      } else {
+        setValorAuto(null)
+      }
+      return
+    }
     const preco = precos.find(p => p.parada_origem === form.parada_origem && p.parada_destino === form.parada_destino)
     if (preco) {
       setValorAuto(preco.valor)
@@ -712,6 +775,15 @@ function FormAgendamento({ data, rotas, onFechar, onSalvo }: {
     setFiltroCliente('')
   }
 
+  const paradasUnicas = empresaCtx
+    ? Array.from(new Set(
+        paradasEmpresa.flatMap(p => {
+          const partes = (p.nome || '').split(' → ')
+          return partes.map((s: string) => s.trim()).filter(Boolean)
+        })
+      ))
+    : []
+
   const rotaAtual = rotas.find(r => r.id === form.rota_id)
   const capacidade = rotaAtual?.capacidade || 15
   const vagasDisponiveis = Math.max(0, capacidade - vagasOcupadas)
@@ -724,7 +796,7 @@ function FormAgendamento({ data, rotas, onFechar, onSalvo }: {
     setErroSalvar('')
     const { data: { user } } = await supabase.auth.getUser()
     const registros = Array.from({ length: form.quantidade }, (_, i) => ({
-      rota_id: form.rota_id,
+      rota_id: empresaCtx ? null : form.rota_id,
       motorista_id: user!.id,
       nome_passageiro: form.quantidade > 1 ? `${form.nome_passageiro} (${i + 1}/${form.quantidade})` : form.nome_passageiro,
       telefone_passageiro: form.telefone_passageiro || null,
@@ -768,7 +840,22 @@ function FormAgendamento({ data, rotas, onFechar, onSalvo }: {
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
-        {rotas.length > 1 && (
+        {empresaCtx && rotasEmpresa.length > 1 && (
+          <Campo label="Rota">
+            <select value={rotaEmpresaId} onChange={e => {
+              setRotaEmpresaId(e.target.value)
+              setForm(f => ({ ...f, parada_origem: '', parada_destino: '' }))
+            }} className="campo-input">
+              {rotasEmpresa.map(r => (
+                <option key={r.id} value={r.id}>
+                  {r.nome || `${r.origem} → ${r.destino}`}
+                </option>
+              ))}
+            </select>
+          </Campo>
+        )}
+
+        {!empresaCtx && rotas.length > 1 && (
           <Campo label="Rota">
             <select value={form.rota_id} onChange={e => setForm(f => ({ ...f, rota_id: e.target.value }))}
               className="campo-input">
@@ -846,14 +933,20 @@ function FormAgendamento({ data, rotas, onFechar, onSalvo }: {
             <select value={form.parada_origem} onChange={e => setForm(f => ({ ...f, parada_origem: e.target.value }))}
               className="campo-input">
               <option value="">Selecione...</option>
-              {paradas.map(p => <option key={p.id} value={p.nome}>{p.nome}</option>)}
+              {empresaCtx
+                ? paradasUnicas.map(p => <option key={p} value={p}>{p}</option>)
+                : paradas.map(p => <option key={p.id} value={p.nome}>{p.nome}</option>)
+              }
             </select>
           </Campo>
           <Campo label="Desembarca em">
             <select value={form.parada_destino} onChange={e => setForm(f => ({ ...f, parada_destino: e.target.value }))}
               className="campo-input">
               <option value="">Selecione...</option>
-              {paradas.map(p => <option key={p.id} value={p.nome}>{p.nome}</option>)}
+              {empresaCtx
+                ? paradasUnicas.map(p => <option key={p} value={p}>{p}</option>)
+                : paradas.map(p => <option key={p.id} value={p.nome}>{p.nome}</option>)
+              }
             </select>
           </Campo>
         </div>
