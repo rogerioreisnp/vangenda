@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { format } from 'date-fns'
 import { supabase } from '@/lib/supabase'
 
@@ -20,6 +20,29 @@ export default function ModalNovaEncomenda({ onFechar, onSalvo, nomeInicial, tel
   })
   const [saving, setSaving] = useState(false)
   const [erro, setErro] = useState('')
+
+  useEffect(() => {
+    if (nomeInicial) return
+    try {
+      const raw = sessionStorage.getItem('vangenda_form_encomenda')
+      if (raw) {
+        const saved = JSON.parse(raw)
+        if (saved) setForm(f => ({ ...f, ...saved }))
+      }
+    } catch {}
+  }, [])
+
+  useEffect(() => {
+    if (nomeInicial) return
+    try {
+      sessionStorage.setItem('vangenda_form_encomenda', JSON.stringify(form))
+    } catch {}
+  }, [form])
+
+  function fechar() {
+    if (!nomeInicial) sessionStorage.removeItem('vangenda_form_encomenda')
+    onFechar()
+  }
 
   async function salvar() {
     if (!form.nome.trim() || !form.valor) { setErro('Nome e valor são obrigatórios.'); return }
@@ -67,6 +90,7 @@ export default function ModalNovaEncomenda({ onFechar, onSalvo, nomeInicial, tel
       })
     }
     setSaving(false)
+    if (!nomeInicial) sessionStorage.removeItem('vangenda_form_encomenda')
     onSalvo()
   }
 
@@ -75,7 +99,7 @@ export default function ModalNovaEncomenda({ onFechar, onSalvo, nomeInicial, tel
       <div className="w-full bg-white rounded-t-2xl p-6 pb-16 flex flex-col gap-4" style={{ maxHeight: '90dvh', overflowY: 'auto' }}>
         <div className="flex items-center justify-between">
           <p className="text-base font-bold text-gray-800">Nova encomenda</p>
-          <button onClick={onFechar} className="text-gray-400 text-xl leading-none">✕</button>
+          <button onClick={fechar} className="text-gray-400 text-xl leading-none">✕</button>
         </div>
 
         <div>

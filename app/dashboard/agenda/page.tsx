@@ -685,6 +685,23 @@ function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSa
   const [vagasOcupadas, setVagasOcupadas] = useState(0)
 
   useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem('vangenda_form_agendamento')
+      if (raw) {
+        const saved = JSON.parse(raw)
+        if (saved.form) setForm(f => ({ ...f, ...saved.form }))
+        if (saved.rotaEmpresaId) setRotaEmpresaId(saved.rotaEmpresaId)
+      }
+    } catch {}
+  }, [])
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('vangenda_form_agendamento', JSON.stringify({ form, rotaEmpresaId }))
+    } catch {}
+  }, [form, rotaEmpresaId])
+
+  useEffect(() => {
     if (!empresaCtx && form.rota_id) { carregarRota(form.rota_id); carregarVagas() }
     carregarClientes()
   }, [form.rota_id])
@@ -790,6 +807,11 @@ function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSa
 
   const podeSalvar = !saving && !!form.nome_passageiro && !!form.parada_origem && !!form.parada_destino && !!form.valor && form.quantidade > 0
 
+  function fechar() {
+    sessionStorage.removeItem('vangenda_form_agendamento')
+    onFechar()
+  }
+
   async function salvar() {
     if (!podeSalvar) return
     setSaving(true)
@@ -820,6 +842,7 @@ function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSa
       setErroSalvar('Erro ao salvar: ' + error.message)
       return
     }
+    sessionStorage.removeItem('vangenda_form_agendamento')
     onSalvo()
   }
 
@@ -830,7 +853,7 @@ function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSa
   return (
     <div className="fixed inset-0 z-50 flex flex-col" style={{ background: '#f0f0ec' }}>
       <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-4 flex items-center gap-3">
-        <button onClick={onFechar} style={{ color: '#9FE1CB' }} className="text-2xl">‹</button>
+        <button onClick={fechar} style={{ color: '#9FE1CB' }} className="text-2xl">‹</button>
         <div>
           <p style={{ color: '#E1F5EE' }} className="text-sm font-semibold">Novo passageiro</p>
           <p style={{ color: '#5DCAA5' }} className="text-xs capitalize">
