@@ -616,8 +616,17 @@ export default function AgendamentosPage() {
               <select value={form.tipo_servico}
                 onChange={e => setForm(f => ({ ...f, tipo_servico: e.target.value }))}
                 className="campo-input">
-                <option value="transfer">Transfer</option>
-                <option value="city_tour">City Tour</option>
+                {tipoOperacao === 'rota_fixa' ? (
+                  <>
+                    <option value="fretamento">Fretamento</option>
+                    <option value="excursao">Excursão</option>
+                  </>
+                ) : (
+                  <>
+                    <option value="transfer">Transfer</option>
+                    <option value="city_tour">City Tour</option>
+                  </>
+                )}
               </select>
             </Campo>
 
