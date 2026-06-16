@@ -264,9 +264,6 @@ export default function AgendamentosPage() {
         origem: rota.origem,
         destino: rota.destino,
         preco: String(rota.preco),
-        ...(tipoOperacao === 'rota_fixa' && rota.motorista_id
-          ? { motorista_id: rota.motorista_id }
-          : {}),
       }))
     }
   }
@@ -615,18 +612,16 @@ export default function AgendamentosPage() {
 
           <div className="flex-1 overflow-y-auto px-4 pt-4 pb-20 flex flex-col gap-3">
 
-            {tipoOperacao !== 'rota_fixa' && (
-              <Campo label="Tipo de serviço">
-                <select value={form.tipo_servico}
-                  onChange={e => setForm(f => ({ ...f, tipo_servico: e.target.value }))}
-                  className="campo-input">
-                  <option value="transfer">Transfer</option>
-                  <option value="city_tour">City Tour</option>
-                </select>
-              </Campo>
-            )}
+            <Campo label="Tipo de serviço">
+              <select value={form.tipo_servico}
+                onChange={e => setForm(f => ({ ...f, tipo_servico: e.target.value }))}
+                className="campo-input">
+                <option value="transfer">Transfer</option>
+                <option value="city_tour">City Tour</option>
+              </select>
+            </Campo>
 
-            <Campo label={tipoOperacao === 'rota_fixa' ? 'Selecionar rota *' : 'Rota'}>
+            <Campo label="Rota">
               <select value={form.rota_id} onChange={e => selecionarRota(e.target.value)} className="campo-input">
                 <option value="">Selecione uma rota...</option>
                 {rotasOpcoes.map(r => (
@@ -634,9 +629,7 @@ export default function AgendamentosPage() {
                     {r.origem} → {r.destino} — R$ {Number(r.preco).toFixed(2).replace('.', ',')}
                   </option>
                 ))}
-                {tipoOperacao !== 'rota_fixa' && (
-                  <option value="manual">✏️ Outra rota (digitar manualmente)</option>
-                )}
+                <option value="manual">✏️ Outra rota (digitar manualmente)</option>
               </select>
             </Campo>
 
