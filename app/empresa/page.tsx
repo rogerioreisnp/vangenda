@@ -684,7 +684,6 @@ function DashboardRotaFixa({
       dias.push({ data: dStr, total: totalAgs + totalCob, label })
     }
     setGrafico(dias)
-    console.log('dadosGrafico:', dias)
 
     setLoading(false)
   }
@@ -907,27 +906,36 @@ function DashboardRotaFixa({
               <p className="text-xs text-gray-400">Nenhuma receita nos últimos 7 dias</p>
             </div>
           ) : (
-            <div className="flex gap-1.5" style={{ height: '80px' }}>
-              {grafico.map((d, i) => {
-                const barH = maxReceita > 0 ? Math.round((d.total / maxReceita) * 56) : 0
-                const eHoje = d.data === hojeStr
-                return (
-                  <div key={i} className="flex-1 flex flex-col items-center">
-                    <div className="flex-1 w-full flex items-end">
-                      <div className="w-full rounded-t-sm transition-all"
-                        style={{
-                          height: d.total > 0 ? `${Math.max(barH, 4)}px` : '2px',
-                          background: d.total > 0 ? (eHoje ? '#0F6E56' : '#1D9E75') : '#f0f0ec',
-                        }}
-                      />
-                    </div>
-                    <p className="mt-1.5 leading-none"
+            <div>
+              {/* Barras — items-end alinha todas ao baseline inferior */}
+              <div className="flex items-end gap-1.5" style={{ height: '60px' }}>
+                {grafico.map((d, i) => {
+                  const barH = maxReceita > 0
+                    ? Math.max(Math.round((d.total / maxReceita) * 56), d.total > 0 ? 4 : 0)
+                    : 0
+                  const eHoje = d.data === hojeStr
+                  return (
+                    <div key={i} className="flex-1 rounded-t-sm"
+                      style={{
+                        height: d.total > 0 ? `${barH}px` : '2px',
+                        background: d.total > 0 ? (eHoje ? '#0F6E56' : '#1D9E75') : '#f0f0ec',
+                      }}
+                    />
+                  )
+                })}
+              </div>
+              {/* Labels */}
+              <div className="flex gap-1.5 mt-1.5">
+                {grafico.map((d, i) => {
+                  const eHoje = d.data === hojeStr
+                  return (
+                    <p key={i} className="flex-1 text-center leading-none"
                       style={{ fontSize: '8px', color: eHoje ? '#0F6E56' : '#9ca3af', fontWeight: eHoje ? 700 : 400 }}>
                       {d.label}
                     </p>
-                  </div>
-                )
-              })}
+                  )
+                })}
+              </div>
             </div>
           )}
         </div>
