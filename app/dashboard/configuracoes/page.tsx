@@ -239,6 +239,7 @@ export default function ConfiguracoesPage() {
   const [erroSalvar, setErroSalvar] = useState('')
   const [loading, setLoading] = useState(true)
   const [motorista, setMotorista] = useState<any>(null)
+  const [empresaSlug, setEmpresaSlug] = useState<string | null>(null)
   const [linkCopiado, setLinkCopiado] = useState(false)
   const [mostrarGuia, setMostrarGuia] = useState(false)
   const dragIdx = useRef<number | null>(null)
@@ -255,6 +256,19 @@ export default function ConfiguracoesPage() {
     if (mot) {
       setMotorista(mot)
       diasTrabalhoExiste.current = 'dias_trabalho' in mot
+    }
+    const { data: motEmpresa } = await supabase
+      .from('motoristas_empresa')
+      .select('empresa_id')
+      .eq('motorista_id', user.id)
+      .single()
+    if (motEmpresa?.empresa_id) {
+      const { data: empresa } = await supabase
+        .from('empresas')
+        .select('slug')
+        .eq('id', motEmpresa.empresa_id)
+        .single()
+      if (empresa?.slug) setEmpresaSlug(empresa.slug)
     }
     const { data: rts } = await supabase.from('rotas').select('*').eq('motorista_id', user.id).limit(1).single()
     if (rts) {
@@ -405,7 +419,9 @@ export default function ConfiguracoesPage() {
   }
 
   function copiarLink() {
-    const link = `${window.location.origin}/agendar/${motorista?.slug || motorista?.id}`
+    const link = empresaSlug
+      ? `${window.location.origin}/agendar/${empresaSlug}`
+      : `${window.location.origin}/agendar/${motorista?.slug || motorista?.id}`
     navigator.clipboard.writeText(link)
     setLinkCopiado(true)
     setTimeout(() => setLinkCopiado(false), 2000)
@@ -500,7 +516,9 @@ export default function ConfiguracoesPage() {
   )
 
   const linkPublico = typeof window !== 'undefined'
-    ? `${window.location.origin}/agendar/${motorista?.slug || motorista?.id}`
+    ? empresaSlug
+      ? `${window.location.origin}/agendar/${empresaSlug}`
+      : `${window.location.origin}/agendar/${motorista?.slug || motorista?.id}`
     : ''
 
   return (
@@ -513,7 +531,15 @@ export default function ConfiguracoesPage() {
       <div className="px-4 py-4 flex flex-col gap-4">
 
         <Secao titulo="🔗 Link de agendamento para clientes">
-          <p className="text-xs text-gray-400 mb-3">Compartilhe este link no WhatsApp para os clientes agendarem.</p>
+          {empresaSlug ? (
+            <div className="rounded-xl p-3 mb-3" style={{ background: '#E1F5EE', border: '1px solid #9FE1CB' }}>
+              <p className="text-xs" style={{ color: '#085041' }}>
+                Este é o link da sua empresa. Compartilhe com seus passageiros para que eles possam agendar.
+              </p>
+            </div>
+          ) : (
+            <p className="text-xs text-gray-400 mb-3">Compartilhe este link no WhatsApp para os clientes agendarem.</p>
+          )}
           <div className="bg-gray-50 rounded-xl p-3 flex items-center gap-2 mb-2">
             <p className="text-xs text-gray-600 flex-1 break-all">{linkPublico}</p>
           </div>
