@@ -47,14 +47,16 @@ export default function DashboardPage() {
 
     if (motEmp) {
       setEmpresaCtx({ empresaId: motEmp.empresa_id, motEmpresaId: motEmp.id })
-      // Carrega rotas ativas da empresa (RLS: policy motorista_ve_rotas_empresa)
+      // Busca todas as rotas da empresa sem filtrar ativa no servidor:
+      // rotas transfer têm ativa = null (ou false como default do ALTER TABLE),
+      // e o .or() com is.null tem comportamento inconsistente entre versões do PostgREST.
+      // A filtragem ativa !== false é feita client-side para cobrir todos os casos.
       const { data: rotas } = await supabase
         .from('rotas_empresa')
         .select('id, nome, origem, destino, ativa')
         .eq('empresa_id', motEmp.empresa_id)
-        .or('ativa.eq.true,ativa.is.null')
-        .order('nome')
-      setRotasEmpresa(rotas || [])
+        .order('created_at', { ascending: true })
+      setRotasEmpresa((rotas || []).filter(r => r.ativa !== false))
     } else {
       setEmpresaCtx(null)
     }
