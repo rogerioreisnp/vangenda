@@ -684,6 +684,7 @@ function DashboardRotaFixa({
       dias.push({ data: dStr, total: totalAgs + totalCob, label })
     }
     setGrafico(dias)
+    console.log('dadosGrafico:', dias)
 
     setLoading(false)
   }
