@@ -587,6 +587,7 @@ function DashboardRotaFixa({
   const [passageirosHoje, setPassageirosHoje] = useState(0)
   const [receitaMes, setReceitaMes] = useState(0)
   const [aReceber, setAReceber] = useState(0)
+  const [despesasMes, setDespesasMes] = useState(0)
   const [motoristas, setMotoristas] = useState<MotEmpresa[]>([])
   const [agsHoje, setAgsHoje] = useState<AgRF[]>([])
   const [proximas, setProximas] = useState<AgRF[]>([])
@@ -628,6 +629,8 @@ function DashboardRotaFixa({
       { data: recMesData },
       { data: aReceberData },
       { data: rec7dData },
+      { data: cobMesData },
+      { data: cob7dData },
     ] = await Promise.all([
       supabase.from('agendamentos').select('*')
         .in('motorista_id', userIds).eq('data_viagem', hojeStr).neq('status', 'cancelado'),
@@ -642,15 +645,27 @@ function DashboardRotaFixa({
       supabase.from('agendamentos').select('data_viagem, valor')
         .in('motorista_id', userIds).gte('data_viagem', ha7Dias).lte('data_viagem', hojeStr)
         .neq('status', 'cancelado'),
+      supabase.from('cobrancas_empresa').select('tipo, valor, data')
+        .eq('empresa_id', empresaId).in('tipo', ['receita', 'despesa'])
+        .gte('data', inicioMes).lte('data', fimMes),
+      supabase.from('cobrancas_empresa').select('valor, data')
+        .eq('empresa_id', empresaId).eq('tipo', 'receita')
+        .gte('data', ha7Dias).lte('data', hojeStr),
     ])
 
     const hojeAgs = (agsHojeData ?? []) as AgRF[]
     const rotasUnicas = new Set(hojeAgs.map(a => `${a.parada_origem}|${a.parada_destino}|${a.turno}`))
 
+    const cobMes = cobMesData ?? []
+    const receitaAgs = (recMesData ?? []).reduce((s, a) => s + Number(a.valor), 0)
+    const receitaCob = cobMes.filter(c => c.tipo === 'receita').reduce((s, c) => s + Number(c.valor), 0)
+    const despesaCob = cobMes.filter(c => c.tipo === 'despesa').reduce((s, c) => s + Number(c.valor), 0)
+
     setAgsHoje(hojeAgs)
     setViagensHoje(rotasUnicas.size)
     setPassageirosHoje(hojeAgs.length)
-    setReceitaMes((recMesData ?? []).reduce((s, a) => s + Number(a.valor), 0))
+    setReceitaMes(receitaAgs + receitaCob)
+    setDespesasMes(despesaCob)
     setAReceber((aReceberData ?? []).reduce((s, a) => s + Number(a.valor), 0))
     setProximas((proximasData ?? []) as AgRF[])
 
@@ -660,10 +675,13 @@ function DashboardRotaFixa({
       const dStr = format(d, 'yyyy-MM-dd')
       const raw = format(d, 'EEE', { locale: ptBR })
       const label = raw.charAt(0).toUpperCase() + raw.slice(1, 3)
-      const total = (rec7dData ?? [])
+      const totalAgs = (rec7dData ?? [])
         .filter(r => r.data_viagem === dStr)
         .reduce((s, r) => s + Number(r.valor), 0)
-      dias.push({ data: dStr, total, label })
+      const totalCob = (cob7dData ?? [])
+        .filter(c => c.data === dStr)
+        .reduce((s, c) => s + Number(c.valor), 0)
+      dias.push({ data: dStr, total: totalAgs + totalCob, label })
     }
     setGrafico(dias)
 
@@ -712,6 +730,7 @@ function DashboardRotaFixa({
   const temDadosGrafico = grafico.some(d => d.total > 0)
   const totalSemana = grafico.reduce((s, d) => s + d.total, 0)
   const hojeStr = format(new Date(), 'yyyy-MM-dd')
+  const lucroMes = receitaMes - despesasMes
 
   return (
     <div className="pb-24">
@@ -742,11 +761,30 @@ function DashboardRotaFixa({
             cor="#1D9E75"
           />
           <CardMetrica
-            label="A receber"
-            valor={`R$ ${aReceber.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
-            emoji="🕐"
-            cor="#1D4ED8"
+            label="Despesas do mês"
+            valor={`R$ ${despesasMes.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
+            emoji="📤"
+            cor="#A32D2D"
           />
+        </div>
+
+        {/* Lucro do mês */}
+        <div className="rounded-2xl px-4 py-3 border flex items-center justify-between"
+          style={{
+            background: lucroMes >= 0 ? '#E1F5EE' : '#FCEBEB',
+            borderColor: lucroMes >= 0 ? '#9FE1CB' : '#FECACA',
+          }}>
+          <div>
+            <p className="text-xs font-medium" style={{ color: lucroMes >= 0 ? '#085041' : '#A32D2D' }}>
+              {lucroMes >= 0 ? '📈 Lucro do mês' : '📉 Prejuízo do mês'}
+            </p>
+            <p className="text-[10px] mt-0.5" style={{ color: lucroMes >= 0 ? '#1D9E75' : '#C0392B', opacity: 0.8 }}>
+              Receita − Despesas lançadas
+            </p>
+          </div>
+          <p className="text-xl font-bold" style={{ color: lucroMes >= 0 ? '#0F6E56' : '#A32D2D' }}>
+            R$ {Math.abs(lucroMes).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+          </p>
         </div>
 
         {/* Frota hoje */}
