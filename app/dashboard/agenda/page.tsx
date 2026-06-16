@@ -653,6 +653,7 @@ function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSa
   rotasEmpresa: { id: string; nome: string | null; origem: string | null; destino: string | null }[],
   onFechar: () => void, onSalvo: () => void
 }) {
+  console.log('empresaCtx recebido:', empresaCtx)
   const horarioIda = rotas[0]?.horario_ida?.slice(0, 5) || '05:00'
   const horarioVolta = rotas[0]?.horario_volta?.slice(0, 5) || '14:00'
   const [paradas, setParadas] = useState<any[]>([])
@@ -729,10 +730,11 @@ function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSa
   }
 
   async function carregarParadasEmpresa(rotaId: string) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('paradas_empresa')
       .select('id, nome, preco')
       .eq('rota_id', rotaId)
+    console.log('paradas_empresa retornadas:', data, 'erro:', error)
     if (data) setParadasEmpresa(data)
   }
 
@@ -783,6 +785,7 @@ function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSa
         })
       ))
     : []
+  console.log('paradasUnicas:', paradasUnicas)
 
   const rotaAtual = rotas.find(r => r.id === form.rota_id)
   const capacidade = rotaAtual?.capacidade || 15
