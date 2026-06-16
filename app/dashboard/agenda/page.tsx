@@ -686,7 +686,7 @@ function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSa
 
   useEffect(() => {
     try {
-      const raw = sessionStorage.getItem('vangenda_form_agendamento')
+      const raw = localStorage.getItem('vangenda_form_agendamento')
       if (raw) {
         const saved = JSON.parse(raw)
         if (saved.form) setForm(f => ({ ...f, ...saved.form }))
@@ -697,7 +697,7 @@ function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSa
 
   useEffect(() => {
     try {
-      sessionStorage.setItem('vangenda_form_agendamento', JSON.stringify({ form, rotaEmpresaId }))
+      localStorage.setItem('vangenda_form_agendamento', JSON.stringify({ form, rotaEmpresaId }))
     } catch {}
   }, [form, rotaEmpresaId])
 
@@ -808,7 +808,7 @@ function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSa
   const podeSalvar = !saving && !!form.nome_passageiro && !!form.parada_origem && !!form.parada_destino && !!form.valor && form.quantidade > 0
 
   function fechar() {
-    sessionStorage.removeItem('vangenda_form_agendamento')
+    localStorage.removeItem('vangenda_form_agendamento')
     onFechar()
   }
 
@@ -842,7 +842,7 @@ function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSa
       setErroSalvar('Erro ao salvar: ' + error.message)
       return
     }
-    sessionStorage.removeItem('vangenda_form_agendamento')
+    localStorage.removeItem('vangenda_form_agendamento')
     onSalvo()
   }
 

@@ -24,7 +24,7 @@ export default function ModalNovaEncomenda({ onFechar, onSalvo, nomeInicial, tel
   useEffect(() => {
     if (nomeInicial) return
     try {
-      const raw = sessionStorage.getItem('vangenda_form_encomenda')
+      const raw = localStorage.getItem('vangenda_form_encomenda')
       if (raw) {
         const saved = JSON.parse(raw)
         if (saved) setForm(f => ({ ...f, ...saved }))
@@ -35,12 +35,12 @@ export default function ModalNovaEncomenda({ onFechar, onSalvo, nomeInicial, tel
   useEffect(() => {
     if (nomeInicial) return
     try {
-      sessionStorage.setItem('vangenda_form_encomenda', JSON.stringify(form))
+      localStorage.setItem('vangenda_form_encomenda', JSON.stringify(form))
     } catch {}
   }, [form])
 
   function fechar() {
-    if (!nomeInicial) sessionStorage.removeItem('vangenda_form_encomenda')
+    if (!nomeInicial) localStorage.removeItem('vangenda_form_encomenda')
     onFechar()
   }
 
@@ -90,7 +90,7 @@ export default function ModalNovaEncomenda({ onFechar, onSalvo, nomeInicial, tel
       })
     }
     setSaving(false)
-    if (!nomeInicial) sessionStorage.removeItem('vangenda_form_encomenda')
+    if (!nomeInicial) localStorage.removeItem('vangenda_form_encomenda')
     onSalvo()
   }
 
