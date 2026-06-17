@@ -1361,7 +1361,15 @@ function ModalListaPDF({
           <p className="text-xs font-medium text-gray-500 mb-1">Turno</p>
           <div className="grid grid-cols-2 gap-2">
             {(['ida', 'volta'] as const).map(t => (
-              <button key={t} onClick={() => setForm(f => ({ ...f, turno_filtro: t }))}
+              <button key={t} onClick={() => setForm(f => ({
+                ...f,
+                turno_filtro: t,
+                horario_saida: t === 'ida'
+                  ? rotaPrimaria?.horario_ida?.slice(0, 5) || f.horario_saida
+                  : rotaPrimaria?.horario_volta?.slice(0, 5) || f.horario_saida,
+                origem: t !== f.turno_filtro ? f.destino : f.origem,
+                destino: t !== f.turno_filtro ? f.origem : f.destino,
+              }))}
                 className="py-2.5 rounded-xl text-sm font-medium border transition-all"
                 style={form.turno_filtro === t
                   ? { background: '#0F6E56', color: '#fff', borderColor: '#0F6E56' }
