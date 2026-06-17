@@ -1173,7 +1173,12 @@ function ModalListaPDF({
   onFechar: () => void
 }) {
   const [form, setForm] = useState({
+    turno_filtro: 'ida' as 'ida' | 'volta',
+    nome_empresa: '',
+    razao_social: '',
+    cnpj: '',
     placa: '',
+    motorista: nomeMotorista,
     origem: '',
     destino: '',
     horario_saida: rotaPrimaria?.horario_ida?.slice(0, 5) || '',
@@ -1183,16 +1188,38 @@ function ModalListaPDF({
   })
   const [gerando, setGerando] = useState(false)
 
+  const passageirosFiltrados = agsDoDia.filter(a => a.turno === form.turno_filtro)
+
   useEffect(() => {
     try {
-      const saved = localStorage.getItem('vangenda_pdf_placa')
-      if (saved) setForm(f => ({ ...f, placa: saved }))
+      const savedPlaca = localStorage.getItem('vangenda_pdf_placa')
+      const savedEmpresa = localStorage.getItem('vangenda_pdf_empresa')
+      const updates: Partial<typeof form> = {}
+      if (savedPlaca) updates.placa = savedPlaca
+      if (savedEmpresa) {
+        const parsed = JSON.parse(savedEmpresa)
+        if (parsed.nome_empresa) updates.nome_empresa = parsed.nome_empresa
+        if (parsed.razao_social) updates.razao_social = parsed.razao_social
+        if (parsed.cnpj) updates.cnpj = parsed.cnpj
+      }
+      if (Object.keys(updates).length > 0) setForm(f => ({ ...f, ...updates }))
     } catch {}
   }, [])
 
+  useEffect(() => {
+    setForm(f => ({ ...f, motorista: nomeMotorista }))
+  }, [nomeMotorista])
+
   async function gerarPDF() {
     setGerando(true)
-    try { localStorage.setItem('vangenda_pdf_placa', form.placa) } catch {}
+    try {
+      localStorage.setItem('vangenda_pdf_placa', form.placa)
+      localStorage.setItem('vangenda_pdf_empresa', JSON.stringify({
+        nome_empresa: form.nome_empresa,
+        razao_social: form.razao_social,
+        cnpj: form.cnpj,
+      }))
+    } catch {}
 
     const { jsPDF } = await import('jspdf')
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
@@ -1217,19 +1244,51 @@ function ModalListaPDF({
       doc.text(trunc(val || '—'), cx + 2, cy + 10.5)
     }
 
-    let y = 18
-    doc.setFontSize(12)
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(0, 0, 0)
-    doc.text('LISTA DE PASSAGEIROS — FRETAMENTO', pageW / 2, y, { align: 'center' })
-    y += 9
+    let y = 15
+
+    // Cabeçalho da empresa
+    if (form.nome_empresa) {
+      doc.setFontSize(16)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(0, 0, 0)
+      doc.text(form.nome_empresa.toUpperCase(), pageW / 2, y, { align: 'center' })
+      y += 7
+    }
+
+    if (form.razao_social || form.cnpj) {
+      const partes: string[] = []
+      if (form.razao_social) partes.push(form.razao_social)
+      if (form.cnpj) partes.push(`CNPJ: ${form.cnpj}`)
+      doc.setFontSize(9)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(60, 60, 60)
+      doc.text(partes.join('   |   '), pageW / 2, y, { align: 'center' })
+      y += 6
+    }
+
+    if (form.nome_empresa) {
+      doc.setDrawColor(180, 180, 180)
+      doc.line(mg, y, mg + W, y)
+      y += 5
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(30, 30, 30)
+      doc.text('LISTA DE PASSAGEIROS — FRETAMENTO', pageW / 2, y, { align: 'center' })
+      y += 7
+    } else {
+      doc.setFontSize(12)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(0, 0, 0)
+      doc.text('LISTA DE PASSAGEIROS — FRETAMENTO', pageW / 2, y, { align: 'center' })
+      y += 9
+    }
 
     const rowH = 14
     const half = W / 2
     const third = W / 3
 
     cell(mg, y, half, rowH, 'PLACA', form.placa)
-    cell(mg + half, y, half, rowH, 'MOTORISTA', nomeMotorista)
+    cell(mg + half, y, half, rowH, 'MOTORISTA', form.motorista)
     y += rowH
 
     cell(mg, y, half, rowH, 'ORIGEM DA VIAGEM', form.origem)
@@ -1238,7 +1297,7 @@ function ModalListaPDF({
 
     cell(mg, y, third, rowH, 'HORÁRIO DE SAÍDA', form.horario_saida)
     cell(mg + third, y, third, rowH, 'HORÁRIO DA VOLTA', form.horario_volta)
-    cell(mg + 2 * third, y, third, rowH, 'QUANTIDADE DE PASSAGEIROS', String(agsDoDia.length))
+    cell(mg + 2 * third, y, third, rowH, 'QUANTIDADE DE PASSAGEIROS', String(passageirosFiltrados.length))
     y += rowH
 
     cell(mg, y, half, rowH, 'DATA DA SAÍDA', fmtDate(form.data_saida))
@@ -1257,7 +1316,7 @@ function ModalListaPDF({
     y += hdrH
 
     const passH = 9
-    agsDoDia.forEach((ag, i) => {
+    passageirosFiltrados.forEach((ag, i) => {
       if (y + passH > 280) { doc.addPage(); y = 20 }
       if (i % 2 === 1) { doc.setFillColor(245, 245, 245); doc.rect(mg, y, W, passH, 'F') }
       doc.setDrawColor(200, 200, 200)
@@ -1266,7 +1325,7 @@ function ModalListaPDF({
       doc.setTextColor(30, 30, 30)
       doc.setFontSize(8.5)
       doc.setFont('helvetica', 'normal')
-      doc.text(`${i + 1}.  ${trunc(ag.nome_passageiro, 40)}`, mg + 3, y + 6.2)
+      doc.text(`${i + 1}.  ${trunc(ag.nome_passageiro.toUpperCase(), 40)}`, mg + 3, y + 6.2)
       y += passH
     })
 
@@ -1279,7 +1338,8 @@ function ModalListaPDF({
       pageW / 2, y, { align: 'center' }
     )
 
-    doc.save(`lista-passageiros-${format(diaSelecionado, 'dd-MM-yyyy')}.pdf`)
+    const turnoLabel = form.turno_filtro === 'ida' ? 'ida' : 'volta'
+    doc.save(`lista-passageiros-${turnoLabel}-${format(diaSelecionado, 'dd-MM-yyyy')}.pdf`)
     setGerando(false)
   }
 
@@ -1290,20 +1350,80 @@ function ModalListaPDF({
         <div>
           <p style={{ color: '#E1F5EE' }} className="text-sm font-semibold">Lista de Passageiros</p>
           <p style={{ color: '#5DCAA5' }} className="text-xs">
-            {format(diaSelecionado, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })} · {agsDoDia.length} passageiro{agsDoDia.length !== 1 ? 's' : ''}
+            {format(diaSelecionado, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })} · {passageirosFiltrados.length} passageiro{passageirosFiltrados.length !== 1 ? 's' : ''}
           </p>
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
-        <div className="bg-white rounded-2xl p-4 border border-gray-100">
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Passageiros incluídos no PDF</p>
-          {agsDoDia.map((ag, i) => (
-            <p key={ag.id} className="text-sm text-gray-700 py-1.5 border-b border-gray-50 last:border-0">
-              {i + 1}. {ag.nome_passageiro}
-            </p>
-          ))}
+
+        {/* Seletor de turno */}
+        <div>
+          <p className="text-xs font-medium text-gray-500 mb-1">Turno</p>
+          <div className="grid grid-cols-2 gap-2">
+            {(['ida', 'volta'] as const).map(t => (
+              <button key={t} onClick={() => setForm(f => ({ ...f, turno_filtro: t }))}
+                className="py-2.5 rounded-xl text-sm font-medium border transition-all"
+                style={form.turno_filtro === t
+                  ? { background: '#0F6E56', color: '#fff', borderColor: '#0F6E56' }
+                  : { background: '#fff', color: '#666', borderColor: '#e5e7eb' }}>
+                {t === 'ida' ? '↑ Ida' : '↓ Volta'}
+              </button>
+            ))}
+          </div>
         </div>
+
+        {/* Preview dos passageiros filtrados */}
+        <div className="bg-white rounded-2xl p-4 border border-gray-100">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
+            Passageiros no PDF ({passageirosFiltrados.length})
+          </p>
+          {passageirosFiltrados.length === 0 ? (
+            <p className="text-sm text-gray-400">Nenhum passageiro neste turno</p>
+          ) : (
+            passageirosFiltrados.map((ag, i) => (
+              <p key={ag.id} className="text-sm text-gray-700 py-1.5 border-b border-gray-50 last:border-0">
+                {i + 1}. {ag.nome_passageiro}
+              </p>
+            ))
+          )}
+        </div>
+
+        {/* Dados da empresa */}
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mt-1">Dados da empresa</p>
+
+        <div>
+          <p className="text-xs font-medium text-gray-500 mb-1">Nome da empresa</p>
+          <input
+            value={form.nome_empresa}
+            onChange={e => setForm(f => ({ ...f, nome_empresa: e.target.value }))}
+            placeholder="Ex: Transportes Silva"
+            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600 bg-white"
+          />
+        </div>
+
+        <div>
+          <p className="text-xs font-medium text-gray-500 mb-1">Razão social</p>
+          <input
+            value={form.razao_social}
+            onChange={e => setForm(f => ({ ...f, razao_social: e.target.value }))}
+            placeholder="Ex: Silva Transportes ME"
+            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600 bg-white"
+          />
+        </div>
+
+        <div>
+          <p className="text-xs font-medium text-gray-500 mb-1">CNPJ</p>
+          <input
+            value={form.cnpj}
+            onChange={e => setForm(f => ({ ...f, cnpj: e.target.value }))}
+            placeholder="Ex: 00.000.000/0001-00"
+            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600 bg-white"
+          />
+        </div>
+
+        {/* Dados da viagem */}
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mt-1">Dados da viagem</p>
 
         <div>
           <p className="text-xs font-medium text-gray-500 mb-1">Placa do veículo</p>
@@ -1311,6 +1431,15 @@ function ModalListaPDF({
             value={form.placa}
             onChange={e => setForm(f => ({ ...f, placa: e.target.value.toUpperCase() }))}
             placeholder="Ex: ABC-1234"
+            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600 bg-white"
+          />
+        </div>
+
+        <div>
+          <p className="text-xs font-medium text-gray-500 mb-1">Motorista</p>
+          <input
+            value={form.motorista}
+            onChange={e => setForm(f => ({ ...f, motorista: e.target.value }))}
             className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600 bg-white"
           />
         </div>
@@ -1384,7 +1513,7 @@ function ModalListaPDF({
       <div style={{ padding: '8px 16px 80px', background: 'white', borderTop: '1px solid #e5e7eb' }}>
         <button
           onClick={gerarPDF}
-          disabled={gerando}
+          disabled={gerando || passageirosFiltrados.length === 0}
           className="w-full py-3.5 rounded-xl text-white text-sm font-semibold disabled:opacity-40 flex items-center justify-center gap-2"
           style={{ background: '#185FA5' }}>
           {gerando ? 'Gerando PDF...' : '📄 Gerar e baixar PDF'}
