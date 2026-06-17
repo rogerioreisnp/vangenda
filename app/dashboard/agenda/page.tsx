@@ -1232,7 +1232,7 @@ function ModalListaPDF({
     function fmtDate(d: string) { return d ? new Date(d + 'T00:00:00').toLocaleDateString('pt-BR') : '—' }
 
     function cell(cx: number, cy: number, cw: number, ch: number, lbl: string, val: string) {
-      doc.setDrawColor(160, 160, 160)
+      doc.setDrawColor(0, 0, 0)
       doc.rect(cx, cy, cw, ch)
       doc.setFontSize(6.5)
       doc.setFont('helvetica', 'bold')
@@ -1252,36 +1252,34 @@ function ModalListaPDF({
       doc.setFont('helvetica', 'bold')
       doc.setTextColor(0, 0, 0)
       doc.text(form.nome_empresa.toUpperCase(), pageW / 2, y, { align: 'center' })
-      y += 7
+      y += 8
     }
 
-    if (form.razao_social || form.cnpj) {
-      const partes: string[] = []
-      if (form.razao_social) partes.push(form.razao_social)
-      if (form.cnpj) partes.push(`CNPJ: ${form.cnpj}`)
-      doc.setFontSize(9)
+    if (form.razao_social) {
+      doc.setFontSize(10)
       doc.setFont('helvetica', 'normal')
       doc.setTextColor(60, 60, 60)
-      doc.text(partes.join('   |   '), pageW / 2, y, { align: 'center' })
-      y += 6
+      doc.text(form.razao_social, pageW / 2, y, { align: 'center' })
+      y += 5
     }
 
-    if (form.nome_empresa) {
-      doc.setDrawColor(180, 180, 180)
-      doc.line(mg, y, mg + W, y)
-      y += 5
+    if (form.cnpj) {
       doc.setFontSize(10)
-      doc.setFont('helvetica', 'bold')
-      doc.setTextColor(30, 30, 30)
-      doc.text('LISTA DE PASSAGEIROS — FRETAMENTO', pageW / 2, y, { align: 'center' })
-      y += 7
-    } else {
-      doc.setFontSize(12)
-      doc.setFont('helvetica', 'bold')
-      doc.setTextColor(0, 0, 0)
-      doc.text('LISTA DE PASSAGEIROS — FRETAMENTO', pageW / 2, y, { align: 'center' })
-      y += 9
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(60, 60, 60)
+      doc.text(`CNPJ: ${form.cnpj}`, pageW / 2, y, { align: 'center' })
+      y += 5
     }
+
+    if (form.nome_empresa || form.razao_social || form.cnpj) {
+      y += 10
+    }
+
+    doc.setFontSize(form.nome_empresa ? 10 : 12)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(20, 20, 20)
+    doc.text('LISTA DE PASSAGEIROS — FRETAMENTO', pageW / 2, y, { align: 'center' })
+    y += 9
 
     const rowH = 14
     const half = W / 2
@@ -1319,7 +1317,7 @@ function ModalListaPDF({
     passageirosFiltrados.forEach((ag, i) => {
       if (y + passH > 280) { doc.addPage(); y = 20 }
       if (i % 2 === 1) { doc.setFillColor(245, 245, 245); doc.rect(mg, y, W, passH, 'F') }
-      doc.setDrawColor(200, 200, 200)
+      doc.setDrawColor(0, 0, 0)
       doc.rect(mg, y, W, passH)
       doc.line(mg + nameW, y, mg + nameW, y + passH)
       doc.setTextColor(30, 30, 30)
