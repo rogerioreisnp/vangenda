@@ -226,13 +226,16 @@ export default function EmpresaPage() {
     if (periodo === 'semana') {
       const ha7 = format(subDays(agora, 6), 'yyyy-MM-dd')
       const hoje = format(agora, 'yyyy-MM-dd')
-      const [{ data: corrData }, { data: despData }] = await Promise.all([
+      const [{ data: corrData, error: errCorr }, { data: despData, error: errDesp }] = await Promise.all([
         supabase.from('corridas_empresa').select('data_hora, valor')
           .eq('empresa_id', eid).neq('status', 'cancelada')
           .gte('data_hora', `${ha7}T00:00:00`).lte('data_hora', `${hoje}T23:59:59`),
         supabase.from('despesas_empresa').select('data, valor')
           .eq('empresa_id', eid).gte('data', ha7).lte('data', hoje),
       ])
+      if (errCorr) console.error('[grafico] corridas_empresa erro:', errCorr)
+      if (errDesp) console.error('[grafico] despesas_empresa erro:', errDesp)
+      console.log('[grafico] semana — corridas:', corrData?.length, '| despesas:', despData?.length, despData)
       const pontos: DiaSemanaRF[] = []
       for (let i = 6; i >= 0; i--) {
         const d = subDays(agora, i)
