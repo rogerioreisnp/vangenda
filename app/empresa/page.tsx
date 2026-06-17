@@ -113,13 +113,20 @@ export default function EmpresaPage() {
   const [corridasSemMotorista, setCorridasSemMotorista] = useState(0)
 
   const [proximas, setProximas] = useState<ProximaCorrida[]>([])
-  const [grafico, setGrafico] = useState<DiaSemana[]>([])
+  const [periodoGraficoTransfer, setPeriodoGraficoTransfer] = useState<'semana' | 'mes' | 'ano'>('semana')
+  const [graficoTransfer, setGraficoTransfer] = useState<DiaSemanaRF[]>([])
+  const [loadingGraficoTransfer, setLoadingGraficoTransfer] = useState(false)
 
   const [loading, setLoading] = useState(true)
   const [empresaId, setEmpresaId] = useState<string | null>(null)
   const [tipoOperacao, setTipoOperacao] = useState<string | null>(null)
 
   useEffect(() => { carregarDados() }, [])
+  useEffect(() => {
+    if (empresaId && tipoOperacao && tipoOperacao !== 'rota_fixa') {
+      carregarGraficoTransfer(periodoGraficoTransfer, empresaId)
+    }
+  }, [periodoGraficoTransfer])
 
   async function carregarDados() {
     const { data: { session } } = await supabase.auth.getSession()
@@ -154,6 +161,7 @@ export default function EmpresaPage() {
       setLoading(false)
       return
     }
+    setEmpresaId(eid)
     setTipoOperacao(empresa?.tipo_operacao || 'transfer')
 
     await supabase.from('corridas_empresa')
@@ -167,8 +175,6 @@ export default function EmpresaPage() {
     const hoje = format(agora, 'yyyy-MM-dd')
     const inicioMes = format(startOfMonth(agora), 'yyyy-MM-dd')
     const fimMes = format(endOfMonth(agora), 'yyyy-MM-dd')
-    const ha7Dias = format(subDays(agora, 6), 'yyyy-MM-dd')
-
     const [
       { data: cHoje },
       { data: mAtivos },
@@ -177,7 +183,6 @@ export default function EmpresaPage() {
       { data: cConf },
       { data: cSemMot },
       { data: prox },
-      { data: rec7d },
     ] = await Promise.all([
       supabase.from('corridas_empresa').select('id, created_at, cliente_nome, origem, destino').eq('empresa_id', eid)
         .gte('data_hora', `${hoje}T00:00:00`).lte('data_hora', `${hoje}T23:59:59`)
@@ -198,8 +203,6 @@ export default function EmpresaPage() {
         .select('id, origem, destino, data_hora, created_at, valor, status, cliente_nome, motoristas_empresa(nome)')
         .eq('empresa_id', eid).gte('data_hora', agoraISO)
         .order('data_hora').limit(5),
-      supabase.from('corridas_empresa').select('data_hora, valor').eq('empresa_id', eid)
-        .neq('status', 'cancelada').gte('data_hora', `${ha7Dias}T00:00:00`),
     ])
 
     setCorridasHoje(contarContratos(cHoje ?? []))
@@ -210,21 +213,85 @@ export default function EmpresaPage() {
     setCorridasSemMotorista(cSemMot?.length ?? 0)
     setProximas((prox as any) ?? [])
 
-    // Monta os 7 dias com totais
-    const dias: DiaSemana[] = []
-    for (let i = 6; i >= 0; i--) {
-      const d = subDays(agora, i)
-      const dStr = format(d, 'yyyy-MM-dd')
-      const raw = format(d, 'EEE', { locale: ptBR })
-      const label = raw.charAt(0).toUpperCase() + raw.slice(1, 3)
-      const total = (rec7d ?? [])
-        .filter(r => format(new Date(r.data_hora), 'yyyy-MM-dd') === dStr)
-        .reduce((s, r) => s + (Number(r.valor) || 0), 0)
-      dias.push({ data: dStr, total, label })
-    }
-    setGrafico(dias)
+    await carregarGraficoTransfer('semana', eid)
 
     setLoading(false)
+  }
+
+  async function carregarGraficoTransfer(periodo: 'semana' | 'mes' | 'ano', eid: string) {
+    setLoadingGraficoTransfer(true)
+    const agora = new Date()
+    const anoAtual = agora.getFullYear()
+
+    if (periodo === 'semana') {
+      const ha7 = format(subDays(agora, 6), 'yyyy-MM-dd')
+      const hoje = format(agora, 'yyyy-MM-dd')
+      const [{ data: corrData }, { data: despData }] = await Promise.all([
+        supabase.from('corridas_empresa').select('data_hora, valor')
+          .eq('empresa_id', eid).neq('status', 'cancelada')
+          .gte('data_hora', `${ha7}T00:00:00`).lte('data_hora', `${hoje}T23:59:59`),
+        supabase.from('despesas_empresa').select('data, valor')
+          .eq('empresa_id', eid).gte('data', ha7).lte('data', hoje),
+      ])
+      const pontos: DiaSemanaRF[] = []
+      for (let i = 6; i >= 0; i--) {
+        const d = subDays(agora, i)
+        const dStr = format(d, 'yyyy-MM-dd')
+        const raw = format(d, 'EEE', { locale: ptBR })
+        const label = raw.charAt(0).toUpperCase() + raw.slice(1, 3)
+        const receita = (corrData ?? []).filter(r => r.data_hora.slice(0, 10) === dStr).reduce((s, r) => s + Number(r.valor), 0)
+        const despesa = (despData ?? []).filter(d => d.data === dStr).reduce((s, d) => s + Number(d.valor), 0)
+        pontos.push({ data: dStr, receita, despesa, label })
+      }
+      setGraficoTransfer(pontos)
+
+    } else if (periodo === 'mes') {
+      const ini = format(startOfMonth(agora), 'yyyy-MM-dd')
+      const fim = format(endOfMonth(agora), 'yyyy-MM-dd')
+      const [{ data: corrData }, { data: despData }] = await Promise.all([
+        supabase.from('corridas_empresa').select('data_hora, valor')
+          .eq('empresa_id', eid).neq('status', 'cancelada')
+          .gte('data_hora', `${ini}T00:00:00`).lte('data_hora', `${fim}T23:59:59`),
+        supabase.from('despesas_empresa').select('data, valor')
+          .eq('empresa_id', eid).gte('data', ini).lte('data', fim),
+      ])
+      const totalDias = endOfMonth(agora).getDate()
+      const semanasConf = [
+        { label: 'Sem 1', ini: 1,  fim: 7  },
+        { label: 'Sem 2', ini: 8,  fim: 14 },
+        { label: 'Sem 3', ini: 15, fim: 21 },
+        { label: 'Sem 4', ini: 22, fim: 28 },
+        ...(totalDias > 28 ? [{ label: 'Sem 5', ini: 29, fim: totalDias }] : []),
+      ]
+      const pontos: DiaSemanaRF[] = semanasConf.map(s => {
+        const inRange = (dateStr: string) => { const day = +dateStr.slice(8, 10); return day >= s.ini && day <= s.fim }
+        const receita = (corrData ?? []).filter(r => inRange(r.data_hora.slice(0, 10))).reduce((sum, r) => sum + Number(r.valor), 0)
+        const despesa = (despData ?? []).filter(d => inRange(d.data)).reduce((sum, d) => sum + Number(d.valor), 0)
+        return { data: s.label, receita, despesa, label: s.label }
+      })
+      setGraficoTransfer(pontos)
+
+    } else {
+      const inicioAno = `${anoAtual}-01-01`
+      const fimAno   = `${anoAtual}-12-31`
+      const [{ data: corrData }, { data: despData }] = await Promise.all([
+        supabase.from('corridas_empresa').select('data_hora, valor')
+          .eq('empresa_id', eid).neq('status', 'cancelada')
+          .gte('data_hora', `${inicioAno}T00:00:00`).lte('data_hora', `${fimAno}T23:59:59`),
+        supabase.from('despesas_empresa').select('data, valor')
+          .eq('empresa_id', eid).gte('data', inicioAno).lte('data', fimAno),
+      ])
+      const mesesLabel = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+      const pontos: DiaSemanaRF[] = mesesLabel.map((label, idx) => {
+        const prefix = `${anoAtual}-${String(idx + 1).padStart(2, '0')}`
+        const receita = (corrData ?? []).filter(r => r.data_hora.startsWith(prefix)).reduce((s, r) => s + Number(r.valor), 0)
+        const despesa = (despData ?? []).filter(d => d.data.startsWith(prefix)).reduce((s, d) => s + Number(d.valor), 0)
+        return { data: prefix, receita, despesa, label }
+      })
+      setGraficoTransfer(pontos)
+    }
+
+    setLoadingGraficoTransfer(false)
   }
 
   const hora = new Date().getHours()
@@ -242,9 +309,12 @@ export default function EmpresaPage() {
     return <DashboardRotaFixa nomeGestor={nomeGestor} nomeEmpresa={nomeEmpresa} empresaId={empresaId} />
   }
 
-  const maxReceita = Math.max(...grafico.map(d => d.total), 1)
-  const temDadosGrafico = grafico.some(d => d.total > 0)
-  const totalSemana = grafico.reduce((s, d) => s + d.total, 0)
+  const hojeStr = format(new Date(), 'yyyy-MM-dd')
+  const maxBarTransfer = Math.max(...graficoTransfer.map(d => Math.max(d.receita, d.despesa)), 1)
+  const temDadosGraficoTransfer = graficoTransfer.some(d => d.receita > 0 || d.despesa > 0)
+  const totalRecTransfer = graficoTransfer.reduce((s, d) => s + d.receita, 0)
+  const totalDespTransfer = graficoTransfer.reduce((s, d) => s + d.despesa, 0)
+  const lucroTransfer = totalRecTransfer - totalDespTransfer
 
   return (
     <div className="pb-24">
@@ -413,55 +483,110 @@ export default function EmpresaPage() {
           )}
         </div>
 
-        {/* Gráfico de barras — receita 7 dias */}
+        {/* Gráfico comparativo Receita x Despesa */}
         <div className="bg-white rounded-2xl p-4 border border-gray-100"
           style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
-          <div className="flex items-baseline justify-between mb-3">
-            <p className="text-sm font-semibold text-gray-700">Receita — últimos 7 dias</p>
-            {temDadosGrafico && (
-              <p className="text-xs font-semibold" style={{ color: '#0F6E56' }}>
-                R$ {totalSemana.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-              </p>
-            )}
+
+          <div className="flex gap-1.5 mb-3">
+            {(['semana', 'mes', 'ano'] as const).map(p => (
+              <button key={p} onClick={() => setPeriodoGraficoTransfer(p)}
+                className="flex-1 py-1.5 rounded-lg text-[11px] font-semibold"
+                style={periodoGraficoTransfer === p
+                  ? { background: '#0F6E56', color: '#fff' }
+                  : { background: '#f3f4f6', color: '#9ca3af' }}>
+                {p === 'semana' ? 'Semana' : p === 'mes' ? 'Mês' : 'Ano'}
+              </button>
+            ))}
           </div>
 
-          {!temDadosGrafico ? (
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-semibold text-gray-700">Receita x Despesa</p>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1">
+                <div className="w-2.5 h-2.5 rounded-sm" style={{ background: '#1D9E75' }} />
+                <span className="text-[10px] text-gray-500">Receita</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-2.5 h-2.5 rounded-sm" style={{ background: '#E24B4A' }} />
+                <span className="text-[10px] text-gray-500">Despesa</span>
+              </div>
+            </div>
+          </div>
+
+          {loadingGraficoTransfer ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="text-2xl animate-pulse">📊</div>
+            </div>
+          ) : !temDadosGraficoTransfer ? (
             <div className="text-center py-5">
-              <p className="text-xs text-gray-400">Nenhuma receita registrada nos últimos 7 dias</p>
+              <p className="text-xs text-gray-400">Nenhum dado no período</p>
             </div>
           ) : (
-            <div className="flex gap-1.5" style={{ height: '80px' }}>
-              {grafico.map((d, i) => {
-                const barH = maxReceita > 0
-                  ? Math.round((d.total / maxReceita) * 56)
-                  : 0
-                const eHoje = d.data === format(new Date(), 'yyyy-MM-dd')
-                return (
-                  <div key={i} className="flex-1 flex flex-col items-center">
-                    {/* área da barra */}
-                    <div className="flex-1 w-full flex items-end">
-                      <div
-                        className="w-full rounded-t-sm transition-all"
+            <div>
+              <div className="flex items-end" style={{ height: '64px', gap: graficoTransfer.length > 7 ? '2px' : '6px' }}>
+                {graficoTransfer.map((d, i) => {
+                  const recH  = maxBarTransfer > 0 ? Math.max(Math.round((d.receita / maxBarTransfer) * 60), d.receita  > 0 ? 4 : 0) : 0
+                  const despH = maxBarTransfer > 0 ? Math.max(Math.round((d.despesa / maxBarTransfer) * 60), d.despesa > 0 ? 4 : 0) : 0
+                  const anoMesAtual = format(new Date(), 'yyyy-MM')
+                  const eHoje = periodoGraficoTransfer === 'semana'
+                    ? d.data === hojeStr
+                    : periodoGraficoTransfer === 'ano'
+                      ? d.data === anoMesAtual
+                      : false
+                  return (
+                    <div key={i} className="flex-1 flex items-end gap-px">
+                      <div className="flex-1 rounded-t-sm"
                         style={{
-                          height: d.total > 0 ? `${Math.max(barH, 4)}px` : '2px',
-                          background: d.total > 0
-                            ? (eHoje ? '#0F6E56' : '#1D9E75')
-                            : '#f0f0ec',
-                        }}
-                      />
+                          height: d.receita > 0 ? `${recH}px` : '2px',
+                          background: d.receita > 0 ? '#1D9E75' : '#e5e7eb',
+                          opacity: eHoje ? 1 : 0.72,
+                        }} />
+                      <div className="flex-1 rounded-t-sm"
+                        style={{
+                          height: d.despesa > 0 ? `${despH}px` : '2px',
+                          background: d.despesa > 0 ? '#E24B4A' : '#e5e7eb',
+                          opacity: eHoje ? 1 : 0.72,
+                        }} />
                     </div>
-                    {/* label dia */}
-                    <p className="mt-1.5 leading-none"
-                      style={{
-                        fontSize: '8px',
-                        color: eHoje ? '#0F6E56' : '#9ca3af',
-                        fontWeight: eHoje ? 700 : 400,
-                      }}>
+                  )
+                })}
+              </div>
+              <div className="flex mt-1.5" style={{ gap: graficoTransfer.length > 7 ? '2px' : '6px' }}>
+                {graficoTransfer.map((d, i) => {
+                  const anoMesAtual = format(new Date(), 'yyyy-MM')
+                  const eHoje = periodoGraficoTransfer === 'semana'
+                    ? d.data === hojeStr
+                    : periodoGraficoTransfer === 'ano'
+                      ? d.data === anoMesAtual
+                      : false
+                  return (
+                    <p key={i} className="flex-1 text-center leading-none"
+                      style={{ fontSize: '8px', color: eHoje ? '#0F6E56' : '#9ca3af', fontWeight: eHoje ? 700 : 400 }}>
                       {d.label}
                     </p>
-                  </div>
-                )
-              })}
+                  )
+                })}
+              </div>
+              <div className="flex justify-around mt-3 pt-3 border-t border-gray-50">
+                <div className="text-center">
+                  <p className="text-[10px] text-gray-400 mb-0.5">Receita</p>
+                  <p className="text-xs font-bold" style={{ color: '#1D9E75' }}>
+                    R$ {totalRecTransfer.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                  </p>
+                </div>
+                <div className="text-center">
+                  <p className="text-[10px] text-gray-400 mb-0.5">Despesa</p>
+                  <p className="text-xs font-bold" style={{ color: '#E24B4A' }}>
+                    R$ {totalDespTransfer.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                  </p>
+                </div>
+                <div className="text-center">
+                  <p className="text-[10px] text-gray-400 mb-0.5">Lucro</p>
+                  <p className="text-xs font-bold" style={{ color: lucroTransfer >= 0 ? '#0F6E56' : '#E24B4A' }}>
+                    R$ {Math.abs(lucroTransfer).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                  </p>
+                </div>
+              </div>
             </div>
           )}
         </div>
