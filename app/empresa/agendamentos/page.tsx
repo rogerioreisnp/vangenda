@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 
 type RotaOpcao = {
   id: string
+  nome: string | null
   origem: string
   destino: string
   preco: number
@@ -15,6 +16,7 @@ type RotaOpcao = {
 type MotoristaOpcao = {
   id: string
   nome: string
+  user_id: string | null
 }
 
 type Corrida = {
@@ -77,6 +79,34 @@ const FORM_VAZIO: FormCorrida = {
   valor_recebido: '',
   preco: '',
   observacoes: '',
+}
+
+type FormAgPassageiro = {
+  rota_empresa_id: string
+  embarque: string
+  desembarque: string
+  valor: string
+  nome_passageiro: string
+  telefone_passageiro: string
+  data_viagem: string
+  turno: 'ida' | 'volta'
+  forma_pagamento: string
+  observacoes: string
+  motorista_empresa_id: string
+}
+
+const FORM_AG_VAZIO: FormAgPassageiro = {
+  rota_empresa_id: '',
+  embarque: '',
+  desembarque: '',
+  valor: '',
+  nome_passageiro: '',
+  telefone_passageiro: '',
+  data_viagem: '',
+  turno: 'ida',
+  forma_pagamento: 'dinheiro',
+  observacoes: '',
+  motorista_empresa_id: '',
 }
 
 const STATUS_COR: Record<string, { bg: string; text: string; label: string }> = {
@@ -153,6 +183,13 @@ export default function AgendamentosPage() {
   } | null>(null)
   const [corridaEditando, setCorridaEditando] = useState<Corrida | null>(null)
   const [voltaIdEditando, setVoltaIdEditando] = useState<string | null>(null)
+  const [modalAgAberto, setModalAgAberto] = useState(false)
+  const [formAg, setFormAg] = useState<FormAgPassageiro>(FORM_AG_VAZIO)
+  const [trechosRF, setTrechosRF] = useState<{ nome: string; preco: number }[]>([])
+  const [paradasUnicasRF, setParadasUnicasRF] = useState<string[]>([])
+  const [valorTrechoRF, setValorTrechoRF] = useState<number | null>(null)
+  const [salvandoAg, setSalvandoAg] = useState(false)
+  const [erroAg, setErroAg] = useState('')
 
   useEffect(() => { carregarDados() }, [])
 
@@ -189,12 +226,12 @@ export default function AgendamentosPage() {
         .single(),
       supabase
         .from('rotas_empresa')
-        .select('id, origem, destino, preco, motorista_id')
+        .select('id, nome, origem, destino, preco, motorista_id')
         .eq('empresa_id', gestor.empresa_id)
         .order('created_at'),
       supabase
         .from('motoristas_empresa')
-        .select('id, nome')
+        .select('id, nome, user_id')
         .eq('empresa_id', gestor.empresa_id)
         .eq('status', 'ativo')
         .order('nome'),
@@ -392,6 +429,79 @@ export default function AgendamentosPage() {
     setCorridas(prev => prev.filter(c => !ids.includes(c.id)))
   }
 
+  function abrirAgPassageiro() {
+    setFormAg(FORM_AG_VAZIO)
+    setTrechosRF([])
+    setParadasUnicasRF([])
+    setValorTrechoRF(null)
+    setErroAg('')
+    setModalAgAberto(true)
+  }
+
+  async function selecionarRotaAg(rotaId: string) {
+    setFormAg(f => ({ ...f, rota_empresa_id: rotaId, embarque: '', desembarque: '' }))
+    setValorTrechoRF(null)
+    if (!rotaId) {
+      setTrechosRF([])
+      setParadasUnicasRF([])
+      return
+    }
+    const { data } = await supabase
+      .from('paradas_empresa')
+      .select('nome, preco')
+      .eq('rota_id', rotaId)
+    const trechos = (data || []) as { nome: string; preco: number }[]
+    setTrechosRF(trechos)
+    const paradas = new Set<string>()
+    trechos.forEach(t => {
+      const partes = t.nome.split(' → ')
+      if (partes.length === 2) {
+        paradas.add(partes[0].trim())
+        paradas.add(partes[1].trim())
+      }
+    })
+    setParadasUnicasRF(Array.from(paradas))
+  }
+
+  async function salvarAgPassageiro() {
+    if (!formAg.nome_passageiro.trim()) { setErroAg('Nome do passageiro é obrigatório'); return }
+    if (!formAg.rota_empresa_id) { setErroAg('Selecione uma rota'); return }
+    if (!formAg.embarque || !formAg.desembarque) { setErroAg('Selecione embarque e desembarque'); return }
+    if (!formAg.data_viagem) { setErroAg('Data da viagem é obrigatória'); return }
+    const valor = parseFloat(formAg.valor)
+    if (isNaN(valor) || valor < 0) { setErroAg('Valor inválido'); return }
+    if (!formAg.motorista_empresa_id) { setErroAg('Selecione um motorista'); return }
+
+    const motorista = motoristasOpcoes.find(m => m.id === formAg.motorista_empresa_id)
+    if (!motorista?.user_id) { setErroAg('Motorista não tem conta vinculada'); return }
+
+    setSalvandoAg(true)
+    setErroAg('')
+
+    const { error } = await supabase.from('agendamentos').insert({
+      motorista_id: motorista.user_id,
+      rota_id: null,
+      nome_passageiro: formAg.nome_passageiro.trim(),
+      telefone_passageiro: formAg.telefone_passageiro.trim() || null,
+      parada_origem: formAg.embarque,
+      parada_destino: formAg.desembarque,
+      turno: formAg.turno,
+      valor,
+      forma_pagamento: formAg.forma_pagamento,
+      data_viagem: formAg.data_viagem,
+      status: 'agendado',
+      fiado_pago: false,
+      observacoes: formAg.observacoes.trim() || null,
+    })
+
+    setSalvandoAg(false)
+    if (error) {
+      setErroAg('Erro ao salvar: ' + error.message)
+      return
+    }
+    setModalAgAberto(false)
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -450,12 +560,27 @@ export default function AgendamentosPage() {
           </div>
         )}
 
-        {/* Botão nova corrida */}
-        <button onClick={abrirNovaCorrida}
-          className="w-full py-3 rounded-xl text-sm font-semibold"
-          style={{ background: '#1D9E75', color: '#fff' }}>
-          + Nova corrida
-        </button>
+        {/* Botões de ação */}
+        {tipoOperacao === 'rota_fixa' ? (
+          <div className="grid grid-cols-2 gap-2">
+            <button onClick={abrirAgPassageiro}
+              className="py-3 rounded-xl text-sm font-semibold"
+              style={{ background: '#0F6E56', color: '#fff' }}>
+              + Agendar passageiro
+            </button>
+            <button onClick={abrirNovaCorrida}
+              className="py-3 rounded-xl text-sm font-semibold border-2"
+              style={{ background: '#fff', color: '#0F6E56', borderColor: '#0F6E56' }}>
+              + Nova corrida
+            </button>
+          </div>
+        ) : (
+          <button onClick={abrirNovaCorrida}
+            className="w-full py-3 rounded-xl text-sm font-semibold"
+            style={{ background: '#1D9E75', color: '#fff' }}>
+            + Nova corrida
+          </button>
+        )}
 
         {/* Lista de corridas */}
         {corridas.length === 0 ? (
@@ -802,6 +927,192 @@ export default function AgendamentosPage() {
                   : form.ida_volta
                     ? '✓ Confirmar corrida (ida + volta)'
                     : '✓ Confirmar corrida'}
+            </button>
+          </div>
+
+          <style jsx>{`
+            .campo-input {
+              width: 100%; padding: 10px 12px; border-radius: 12px;
+              border: 1px solid #e5e7eb; font-size: 14px; color: #222;
+              background: #fff; outline: none;
+            }
+            .campo-input:focus { border-color: #1D9E75; }
+          `}</style>
+        </div>
+      )}
+
+      {/* Modal agendar passageiro (rota fixa) */}
+      {modalAgAberto && (
+        <div className="fixed inset-0 z-50 flex flex-col" style={{ background: '#fff' }}>
+          <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-4 flex items-center gap-3 flex-shrink-0">
+            <button onClick={() => setModalAgAberto(false)} style={{ color: '#9FE1CB' }} className="text-2xl">‹</button>
+            <p style={{ color: '#E1F5EE' }} className="text-sm font-semibold">Agendar passageiro</p>
+          </div>
+
+          <div className="flex-1 overflow-y-auto px-4 pt-4 pb-20 flex flex-col gap-3">
+
+            <Campo label="Rota *">
+              <select value={formAg.rota_empresa_id}
+                onChange={e => selecionarRotaAg(e.target.value)}
+                className="campo-input">
+                <option value="">Selecione uma rota...</option>
+                {rotasOpcoes.map(r => (
+                  <option key={r.id} value={r.id}>
+                    {r.nome || `${r.origem} → ${r.destino}`}
+                  </option>
+                ))}
+              </select>
+            </Campo>
+
+            {paradasUnicasRF.length > 0 && (
+              <div className="grid grid-cols-2 gap-2">
+                <Campo label="Embarque *">
+                  <select value={formAg.embarque}
+                    onChange={e => {
+                      const emb = e.target.value
+                      setFormAg(f => ({ ...f, embarque: emb, desembarque: '' }))
+                      setValorTrechoRF(null)
+                    }}
+                    className="campo-input">
+                    <option value="">Selecione...</option>
+                    {paradasUnicasRF.map(p => (
+                      <option key={p} value={p}>{p}</option>
+                    ))}
+                  </select>
+                </Campo>
+                <Campo label="Desembarque *">
+                  <select value={formAg.desembarque}
+                    onChange={e => {
+                      const des = e.target.value
+                      const trecho = trechosRF.find(t => t.nome === `${formAg.embarque} → ${des}`)
+                      if (trecho) {
+                        setValorTrechoRF(Number(trecho.preco))
+                        setFormAg(f => ({ ...f, desembarque: des, valor: String(trecho.preco) }))
+                      } else {
+                        setValorTrechoRF(null)
+                        setFormAg(f => ({ ...f, desembarque: des }))
+                      }
+                    }}
+                    className="campo-input">
+                    <option value="">Selecione...</option>
+                    {paradasUnicasRF.filter(p => p !== formAg.embarque).map(p => (
+                      <option key={p} value={p}>{p}</option>
+                    ))}
+                  </select>
+                </Campo>
+              </div>
+            )}
+
+            {valorTrechoRF !== null && (
+              <div className="rounded-xl px-4 py-3 flex items-center justify-between"
+                style={{ background: '#E1F5EE' }}>
+                <span className="text-sm font-medium" style={{ color: '#085041' }}>Valor do trecho</span>
+                <span className="text-lg font-bold" style={{ color: '#0F6E56' }}>
+                  R$ {valorTrechoRF.toFixed(2).replace('.', ',')}
+                </span>
+              </div>
+            )}
+
+            {formAg.embarque && formAg.desembarque && valorTrechoRF === null && (
+              <div className="rounded-xl px-4 py-3 border"
+                style={{ background: '#FCEBEB', borderColor: '#F5BCBC' }}>
+                <p className="text-xs text-center" style={{ color: '#A32D2D' }}>
+                  Trecho não disponível. Insira o valor manualmente.
+                </p>
+              </div>
+            )}
+
+            <Campo label="Valor (R$) *">
+              <input type="number" step="0.01" min={0}
+                value={formAg.valor}
+                onChange={e => {
+                  setFormAg(f => ({ ...f, valor: e.target.value }))
+                  setValorTrechoRF(null)
+                }}
+                placeholder="0,00" className="campo-input" />
+            </Campo>
+
+            <Campo label="Nome do passageiro *">
+              <input value={formAg.nome_passageiro}
+                onChange={e => setFormAg(f => ({ ...f, nome_passageiro: e.target.value }))}
+                placeholder="Nome completo" className="campo-input" />
+            </Campo>
+
+            <Campo label="Telefone">
+              <input value={formAg.telefone_passageiro}
+                onChange={e => setFormAg(f => ({ ...f, telefone_passageiro: e.target.value }))}
+                placeholder="(XX) XXXXX-XXXX" type="tel" className="campo-input" />
+            </Campo>
+
+            <Campo label="Data da viagem *">
+              <input type="date" value={formAg.data_viagem}
+                onChange={e => setFormAg(f => ({ ...f, data_viagem: e.target.value }))}
+                className="campo-input" />
+            </Campo>
+
+            <Campo label="Turno">
+              <div className="grid grid-cols-2 gap-2">
+                {(['ida', 'volta'] as const).map(t => (
+                  <button key={t} type="button"
+                    onClick={() => setFormAg(f => ({ ...f, turno: t }))}
+                    className="py-2.5 rounded-xl text-sm font-medium border transition-all"
+                    style={formAg.turno === t
+                      ? { background: '#0F6E56', color: '#fff', borderColor: '#0F6E56' }
+                      : { background: '#fff', color: '#666', borderColor: '#e5e7eb' }}>
+                    {t === 'ida' ? '↑ Ida' : '↓ Volta'}
+                  </button>
+                ))}
+              </div>
+            </Campo>
+
+            <Campo label="Forma de pagamento">
+              <select value={formAg.forma_pagamento}
+                onChange={e => setFormAg(f => ({ ...f, forma_pagamento: e.target.value }))}
+                className="campo-input">
+                <option value="dinheiro">Dinheiro</option>
+                <option value="pix">Pix</option>
+                <option value="cartao">Cartão</option>
+                <option value="fiado">Fiado</option>
+                <option value="pendente">A cobrar na viagem</option>
+              </select>
+            </Campo>
+
+            <Campo label="Motorista *">
+              <select value={formAg.motorista_empresa_id}
+                onChange={e => setFormAg(f => ({ ...f, motorista_empresa_id: e.target.value }))}
+                className="campo-input">
+                <option value="">Selecione um motorista...</option>
+                {motoristasOpcoes.filter(m => m.user_id).map(m => (
+                  <option key={m.id} value={m.id}>{m.nome}</option>
+                ))}
+              </select>
+              {motoristasOpcoes.some(m => !m.user_id) && (
+                <p className="text-xs text-gray-400 mt-1">
+                  Motoristas sem conta vinculada não aparecem nesta lista.
+                </p>
+              )}
+            </Campo>
+
+            <Campo label="Observações">
+              <textarea value={formAg.observacoes}
+                onChange={e => setFormAg(f => ({ ...f, observacoes: e.target.value }))}
+                placeholder="Informações adicionais..."
+                className="campo-input"
+                rows={3}
+                style={{ resize: 'none' }} />
+            </Campo>
+
+            {erroAg && (
+              <div className="rounded-xl px-4 py-3 text-sm border"
+                style={{ background: '#FEF2F2', borderColor: '#FECACA', color: '#B91C1C' }}>
+                ⚠️ {erroAg}
+              </div>
+            )}
+
+            <button onClick={salvarAgPassageiro} disabled={salvandoAg}
+              className="w-full py-3.5 rounded-xl text-white text-sm font-semibold mt-1 mb-6 disabled:opacity-40"
+              style={{ background: '#1D9E75' }}>
+              {salvandoAg ? 'Salvando...' : '✓ Confirmar agendamento'}
             </button>
           </div>
 
