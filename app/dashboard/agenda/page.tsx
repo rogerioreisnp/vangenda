@@ -1223,6 +1223,7 @@ function ModalListaPDF({
 
     const { jsPDF } = await import('jspdf')
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+    doc.setLineWidth(0.3)
 
     const pageW = 210
     const mg = 15
@@ -1323,7 +1324,7 @@ function ModalListaPDF({
       doc.setTextColor(30, 30, 30)
       doc.setFontSize(8.5)
       doc.setFont('helvetica', 'normal')
-      doc.text(`${i + 1}.  ${trunc(ag.nome_passageiro.toUpperCase(), 40)}`, mg + 3, y + 6.2)
+      doc.text(`${i + 1}.  ${trunc(ag.nome_passageiro.replace(/\s*\(\d+\/\d+\)\s*$/, '').toUpperCase(), 40)}`, mg + 3, y + 6.2)
       y += passH
     })
 
