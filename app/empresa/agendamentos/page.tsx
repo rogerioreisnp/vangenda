@@ -47,6 +47,7 @@ type AgendamentoRF = {
   id: string
   motorista_id: string
   nome_passageiro: string
+  telefone_passageiro: string | null
   parada_origem: string
   parada_destino: string
   turno: 'ida' | 'volta'
@@ -211,6 +212,7 @@ export default function AgendamentosPage() {
   const [salvandoAg, setSalvandoAg] = useState(false)
   const [erroAg, setErroAg] = useState('')
   const [agendamentosRF, setAgendamentosRF] = useState<AgendamentoRF[]>([])
+  const [agEditando, setAgEditando] = useState<AgendamentoRF | null>(null)
 
   useEffect(() => { carregarDados() }, [])
 
@@ -274,7 +276,7 @@ export default function AgendamentosPage() {
       if (userIds.length > 0) {
         const { data: ags } = await supabase
           .from('agendamentos')
-          .select('id, motorista_id, nome_passageiro, parada_origem, parada_destino, turno, valor, status, data_viagem, forma_pagamento, observacoes')
+          .select('id, motorista_id, nome_passageiro, telefone_passageiro, parada_origem, parada_destino, turno, valor, status, data_viagem, forma_pagamento, observacoes')
           .in('motorista_id', userIds)
           .order('data_viagem', { ascending: false })
           .limit(50)
@@ -465,7 +467,31 @@ export default function AgendamentosPage() {
   }
 
   function abrirAgPassageiro() {
+    setAgEditando(null)
     setFormAg(FORM_AG_VAZIO)
+    setTrechosRF([])
+    setParadasUnicasRF([])
+    setValorTrechoRF(null)
+    setErroAg('')
+    setModalAgAberto(true)
+  }
+
+  function editarAgPassageiro(ag: AgendamentoRF) {
+    setAgEditando(ag)
+    const motorista = motoristasOpcoes.find(m => m.user_id === ag.motorista_id)
+    setFormAg({
+      rota_empresa_id: '',
+      embarque: ag.parada_origem,
+      desembarque: ag.parada_destino,
+      valor: String(ag.valor),
+      nome_passageiro: ag.nome_passageiro,
+      telefone_passageiro: ag.telefone_passageiro || '',
+      data_viagem: ag.data_viagem,
+      turno: ag.turno,
+      forma_pagamento: ag.forma_pagamento || 'dinheiro',
+      observacoes: ag.observacoes || '',
+      motorista_empresa_id: motorista?.id || '',
+    })
     setTrechosRF([])
     setParadasUnicasRF([])
     setValorTrechoRF(null)
@@ -500,7 +526,7 @@ export default function AgendamentosPage() {
 
   async function salvarAgPassageiro() {
     if (!formAg.nome_passageiro.trim()) { setErroAg('Nome do passageiro é obrigatório'); return }
-    if (!formAg.rota_empresa_id) { setErroAg('Selecione uma rota'); return }
+    if (!agEditando && !formAg.rota_empresa_id) { setErroAg('Selecione uma rota'); return }
     if (!formAg.embarque || !formAg.desembarque) { setErroAg('Selecione embarque e desembarque'); return }
     if (!formAg.data_viagem) { setErroAg('Data da viagem é obrigatória'); return }
     const valor = parseFloat(formAg.valor)
@@ -513,25 +539,44 @@ export default function AgendamentosPage() {
     setSalvandoAg(true)
     setErroAg('')
 
-    const { error } = await supabase.from('agendamentos').insert({
-      motorista_id: motorista.user_id,
-      rota_id: null,
-      nome_passageiro: formAg.nome_passageiro.trim(),
-      telefone_passageiro: formAg.telefone_passageiro.trim() || null,
-      parada_origem: formAg.embarque,
-      parada_destino: formAg.desembarque,
-      turno: formAg.turno,
-      valor,
-      forma_pagamento: formAg.forma_pagamento,
-      data_viagem: formAg.data_viagem,
-      status: 'agendado',
-      fiado_pago: false,
-      observacoes: formAg.observacoes.trim() || null,
-    })
+    let dbError: any = null
+
+    if (agEditando) {
+      const res = await supabase.from('agendamentos').update({
+        motorista_id: motorista.user_id,
+        nome_passageiro: formAg.nome_passageiro.trim(),
+        telefone_passageiro: formAg.telefone_passageiro.trim() || null,
+        parada_origem: formAg.embarque,
+        parada_destino: formAg.desembarque,
+        turno: formAg.turno,
+        valor,
+        forma_pagamento: formAg.forma_pagamento,
+        data_viagem: formAg.data_viagem,
+        observacoes: formAg.observacoes.trim() || null,
+      }).eq('id', agEditando.id)
+      dbError = res.error
+    } else {
+      const res = await supabase.from('agendamentos').insert({
+        motorista_id: motorista.user_id,
+        rota_id: null,
+        nome_passageiro: formAg.nome_passageiro.trim(),
+        telefone_passageiro: formAg.telefone_passageiro.trim() || null,
+        parada_origem: formAg.embarque,
+        parada_destino: formAg.desembarque,
+        turno: formAg.turno,
+        valor,
+        forma_pagamento: formAg.forma_pagamento,
+        data_viagem: formAg.data_viagem,
+        status: 'agendado',
+        fiado_pago: false,
+        observacoes: formAg.observacoes.trim() || null,
+      })
+      dbError = res.error
+    }
 
     setSalvandoAg(false)
-    if (error) {
-      setErroAg('Erro ao salvar: ' + error.message)
+    if (dbError) {
+      setErroAg('Erro ao salvar: ' + dbError.message)
       return
     }
     setModalAgAberto(false)
@@ -813,6 +858,11 @@ export default function AgendamentosPage() {
                       <p className="text-sm font-bold" style={{ color: '#0F6E56' }}>
                         R$ {Number(ag.valor).toFixed(2).replace('.', ',')}
                       </p>
+                      <button onClick={() => editarAgPassageiro(ag)}
+                        className="px-2.5 py-1 rounded-lg text-[10px] font-medium"
+                        style={{ background: '#E1F5EE', color: '#0F6E56' }}>
+                        ✏️
+                      </button>
                       {ag.status === 'agendado' && (
                         <button onClick={() => cancelarAgendamentoRF(ag.id)}
                           className="px-2.5 py-1 rounded-lg text-[10px] font-medium"
@@ -820,13 +870,11 @@ export default function AgendamentosPage() {
                           Cancelar
                         </button>
                       )}
-                      {ag.status === 'cancelado' && (
-                        <button onClick={() => apagarAgendamentoRF(ag.id)}
-                          className="px-2.5 py-1 rounded-lg text-[10px] font-medium"
-                          style={{ background: '#FCEBEB', color: '#A32D2D' }}>
-                          🗑️
-                        </button>
-                      )}
+                      <button onClick={() => apagarAgendamentoRF(ag.id)}
+                        className="px-2.5 py-1 rounded-lg text-[10px] font-medium"
+                        style={{ background: '#FCEBEB', color: '#A32D2D' }}>
+                        🗑️
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -1057,7 +1105,9 @@ export default function AgendamentosPage() {
         <div className="fixed inset-0 z-50 flex flex-col" style={{ background: '#fff' }}>
           <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-4 flex items-center gap-3 flex-shrink-0">
             <button onClick={() => setModalAgAberto(false)} style={{ color: '#9FE1CB' }} className="text-2xl">‹</button>
-            <p style={{ color: '#E1F5EE' }} className="text-sm font-semibold">Agendar passageiro</p>
+            <p style={{ color: '#E1F5EE' }} className="text-sm font-semibold">
+              {agEditando ? 'Editar passageiro' : 'Agendar passageiro'}
+            </p>
           </div>
 
           <div className="flex-1 overflow-y-auto px-4 pt-4 pb-20 flex flex-col gap-3">
@@ -1074,6 +1124,14 @@ export default function AgendamentosPage() {
                 ))}
               </select>
             </Campo>
+
+            {!formAg.rota_empresa_id && agEditando && (
+              <div className="rounded-xl px-4 py-3 border border-gray-100" style={{ background: '#f9fafb' }}>
+                <p className="text-xs text-gray-400 mb-1">Trecho atual</p>
+                <p className="text-sm font-medium text-gray-800">{formAg.embarque} → {formAg.desembarque}</p>
+                <p className="text-xs text-gray-400 mt-1">Selecione uma rota acima para alterar o trecho</p>
+              </div>
+            )}
 
             {paradasUnicasRF.length > 0 && (
               <div className="grid grid-cols-2 gap-2">
@@ -1223,7 +1281,7 @@ export default function AgendamentosPage() {
             <button onClick={salvarAgPassageiro} disabled={salvandoAg}
               className="w-full py-3.5 rounded-xl text-white text-sm font-semibold mt-1 mb-6 disabled:opacity-40"
               style={{ background: '#1D9E75' }}>
-              {salvandoAg ? 'Salvando...' : '✓ Confirmar agendamento'}
+              {salvandoAg ? 'Salvando...' : agEditando ? '✓ Salvar alterações' : '✓ Confirmar agendamento'}
             </button>
           </div>
 
