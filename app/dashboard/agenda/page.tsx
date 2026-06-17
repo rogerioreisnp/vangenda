@@ -136,6 +136,7 @@ export default function AgendaPage() {
   const rotaPrimaria = rotas[0]
   const horarioIda = rotaPrimaria?.horario_ida?.slice(0, 5) || '05:00'
   const horarioVolta = rotaPrimaria?.horario_volta?.slice(0, 5) || '14:00'
+  const isDiaTrabalhoSelecionado = diasTrabalho.length === 0 || diasTrabalho.includes(diaSelecionado.getDay())
 
   return (
     <div>
@@ -232,10 +233,23 @@ export default function AgendaPage() {
           </>
         )}
 
-        <button onClick={() => setMostrarForm(true)}
-          className="w-full py-3 rounded-xl text-white text-sm font-semibold mt-3 flex items-center justify-center gap-2"
-          style={{ background: '#1D9E75' }}>
-          + Agendar passageiro neste dia
+        {!isDiaTrabalhoSelecionado && (
+          <div style={{ background: '#FCEBEB', borderColor: '#F5BCBC' }}
+            className="border rounded-xl px-4 py-3 mt-3">
+            <p className="text-sm font-semibold" style={{ color: '#A32D2D' }}>
+              🚫 Você não trabalha neste dia
+            </p>
+            <p className="text-xs mt-1" style={{ color: '#7f1d1d' }}>
+              Altere os dias de trabalho nas Configurações se necessário.
+            </p>
+          </div>
+        )}
+        <button
+          onClick={() => { if (isDiaTrabalhoSelecionado) setMostrarForm(true) }}
+          disabled={!isDiaTrabalhoSelecionado}
+          className="w-full py-3 rounded-xl text-white text-sm font-semibold mt-3 flex items-center justify-center gap-2 disabled:opacity-40"
+          style={{ background: isDiaTrabalhoSelecionado ? '#1D9E75' : '#9ca3af' }}>
+          {isDiaTrabalhoSelecionado ? '+ Agendar passageiro neste dia' : '🚫 Sem rota neste dia'}
         </button>
         <button onClick={() => setModalEncomenda(true)}
           className="w-full py-3 rounded-xl text-sm font-semibold mt-2 flex items-center justify-center gap-2"
