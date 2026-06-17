@@ -85,6 +85,7 @@ type LancamentoEmpresa = {
   data: string
   quilometragem: number | null
   veiculo_placa: string | null
+  responsavel: string | null
 }
 
 type FiltroRF = 'hoje' | '7dias' | '30dias' | 'mes'
@@ -744,7 +745,7 @@ function FinanceiroRotaFixa({ empresaId }: { empresaId: string }) {
     const { inicio, fim } = getPeriodo()
     const { data } = await supabase
       .from('cobrancas_empresa')
-      .select('id, tipo, categoria, observacao, valor, data, quilometragem, veiculo_placa')
+      .select('id, tipo, categoria, observacao, valor, data, quilometragem, veiculo_placa, responsavel')
       .eq('empresa_id', empresaId)
       .in('tipo', ['receita', 'despesa'])
       .gte('data', inicio)
@@ -887,6 +888,7 @@ function FinanceiroRotaFixa({ empresaId }: { empresaId: string }) {
                             {format(new Date(d.data + 'T00:00:00'), 'dd/MM/yyyy')}
                             {d.quilometragem != null ? ` · ${d.quilometragem.toLocaleString('pt-BR')} km` : ''}
                             {d.veiculo_placa ? ` · ${d.veiculo_placa}` : ''}
+                            {d.responsavel ? ` · ${d.responsavel}` : ''}
                           </p>
                         </div>
                         <span className="text-sm font-semibold shrink-0" style={{ color: '#A32D2D' }}>
@@ -950,22 +952,10 @@ function FormLancamentoEmpresa({
     data:          lancamento?.data ?? format(new Date(), 'yyyy-MM-dd'),
     quilometragem: lancamento?.quilometragem != null ? String(lancamento.quilometragem) : '',
     veiculo_placa: lancamento?.veiculo_placa ?? '',
+    responsavel:   lancamento?.responsavel ?? '',
   })
   const [saving, setSaving] = useState(false)
   const [erro, setErro]     = useState('')
-  const [motoristasVeic, setMotoristasVeic] = useState<Array<{ id: string; nome: string; veiculo: string | null; placa: string | null }>>([])
-
-  useEffect(() => {
-    if (tipo === 'despesa') {
-      supabase
-        .from('motoristas_empresa')
-        .select('id, nome, veiculo, placa')
-        .eq('empresa_id', empresaId)
-        .eq('status', 'ativo')
-        .order('nome')
-        .then(({ data }) => { if (data) setMotoristasVeic(data as any) })
-    }
-  }, [])
 
   async function salvar() {
     if (!form.valor) { setErro('Informe o valor'); return }
@@ -986,7 +976,8 @@ function FormLancamentoEmpresa({
       quilometragem: tipo === 'despesa' && CATS_COM_KM.includes(form.categoria) && form.quilometragem
         ? parseInt(form.quilometragem)
         : null,
-      veiculo_placa: tipo === 'despesa' ? (form.veiculo_placa || null) : null,
+      veiculo_placa: tipo === 'despesa' ? (form.veiculo_placa.trim() || null) : null,
+      responsavel:   tipo === 'despesa' ? (form.responsavel.trim() || null) : null,
     }
 
     let error
@@ -1031,21 +1022,22 @@ function FormLancamentoEmpresa({
           </div>
         </div>
 
-        {tipo === 'despesa' && motoristasVeic.some(m => m.veiculo || m.placa) && (
-          <div>
-            <p className="text-xs font-medium text-gray-500 mb-1">Veículo</p>
-            <select value={form.veiculo_placa}
-              onChange={e => setForm(f => ({ ...f, veiculo_placa: e.target.value }))}
-              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none bg-white focus:border-green-600">
-              <option value="">Nenhum / A definir</option>
-              {motoristasVeic
-                .filter(m => m.veiculo || m.placa)
-                .map(m => {
-                  const label = [m.veiculo, m.placa].filter(Boolean).join(' - ')
-                  const value = m.placa ?? m.veiculo ?? ''
-                  return <option key={m.id} value={value}>{label}</option>
-                })}
-            </select>
+        {tipo === 'despesa' && (
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <p className="text-xs font-medium text-gray-500 mb-1">Placa do veículo</p>
+              <input value={form.veiculo_placa}
+                onChange={e => setForm(f => ({ ...f, veiculo_placa: e.target.value }))}
+                type="text" placeholder="Ex: ABC-1234"
+                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none bg-white focus:border-green-600" />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-gray-500 mb-1">Responsável</p>
+              <input value={form.responsavel}
+                onChange={e => setForm(f => ({ ...f, responsavel: e.target.value }))}
+                type="text" placeholder="Ex: João"
+                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none bg-white focus:border-green-600" />
+            </div>
           </div>
         )}
 
