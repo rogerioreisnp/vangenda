@@ -43,6 +43,20 @@ type CorridaAgrupada =
   | { tipo: 'simples'; corrida: Corrida }
   | { tipo: 'par'; ida: Corrida; volta: Corrida }
 
+type AgendamentoRF = {
+  id: string
+  motorista_id: string
+  nome_passageiro: string
+  parada_origem: string
+  parada_destino: string
+  turno: 'ida' | 'volta'
+  valor: number
+  status: 'agendado' | 'confirmado' | 'cancelado'
+  data_viagem: string
+  forma_pagamento: string | null
+  observacoes: string | null
+}
+
 type FormCorrida = {
   tipo_servico: string
   rota_id: string
@@ -115,6 +129,12 @@ const STATUS_COR: Record<string, { bg: string; text: string; label: string }> = 
   concluida:              { bg: '#F3F4F6', text: '#6B7280', label: 'Concluída' },
   cancelada:              { bg: '#FCEBEB', text: '#A32D2D', label: 'Cancelada' },
   parcialmente_cancelada: { bg: '#FEF3C7', text: '#92400E', label: 'Parc. cancelada' },
+}
+
+const STATUS_COR_AG: Record<string, { bg: string; text: string; label: string }> = {
+  agendado:   { bg: '#EFF6FF', text: '#1D4ED8', label: 'Agendado' },
+  confirmado: { bg: '#E1F5EE', text: '#0F6E56', label: 'Confirmado' },
+  cancelado:  { bg: '#FCEBEB', text: '#A32D2D', label: 'Cancelado' },
 }
 
 function statusPar(ida: Corrida, volta: Corrida): string {
@@ -190,6 +210,7 @@ export default function AgendamentosPage() {
   const [valorTrechoRF, setValorTrechoRF] = useState<number | null>(null)
   const [salvandoAg, setSalvandoAg] = useState(false)
   const [erroAg, setErroAg] = useState('')
+  const [agendamentosRF, setAgendamentosRF] = useState<AgendamentoRF[]>([])
 
   useEffect(() => { carregarDados() }, [])
 
@@ -247,6 +268,20 @@ export default function AgendamentosPage() {
     if (rts) setRotasOpcoes(rts)
     if (mots) setMotoristasOpcoes(mots)
     if (corrds) setCorridas(corrds as any)
+
+    if (empresa?.tipo_operacao === 'rota_fixa' && mots) {
+      const userIds = (mots as any[]).filter(m => m.user_id).map(m => m.user_id as string)
+      if (userIds.length > 0) {
+        const { data: ags } = await supabase
+          .from('agendamentos')
+          .select('id, motorista_id, nome_passageiro, parada_origem, parada_destino, turno, valor, status, data_viagem, forma_pagamento, observacoes')
+          .in('motorista_id', userIds)
+          .order('data_viagem', { ascending: false })
+          .limit(50)
+        if (ags) setAgendamentosRF(ags as AgendamentoRF[])
+      }
+    }
+
     setLoading(false)
   }
 
@@ -500,6 +535,18 @@ export default function AgendamentosPage() {
       return
     }
     setModalAgAberto(false)
+    carregarDados()
+  }
+
+  async function cancelarAgendamentoRF(id: string) {
+    await supabase.from('agendamentos').update({ status: 'cancelado' }).eq('id', id)
+    setAgendamentosRF(prev => prev.map(a => a.id === id ? { ...a, status: 'cancelado' as const } : a))
+  }
+
+  async function apagarAgendamentoRF(id: string) {
+    if (!confirm('Tem certeza que deseja apagar este agendamento?')) return
+    await supabase.from('agendamentos').delete().eq('id', id)
+    setAgendamentosRF(prev => prev.filter(a => a.id !== id))
   }
 
   if (loading) {
@@ -582,14 +629,17 @@ export default function AgendamentosPage() {
           </button>
         )}
 
-        {/* Lista de corridas */}
-        {corridas.length === 0 ? (
+        {/* Lista de corridas e agendamentos */}
+        {corridas.length === 0 && agendamentosRF.length === 0 && (
           <div className="bg-white rounded-2xl p-6 border border-gray-100 text-center">
             <p className="text-3xl mb-2">📋</p>
             <p className="text-sm text-gray-500">Nenhum agendamento ainda.</p>
-            <p className="text-xs text-gray-400 mt-1">Toque em "+ Nova corrida" para começar.</p>
+            <p className="text-xs text-gray-400 mt-1">
+              {tipoOperacao === 'rota_fixa' ? 'Toque em "+ Agendar passageiro" para começar.' : 'Toque em "+ Nova corrida" para começar.'}
+            </p>
           </div>
-        ) : (
+        )}
+        {corridas.length > 0 && (
           <div className="flex flex-col gap-2">
             {corridasAgrupadas.map(grupo => {
 
@@ -711,6 +761,67 @@ export default function AgendamentosPage() {
                       )}
                       {statusKey === 'cancelada' && (
                         <button onClick={() => apagarCorrida([ida.id, volta.id])}
+                          className="px-2.5 py-1 rounded-lg text-[10px] font-medium"
+                          style={{ background: '#FCEBEB', color: '#A32D2D' }}>
+                          🗑️
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Passageiros agendados (rota_fixa) */}
+        {tipoOperacao === 'rota_fixa' && agendamentosRF.length > 0 && (
+          <div className="flex flex-col gap-2">
+            {corridas.length > 0 && (
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mt-1">Passageiros agendados</p>
+            )}
+            {agendamentosRF.map(ag => {
+              const cor = STATUS_COR_AG[ag.status] ?? { bg: '#EFF6FF', text: '#1D4ED8', label: ag.status }
+              const nomeMotorista = motoristasOpcoes.find(m => m.user_id === ag.motorista_id)?.nome ?? null
+              const dp = ag.data_viagem.split('-')
+              const dataFmt = dp.length === 3 ? `${dp[2]}/${dp[1]}/${dp[0]}` : ag.data_viagem
+              return (
+                <div key={ag.id} className="bg-white rounded-2xl p-4 border border-gray-100">
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-800 truncate">
+                        {ag.parada_origem} → {ag.parada_destino}
+                      </p>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {dataFmt} · {ag.turno === 'ida' ? 'Ida' : 'Volta'}
+                      </p>
+                    </div>
+                    <span className="text-[10px] font-semibold px-2 py-1 rounded-full flex-shrink-0"
+                      style={{ background: cor.bg, color: cor.text }}>
+                      {cor.label}
+                    </span>
+                  </div>
+                  <div className="flex items-end justify-between gap-2"
+                    style={{ borderTop: '1px solid #f5f5f5', paddingTop: '8px' }}>
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium text-gray-700 truncate">{ag.nome_passageiro}</p>
+                      {nomeMotorista && (
+                        <p className="text-xs text-gray-400 mt-0.5">🚐 {nomeMotorista}</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <p className="text-sm font-bold" style={{ color: '#0F6E56' }}>
+                        R$ {Number(ag.valor).toFixed(2).replace('.', ',')}
+                      </p>
+                      {ag.status === 'agendado' && (
+                        <button onClick={() => cancelarAgendamentoRF(ag.id)}
+                          className="px-2.5 py-1 rounded-lg text-[10px] font-medium"
+                          style={{ background: '#FCEBEB', color: '#A32D2D' }}>
+                          Cancelar
+                        </button>
+                      )}
+                      {ag.status === 'cancelado' && (
+                        <button onClick={() => apagarAgendamentoRF(ag.id)}
                           className="px-2.5 py-1 rounded-lg text-[10px] font-medium"
                           style={{ background: '#FCEBEB', color: '#A32D2D' }}>
                           🗑️

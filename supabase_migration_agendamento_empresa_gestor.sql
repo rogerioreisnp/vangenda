@@ -4,7 +4,13 @@
 -- 1. Tornar rota_id opcional (motoristas de empresa não têm rota pessoal obrigatória)
 ALTER TABLE agendamentos ALTER COLUMN rota_id DROP NOT NULL;
 
--- 2. Permitir que gestores insiram agendamentos para motoristas da empresa
+-- 2. Corrigir FK: motoristas de empresa têm user_id em auth.users mas podem não ter
+--    row em motoristas (tabela de perfil individual). Referenciar auth.users diretamente.
+ALTER TABLE agendamentos DROP CONSTRAINT IF EXISTS agendamentos_motorista_id_fkey;
+ALTER TABLE agendamentos ADD CONSTRAINT agendamentos_motorista_id_fkey
+  FOREIGN KEY (motorista_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+
+-- 3. Permitir que gestores insiram agendamentos para motoristas da empresa
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -25,7 +31,7 @@ BEGIN
   END IF;
 END $$;
 
--- 3. Permitir que gestores leiam agendamentos dos motoristas da empresa
+-- 4. Permitir que gestores leiam agendamentos dos motoristas da empresa
 DO $$
 BEGIN
   IF NOT EXISTS (
