@@ -45,9 +45,11 @@ export default function AgendaPage() {
   const [loading, setLoading] = useState(true)
   const [mostrarForm, setMostrarForm] = useState(false)
   const [modalEncomenda, setModalEncomenda] = useState(false)
+  const [modalPDF, setModalPDF] = useState(false)
   const [rotas, setRotas] = useState<any[]>([])
   const [agendamentoDetalhe, setAgendamentoDetalhe] = useState<Agendamento | null>(null)
   const [diasTrabalho, setDiasTrabalho] = useState<number[]>([])
+  const [nomeMotorista, setNomeMotorista] = useState('')
   const [encomendasDoDia, setEncomendasDoDia] = useState<Encomenda[]>([])
   const [empresaCtx, setEmpresaCtx] = useState<{ empresaId: string; motEmpresaId: string } | null | undefined>(undefined)
   const [rotasEmpresa, setRotasEmpresa] = useState<{ id: string; nome: string | null; origem: string | null; destino: string | null }[]>([])
@@ -68,12 +70,13 @@ export default function AgendaPage() {
       supabase.from('agendamentos').select('*').eq('motorista_id', user.id)
         .gte('data_viagem', inicio).lte('data_viagem', fim).neq('status', 'cancelado'),
       supabase.from('rotas').select('*').eq('motorista_id', user.id),
-      supabase.from('motoristas').select('dias_trabalho').eq('id', user.id).single(),
+      supabase.from('motoristas').select('dias_trabalho, nome').eq('id', user.id).single(),
     ])
 
     if (data) setAgendamentos(data)
     if (rts) setRotas(rts)
     if (mot?.dias_trabalho) setDiasTrabalho(mot.dias_trabalho)
+    if (mot?.nome) setNomeMotorista(mot.nome)
 
     setLoading(false)
   }
@@ -233,6 +236,15 @@ export default function AgendaPage() {
           </>
         )}
 
+        {agsDoDia.length > 0 && (
+          <button
+            onClick={() => setModalPDF(true)}
+            className="w-full py-3 rounded-xl text-sm font-semibold mt-3 flex items-center justify-center gap-2"
+            style={{ background: '#E6F1FB', color: '#185FA5' }}>
+            📋 Gerar lista de passageiros (PDF)
+          </button>
+        )}
+
         {!isDiaTrabalhoSelecionado && (
           <div style={{ background: '#FCEBEB', borderColor: '#F5BCBC' }}
             className="border rounded-xl px-4 py-3 mt-3">
@@ -285,6 +297,16 @@ export default function AgendaPage() {
           dataSelecionada={diaSelecionado}
           onFechar={() => setModalEncomenda(false)}
           onSalvo={() => { setModalEncomenda(false); carregarEncomendasDoDia(diaSelecionado) }}
+        />
+      )}
+
+      {modalPDF && (
+        <ModalListaPDF
+          diaSelecionado={diaSelecionado}
+          agsDoDia={agsDoDia}
+          nomeMotorista={nomeMotorista}
+          rotaPrimaria={rotaPrimaria}
+          onFechar={() => setModalPDF(false)}
         />
       )}
     </div>
@@ -1133,6 +1155,241 @@ function BlocoEncomendas({ encomendas, onConcluir }: {
           ))}
         </>
       )}
+    </div>
+  )
+}
+
+function ModalListaPDF({
+  diaSelecionado,
+  agsDoDia,
+  nomeMotorista,
+  rotaPrimaria,
+  onFechar,
+}: {
+  diaSelecionado: Date
+  agsDoDia: Agendamento[]
+  nomeMotorista: string
+  rotaPrimaria: any
+  onFechar: () => void
+}) {
+  const [form, setForm] = useState({
+    placa: '',
+    origem: '',
+    destino: '',
+    horario_saida: rotaPrimaria?.horario_ida?.slice(0, 5) || '',
+    horario_volta: rotaPrimaria?.horario_volta?.slice(0, 5) || '',
+    data_saida: format(diaSelecionado, 'yyyy-MM-dd'),
+    data_volta: '',
+  })
+  const [gerando, setGerando] = useState(false)
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('vangenda_pdf_placa')
+      if (saved) setForm(f => ({ ...f, placa: saved }))
+    } catch {}
+  }, [])
+
+  async function gerarPDF() {
+    setGerando(true)
+    try { localStorage.setItem('vangenda_pdf_placa', form.placa) } catch {}
+
+    const { jsPDF } = await import('jspdf')
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+
+    const pageW = 210
+    const mg = 15
+    const W = pageW - 2 * mg
+
+    function trunc(s: string, max = 30) { return s.length > max ? s.slice(0, max - 1) + '…' : s }
+    function fmtDate(d: string) { return d ? new Date(d + 'T00:00:00').toLocaleDateString('pt-BR') : '—' }
+
+    function cell(cx: number, cy: number, cw: number, ch: number, lbl: string, val: string) {
+      doc.setDrawColor(160, 160, 160)
+      doc.rect(cx, cy, cw, ch)
+      doc.setFontSize(6.5)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(120, 120, 120)
+      doc.text(lbl, cx + 2, cy + 4.5)
+      doc.setFontSize(9)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(20, 20, 20)
+      doc.text(trunc(val || '—'), cx + 2, cy + 10.5)
+    }
+
+    let y = 18
+    doc.setFontSize(12)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(0, 0, 0)
+    doc.text('LISTA DE PASSAGEIROS — FRETAMENTO', pageW / 2, y, { align: 'center' })
+    y += 9
+
+    const rowH = 14
+    const half = W / 2
+    const third = W / 3
+
+    cell(mg, y, half, rowH, 'PLACA', form.placa)
+    cell(mg + half, y, half, rowH, 'MOTORISTA', nomeMotorista)
+    y += rowH
+
+    cell(mg, y, half, rowH, 'ORIGEM DA VIAGEM', form.origem)
+    cell(mg + half, y, half, rowH, 'DESTINO', form.destino)
+    y += rowH
+
+    cell(mg, y, third, rowH, 'HORÁRIO DE SAÍDA', form.horario_saida)
+    cell(mg + third, y, third, rowH, 'HORÁRIO DA VOLTA', form.horario_volta)
+    cell(mg + 2 * third, y, third, rowH, 'QUANTIDADE DE PASSAGEIROS', String(agsDoDia.length))
+    y += rowH
+
+    cell(mg, y, half, rowH, 'DATA DA SAÍDA', fmtDate(form.data_saida))
+    cell(mg + half, y, half, rowH, 'DATA DA VOLTA', fmtDate(form.data_volta))
+    y += rowH + 7
+
+    const hdrH = 8
+    const nameW = W * 0.65
+    doc.setFillColor(15, 110, 86)
+    doc.rect(mg, y, W, hdrH, 'F')
+    doc.setTextColor(255, 255, 255)
+    doc.setFontSize(8)
+    doc.setFont('helvetica', 'bold')
+    doc.text('PASSAGEIROS', mg + 3, y + 5.5)
+    doc.text('DOCUMENTO DE PORTE', mg + nameW + 3, y + 5.5)
+    y += hdrH
+
+    const passH = 9
+    agsDoDia.forEach((ag, i) => {
+      if (y + passH > 280) { doc.addPage(); y = 20 }
+      if (i % 2 === 1) { doc.setFillColor(245, 245, 245); doc.rect(mg, y, W, passH, 'F') }
+      doc.setDrawColor(200, 200, 200)
+      doc.rect(mg, y, W, passH)
+      doc.line(mg + nameW, y, mg + nameW, y + passH)
+      doc.setTextColor(30, 30, 30)
+      doc.setFontSize(8.5)
+      doc.setFont('helvetica', 'normal')
+      doc.text(`${i + 1}.  ${trunc(ag.nome_passageiro, 40)}`, mg + 3, y + 6.2)
+      y += passH
+    })
+
+    y += 10
+    doc.setFontSize(7)
+    doc.setFont('helvetica', 'italic')
+    doc.setTextColor(150, 150, 150)
+    doc.text(
+      `Gerado em ${new Date().toLocaleDateString('pt-BR')} via RotaGenda`,
+      pageW / 2, y, { align: 'center' }
+    )
+
+    doc.save(`lista-passageiros-${format(diaSelecionado, 'dd-MM-yyyy')}.pdf`)
+    setGerando(false)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col" style={{ background: '#f0f0ec' }}>
+      <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-4 flex items-center gap-3">
+        <button onClick={onFechar} style={{ color: '#9FE1CB' }} className="text-2xl">‹</button>
+        <div>
+          <p style={{ color: '#E1F5EE' }} className="text-sm font-semibold">Lista de Passageiros</p>
+          <p style={{ color: '#5DCAA5' }} className="text-xs">
+            {format(diaSelecionado, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })} · {agsDoDia.length} passageiro{agsDoDia.length !== 1 ? 's' : ''}
+          </p>
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
+        <div className="bg-white rounded-2xl p-4 border border-gray-100">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Passageiros incluídos no PDF</p>
+          {agsDoDia.map((ag, i) => (
+            <p key={ag.id} className="text-sm text-gray-700 py-1.5 border-b border-gray-50 last:border-0">
+              {i + 1}. {ag.nome_passageiro}
+            </p>
+          ))}
+        </div>
+
+        <div>
+          <p className="text-xs font-medium text-gray-500 mb-1">Placa do veículo</p>
+          <input
+            value={form.placa}
+            onChange={e => setForm(f => ({ ...f, placa: e.target.value.toUpperCase() }))}
+            placeholder="Ex: ABC-1234"
+            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600 bg-white"
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <p className="text-xs font-medium text-gray-500 mb-1">Origem da viagem</p>
+            <input
+              value={form.origem}
+              onChange={e => setForm(f => ({ ...f, origem: e.target.value }))}
+              placeholder="Ex: Boa Vista"
+              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600 bg-white"
+            />
+          </div>
+          <div>
+            <p className="text-xs font-medium text-gray-500 mb-1">Destino</p>
+            <input
+              value={form.destino}
+              onChange={e => setForm(f => ({ ...f, destino: e.target.value }))}
+              placeholder="Ex: Manaus"
+              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600 bg-white"
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <p className="text-xs font-medium text-gray-500 mb-1">Horário de saída</p>
+            <input
+              type="time"
+              value={form.horario_saida}
+              onChange={e => setForm(f => ({ ...f, horario_saida: e.target.value }))}
+              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600 bg-white"
+            />
+          </div>
+          <div>
+            <p className="text-xs font-medium text-gray-500 mb-1">Horário de volta (opcional)</p>
+            <input
+              type="time"
+              value={form.horario_volta}
+              onChange={e => setForm(f => ({ ...f, horario_volta: e.target.value }))}
+              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600 bg-white"
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <p className="text-xs font-medium text-gray-500 mb-1">Data da saída</p>
+            <input
+              type="date"
+              value={form.data_saida}
+              onChange={e => setForm(f => ({ ...f, data_saida: e.target.value }))}
+              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600 bg-white"
+            />
+          </div>
+          <div>
+            <p className="text-xs font-medium text-gray-500 mb-1">Data da volta (opcional)</p>
+            <input
+              type="date"
+              value={form.data_volta}
+              onChange={e => setForm(f => ({ ...f, data_volta: e.target.value }))}
+              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600 bg-white"
+            />
+          </div>
+        </div>
+
+        <div className="h-24" />
+      </div>
+
+      <div style={{ padding: '8px 16px 80px', background: 'white', borderTop: '1px solid #e5e7eb' }}>
+        <button
+          onClick={gerarPDF}
+          disabled={gerando}
+          className="w-full py-3.5 rounded-xl text-white text-sm font-semibold disabled:opacity-40 flex items-center justify-center gap-2"
+          style={{ background: '#185FA5' }}>
+          {gerando ? 'Gerando PDF...' : '📄 Gerar e baixar PDF'}
+        </button>
+      </div>
     </div>
   )
 }
