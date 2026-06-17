@@ -246,6 +246,7 @@ export default function EmpresaPage() {
         const despesa = (despData ?? []).filter(d => d.data === dStr).reduce((s, d) => s + Number(d.valor), 0)
         pontos.push({ data: dStr, receita, despesa, label })
       }
+      console.log('[grafico] pontos:', JSON.stringify(pontos))
       setGraficoTransfer(pontos)
 
     } else if (periodo === 'mes') {
