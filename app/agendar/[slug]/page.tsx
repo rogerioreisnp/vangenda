@@ -660,7 +660,7 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
               </div>
             </div>
 
-            {motorista.telefone && (() => {
+            {motorista.telefone ? (() => {
               const tel = motorista.telefone.replace(/\D/g, '')
               const telFormatado = tel.startsWith('55') ? tel : `55${tel}`
               const msg = encodeURIComponent(
@@ -681,7 +681,13 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
                   </a>
                 </div>
               )
-            })()}
+            })() : (
+              <button onClick={() => setEtapa('sucesso')}
+                className="w-full py-4 rounded-2xl text-white text-base font-bold"
+                style={{ background: '#1D9E75' }}>
+                ✓ Já paguei
+              </button>
+            )}
           </div>
         )}
 
