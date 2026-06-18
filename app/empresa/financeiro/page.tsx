@@ -743,7 +743,7 @@ function FinanceiroRotaFixa({ empresaId }: { empresaId: string }) {
   async function carregar() {
     setLoading(true)
     const { inicio, fim } = getPeriodo()
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('cobrancas_empresa')
       .select('id, tipo, categoria, observacao, valor, data, quilometragem, veiculo_placa, responsavel')
       .eq('empresa_id', empresaId)
@@ -751,6 +751,7 @@ function FinanceiroRotaFixa({ empresaId }: { empresaId: string }) {
       .gte('data', inicio)
       .lte('data', fim)
       .order('data', { ascending: false })
+    if (error) console.error('[Financeiro rota_fixa] Erro ao carregar:', error.message)
     setLancamentos((data as LancamentoEmpresa[]) ?? [])
     setLoading(false)
   }
