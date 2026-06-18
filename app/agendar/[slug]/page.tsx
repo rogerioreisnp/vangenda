@@ -674,6 +674,7 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
                   </p>
                   <a href={`https://wa.me/${telFormatado}?text=${msg}`}
                     target="_blank" rel="noopener noreferrer"
+                    onClick={() => setTimeout(() => setEtapa('sucesso'), 1500)}
                     className="w-full py-3.5 rounded-2xl text-white text-sm font-bold flex items-center justify-center gap-2"
                     style={{ background: '#25D366' }}>
                     💬 Enviar no WhatsApp
@@ -681,12 +682,6 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
                 </div>
               )
             })()}
-
-            <button onClick={() => setEtapa('sucesso')}
-              className="w-full py-4 rounded-2xl text-white text-base font-bold"
-              style={{ background: '#1D9E75' }}>
-              ✓ Já paguei
-            </button>
           </div>
         )}
 
