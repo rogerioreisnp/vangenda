@@ -423,6 +423,7 @@ function DetalhePassageiro({ p, onVoltar, onAtualizar, horarioIda, horarioVolta 
   const [formEdit, setFormEdit] = useState({
     nome_passageiro: p.nome_passageiro,
     telefone_passageiro: p.telefone_passageiro || '',
+    data_viagem: p.data_viagem,
     parada_origem: p.parada_origem,
     parada_destino: p.parada_destino,
     turno: p.turno as 'ida' | 'volta',
@@ -442,6 +443,7 @@ function DetalhePassageiro({ p, onVoltar, onAtualizar, horarioIda, horarioVolta 
     await supabase.from('agendamentos').update({
       nome_passageiro: formEdit.nome_passageiro,
       telefone_passageiro: formEdit.telefone_passageiro || null,
+      data_viagem: formEdit.data_viagem,
       parada_origem: formEdit.parada_origem,
       parada_destino: formEdit.parada_destino,
       turno: formEdit.turno,
@@ -593,6 +595,11 @@ function DetalhePassageiro({ p, onVoltar, onAtualizar, horarioIda, horarioVolta 
               <p className="text-xs font-medium text-gray-500 mb-1">Telefone</p>
               <input value={formEdit.telefone_passageiro} onChange={e => setFormEdit(f => ({ ...f, telefone_passageiro: e.target.value }))}
                 type="tel" className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600 bg-white" />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-gray-500 mb-1">Data da viagem</p>
+              <input value={formEdit.data_viagem} onChange={e => setFormEdit(f => ({ ...f, data_viagem: e.target.value }))}
+                type="date" className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600 bg-white" />
             </div>
             <div>
               <p className="text-xs font-medium text-gray-500 mb-1">Turno</p>
