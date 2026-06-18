@@ -533,6 +533,29 @@ export default function AgendamentoPublico({
               )}
             </div>
 
+            {(() => {
+              const tel = (empresa.whatsapp_comercial || empresa.telefone || '').replace(/\D/g, '')
+              if (!tel) return null
+              const telFormatado = tel.startsWith('55') ? tel : `55${tel}`
+              const origem = empresa.tipo_operacao === 'rota_fixa' ? embarque : rotaSelecionada?.origem ?? ''
+              const destino = empresa.tipo_operacao === 'rota_fixa' ? desembarque : rotaSelecionada?.destino ?? ''
+              const dataFmt = form.data ? `${form.data.slice(8, 10)}/${form.data.slice(5, 7)}/${form.data.slice(0, 4)}` : ''
+              const msg = encodeURIComponent(
+                `Olá ${empresa.nome}, segue o comprovante do meu agendamento para ${dataFmt} - ${origem} → ${destino}`
+              )
+              return (
+                <a
+                  href={`https://wa.me/${telFormatado}?text=${msg}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full py-4 rounded-2xl text-white text-sm font-bold flex items-center justify-center gap-2"
+                  style={{ background: '#25D366' }}
+                >
+                  💬 Enviar comprovante no WhatsApp
+                </a>
+              )
+            })()}
+
             <button
               onClick={() => {
                 setEtapa('form')
