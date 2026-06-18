@@ -2,6 +2,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import { QRCodeCanvas } from 'qrcode.react'
 
 function GuiaPage({ onFechar }: { onFechar: () => void }) {
   return (
@@ -242,6 +243,7 @@ export default function ConfiguracoesPage() {
   const [empresaSlug, setEmpresaSlug] = useState<string | null>(null)
   const [linkCopiado, setLinkCopiado] = useState(false)
   const [mostrarGuia, setMostrarGuia] = useState(false)
+  const qrRef = useRef<HTMLCanvasElement>(null)
   const dragIdx = useRef<number | null>(null)
   const dragOverIdx = useRef<number | null>(null)
   const diasTrabalhoExiste = useRef(false)
@@ -427,6 +429,16 @@ export default function ConfiguracoesPage() {
     setTimeout(() => setLinkCopiado(false), 2000)
   }
 
+  function baixarQRCode() {
+    const canvas = qrRef.current
+    if (!canvas) return
+    const url = canvas.toDataURL('image/png')
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'qrcode-agendamento.png'
+    a.click()
+  }
+
   async function sair() {
     await supabase.auth.signOut()
     router.push('/')
@@ -530,7 +542,7 @@ export default function ConfiguracoesPage() {
 
       <div className="px-4 py-4 flex flex-col gap-4">
 
-        <Secao titulo="🔗 Link de agendamento para clientes">
+        <Secao titulo="🔗 Meu link de agendamento">
           {empresaSlug ? (
             <div className="rounded-xl p-3 mb-3" style={{ background: '#E1F5EE', border: '1px solid #9FE1CB' }}>
               <p className="text-xs" style={{ color: '#085041' }}>
@@ -538,16 +550,35 @@ export default function ConfiguracoesPage() {
               </p>
             </div>
           ) : (
-            <p className="text-xs text-gray-400 mb-3">Compartilhe este link no WhatsApp para os clientes agendarem.</p>
+            <p className="text-xs text-gray-400 mb-3">Compartilhe este link ou QR Code com seus passageiros.</p>
           )}
-          <div className="bg-gray-50 rounded-xl p-3 flex items-center gap-2 mb-2">
-            <p className="text-xs text-gray-600 flex-1 break-all">{linkPublico}</p>
+          <div className="bg-gray-50 rounded-xl p-3 mb-3">
+            <p className="text-xs text-gray-600 break-all">{linkPublico}</p>
           </div>
-          <button onClick={copiarLink}
-            className="w-full py-2.5 rounded-xl text-sm font-medium"
-            style={{ background: linkCopiado ? '#E1F5EE' : '#0F6E56', color: linkCopiado ? '#0F6E56' : '#fff' }}>
-            {linkCopiado ? '✓ Link copiado!' : '📋 Copiar link'}
-          </button>
+          {linkPublico && (
+            <div className="flex flex-col items-center mb-3">
+              <QRCodeCanvas
+                ref={qrRef}
+                value={linkPublico}
+                size={180}
+                bgColor="#ffffff"
+                fgColor="#0F6E56"
+                level="M"
+              />
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-2">
+            <button onClick={copiarLink}
+              className="py-2.5 rounded-xl text-sm font-medium"
+              style={{ background: linkCopiado ? '#E1F5EE' : '#0F6E56', color: linkCopiado ? '#0F6E56' : '#fff' }}>
+              {linkCopiado ? '✓ Copiado!' : '📋 Copiar link'}
+            </button>
+            <button onClick={baixarQRCode}
+              className="py-2.5 rounded-xl text-sm font-medium"
+              style={{ background: '#085041', color: '#fff' }}>
+              ⬇️ Baixar QR Code
+            </button>
+          </div>
         </Secao>
 
         <Secao titulo="💰 Pagamento via Pix">

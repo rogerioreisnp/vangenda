@@ -702,6 +702,14 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
                 </div>
               </div>
 
+              <div style={{ background: '#f0f0ec' }} className="rounded-xl p-4 text-left mb-4">
+                <p className="text-xs font-semibold text-gray-500 mb-2">Motorista</p>
+                <p className="text-sm font-semibold text-gray-800">🚐 {motorista.nome}</p>
+                {motorista.telefone && (
+                  <p className="text-sm text-gray-500 mt-0.5">📱 {motorista.telefone}</p>
+                )}
+              </div>
+
               {motorista.pagamento_obrigatorio ? (
                 <p className="text-xs text-gray-400 leading-relaxed">
                   Envie o comprovante de pagamento pelo WhatsApp para o motorista confirmar sua vaga.
@@ -712,6 +720,22 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
                 </p>
               )}
             </div>
+
+            {motorista.telefone && (() => {
+              const tel = motorista.telefone.replace(/\D/g, '')
+              const telFormatado = tel.startsWith('55') ? tel : `55${tel}`
+              const msg = encodeURIComponent(
+                `Olá ${motorista.nome}, segue o comprovante do meu agendamento para ${dataSelecionada} - ${form.origem} → ${form.destino}`
+              )
+              return (
+                <a href={`https://wa.me/${telFormatado}?text=${msg}`}
+                  target="_blank" rel="noopener noreferrer"
+                  className="w-full py-4 rounded-2xl text-white text-sm font-bold flex items-center justify-center gap-2"
+                  style={{ background: '#25D366' }}>
+                  💬 Enviar comprovante no WhatsApp
+                </a>
+              )
+            })()}
 
             <button onClick={() => {
               setEtapa('form')
