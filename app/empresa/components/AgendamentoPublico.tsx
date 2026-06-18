@@ -41,6 +41,8 @@ type EmpresaPublica = {
   chave_pix: string | null
   tipo_chave_pix: string | null
   tipo_operacao: string | null
+  telefone: string | null
+  whatsapp_comercial: string | null
 }
 
 type Rota = {
@@ -455,13 +457,35 @@ export default function AgendamentoPublico({
               )}
             </div>
 
-            <button
-              onClick={() => setEtapa('sucesso')}
-              className="w-full py-3.5 rounded-2xl text-white text-sm font-semibold"
-              style={{ background: cor }}
-            >
-              ✓ Já paguei
-            </button>
+            {(() => {
+              const tel = (empresa.whatsapp_comercial || empresa.telefone || '').replace(/\D/g, '')
+              if (!tel) return null
+              const telFormatado = tel.startsWith('55') ? tel : `55${tel}`
+              const origem = empresa.tipo_operacao === 'rota_fixa' ? embarque : rotaSelecionada?.origem ?? ''
+              const destino = empresa.tipo_operacao === 'rota_fixa' ? desembarque : rotaSelecionada?.destino ?? ''
+              const dataFmt = form.data ? `${form.data.slice(8, 10)}/${form.data.slice(5, 7)}/${form.data.slice(0, 4)}` : ''
+              const msg = encodeURIComponent(
+                `Olá ${empresa.nome}, segue o comprovante do meu agendamento para ${dataFmt} - ${origem} → ${destino}`
+              )
+              return (
+                <div className="bg-white rounded-2xl p-4 border border-gray-100">
+                  <p className="text-sm text-gray-600 mb-3">
+                    Após realizar o pagamento, envie o comprovante para{' '}
+                    <span className="font-semibold text-gray-800">{empresa.nome}</span> no WhatsApp:
+                  </p>
+                  <a
+                    href={`https://wa.me/${telFormatado}?text=${msg}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setTimeout(() => setEtapa('sucesso'), 1500)}
+                    className="w-full py-3.5 rounded-2xl text-white text-sm font-bold flex items-center justify-center gap-2"
+                    style={{ background: '#25D366' }}
+                  >
+                    💬 Enviar no WhatsApp
+                  </a>
+                </div>
+              )
+            })()}
 
             <button
               onClick={() => {

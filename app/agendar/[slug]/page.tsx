@@ -123,7 +123,7 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
       // Slug não é um motorista — verifica se é uma empresa
       const { data: emp } = await supabase
         .from('empresas')
-        .select('id, nome, descricao, cor_destaque, logo_url, chave_pix, tipo_chave_pix, tipo_operacao')
+        .select('id, nome, descricao, cor_destaque, logo_url, chave_pix, tipo_chave_pix, tipo_operacao, telefone, whatsapp_comercial')
         .eq('slug', params.slug)
         .single()
       if (emp) setEmpresa(emp)
