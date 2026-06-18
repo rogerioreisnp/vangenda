@@ -747,7 +747,7 @@ function FinanceiroRotaFixa({ empresaId }: { empresaId: string }) {
     console.log('[RF] empresaId usado na query:', empresaId, '| período:', inicio, '→', fim)
     const { data, error } = await supabase
       .from('cobrancas_empresa')
-      .select('id, tipo, categoria, observacao, valor, data, created_at, quilometragem, veiculo_placa, responsavel')
+      .select('id, tipo, categoria, observacao, valor, data, created_at, quilometragem, responsavel')
       .eq('empresa_id', empresaId)
       .in('tipo', ['receita', 'despesa'])
       .order('created_at', { ascending: false })
