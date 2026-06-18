@@ -660,6 +660,28 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
               </div>
             </div>
 
+            {motorista.telefone && (() => {
+              const tel = motorista.telefone.replace(/\D/g, '')
+              const telFormatado = tel.startsWith('55') ? tel : `55${tel}`
+              const msg = encodeURIComponent(
+                `Olá ${motorista.nome}, segue o comprovante do meu agendamento para ${dataSelecionada} - ${form.origem} → ${form.destino}`
+              )
+              return (
+                <div className="bg-white rounded-2xl p-4 border border-gray-100">
+                  <p className="text-sm text-gray-600 mb-3">
+                    Após realizar o pagamento, envie o comprovante para{' '}
+                    <span className="font-semibold text-gray-800">{motorista.nome}</span> no WhatsApp:
+                  </p>
+                  <a href={`https://wa.me/${telFormatado}?text=${msg}`}
+                    target="_blank" rel="noopener noreferrer"
+                    className="w-full py-3.5 rounded-2xl text-white text-sm font-bold flex items-center justify-center gap-2"
+                    style={{ background: '#25D366' }}>
+                    💬 Enviar no WhatsApp
+                  </a>
+                </div>
+              )
+            })()}
+
             <button onClick={() => setEtapa('sucesso')}
               className="w-full py-4 rounded-2xl text-white text-base font-bold"
               style={{ background: '#1D9E75' }}>
