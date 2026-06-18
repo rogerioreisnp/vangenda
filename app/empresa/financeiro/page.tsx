@@ -82,7 +82,8 @@ type LancamentoEmpresa = {
   categoria: string
   observacao: string | null
   valor: number
-  data: string
+  data: string | null
+  created_at: string
   quilometragem: number | null
   veiculo_placa: string | null
   responsavel: string | null
@@ -745,14 +746,23 @@ function FinanceiroRotaFixa({ empresaId }: { empresaId: string }) {
     const { inicio, fim } = getPeriodo()
     const { data, error } = await supabase
       .from('cobrancas_empresa')
-      .select('id, tipo, categoria, observacao, valor, data, quilometragem, veiculo_placa, responsavel')
+      .select('id, tipo, categoria, observacao, valor, data, created_at, quilometragem, veiculo_placa, responsavel')
       .eq('empresa_id', empresaId)
       .in('tipo', ['receita', 'despesa'])
-      .gte('data', inicio)
-      .lte('data', fim)
-      .order('data', { ascending: false })
+      .order('created_at', { ascending: false })
     if (error) console.error('[Financeiro rota_fixa] Erro ao carregar:', error.message)
-    setLancamentos((data as LancamentoEmpresa[]) ?? [])
+    const todos = (data as LancamentoEmpresa[]) ?? []
+    const filtrados = todos
+      .filter(r => {
+        const dataEfetiva = r.data ?? r.created_at.slice(0, 10)
+        return dataEfetiva >= inicio && dataEfetiva <= fim
+      })
+      .sort((a, b) => {
+        const da = a.data ?? a.created_at.slice(0, 10)
+        const db = b.data ?? b.created_at.slice(0, 10)
+        return db.localeCompare(da)
+      })
+    setLancamentos(filtrados)
     setLoading(false)
   }
 
@@ -854,7 +864,7 @@ function FinanceiroRotaFixa({ empresaId }: { empresaId: string }) {
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-gray-800 truncate">{cat?.label || r.categoria}</p>
                           {r.observacao && <p className="text-xs text-gray-400 truncate">{r.observacao}</p>}
-                          <p className="text-xs text-gray-400">{format(new Date(r.data + 'T00:00:00'), 'dd/MM/yyyy')}</p>
+                          <p className="text-xs text-gray-400">{format(new Date((r.data ?? r.created_at.slice(0, 10)) + 'T00:00:00'), 'dd/MM/yyyy')}</p>
                         </div>
                         <span className="text-sm font-semibold shrink-0" style={{ color: '#0F6E56' }}>
                           + R$ {Number(r.valor).toFixed(2).replace('.', ',')}
@@ -886,7 +896,7 @@ function FinanceiroRotaFixa({ empresaId }: { empresaId: string }) {
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-gray-800 truncate">{d.observacao || cat?.label || d.categoria}</p>
                           <p className="text-xs text-gray-400">
-                            {format(new Date(d.data + 'T00:00:00'), 'dd/MM/yyyy')}
+                            {format(new Date((d.data ?? d.created_at.slice(0, 10)) + 'T00:00:00'), 'dd/MM/yyyy')}
                             {d.quilometragem != null ? ` · ${d.quilometragem.toLocaleString('pt-BR')} km` : ''}
                             {d.veiculo_placa ? ` · ${d.veiculo_placa}` : ''}
                             {d.responsavel ? ` · ${d.responsavel}` : ''}
