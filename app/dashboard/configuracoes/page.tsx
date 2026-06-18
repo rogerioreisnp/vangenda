@@ -352,6 +352,7 @@ export default function ConfiguracoesPage() {
         pix_tipo: motorista.pix_tipo,
         pix_chave: motorista.pix_chave,
         pagamento_obrigatorio: motorista.pagamento_obrigatorio,
+        telefone: motorista.telefone?.trim() || null,
       }
       if (diasTrabalhoExiste.current) {
         motUpdate.dias_trabalho = motorista.dias_trabalho ?? [1, 2, 3, 4, 5]
@@ -541,6 +542,34 @@ export default function ConfiguracoesPage() {
       </div>
 
       <div className="px-4 py-4 flex flex-col gap-4">
+
+        <Secao titulo="👤 Meu perfil">
+          <Campo label="WhatsApp / Telefone">
+            <input
+              value={motorista?.telefone || ''}
+              onChange={e => {
+                const digits = e.target.value.replace(/\D/g, '').slice(0, 11)
+                let masked = digits
+                if (digits.length > 10) {
+                  masked = `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`
+                } else if (digits.length > 6) {
+                  masked = `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`
+                } else if (digits.length > 2) {
+                  masked = `(${digits.slice(0, 2)}) ${digits.slice(2)}`
+                } else if (digits.length > 0) {
+                  masked = `(${digits}`
+                }
+                setMotorista((m: any) => ({ ...m, telefone: masked }))
+              }}
+              type="tel"
+              placeholder="(95) 99999-9999"
+              className="campo-input"
+            />
+          </Campo>
+          <p className="text-xs text-gray-400 mt-2">
+            Usado para os passageiros enviarem comprovante de agendamento.
+          </p>
+        </Secao>
 
         <Secao titulo="🔗 Meu link de agendamento">
           {empresaSlug ? (
