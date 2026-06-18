@@ -552,6 +552,13 @@ function DetalhePassageiro({ p, onVoltar, onAtualizar, horarioIda, horarioVolta 
 
         {/* Ações */}
         <div className="flex flex-col gap-2">
+          {statusLocal === 'agendado' && (
+            <button onClick={confirmar}
+              className="w-full py-3 rounded-xl text-sm font-semibold"
+              style={{ background: '#E1F5EE', color: '#0F6E56' }}>
+              ✓ Confirmar presença
+            </button>
+          )}
           <button onClick={() => setEditando(true)}
             className="w-full py-3 rounded-xl text-sm font-semibold"
             style={{ background: '#E6F1FB', color: '#185FA5' }}>
