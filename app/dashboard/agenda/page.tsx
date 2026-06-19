@@ -39,6 +39,7 @@ type Encomenda = {
 }
 
 export default function AgendaPage() {
+  console.log('AGENDA CARREGADA v2')
   const hoje = new Date()
   const [mesAtual, setMesAtual] = useState(new Date())
   const [diaSelecionado, setDiaSelecionado] = useState(new Date())
