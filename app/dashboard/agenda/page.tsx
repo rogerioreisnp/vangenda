@@ -431,17 +431,23 @@ function BlocoTurno({ turno, horario, passageiros, onAtualizar, onVerDetalhe }: 
             onDragEnter={() => onDragEnter(i)}
             onDragEnd={onDragEnd}
             onDragOver={e => e.preventDefault()}
-            className="flex items-center gap-1 mb-2 rounded-xl transition-all"
-            style={{ background: draggingIdx === i ? '#E1F5EE' : 'transparent' }}>
+            style={{
+              display: 'flex', alignItems: 'center', gap: 4,
+              marginBottom: 8, borderRadius: 12,
+              background: draggingIdx === i ? '#E1F5EE' : 'transparent',
+            }}>
             <div
-              className="flex flex-col gap-1 px-2 py-3 flex-shrink-0 cursor-grab active:cursor-grabbing"
-              style={{ touchAction: 'none' }}
-              onTouchStart={(e) => handleTouchStart(e, i)}>
-              <div className="w-4 rounded" style={{ height: 3, background: '#1D9E75' }} />
-              <div className="w-4 rounded" style={{ height: 3, background: '#1D9E75' }} />
-              <div className="w-4 rounded" style={{ height: 3, background: '#1D9E75' }} />
+              onTouchStart={(e) => handleTouchStart(e, i)}
+              style={{
+                display: 'flex', flexDirection: 'column', gap: 4,
+                padding: '10px 6px', flexShrink: 0,
+                cursor: 'grab', touchAction: 'none',
+              }}>
+              <div style={{ width: 16, height: 3, borderRadius: 2, background: '#1D9E75' }} />
+              <div style={{ width: 16, height: 3, borderRadius: 2, background: '#1D9E75' }} />
+              <div style={{ width: 16, height: 3, borderRadius: 2, background: '#1D9E75' }} />
             </div>
-            <div className="flex-1 min-w-0">
+            <div style={{ flex: 1, minWidth: 0 }}>
               <CardPassageiro p={p} onVerDetalhe={() => onVerDetalhe(p)} />
             </div>
           </div>
