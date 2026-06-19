@@ -1,12 +1,11 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
-
 export async function POST(req: NextRequest) {
+  const supabaseAdmin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
   let motoristaId: string | null = null
 
   try {
@@ -91,7 +90,7 @@ export async function POST(req: NextRequest) {
 
     if (errMot) {
       console.error('[criar-motorista] Erro no upsert motoristas:', errMot.message)
-      await rollback(motoristaId, false)
+      await rollback(supabaseAdmin, motoristaId, false)
       throw errMot
     }
 
@@ -112,7 +111,7 @@ export async function POST(req: NextRequest) {
 
     if (errMotEmp) {
       console.error('[criar-motorista] Erro no insert motoristas_empresa:', errMotEmp.message)
-      await rollback(motoristaId, true)
+      await rollback(supabaseAdmin, motoristaId, true)
       throw errMotEmp
     }
 
@@ -129,14 +128,14 @@ export async function POST(req: NextRequest) {
   }
 }
 
-async function rollback(motoristaId: string, deletarMotoristas: boolean) {
+async function rollback(supabaseAdmin: ReturnType<typeof createClient>, motoristaId: string, deletarMotoristas: boolean) {
   console.log('[criar-motorista] Iniciando rollback para id:', motoristaId)
   if (deletarMotoristas) {
     const { error } = await supabaseAdmin.from('motoristas').delete().eq('id', motoristaId)
     if (error) console.error('[criar-motorista] Rollback motoristas falhou:', error.message)
     else console.log('[criar-motorista] Rollback: registro motoristas removido')
   }
-  const { error } = await supabaseAdmin.auth.admin.deleteUser(motoristaId)
+  const { error } = await (supabaseAdmin.auth as any).admin.deleteUser(motoristaId)
   if (error) console.error('[criar-motorista] Rollback auth user falhou:', error.message)
   else console.log('[criar-motorista] Rollback: auth user removido')
 }
