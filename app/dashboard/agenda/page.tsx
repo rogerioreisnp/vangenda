@@ -424,44 +424,25 @@ function BlocoTurno({ turno, horario, passageiros, onAtualizar, onVerDetalhe }: 
         <span className="text-xs text-gray-400">R$ {sub.toFixed(0)}</span>
       </div>
       <div ref={containerRef}>
-        {lista.map((p, i) => {
-          console.log('grip renderizado', p.nome_passageiro, i)
-          return (
-            <div key={p.id} draggable
-              data-drag-idx={i}
-              onDragStart={() => onDragStart(i)}
-              onDragEnter={() => onDragEnter(i)}
-              onDragEnd={onDragEnd}
-              onDragOver={e => e.preventDefault()}
-              style={{
-                position: 'relative',
-                paddingLeft: 32,
-                marginBottom: 8,
-                borderRadius: 12,
-                background: draggingIdx === i ? '#E1F5EE' : 'transparent',
-              }}>
-              <div
-                onTouchStart={(e) => handleTouchStart(e, i)}
-                style={{
-                  position: 'absolute', left: 0, top: '50%',
-                  transform: 'translateY(-50%)',
-                  display: 'flex', flexDirection: 'column', gap: 4,
-                  padding: '0 6px', cursor: 'grab', touchAction: 'none', zIndex: 2,
-                }}>
-                <div style={{ width: 16, height: 3, borderRadius: 2, background: '#1D9E75' }} />
-                <div style={{ width: 16, height: 3, borderRadius: 2, background: '#1D9E75' }} />
-                <div style={{ width: 16, height: 3, borderRadius: 2, background: '#1D9E75' }} />
-              </div>
-              <CardPassageiro p={p} onVerDetalhe={() => onVerDetalhe(p)} />
-            </div>
-          )
-        })}
+        {lista.map((p, i) => (
+          <div key={p.id} draggable
+            data-drag-idx={i}
+            onDragStart={() => onDragStart(i)}
+            onDragEnter={() => onDragEnter(i)}
+            onDragEnd={onDragEnd}
+            onDragOver={e => e.preventDefault()}
+            style={{ marginBottom: 8, borderRadius: 12, background: draggingIdx === i ? '#E1F5EE' : 'transparent' }}>
+            <CardPassageiro p={p} onVerDetalhe={() => onVerDetalhe(p)} onGripTouchStart={(e) => handleTouchStart(e, i)} />
+          </div>
+        ))}
       </div>
     </div>
   )
 }
 
-function CardPassageiro({ p, onVerDetalhe }: { p: Agendamento, onVerDetalhe: () => void }) {
+function CardPassageiro({ p, onVerDetalhe, onGripTouchStart }: {
+  p: Agendamento, onVerDetalhe: () => void, onGripTouchStart?: (e: React.TouchEvent) => void
+}) {
   const iniciais = p.nome_passageiro.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase()
   const cores = ['#E1F5EE|#0F6E56', '#FAEEDA|#854F0B', '#E6F1FB|#185FA5', '#EEEDFE|#534AB7']
   const cor = cores[p.nome_passageiro.charCodeAt(0) % cores.length].split('|')
@@ -469,8 +450,16 @@ function CardPassageiro({ p, onVerDetalhe }: { p: Agendamento, onVerDetalhe: () 
   return (
     <button
       onClick={onVerDetalhe}
-      className="w-full bg-white border border-gray-100 rounded-xl p-3 flex items-center gap-3 text-left active:opacity-70 transition-opacity"
+      className="w-full bg-white border border-gray-100 rounded-xl p-3 flex items-center gap-2 text-left active:opacity-70 transition-opacity"
       style={{ cursor: 'pointer' }}>
+      <div
+        onTouchStart={onGripTouchStart}
+        onClick={e => e.stopPropagation()}
+        style={{ display: 'flex', flexDirection: 'column', gap: 3, padding: '2px 4px', flexShrink: 0, cursor: 'grab', touchAction: 'none' }}>
+        <div style={{ width: 14, height: 3, borderRadius: 2, background: '#1D9E75' }} />
+        <div style={{ width: 14, height: 3, borderRadius: 2, background: '#1D9E75' }} />
+        <div style={{ width: 14, height: 3, borderRadius: 2, background: '#1D9E75' }} />
+      </div>
       <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
         style={{ background: cor[0], color: cor[1] }}>{iniciais}</div>
       <div className="flex-1 min-w-0">
