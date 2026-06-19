@@ -1,11 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
-
 // Mapeie aqui os IDs exatos dos produtos do seu painel Kiwify → tipo de plano
 // Encontre em: Kiwify Dashboard → Produtos → (seu produto) → ID do produto
 // Deixe vazio para depender apenas do nome do produto
@@ -52,7 +47,7 @@ function calcularExpiracao(tipo: 'mensal' | 'semestral' | 'anual'): Date {
 }
 
 // Busca o ID do usuário pelo email sem depender de paginação limitada
-async function buscarUsuarioIdPorEmail(email: string): Promise<string | null> {
+async function buscarUsuarioIdPorEmail(supabase: any, email: string): Promise<string | null> {
   // Tentativa 1: função SQL dedicada (escalável, sem limite de paginação)
   // Requer a migration supabase_get_user_by_email.sql executada no Supabase
   const { data: userId, error: rpcError } = await supabase
@@ -76,6 +71,10 @@ async function buscarUsuarioIdPorEmail(email: string): Promise<string | null> {
 }
 
 export async function POST(req: NextRequest) {
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
   try {
     const body = await req.json()
 
@@ -111,7 +110,7 @@ export async function POST(req: NextRequest) {
     const tipoPlan = detectarPlano(nomeProduto, idProduto, chargeFrequency)
     const expira = calcularExpiracao(tipoPlan)
 
-    const userId = await buscarUsuarioIdPorEmail(email)
+    const userId = await buscarUsuarioIdPorEmail(supabase, email)
     if (!userId) {
       console.error(`[kiwify] Usuário não encontrado para email: ${email}`)
       return NextResponse.json({ error: `Usuário não encontrado: ${email}` }, { status: 404 })
