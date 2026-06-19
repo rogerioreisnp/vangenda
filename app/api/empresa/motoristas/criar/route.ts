@@ -128,7 +128,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-async function rollback(supabaseAdmin: ReturnType<typeof createClient>, motoristaId: string, deletarMotoristas: boolean) {
+async function rollback(supabaseAdmin: any, motoristaId: string, deletarMotoristas: boolean) {
   console.log('[criar-motorista] Iniciando rollback para id:', motoristaId)
   if (deletarMotoristas) {
     const { error } = await supabaseAdmin.from('motoristas').delete().eq('id', motoristaId)
