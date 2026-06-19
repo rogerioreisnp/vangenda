@@ -1201,6 +1201,7 @@ function ModalListaPDF({
     data_volta: '',
   })
   const [gerando, setGerando] = useState(false)
+  const [documentos, setDocumentos] = useState<Record<string, string>>({})
 
   const passageirosFiltrados = agsDoDia.filter(a => a.turno === form.turno_filtro)
 
@@ -1339,6 +1340,8 @@ function ModalListaPDF({
       doc.setFontSize(8.5)
       doc.setFont('helvetica', 'normal')
       doc.text(`${i + 1}.  ${trunc(ag.nome_passageiro.replace(/\s*\(\d+\/\d+\)\s*$/, '').toUpperCase(), 40)}`, mg + 3, y + 6.2)
+      const docText = documentos[ag.id] || ''
+      if (docText) doc.text(trunc(docText, 25), mg + nameW + 3, y + 6.2)
       y += passH
     })
 
@@ -1403,9 +1406,15 @@ function ModalListaPDF({
             <p className="text-sm text-gray-400">Nenhum passageiro neste turno</p>
           ) : (
             passageirosFiltrados.map((ag, i) => (
-              <p key={ag.id} className="text-sm text-gray-700 py-1.5 border-b border-gray-50 last:border-0">
-                {i + 1}. {ag.nome_passageiro}
-              </p>
+              <div key={ag.id} className="flex items-center gap-2 py-1.5 border-b border-gray-50 last:border-0">
+                <span className="text-sm text-gray-700 flex-1 min-w-0 truncate">{i + 1}. {ag.nome_passageiro}</span>
+                <input
+                  value={documentos[ag.id] || ''}
+                  onChange={e => setDocumentos(d => ({ ...d, [ag.id]: e.target.value }))}
+                  placeholder="RG ou CPF"
+                  className="w-28 px-2 py-1 rounded-lg border border-gray-200 text-xs outline-none focus:border-green-600 bg-gray-50 flex-shrink-0"
+                />
+              </div>
             ))
           )}
         </div>
