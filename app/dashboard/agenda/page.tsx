@@ -69,13 +69,17 @@ export default function AgendaPage() {
 
     const [{ data }, { data: rts }, { data: mot }] = await Promise.all([
       supabase.from('agendamentos').select('*').eq('motorista_id', user.id)
-        .gte('data_viagem', inicio).lte('data_viagem', fim).neq('status', 'cancelado')
-        .order('ordem', { ascending: true, nullsFirst: false }),
+        .gte('data_viagem', inicio).lte('data_viagem', fim).neq('status', 'cancelado'),
       supabase.from('rotas').select('*').eq('motorista_id', user.id),
       supabase.from('motoristas').select('dias_trabalho, nome').eq('id', user.id).single(),
     ])
 
-    if (data) setAgendamentos(data)
+    if (data) setAgendamentos([...data].sort((a, b) => {
+      if (a.ordem != null && b.ordem != null) return a.ordem - b.ordem
+      if (a.ordem != null) return -1
+      if (b.ordem != null) return 1
+      return 0
+    }))
     if (rts) setRotas(rts)
     if (mot?.dias_trabalho) setDiasTrabalho(mot.dias_trabalho)
     if (mot?.nome) setNomeMotorista(mot.nome)
@@ -430,12 +434,12 @@ function BlocoTurno({ turno, horario, passageiros, onAtualizar, onVerDetalhe }: 
             className="flex items-center gap-1 mb-2 rounded-xl transition-all"
             style={{ background: draggingIdx === i ? '#E1F5EE' : 'transparent' }}>
             <div
-              className="flex flex-col gap-0.5 px-1 py-3 flex-shrink-0 cursor-grab active:cursor-grabbing"
+              className="flex flex-col gap-1 px-2 py-3 flex-shrink-0 cursor-grab active:cursor-grabbing"
               style={{ touchAction: 'none' }}
               onTouchStart={(e) => handleTouchStart(e, i)}>
-              <div className="w-4 h-0.5 rounded" style={{ background: '#9FE1CB' }} />
-              <div className="w-4 h-0.5 rounded" style={{ background: '#9FE1CB' }} />
-              <div className="w-4 h-0.5 rounded" style={{ background: '#9FE1CB' }} />
+              <div className="w-4 rounded" style={{ height: 3, background: '#1D9E75' }} />
+              <div className="w-4 rounded" style={{ height: 3, background: '#1D9E75' }} />
+              <div className="w-4 rounded" style={{ height: 3, background: '#1D9E75' }} />
             </div>
             <div className="flex-1 min-w-0">
               <CardPassageiro p={p} onVerDetalhe={() => onVerDetalhe(p)} />
