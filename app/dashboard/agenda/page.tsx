@@ -424,34 +424,38 @@ function BlocoTurno({ turno, horario, passageiros, onAtualizar, onVerDetalhe }: 
         <span className="text-xs text-gray-400">R$ {sub.toFixed(0)}</span>
       </div>
       <div ref={containerRef}>
-        {lista.map((p, i) => (
-          <div key={p.id} draggable
-            data-drag-idx={i}
-            onDragStart={() => onDragStart(i)}
-            onDragEnter={() => onDragEnter(i)}
-            onDragEnd={onDragEnd}
-            onDragOver={e => e.preventDefault()}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 4,
-              marginBottom: 8, borderRadius: 12,
-              background: draggingIdx === i ? '#E1F5EE' : 'transparent',
-            }}>
-            <div
-              onTouchStart={(e) => handleTouchStart(e, i)}
+        {lista.map((p, i) => {
+          console.log('grip renderizado', p.nome_passageiro, i)
+          return (
+            <div key={p.id} draggable
+              data-drag-idx={i}
+              onDragStart={() => onDragStart(i)}
+              onDragEnter={() => onDragEnter(i)}
+              onDragEnd={onDragEnd}
+              onDragOver={e => e.preventDefault()}
               style={{
-                display: 'flex', flexDirection: 'column', gap: 4,
-                padding: '10px 6px', flexShrink: 0,
-                cursor: 'grab', touchAction: 'none',
+                position: 'relative',
+                paddingLeft: 32,
+                marginBottom: 8,
+                borderRadius: 12,
+                background: draggingIdx === i ? '#E1F5EE' : 'transparent',
               }}>
-              <div style={{ width: 16, height: 3, borderRadius: 2, background: '#1D9E75' }} />
-              <div style={{ width: 16, height: 3, borderRadius: 2, background: '#1D9E75' }} />
-              <div style={{ width: 16, height: 3, borderRadius: 2, background: '#1D9E75' }} />
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
+              <div
+                onTouchStart={(e) => handleTouchStart(e, i)}
+                style={{
+                  position: 'absolute', left: 0, top: '50%',
+                  transform: 'translateY(-50%)',
+                  display: 'flex', flexDirection: 'column', gap: 4,
+                  padding: '0 6px', cursor: 'grab', touchAction: 'none', zIndex: 2,
+                }}>
+                <div style={{ width: 16, height: 3, borderRadius: 2, background: '#1D9E75' }} />
+                <div style={{ width: 16, height: 3, borderRadius: 2, background: '#1D9E75' }} />
+                <div style={{ width: 16, height: 3, borderRadius: 2, background: '#1D9E75' }} />
+              </div>
               <CardPassageiro p={p} onVerDetalhe={() => onVerDetalhe(p)} />
             </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )
