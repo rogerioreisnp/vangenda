@@ -61,7 +61,7 @@ async function buscarUsuarioIdPorEmail(supabase: any, email: string): Promise<st
   for (;;) {
     const { data, error } = await supabase.auth.admin.listUsers({ page, perPage })
     if (error || !data?.users?.length) break
-    const encontrado = data.users.find(u => u.email?.toLowerCase() === email.toLowerCase())
+    const encontrado = data.users.find((u: any) => u.email?.toLowerCase() === email.toLowerCase())
     if (encontrado) return encontrado.id
     if (data.users.length < perPage) break
     page++
