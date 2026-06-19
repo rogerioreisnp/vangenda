@@ -9,7 +9,7 @@ CREATE TABLE empresas (
   periodo TEXT NOT NULL DEFAULT 'mensal',
   status TEXT NOT NULL DEFAULT 'trial',
   trial_inicio TIMESTAMPTZ DEFAULT NOW(),
-  trial_fim TIMESTAMPTZ DEFAULT NOW() + INTERVAL '7 days',
+  trial_fim TIMESTAMPTZ DEFAULT NOW() + INTERVAL '15 days',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

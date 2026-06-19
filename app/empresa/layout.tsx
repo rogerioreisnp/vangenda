@@ -241,7 +241,7 @@ function TelaTrialExpirado({ onSair }: { onSair: () => void }) {
           <p className="text-4xl mb-3">⏰</p>
           <p className="text-base font-bold text-gray-800 mb-2">Período de avaliação encerrado</p>
           <p className="text-sm text-gray-500 leading-relaxed">
-            Seu trial de 7 dias chegou ao fim. Assine um plano para continuar
+            Seu trial de 15 dias chegou ao fim. Assine um plano para continuar
             usando o RotaGenda Empresarial com todos os seus dados preservados.
           </p>
         </div>

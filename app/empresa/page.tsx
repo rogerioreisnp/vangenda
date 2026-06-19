@@ -630,7 +630,7 @@ function BannerBoasVindas() {
         🎉 Bem-vindo ao RotaGenda Empresarial!
       </p>
       <p className="text-xs mb-3" style={{ color: '#0F6E56' }}>
-        Seu trial de 7 dias começou. Siga os passos abaixo para configurar sua conta.
+        Seu trial de 15 dias começou. Siga os passos abaixo para configurar sua conta.
       </p>
       <div className="flex flex-col gap-2">
         {passos.map(p => (

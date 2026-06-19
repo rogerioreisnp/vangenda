@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
     }
 
     const trialFim = new Date()
-    trialFim.setDate(trialFim.getDate() + 7)
+    trialFim.setDate(trialFim.getDate() + 15)
 
     const { data: empresa, error: errEmpresa } = await supabaseAdmin
       .from('empresas')

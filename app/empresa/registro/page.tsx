@@ -196,7 +196,7 @@ function EtapaPlano({
       <div className="rounded-xl px-4 py-3 text-center"
         style={{ background: '#E1F5EE', border: '1px solid #9FE1CB' }}>
         <p className="text-sm font-semibold" style={{ color: '#085041' }}>
-          🎉 7 dias de trial grátis em todos os planos
+          🎉 15 dias de trial grátis em todos os planos
         </p>
         <p className="text-xs mt-0.5" style={{ color: '#0F6E56' }}>
           Sem cartão de crédito. Cancele quando quiser.
@@ -368,7 +368,7 @@ function EtapaDados({
             Plano {planoInfo.nome} — R$ {preco}/mês
           </p>
           <p className="text-xs" style={{ color: '#0F6E56' }}>
-            7 dias grátis · {planoInfo.limite}
+            15 dias grátis · {planoInfo.limite}
           </p>
         </div>
       </div>
