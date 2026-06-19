@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, isSameDay, isSameMonth, addMonths, subMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -1202,6 +1202,8 @@ function ModalListaPDF({
   })
   const [gerando, setGerando] = useState(false)
   const [documentos, setDocumentos] = useState<Record<string, string>>({})
+  const documentosRef = useRef(documentos)
+  useEffect(() => { documentosRef.current = documentos }, [documentos])
 
   const passageirosFiltrados = agsDoDia.filter(a => a.turno === form.turno_filtro)
 
@@ -1340,7 +1342,7 @@ function ModalListaPDF({
       doc.setFontSize(8.5)
       doc.setFont('helvetica', 'normal')
       doc.text(`${i + 1}.  ${trunc(ag.nome_passageiro.replace(/\s*\(\d+\/\d+\)\s*$/, '').toUpperCase(), 40)}`, mg + 3, y + 6.2)
-      const docText = documentos[ag.id] || ''
+      const docText = documentosRef.current[ag.id] || ''
       if (docText) doc.text(trunc(docText, 25), mg + nameW + 3, y + 6.2)
       y += passH
     })
