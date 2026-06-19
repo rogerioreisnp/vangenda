@@ -1453,7 +1453,13 @@ function ModalListaPDF({
       doc.setFont('helvetica', 'normal')
       doc.text(`${i + 1}.  ${trunc(ag.nome_passageiro.replace(/\s*\(\d+\/\d+\)\s*$/, '').toUpperCase(), 40)}`, mg + 3, y + 6.2)
       const docText = documentosRef.current[ag.id] || ''
-      if (docText) doc.text(trunc(docText, 25), mg + nameW + 3, y + 6.2)
+      if (docText) {
+        doc.text(trunc(docText, 25), mg + nameW + 3, y + 6.2)
+      } else {
+        doc.setTextColor(180, 180, 180)
+        doc.text('RG/CPF', mg + nameW + 3, y + 6.2)
+        doc.setTextColor(30, 30, 30)
+      }
       y += passH
     })
 
