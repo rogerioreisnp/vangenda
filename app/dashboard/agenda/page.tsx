@@ -22,6 +22,7 @@ type Agendamento = {
   municipio?: string
   cep?: string
   referencia?: string
+  ordem?: number | null
 }
 
 type Encomenda = {
@@ -68,7 +69,8 @@ export default function AgendaPage() {
 
     const [{ data }, { data: rts }, { data: mot }] = await Promise.all([
       supabase.from('agendamentos').select('*').eq('motorista_id', user.id)
-        .gte('data_viagem', inicio).lte('data_viagem', fim).neq('status', 'cancelado'),
+        .gte('data_viagem', inicio).lte('data_viagem', fim).neq('status', 'cancelado')
+        .order('ordem', { ascending: true, nullsFirst: false }),
       supabase.from('rotas').select('*').eq('motorista_id', user.id),
       supabase.from('motoristas').select('dias_trabalho, nome').eq('id', user.id).single(),
     ])
@@ -317,7 +319,90 @@ function BlocoTurno({ turno, horario, passageiros, onAtualizar, onVerDetalhe }: 
   turno: 'ida' | 'volta', horario: string, passageiros: Agendamento[],
   onAtualizar: () => void, onVerDetalhe: (a: Agendamento) => void
 }) {
-  const sub = passageiros.reduce((s, a) => s + a.valor, 0)
+  const [lista, setLista] = useState(passageiros)
+  const listaRef = useRef(passageiros)
+  const dragIdx = useRef<number | null>(null)
+  const [draggingIdx, setDraggingIdx] = useState<number | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const propSet = new Set(passageiros.map(p => p.id))
+    const curSet = new Set(listaRef.current.map(p => p.id))
+    const mudou = propSet.size !== curSet.size || [...propSet].some(id => !curSet.has(id))
+    if (mudou) {
+      listaRef.current = passageiros
+      setLista(passageiros)
+    }
+  }, [passageiros])
+
+  const sub = lista.reduce((s, a) => s + a.valor, 0)
+
+  async function salvarOrdem(novaLista: Agendamento[]) {
+    await Promise.all(novaLista.map((a, i) =>
+      supabase.from('agendamentos').update({ ordem: i }).eq('id', a.id)
+    ))
+  }
+
+  function reordenar(de: number, para: number) {
+    const novas = [...listaRef.current]
+    const [item] = novas.splice(de, 1)
+    novas.splice(para, 0, item)
+    listaRef.current = novas
+    setLista(novas)
+    return novas
+  }
+
+  function onDragStart(idx: number) {
+    dragIdx.current = idx
+    setDraggingIdx(idx)
+  }
+
+  function onDragEnter(idx: number) {
+    if (dragIdx.current === null || dragIdx.current === idx) return
+    reordenar(dragIdx.current, idx)
+    dragIdx.current = idx
+    setDraggingIdx(idx)
+  }
+
+  function onDragEnd() {
+    dragIdx.current = null
+    setDraggingIdx(null)
+    salvarOrdem(listaRef.current)
+  }
+
+  function handleTouchStart(e: React.TouchEvent, idx: number) {
+    e.preventDefault()
+    dragIdx.current = idx
+    setDraggingIdx(idx)
+    let currentDragIdx = idx
+
+    function move(ev: TouchEvent) {
+      ev.preventDefault()
+      const touch = ev.touches[0]
+      const el = document.elementFromPoint(touch.clientX, touch.clientY)
+      if (!el || !containerRef.current?.contains(el)) return
+      const itemEl = el.closest('[data-drag-idx]') as HTMLElement
+      if (!itemEl) return
+      const newIdx = parseInt(itemEl.dataset.dragIdx ?? '-1')
+      if (isNaN(newIdx) || newIdx < 0 || newIdx === currentDragIdx) return
+      reordenar(currentDragIdx, newIdx)
+      currentDragIdx = newIdx
+      dragIdx.current = newIdx
+      setDraggingIdx(newIdx)
+    }
+
+    function end() {
+      dragIdx.current = null
+      setDraggingIdx(null)
+      document.removeEventListener('touchmove', move)
+      document.removeEventListener('touchend', end)
+      salvarOrdem(listaRef.current)
+    }
+
+    document.addEventListener('touchmove', move, { passive: false })
+    document.addEventListener('touchend', end)
+  }
+
   return (
     <div className="mb-4">
       <div className="flex items-center justify-between mb-2">
@@ -334,9 +419,30 @@ function BlocoTurno({ turno, horario, passageiros, onAtualizar, onVerDetalhe }: 
         </div>
         <span className="text-xs text-gray-400">R$ {sub.toFixed(0)}</span>
       </div>
-      {passageiros.map(p => (
-        <CardPassageiro key={p.id} p={p} onVerDetalhe={() => onVerDetalhe(p)} />
-      ))}
+      <div ref={containerRef}>
+        {lista.map((p, i) => (
+          <div key={p.id} draggable
+            data-drag-idx={i}
+            onDragStart={() => onDragStart(i)}
+            onDragEnter={() => onDragEnter(i)}
+            onDragEnd={onDragEnd}
+            onDragOver={e => e.preventDefault()}
+            className="flex items-center gap-1 mb-2 rounded-xl transition-all"
+            style={{ background: draggingIdx === i ? '#E1F5EE' : 'transparent' }}>
+            <div
+              className="flex flex-col gap-0.5 px-1 py-3 flex-shrink-0 cursor-grab active:cursor-grabbing"
+              style={{ touchAction: 'none' }}
+              onTouchStart={(e) => handleTouchStart(e, i)}>
+              <div className="w-4 h-0.5 rounded" style={{ background: '#9FE1CB' }} />
+              <div className="w-4 h-0.5 rounded" style={{ background: '#9FE1CB' }} />
+              <div className="w-4 h-0.5 rounded" style={{ background: '#9FE1CB' }} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <CardPassageiro p={p} onVerDetalhe={() => onVerDetalhe(p)} />
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
@@ -349,7 +455,7 @@ function CardPassageiro({ p, onVerDetalhe }: { p: Agendamento, onVerDetalhe: () 
   return (
     <button
       onClick={onVerDetalhe}
-      className="w-full bg-white border border-gray-100 rounded-xl p-3 mb-2 flex items-center gap-3 text-left active:opacity-70 transition-opacity"
+      className="w-full bg-white border border-gray-100 rounded-xl p-3 flex items-center gap-3 text-left active:opacity-70 transition-opacity"
       style={{ cursor: 'pointer' }}>
       <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
         style={{ background: cor[0], color: cor[1] }}>{iniciais}</div>
