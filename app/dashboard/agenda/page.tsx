@@ -333,7 +333,7 @@ function BlocoTurno({ turno, horario, passageiros, onAtualizar, onVerDetalhe }: 
   useEffect(() => {
     const propSet = new Set(passageiros.map(p => p.id))
     const curSet = new Set(listaRef.current.map(p => p.id))
-    const mudou = propSet.size !== curSet.size || [...propSet].some(id => !curSet.has(id))
+    const mudou = propSet.size !== curSet.size || Array.from(propSet).some(id => !curSet.has(id))
     if (mudou) {
       listaRef.current = passageiros
       setLista(passageiros)
