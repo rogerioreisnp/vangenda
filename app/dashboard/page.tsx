@@ -22,8 +22,9 @@ export default function DashboardPage() {
   const [despesasMes, setDespesasMes] = useState(0)
   const [fiados, setFiados] = useState<{ count: number; total: number; temVencido: boolean } | null>(null)
 
+  const [isGestor, setIsGestor] = useState(false)
   // undefined = checando, null = motorista avulso, object = motorista de empresa
-  const [empresaCtx, setEmpresaCtx] = useState<{ empresaId: string; motEmpresaId: string } | null | undefined>(undefined)
+  const [empresaCtx, setEmpresaCtx] = useState<{ empresaId: string; motEmpresaId?: string } | null | undefined>(undefined)
   const [rotasEmpresa, setRotasEmpresa] = useState<{ id: string; nome: string | null; origem: string | null; destino: string | null }[]>([])
   const [rotaSelecionada, setRotaSelecionada] = useState('')
 
@@ -38,7 +39,27 @@ export default function DashboardPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
-    // Verifica se é motorista de empresa (RLS: policy motorista_ve_proprio_registro)
+    // 1) Verifica se é gestor de empresa
+    const { data: gestorRow } = await supabase
+      .from('gestores')
+      .select('nome, empresa_id')
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (gestorRow) {
+      setIsGestor(true)
+      setMotorista({ nome: gestorRow.nome || '' })
+      setEmpresaCtx({ empresaId: gestorRow.empresa_id })
+      const { data: rotas } = await supabase
+        .from('rotas_empresa')
+        .select('id, nome, origem, destino, ativa')
+        .eq('empresa_id', gestorRow.empresa_id)
+        .order('created_at', { ascending: true })
+      setRotasEmpresa((rotas || []).filter(r => r.ativa !== false))
+      return
+    }
+
+    // 2) Verifica se é motorista de empresa (RLS: policy motorista_ve_proprio_registro)
     const { data: motEmp } = await supabase
       .from('motoristas_empresa')
       .select('id, empresa_id')
@@ -121,6 +142,11 @@ export default function DashboardPage() {
     <div>
       {/* Header */}
       <div style={{ background: '#0F6E56' }} className={`px-4 pt-12 ${empresaCtx != null ? 'pb-4' : 'pb-5'}`}>
+        {isGestor && (
+          <Link href="/empresa" className="inline-flex items-center gap-1 text-xs mb-2 font-medium" style={{ color: '#9FE1CB' }}>
+            ‹ Voltar ao painel
+          </Link>
+        )}
         <div className="flex justify-between items-start">
           <div>
             <p style={{ color: '#9FE1CB' }} className="text-xs">{saudacao},</p>

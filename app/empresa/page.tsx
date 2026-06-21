@@ -594,11 +594,12 @@ export default function EmpresaPage() {
         {/* Atalhos rápidos */}
         <div>
           <p className="text-sm font-semibold text-gray-700 mb-2">Atalhos rápidos</p>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2">
             {[
               { emoji: '📋', label: 'Nova corrida', href: '/empresa/agendamentos?nova=1' },
               { emoji: '💰', label: 'Financeiro', href: '/empresa/financeiro' },
               { emoji: '🚐', label: 'Motoristas', href: '/empresa/motoristas' },
+              { emoji: '🛣️', label: 'Operar rota', href: '/dashboard' },
             ].map(item => (
               <Link key={item.href} href={item.href}
                 className="bg-white rounded-2xl flex flex-col items-center justify-center py-4 gap-1.5 active:opacity-75"
@@ -985,6 +986,21 @@ function DashboardRotaFixa({
             R$ {Math.abs(lucroMes).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
           </p>
         </div>
+
+        {/* Operar rota */}
+        <Link href="/dashboard"
+          className="rounded-2xl px-4 py-3 flex items-center justify-between active:opacity-75"
+          style={{ background: '#0F6E56', boxShadow: '0 2px 8px rgba(15,110,86,0.25)' }}>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
+              style={{ background: 'rgba(255,255,255,0.15)' }}>🛣️</div>
+            <div>
+              <p style={{ color: '#E1F5EE' }} className="text-sm font-semibold">Operar rota</p>
+              <p style={{ color: '#9FE1CB' }} className="text-xs mt-0.5">Selecionar rota e ver passageiros do dia</p>
+            </div>
+          </div>
+          <span style={{ color: '#9FE1CB' }} className="text-xs">›</span>
+        </Link>
 
         {/* Frota hoje */}
         <div>

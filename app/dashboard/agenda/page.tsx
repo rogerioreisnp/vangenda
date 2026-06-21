@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, isSameDay, isSameMonth, addMonths, subMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import Link from 'next/link'
 import ModalNovaEncomenda from '@/components/ModalNovaEncomenda'
 
 type Agendamento = {
@@ -53,12 +54,15 @@ export default function AgendaPage() {
   const [diasTrabalho, setDiasTrabalho] = useState<number[]>([])
   const [nomeMotorista, setNomeMotorista] = useState('')
   const [encomendasDoDia, setEncomendasDoDia] = useState<Encomenda[]>([])
-  const [empresaCtx, setEmpresaCtx] = useState<{ empresaId: string; motEmpresaId: string } | null | undefined>(undefined)
+  const [empresaCtx, setEmpresaCtx] = useState<{ empresaId: string; motEmpresaId?: string } | null | undefined>(undefined)
   const [rotasEmpresa, setRotasEmpresa] = useState<{ id: string; nome: string | null; origem: string | null; destino: string | null }[]>([])
+  const [isGestor, setIsGestor] = useState(false)
+  const [gestorUserIds, setGestorUserIds] = useState<string[]>([])
+  const [empresaReady, setEmpresaReady] = useState(false)
 
-  useEffect(() => { carregarMes() }, [mesAtual])
+  useEffect(() => { detectarEmpresa().then(() => setEmpresaReady(true)) }, [])
+  useEffect(() => { if (empresaReady) carregarMes() }, [empresaReady, mesAtual])
   useEffect(() => { carregarEncomendasDoDia(diaSelecionado) }, [diaSelecionado])
-  useEffect(() => { detectarEmpresa() }, [])
 
   async function carregarMes() {
     setLoading(true)
@@ -67,6 +71,22 @@ export default function AgendaPage() {
 
     const inicio = format(startOfMonth(mesAtual), 'yyyy-MM-dd')
     const fim = format(endOfMonth(mesAtual), 'yyyy-MM-dd')
+
+    if (isGestor) {
+      if (gestorUserIds.length > 0) {
+        const { data } = await supabase.from('agendamentos').select('*')
+          .in('motorista_id', gestorUserIds)
+          .gte('data_viagem', inicio).lte('data_viagem', fim).neq('status', 'cancelado')
+        if (data) setAgendamentos([...data].sort((a, b) => {
+          if (a.ordem != null && b.ordem != null) return a.ordem - b.ordem
+          if (a.ordem != null) return -1
+          if (b.ordem != null) return 1
+          return 0
+        }))
+      }
+      setLoading(false)
+      return
+    }
 
     const [{ data }, { data: rts }, { data: mot }] = await Promise.all([
       supabase.from('agendamentos').select('*').eq('motorista_id', user.id)
@@ -103,6 +123,30 @@ export default function AgendaPage() {
   async function detectarEmpresa() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
+
+    // 1) Verifica se é gestor
+    const { data: gestorRow } = await supabase
+      .from('gestores').select('nome, empresa_id').eq('user_id', user.id).maybeSingle()
+    if (gestorRow) {
+      setIsGestor(true)
+      setNomeMotorista(gestorRow.nome || '')
+      setEmpresaCtx({ empresaId: gestorRow.empresa_id })
+      const { data: rts } = await supabase
+        .from('rotas_empresa').select('id, nome, origem, destino, ativa')
+        .eq('empresa_id', gestorRow.empresa_id).order('created_at', { ascending: true })
+      setRotasEmpresa((rts || []).filter(r => r.ativa !== false))
+      const { data: motsEmp } = await supabase
+        .from('motoristas_empresa').select('user_id')
+        .eq('empresa_id', gestorRow.empresa_id).eq('status', 'ativo')
+      const uIds = [
+        ...((motsEmp || []).map(m => m.user_id).filter(Boolean) as string[]),
+        user.id,
+      ]
+      setGestorUserIds(uIds)
+      return
+    }
+
+    // 2) Verifica se é motorista de empresa
     const { data: motEmp } = await supabase
       .from('motoristas_empresa')
       .select('id, empresa_id')
@@ -151,6 +195,11 @@ export default function AgendaPage() {
   return (
     <div>
       <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-0">
+        {isGestor && (
+          <Link href="/empresa" className="inline-flex items-center gap-1 text-xs font-medium mb-2" style={{ color: '#9FE1CB' }}>
+            ‹ Voltar ao painel
+          </Link>
+        )}
         <p style={{ color: '#E1F5EE' }} className="text-base font-semibold mb-1">Agenda</p>
         <p style={{ color: '#5DCAA5' }} className="text-xs mb-3">Toque em um dia para ver os passageiros</p>
 
@@ -809,7 +858,7 @@ function DetalhePassageiro({ p, onVoltar, onAtualizar, horarioIda, horarioVolta 
 
 function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSalvo }: {
   data: Date, rotas: any[],
-  empresaCtx: { empresaId: string; motEmpresaId: string } | null,
+  empresaCtx: { empresaId: string; motEmpresaId?: string } | null,
   rotasEmpresa: { id: string; nome: string | null; origem: string | null; destino: string | null }[],
   onFechar: () => void, onSalvo: () => void
 }) {
