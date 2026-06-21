@@ -56,6 +56,11 @@ type AgendamentoRF = {
   data_viagem: string
   forma_pagamento: string | null
   observacoes: string | null
+  rua: string | null
+  numero: string | null
+  bairro: string | null
+  cep: string | null
+  referencia: string | null
 }
 
 type FormCorrida = {
@@ -108,6 +113,11 @@ type FormAgPassageiro = {
   forma_pagamento: string
   observacoes: string
   motorista_empresa_id: string
+  rua: string
+  numero: string
+  bairro: string
+  cep: string
+  referencia: string
 }
 
 const FORM_AG_VAZIO: FormAgPassageiro = {
@@ -122,6 +132,11 @@ const FORM_AG_VAZIO: FormAgPassageiro = {
   forma_pagamento: 'dinheiro',
   observacoes: '',
   motorista_empresa_id: '',
+  rua: '',
+  numero: '',
+  bairro: '',
+  cep: '',
+  referencia: '',
 }
 
 const STATUS_COR: Record<string, { bg: string; text: string; label: string }> = {
@@ -276,7 +291,7 @@ export default function AgendamentosPage() {
       if (userIds.length > 0) {
         const { data: ags } = await supabase
           .from('agendamentos')
-          .select('id, motorista_id, nome_passageiro, telefone_passageiro, parada_origem, parada_destino, turno, valor, status, data_viagem, forma_pagamento, observacoes')
+          .select('id, motorista_id, nome_passageiro, telefone_passageiro, parada_origem, parada_destino, turno, valor, status, data_viagem, forma_pagamento, observacoes, rua, numero, bairro, cep, referencia')
           .in('motorista_id', userIds)
           .order('data_viagem', { ascending: false })
           .limit(50)
@@ -491,6 +506,11 @@ export default function AgendamentosPage() {
       forma_pagamento: ag.forma_pagamento || 'dinheiro',
       observacoes: ag.observacoes || '',
       motorista_empresa_id: motorista?.id || '',
+      rua: ag.rua || '',
+      numero: ag.numero || '',
+      bairro: ag.bairro || '',
+      cep: ag.cep || '',
+      referencia: ag.referencia || '',
     })
     setTrechosRF([])
     setParadasUnicasRF([])
@@ -541,6 +561,14 @@ export default function AgendamentosPage() {
 
     let dbError: any = null
 
+    const camposEndereco = {
+      rua: formAg.rua.trim() || null,
+      numero: formAg.numero.trim() || null,
+      bairro: formAg.bairro.trim() || null,
+      cep: formAg.cep.trim() || null,
+      referencia: formAg.referencia.trim() || null,
+    }
+
     if (agEditando) {
       const res = await supabase.from('agendamentos').update({
         motorista_id: motorista.user_id,
@@ -553,6 +581,7 @@ export default function AgendamentosPage() {
         forma_pagamento: formAg.forma_pagamento,
         data_viagem: formAg.data_viagem,
         observacoes: formAg.observacoes.trim() || null,
+        ...camposEndereco,
       }).eq('id', agEditando.id)
       dbError = res.error
     } else {
@@ -570,6 +599,7 @@ export default function AgendamentosPage() {
         status: 'agendado',
         fiado_pago: false,
         observacoes: formAg.observacoes.trim() || null,
+        ...camposEndereco,
       })
       dbError = res.error
     }
@@ -1212,6 +1242,40 @@ export default function AgendamentosPage() {
                 onChange={e => setFormAg(f => ({ ...f, telefone_passageiro: e.target.value }))}
                 placeholder="(XX) XXXXX-XXXX" type="tel" className="campo-input" />
             </Campo>
+
+            <div className="rounded-2xl p-4 border border-gray-100 flex flex-col gap-3" style={{ background: '#f9fafb' }}>
+              <p className="text-sm font-semibold text-gray-700">
+                📍 Endereço de embarque{' '}
+                <span className="text-xs font-normal text-gray-400">(opcional)</span>
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: '70% 30%', gap: '8px' }}>
+                <Campo label="Rua / Logradouro">
+                  <input value={formAg.rua}
+                    onChange={e => setFormAg(f => ({ ...f, rua: e.target.value }))}
+                    placeholder="Ex: Rua das Flores" className="campo-input" />
+                </Campo>
+                <Campo label="Número">
+                  <input value={formAg.numero}
+                    onChange={e => setFormAg(f => ({ ...f, numero: e.target.value }))}
+                    placeholder="123" className="campo-input" />
+                </Campo>
+              </div>
+              <Campo label="Bairro">
+                <input value={formAg.bairro}
+                  onChange={e => setFormAg(f => ({ ...f, bairro: e.target.value }))}
+                  placeholder="Ex: Centro" className="campo-input" />
+              </Campo>
+              <Campo label="CEP">
+                <input value={formAg.cep}
+                  onChange={e => setFormAg(f => ({ ...f, cep: e.target.value }))}
+                  placeholder="00000-000" className="campo-input" />
+              </Campo>
+              <Campo label="Ponto de referência">
+                <input value={formAg.referencia}
+                  onChange={e => setFormAg(f => ({ ...f, referencia: e.target.value }))}
+                  placeholder="Ex: Próximo ao mercado Boa Ideia" className="campo-input" />
+              </Campo>
+            </div>
 
             <Campo label="Data da viagem *">
               <input type="date" value={formAg.data_viagem}
