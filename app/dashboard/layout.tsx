@@ -58,16 +58,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const router = useRouter()
   const pathname = usePathname()
   const [checando, setChecando] = useState(true)
-  const [statusAcesso, setStatusAcesso] = useState<'ok' | 'aviso' | 'bloqueado'>('ok')
+  const [statusAcesso, setStatusAcesso] = useState<'ok' | 'aviso' | 'bloqueado' | 'bloqueado_empresa'>('ok')
   const [diasRestantes, setDiasRestantes] = useState(0)
   const [motoristaId, setMotoristaId] = useState<string | null>(null)
+  const [isEmpresaUser, setIsEmpresaUser] = useState(false)
 
   useEffect(() => {
     verificarAcesso()
   }, [router])
 
+  // Realtime só se aplica a motoristas individuais
   useEffect(() => {
-    if (!motoristaId) return
+    if (!motoristaId || isEmpresaUser) return
 
     const channel = supabase
       .channel(`assinatura-${motoristaId}`)
@@ -94,31 +96,40 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [motoristaId])
+  }, [motoristaId, isEmpresaUser])
 
-  async function verificarAcesso() {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
-      router.push('/')
-      return
-    }
-
-    setMotoristaId(session.user.id)
-
-    const { data: motorista } = await supabase
-      .from('motoristas')
-      .select('trial_inicio, assinatura_status, assinatura_expira, criado_em')
-      .eq('id', session.user.id)
-      .single()
-
-    if (!motorista) {
-      console.warn('[acesso] motorista não encontrado — bloqueando')
-      setStatusAcesso('bloqueado')
+  function checarAcessoEmpresa(empresa: { status: string; trial_fim: string | null } | null) {
+    if (!empresa) {
+      console.warn('[acesso] empresa não encontrada — bloqueando')
+      setStatusAcesso('bloqueado_empresa')
       setChecando(false)
       return
     }
+    const agora = new Date()
+    if (empresa.status === 'ativo') {
+      console.log('[acesso] empresa ativa — liberando')
+      setStatusAcesso('ok')
+      setChecando(false)
+      return
+    }
+    if (empresa.status === 'trial' && empresa.trial_fim && new Date(empresa.trial_fim) > agora) {
+      console.log('[acesso] empresa em trial válido até', empresa.trial_fim, '— liberando')
+      setStatusAcesso('ok')
+      setChecando(false)
+      return
+    }
+    console.warn('[acesso] plano da empresa expirado — bloqueando')
+    setStatusAcesso('bloqueado_empresa')
+    setChecando(false)
+  }
 
-    console.log('[acesso] dados do motorista:', {
+  function checarAcessoIndividual(motorista: {
+    trial_inicio: string | null
+    assinatura_status: string | null
+    assinatura_expira: string | null
+    criado_em: string | null
+  }) {
+    console.log('[acesso] dados do motorista individual:', {
       assinatura_status: motorista.assinatura_status,
       assinatura_expira: motorista.assinatura_expira,
       trial_inicio: motorista.trial_inicio,
@@ -126,7 +137,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     })
 
     if (motorista.assinatura_status === 'ativo') {
-      const expira = new Date(motorista.assinatura_expira)
+      const expira = new Date(motorista.assinatura_expira!)
       const agora = new Date()
       console.log('[acesso] status=ativo | expira:', expira.toISOString(), '| expirou?', expira <= agora)
       if (expira > agora) {
@@ -149,7 +160,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
     // null / qualquer outro valor → verifica trial
     const referenciaInicio = motorista.trial_inicio ?? motorista.criado_em
-    const trialInicio = new Date(referenciaInicio)
+    const trialInicio = new Date(referenciaInicio!)
     const agora = new Date()
     const diasUsados = Math.floor((agora.getTime() - trialInicio.getTime()) / (1000 * 60 * 60 * 24))
     const diasRestantesTrial = 10 - diasUsados
@@ -172,12 +183,83 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     setChecando(false)
   }
 
+  async function verificarAcesso() {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) {
+      router.push('/')
+      return
+    }
+
+    const userId = session.user.id
+    setMotoristaId(userId)
+
+    // 1) É gestor?
+    const { data: gestor } = await supabase
+      .from('gestores')
+      .select('empresa_id')
+      .eq('user_id', userId)
+      .maybeSingle()
+
+    if (gestor) {
+      console.log('[acesso] usuário é gestor da empresa', gestor.empresa_id)
+      setIsEmpresaUser(true)
+      const { data: empresa } = await supabase
+        .from('empresas')
+        .select('status, trial_fim')
+        .eq('id', gestor.empresa_id)
+        .single()
+      checarAcessoEmpresa(empresa)
+      return
+    }
+
+    // 2) É motorista de empresa?
+    const { data: motoristaEmpresa } = await supabase
+      .from('motoristas_empresa')
+      .select('empresa_id')
+      .eq('user_id', userId)
+      .maybeSingle()
+
+    if (motoristaEmpresa) {
+      console.log('[acesso] usuário é motorista de empresa', motoristaEmpresa.empresa_id)
+      setIsEmpresaUser(true)
+      const { data: empresa } = await supabase
+        .from('empresas')
+        .select('status, trial_fim')
+        .eq('id', motoristaEmpresa.empresa_id)
+        .single()
+      checarAcessoEmpresa(empresa)
+      return
+    }
+
+    // 3) É motorista individual?
+    const { data: motorista } = await supabase
+      .from('motoristas')
+      .select('trial_inicio, assinatura_status, assinatura_expira, criado_em')
+      .eq('id', userId)
+      .maybeSingle()
+
+    if (motorista) {
+      console.log('[acesso] usuário é motorista individual')
+      checarAcessoIndividual(motorista)
+      return
+    }
+
+    // 4) Nenhum vínculo encontrado
+    console.warn('[acesso] usuário sem vínculo — bloqueando')
+    setStatusAcesso('bloqueado')
+    setChecando(false)
+  }
+
   if (checando) {
     return (
       <div className="min-h-dvh flex items-center justify-center" style={{ background: '#f0f0ec' }}>
         <div className="text-4xl animate-pulse">🚐</div>
       </div>
     )
+  }
+
+  if (statusAcesso === 'bloqueado_empresa') {
+    return <TelaBloqueioEmpresa />
   }
 
   if (statusAcesso === 'bloqueado') {
@@ -308,6 +390,28 @@ function TelaBloqueio() {
         <p className="text-center text-xs text-gray-400 pb-6">
           Pagamento seguro via Kiwify · Cancele quando quiser
         </p>
+      </div>
+    </div>
+  )
+}
+
+function TelaBloqueioEmpresa() {
+  return (
+    <div className="min-h-dvh flex flex-col" style={{ background: '#f0f0ec' }}>
+      <div style={{ background: '#0F6E56' }} className="px-4 pt-14 pb-8 text-center">
+        <div className="text-5xl mb-3">🚐</div>
+        <h1 style={{ color: '#E1F5EE' }} className="text-xl font-bold">RotaGenda</h1>
+        <p style={{ color: '#9FE1CB' }} className="text-sm mt-1">Gestão de agendamentos para sua empresa</p>
+      </div>
+
+      <div className="px-4 py-6 flex flex-col gap-4 max-w-md mx-auto w-full">
+        <div className="bg-white rounded-2xl p-4 border border-gray-100 text-center">
+          <p className="text-2xl mb-2">🔒</p>
+          <p className="text-base font-bold text-gray-800 mb-1">Acesso suspenso</p>
+          <p className="text-sm text-gray-500">
+            A assinatura da sua empresa expirou. Entre em contato com o gestor para renovar o plano e recuperar o acesso.
+          </p>
+        </div>
       </div>
     </div>
   )
