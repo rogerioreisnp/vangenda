@@ -228,6 +228,20 @@ export default function AgendamentosPage() {
   const [erroAg, setErroAg] = useState('')
   const [agendamentosRF, setAgendamentosRF] = useState<AgendamentoRF[]>([])
   const [agEditando, setAgEditando] = useState<AgendamentoRF | null>(null)
+  const [contactsApi, setContactsApi] = useState(false)
+  useEffect(() => { setContactsApi('contacts' in navigator) }, [])
+  async function selecionarContatoAg() {
+    try {
+      const contacts = await (navigator as any).contacts.select(['name', 'tel'], { multiple: false })
+      if (!contacts?.length) return
+      const c = contacts[0]
+      setFormAg(f => ({
+        ...f,
+        nome_passageiro: c.name?.[0] ?? f.nome_passageiro,
+        telefone_passageiro: c.tel?.[0] ?? f.telefone_passageiro,
+      }))
+    } catch {}
+  }
 
   useEffect(() => { carregarDados() }, [])
 
@@ -1232,9 +1246,21 @@ export default function AgendamentosPage() {
             </Campo>
 
             <Campo label="Nome do passageiro *">
-              <input value={formAg.nome_passageiro}
-                onChange={e => setFormAg(f => ({ ...f, nome_passageiro: e.target.value }))}
-                placeholder="Nome completo" className="campo-input" />
+              <div className="relative">
+                <input value={formAg.nome_passageiro}
+                  onChange={e => setFormAg(f => ({ ...f, nome_passageiro: e.target.value }))}
+                  placeholder="Nome completo" className="campo-input"
+                  style={contactsApi ? { paddingRight: '2.25rem' } : undefined} />
+                {contactsApi && (
+                  <button type="button" onClick={selecionarContatoAg}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-green-700"
+                    title="Importar da agenda do celular">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
+                      <path d="M10 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM3.465 14.493a1.23 1.23 0 0 0 .41 1.412A9.957 9.957 0 0 0 10 18c2.31 0 4.438-.784 6.131-2.1.43-.333.604-.903.408-1.41a7.002 7.002 0 0 0-13.074.003Z" />
+                    </svg>
+                  </button>
+                )}
+              </div>
             </Campo>
 
             <Campo label="Telefone">

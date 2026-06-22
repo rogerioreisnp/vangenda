@@ -579,6 +579,20 @@ function DetalhePassageiro({ p, onVoltar, onAtualizar, horarioIda, horarioVolta 
   }
 
   const [editando, setEditando] = useState(false)
+  const [contactsApiEdit, setContactsApiEdit] = useState(false)
+  useEffect(() => { setContactsApiEdit('contacts' in navigator) }, [])
+  async function selecionarContatoEdit() {
+    try {
+      const contacts = await (navigator as any).contacts.select(['name', 'tel'], { multiple: false })
+      if (!contacts?.length) return
+      const c = contacts[0]
+      setFormEdit(f => ({
+        ...f,
+        nome_passageiro: c.name?.[0] ?? f.nome_passageiro,
+        telefone_passageiro: c.tel?.[0] ?? f.telefone_passageiro,
+      }))
+    } catch {}
+  }
   const [formEdit, setFormEdit] = useState({
     nome_passageiro: p.nome_passageiro,
     telefone_passageiro: p.telefone_passageiro || '',
@@ -747,8 +761,20 @@ function DetalhePassageiro({ p, onVoltar, onAtualizar, horarioIda, horarioVolta 
           <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
             <div>
               <p className="text-xs font-medium text-gray-500 mb-1">Nome do passageiro</p>
-              <input value={formEdit.nome_passageiro} onChange={e => setFormEdit(f => ({ ...f, nome_passageiro: e.target.value }))}
-                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600 bg-white" />
+              <div className="relative">
+                <input value={formEdit.nome_passageiro} onChange={e => setFormEdit(f => ({ ...f, nome_passageiro: e.target.value }))}
+                  className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600 bg-white"
+                  style={contactsApiEdit ? { paddingRight: '2.25rem' } : undefined} />
+                {contactsApiEdit && (
+                  <button type="button" onClick={selecionarContatoEdit}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-green-700"
+                    title="Importar da agenda do celular">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
+                      <path d="M10 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM3.465 14.493a1.23 1.23 0 0 0 .41 1.412A9.957 9.957 0 0 0 10 18c2.31 0 4.438-.784 6.131-2.1.43-.333.604-.903.408-1.41a7.002 7.002 0 0 0-13.074.003Z" />
+                    </svg>
+                  </button>
+                )}
+              </div>
             </div>
             <div>
               <p className="text-xs font-medium text-gray-500 mb-1">Telefone</p>
@@ -892,6 +918,21 @@ function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSa
   const [erroSalvar, setErroSalvar] = useState('')
   const [filtroCliente, setFiltroCliente] = useState('')
   const [vagasOcupadas, setVagasOcupadas] = useState(0)
+  const [contactsApi, setContactsApi] = useState(false)
+  useEffect(() => { setContactsApi('contacts' in navigator) }, [])
+  async function selecionarContato() {
+    try {
+      const contacts = await (navigator as any).contacts.select(['name', 'tel'], { multiple: false })
+      if (!contacts?.length) return
+      const c = contacts[0]
+      setForm(f => ({
+        ...f,
+        nome_passageiro: c.name?.[0] ?? f.nome_passageiro,
+        telefone_passageiro: c.tel?.[0] ?? f.telefone_passageiro,
+      }))
+      setFiltroCliente('')
+    } catch {}
+  }
 
   useEffect(() => {
     try {
@@ -1097,9 +1138,21 @@ function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSa
         )}
 
         <Campo label="Nome do passageiro">
-          <input value={filtroCliente || form.nome_passageiro}
-            onChange={e => { setFiltroCliente(e.target.value); setForm(f => ({ ...f, nome_passageiro: e.target.value })) }}
-            placeholder="Digite o nome..." className="campo-input" />
+          <div className="relative">
+            <input value={filtroCliente || form.nome_passageiro}
+              onChange={e => { setFiltroCliente(e.target.value); setForm(f => ({ ...f, nome_passageiro: e.target.value })) }}
+              placeholder="Digite o nome..." className="campo-input"
+              style={contactsApi ? { paddingRight: '2.25rem' } : undefined} />
+            {contactsApi && (
+              <button type="button" onClick={selecionarContato}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-green-700"
+                title="Importar da agenda do celular">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
+                  <path d="M10 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM3.465 14.493a1.23 1.23 0 0 0 .41 1.412A9.957 9.957 0 0 0 10 18c2.31 0 4.438-.784 6.131-2.1.43-.333.604-.903.408-1.41a7.002 7.002 0 0 0-13.074.003Z" />
+                </svg>
+              </button>
+            )}
+          </div>
           {clientesFiltrados.length > 0 && (
             <div className="bg-white border border-gray-100 rounded-xl overflow-hidden mt-1">
               {clientesFiltrados.slice(0, 4).map(c => (
