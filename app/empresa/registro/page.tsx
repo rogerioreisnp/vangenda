@@ -11,6 +11,7 @@ type PlanoPeriodo = {
   id: Periodo
   nome: string
   preco: number
+  precoLabel: string
   subtitulo: string
   destaque: boolean
   badgeLabel: string | null
@@ -22,26 +23,30 @@ const PLANOS_PERIODO: PlanoPeriodo[] = [
     id: 'mensal',
     nome: 'Mensal',
     preco: 127,
-    subtitulo: 'sem compromisso',
+    precoLabel: '/mês',
+    subtitulo: 'Pague mês a mês, sem compromisso',
     destaque: false,
     badgeLabel: null,
   },
   {
     id: 'anual',
     nome: 'Anual',
-    preco: 77,
-    subtitulo: 'economia de 39% + 2 meses grátis',
+    preco: 924,
+    precoLabel: '/ano',
+    subtitulo: 'equivale a R$ 77/mês · economia de 39%',
     destaque: true,
-    badgeLabel: '⭐ MAIS ESCOLHIDO',
+    badgeLabel: 'MAIS ESCOLHIDO',
     badgeStyle: { bg: '#FAC775', text: '#7C3E00' },
   },
   {
     id: 'semestral',
     nome: 'Semestral',
-    preco: 97,
-    subtitulo: 'economia de 24%',
+    preco: 582,
+    precoLabel: '/semestre',
+    subtitulo: 'equivale a R$ 97/mês · economia de 24%',
     destaque: false,
-    badgeLabel: null,
+    badgeLabel: 'MELHOR CUSTO-BENEFÍCIO',
+    badgeStyle: { bg: '#E1F5EE', text: '#085041' },
   },
 ]
 
@@ -171,7 +176,7 @@ export default function RegistroEmpresaPage() {
               {etapa === 'plano' ? 'Criar conta empresarial' : 'Dados da empresa'}
             </p>
             <p style={{ color: '#5DCAA5' }} className="text-xs">
-              {etapa === 'plano' ? 'RotaGenda Empresarial' : planoInfo ? `${planoInfo.nome} — R$ ${planoInfo.preco}/mês` : ''}
+              {etapa === 'plano' ? 'RotaGenda Empresarial' : planoInfo ? `${planoInfo.nome} — R$ ${planoInfo.preco}${planoInfo.precoLabel}` : ''}
             </p>
           </div>
         </div>
@@ -235,20 +240,17 @@ function EtapaPlano({ onEscolher }: { onEscolher: (p: Periodo) => void }) {
                   <p className="text-base font-bold" style={{ color: inv ? '#E1F5EE' : '#1a1a1a' }}>
                     {pl.nome}
                   </p>
-                  {inv ? (
-                    <span className="inline-flex items-center mt-1 px-2 py-0.5 rounded-full text-xs font-semibold"
-                      style={{ background: '#FAC775', color: '#7C3E00' }}>
-                      🎁 2 meses grátis
-                    </span>
+                  {pl.id === 'anual' ? (
+                    <p className="shimmer-text text-xs font-semibold mt-0.5">{pl.subtitulo}</p>
                   ) : (
-                    <p className="text-xs text-gray-400">{pl.subtitulo}</p>
+                    <p className="text-xs mt-0.5" style={{ color: '#9ca3af' }}>{pl.subtitulo}</p>
                   )}
                 </div>
                 <div className="text-right flex-shrink-0">
                   <p className="text-2xl font-bold leading-none" style={{ color: inv ? '#fff' : '#0F6E56' }}>
                     R$ {pl.preco}
                   </p>
-                  <p className="text-xs mt-0.5" style={{ color: inv ? '#9FE1CB' : '#9ca3af' }}>/mês</p>
+                  <p className="text-xs mt-0.5" style={{ color: inv ? '#9FE1CB' : '#9ca3af' }}>{pl.precoLabel}</p>
                 </div>
               </div>
 
@@ -283,6 +285,10 @@ function EtapaPlano({ onEscolher }: { onEscolher: (p: Periodo) => void }) {
                   : { background: '#E1F5EE', color: '#0F6E56' }}>
                 Começar trial grátis →
               </button>
+
+              <p className="text-center text-xs mt-3" style={{ color: inv ? '#9FE1CB' : '#9ca3af' }}>
+                15 dias grátis · sem cartão de crédito
+              </p>
             </div>
           </div>
         )
@@ -296,6 +302,21 @@ function EtapaPlano({ onEscolher }: { onEscolher: (p: Periodo) => void }) {
           </Link>
         </p>
       </div>
+
+      <style jsx>{`
+        @keyframes shimmer {
+          0% { background-position: -200% center; }
+          100% { background-position: 200% center; }
+        }
+        .shimmer-text {
+          background: linear-gradient(90deg, #FAC775 0%, #ffe8a0 35%, #fff5cc 50%, #ffe8a0 65%, #FAC775 100%);
+          background-size: 200% auto;
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+          animation: shimmer 2.5s linear infinite;
+        }
+      `}</style>
     </div>
   )
 }
@@ -326,7 +347,7 @@ function EtapaDados({
         <span className="text-xl">🚐</span>
         <div>
           <p className="text-sm font-semibold" style={{ color: '#085041' }}>
-            {periodoInfo.nome} — R$ {periodoInfo.preco}/mês
+            {periodoInfo.nome} — R$ {periodoInfo.preco}{periodoInfo.precoLabel}
           </p>
           <p className="text-xs" style={{ color: '#0F6E56' }}>
             15 dias grátis · motoristas ilimitados
