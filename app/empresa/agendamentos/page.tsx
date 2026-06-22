@@ -1246,18 +1246,18 @@ export default function AgendamentosPage() {
             </Campo>
 
             <Campo label="Nome do passageiro *">
-              <div className="relative">
+              <div className="flex items-center gap-2">
                 <input value={formAg.nome_passageiro}
                   onChange={e => setFormAg(f => ({ ...f, nome_passageiro: e.target.value }))}
-                  placeholder="Nome completo" className="campo-input"
-                  style={contactsApi ? { paddingRight: '2.25rem' } : undefined} />
+                  placeholder="Nome completo" className="campo-input flex-1" />
                 {contactsApi && (
                   <button type="button" onClick={selecionarContatoAg}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-green-700"
+                    className="flex-shrink-0 flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs text-gray-500 hover:text-green-700 border border-gray-200 bg-white whitespace-nowrap"
                     title="Importar da agenda do celular">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="14" height="14">
                       <path d="M10 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM3.465 14.493a1.23 1.23 0 0 0 .41 1.412A9.957 9.957 0 0 0 10 18c2.31 0 4.438-.784 6.131-2.1.43-.333.604-.903.408-1.41a7.002 7.002 0 0 0-13.074.003Z" />
                     </svg>
+                    <span>Buscar contato</span>
                   </button>
                 )}
               </div>
