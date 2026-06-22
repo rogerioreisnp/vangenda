@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import Link from 'next/link'
 import { format, startOfMonth, endOfMonth, subDays, addDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -727,15 +727,22 @@ function DashboardRotaFixa({
   const [receitaDia, setReceitaDia] = useState(0)
   const [naoConfirmados, setNaoConfirmados] = useState(0)
   const [fiadoVencido, setFiadoVencido] = useState(0)
-  const [checklistPendentes, setChecklistPendentes] = useState(0)
+  // Reativar quando a tela de preenchimento de checklist existir:
+  // const [checklistPendentes, setChecklistPendentes] = useState(0)
   const [receitaMes, setReceitaMes] = useState(0)
   const [despesasMes, setDespesasMes] = useState(0)
   const [aReceber, setAReceber] = useState(0)
+  const [chartPeriodo, setChartPeriodo] = useState<'semana' | 'mes' | 'ano'>('mes')
+  const [chartDados, setChartDados] = useState<DiaSemanaRF[]>([])
+  const [loadingChart, setLoadingChart] = useState(false)
+  const motUserIdsRef = useRef<string[]>([])
 
   const hora = new Date().getHours()
   const saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite'
 
   useEffect(() => { carregarDados() }, [])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!loading) carregarGrafico(chartPeriodo) }, [loading, chartPeriodo])
 
   async function carregarDados() {
     const agora = new Date()
@@ -772,9 +779,10 @@ function DashboardRotaFixa({
     setDespesasMes(despCob)
 
     const userIds = motsAtivos.map(m => m.user_id).filter(Boolean) as string[]
+    motUserIdsRef.current = userIds
 
     if (userIds.length === 0) {
-      setChecklistPendentes(motsAtivos.length)
+      // setChecklistPendentes(motsAtivos.length) // Reativar quando a tela de preenchimento de checklist existir
       setReceitaMes(recCob)
       setLoading(false)
       return
@@ -786,7 +794,8 @@ function DashboardRotaFixa({
       { data: fiadoData },
       { data: aReceberData },
       { data: recMesData },
-      { data: checklistData },
+      // Reativar quando a tela de preenchimento de checklist existir:
+      // { data: checklistData },
     ] = await Promise.all([
       supabase.from('agendamentos')
         .select('id, motorista_id, nome_passageiro, parada_origem, parada_destino, turno, data_viagem, valor, forma_pagamento, status')
@@ -799,24 +808,113 @@ function DashboardRotaFixa({
         .in('motorista_id', userIds).eq('forma_pagamento', 'pendente').neq('status', 'cancelado'),
       supabase.from('agendamentos').select('valor')
         .in('motorista_id', userIds).gte('data_viagem', inicioMes).lte('data_viagem', fimMes).neq('status', 'cancelado'),
-      supabase.from('checklist_empresa').select('motorista_id')
-        .eq('empresa_id', empresaId).eq('data', hojeStr),
+      // supabase.from('checklist_empresa').select('motorista_id')   // Reativar quando a tela de preenchimento de checklist existir
+      //   .eq('empresa_id', empresaId).eq('data', hojeStr),
     ])
 
-    const hojeAgs = (agsHojeData ?? []) as AgRF[]
-    const checklistFeitos = new Set((checklistData ?? []).map((c: any) => c.motorista_id as string))
-    const checkPend = motsAtivos.filter(m => !checklistFeitos.has(m.id)).length
+    // Reativar quando a tela de preenchimento de checklist existir:
+    // const checklistFeitos = new Set((checklistData ?? []).map((c: any) => c.motorista_id as string))
+    // const checkPend = motsAtivos.filter(m => !checklistFeitos.has(m.id)).length
+    // setChecklistPendentes(checkPend)
 
+    const hojeAgs = (agsHojeData ?? []) as AgRF[]
     setAgsHoje(hojeAgs)
     setPassageirosHoje(hojeAgs.length)
     setReceitaDia(hojeAgs.reduce((s, a) => s + Number(a.valor), 0))
     setNaoConfirmados(naoConfData?.length ?? 0)
     setFiadoVencido(fiadoData?.length ?? 0)
-    setChecklistPendentes(checkPend)
     setReceitaMes((recMesData ?? []).reduce((s, a) => s + Number(a.valor), 0) + recCob)
     setAReceber((aReceberData ?? []).reduce((s, a) => s + Number(a.valor), 0))
 
     setLoading(false)
+  }
+
+  async function carregarGrafico(periodo: 'semana' | 'mes' | 'ano') {
+    setLoadingChart(true)
+    const agora = new Date()
+    const userIds = motUserIdsRef.current
+
+    let grupos: { inicio: string; fim: string; label: string }[] = []
+
+    if (periodo === 'semana') {
+      grupos = Array.from({ length: 7 }, (_, i) => {
+        const d = subDays(agora, 6 - i)
+        const ds = format(d, 'yyyy-MM-dd')
+        return { inicio: ds, fim: ds, label: format(d, 'EEE', { locale: ptBR }).slice(0, 3) }
+      })
+    } else if (periodo === 'mes') {
+      const mesInicio = startOfMonth(agora)
+      const mesFim = endOfMonth(agora)
+      let cur = new Date(mesInicio)
+      let sem = 1
+      while (cur <= mesFim) {
+        const wEnd = new Date(cur)
+        wEnd.setDate(wEnd.getDate() + 6)
+        if (wEnd > mesFim) wEnd.setTime(mesFim.getTime())
+        grupos.push({
+          inicio: format(cur, 'yyyy-MM-dd'),
+          fim: format(wEnd, 'yyyy-MM-dd'),
+          label: `S${sem}`,
+        })
+        sem++
+        const next = new Date(wEnd)
+        next.setDate(next.getDate() + 1)
+        cur = next
+      }
+    } else {
+      const ano = agora.getFullYear()
+      grupos = Array.from({ length: 12 }, (_, i) => {
+        const start = new Date(ano, i, 1)
+        const end = new Date(ano, i + 1, 0)
+        return {
+          inicio: format(start, 'yyyy-MM-dd'),
+          fim: format(end, 'yyyy-MM-dd'),
+          label: format(start, 'MMM', { locale: ptBR }).slice(0, 3),
+        }
+      })
+    }
+
+    const globalInicio = grupos[0].inicio
+    const globalFim = grupos[grupos.length - 1].fim
+
+    const [cobsRes, agsRes] = await Promise.all([
+      supabase.from('cobrancas_empresa')
+        .select('tipo, valor, data')
+        .eq('empresa_id', empresaId)
+        .in('tipo', ['receita', 'despesa'])
+        .gte('data', globalInicio).lte('data', globalFim),
+      userIds.length > 0
+        ? supabase.from('agendamentos')
+            .select('valor, data_viagem')
+            .in('motorista_id', userIds)
+            .neq('status', 'cancelado')
+            .gte('data_viagem', globalInicio).lte('data_viagem', globalFim)
+        : { data: [] as { valor: number; data_viagem: string }[] },
+    ])
+
+    const cobsList = (cobsRes.data ?? []) as { tipo: string; valor: number; data: string }[]
+    const agsList = (agsRes.data ?? []) as { valor: number; data_viagem: string }[]
+
+    const dados: DiaSemanaRF[] = grupos.map(g => {
+      const recCob = cobsList
+        .filter(c => c.tipo === 'receita' && c.data >= g.inicio && c.data <= g.fim)
+        .reduce((s, c) => s + Number(c.valor), 0)
+      const despCob = cobsList
+        .filter(c => c.tipo === 'despesa' && c.data >= g.inicio && c.data <= g.fim)
+        .reduce((s, c) => s + Number(c.valor), 0)
+      const recAgs = agsList
+        .filter(a => a.data_viagem >= g.inicio && a.data_viagem <= g.fim)
+        .reduce((s, a) => s + Number(a.valor), 0)
+      return {
+        data: g.inicio,
+        receita: recCob + recAgs,
+        despesa: despCob,
+        label: g.label,
+      }
+    })
+
+    setChartDados(dados)
+    setLoadingChart(false)
   }
 
   if (loading) {
@@ -829,7 +927,8 @@ function DashboardRotaFixa({
 
   const saldo = receitaMes - despesasMes
   const rotasSemMot = rotasHoje.filter(r => !r.motorista_id).length
-  const temAlertas = rotasSemMot > 0 || naoConfirmados > 0 || fiadoVencido > 0 || checklistPendentes > 0
+  // Reativar quando a tela de preenchimento de checklist existir: || checklistPendentes > 0
+  const temAlertas = rotasSemMot > 0 || naoConfirmados > 0 || fiadoVencido > 0
   const mesLabel = format(new Date(), "MMMM 'de' yyyy", { locale: ptBR })
   const mesLabelCap = mesLabel.charAt(0).toUpperCase() + mesLabel.slice(1)
 
@@ -925,25 +1024,7 @@ function DashboardRotaFixa({
                 </span>
               </Link>
             )}
-            {checklistPendentes > 0 && (
-              <Link href="/empresa/motoristas"
-                className="rounded-xl px-4 py-3 flex items-center gap-3 active:opacity-80"
-                style={{ background: '#FAEEDA', border: '1px solid #FAC775' }}>
-                <span className="text-lg flex-shrink-0">📋</span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold" style={{ color: '#854F0B' }}>
-                    {checklistPendentes} motorista{checklistPendentes !== 1 ? 's' : ''} sem checklist hoje
-                  </p>
-                  <p className="text-xs mt-0.5" style={{ color: '#A0622A', opacity: 0.8 }}>
-                    Checklist de veículo não preenchido
-                  </p>
-                </div>
-                <span className="text-xs font-semibold px-3 py-1.5 rounded-lg flex-shrink-0"
-                  style={{ background: '#854F0B', color: '#fff' }}>
-                  Ver
-                </span>
-              </Link>
-            )}
+            {/* Alerta de checklist removido — reativar quando a tela de preenchimento existir */}
           </div>
         )}
 
@@ -1040,6 +1121,36 @@ function DashboardRotaFixa({
               <p className="text-base font-bold" style={{ color: '#1D4ED8' }}>{fmt(aReceber)}</p>
             </div>
           </div>
+
+          {/* ── GRÁFICO RECEITA x DESPESA ───────────────────────── */}
+          <div className="bg-white rounded-2xl border border-gray-100 p-4">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-semibold text-gray-600">Receita × Despesa</p>
+              <div className="flex gap-1">
+                {(['semana', 'mes', 'ano'] as const).map(p => (
+                  <button key={p} onClick={() => setChartPeriodo(p)}
+                    className="px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-all"
+                    style={chartPeriodo === p
+                      ? { background: '#0F6E56', color: '#fff' }
+                      : { background: '#f0f0ec', color: '#6b7280' }}>
+                    {p === 'semana' ? 'Sem' : p === 'mes' ? 'Mês' : 'Ano'}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex gap-3 mb-3">
+              <div className="flex items-center gap-1.5">
+                <div className="w-2.5 h-2.5 rounded-sm" style={{ background: '#1D9E75' }} />
+                <span className="text-[10px] text-gray-500">Receita</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-2.5 h-2.5 rounded-sm" style={{ background: '#FAC775' }} />
+                <span className="text-[10px] text-gray-500">Despesa</span>
+              </div>
+            </div>
+            <GraficoBarrasRF dados={chartDados} loading={loadingChart} />
+          </div>
+
           <Link href="/empresa/financeiro"
             className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border text-sm font-medium active:opacity-75"
             style={{ background: '#fff', borderColor: '#e5e7eb', color: '#374151' }}>
@@ -1065,5 +1176,75 @@ function DashboardRotaFixa({
 
       </div>
     </div>
+  )
+}
+
+function GraficoBarrasRF({ dados, loading }: { dados: DiaSemanaRF[]; loading: boolean }) {
+  if (loading) {
+    return (
+      <div className="h-24 flex items-center justify-center">
+        <p className="text-xs text-gray-400">Carregando...</p>
+      </div>
+    )
+  }
+
+  const hasData = dados.some(d => d.receita > 0 || d.despesa > 0)
+  if (!hasData) {
+    return (
+      <div className="h-24 flex items-center justify-center">
+        <p className="text-xs text-gray-400">Sem dados para o período</p>
+      </div>
+    )
+  }
+
+  const maxVal = Math.max(...dados.flatMap(d => [d.receita, d.despesa]), 1)
+  const H = 80
+  const LH = 18
+  const W = 280
+  const n = dados.length
+  const groupW = W / n
+  const barW = Math.max(5, Math.min(16, groupW * 0.38))
+  const gap = Math.max(1, barW * 0.15)
+
+  return (
+    <svg width="100%" viewBox={`0 0 ${W} ${H + LH}`} preserveAspectRatio="none">
+      {[0.25, 0.5, 0.75, 1].map(frac => (
+        <line
+          key={frac}
+          x1={0} y1={H * (1 - frac)}
+          x2={W} y2={H * (1 - frac)}
+          stroke="#f3f4f6"
+          strokeWidth={0.8}
+        />
+      ))}
+      {dados.map((d, i) => {
+        const cx = i * groupW + groupW / 2
+        const totalBarsW = 2 * barW + gap
+        const x1 = cx - totalBarsW / 2
+        const x2 = x1 + barW + gap
+        const recH = (d.receita / maxVal) * H
+        const despH = (d.despesa / maxVal) * H
+        return (
+          <g key={i}>
+            {recH > 0 && (
+              <rect x={x1} y={H - recH} width={barW} height={recH} fill="#1D9E75" rx={2} />
+            )}
+            {despH > 0 && (
+              <rect x={x2} y={H - despH} width={barW} height={despH} fill="#FAC775" rx={2} />
+            )}
+            <text
+              x={cx} y={H + LH - 3}
+              textAnchor="middle"
+              fontSize={7}
+              fill="#9ca3af"
+              fontFamily="system-ui, sans-serif"
+            >
+              {d.label}
+            </text>
+          </g>
+        )
+      })}
+      <line x1={0} y1={H} x2={W} y2={H} stroke="#e5e7eb" strokeWidth={0.5} />
+    </svg>
   )
 }
