@@ -5,46 +5,53 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
 type Periodo = 'mensal' | 'semestral' | 'anual'
-type Plano = 'starter' | 'pro' | 'business'
 type Etapa = 'plano' | 'dados'
 
-const PRECOS: Record<Plano, Record<Periodo, number>> = {
-  starter:  { mensal: 97,  semestral: 87,  anual: 77  },
-  pro:      { mensal: 197, semestral: 177, anual: 157 },
-  business: { mensal: 297, semestral: 267, anual: 237 },
+type PlanoPeriodo = {
+  id: Periodo
+  nome: string
+  preco: number
+  subtitulo: string
+  destaque: boolean
+  badgeLabel: string | null
+  badgeStyle?: { bg: string; text: string }
 }
 
-const PROMO_ANUAL: Record<Plano, { original: number; promo: number; economia: number; mensalEquiv: string }> = {
-  starter:  { original: 924,  promo: 847,  economia: 77,  mensalEquiv: '70,58' },
-  pro:      { original: 1884, promo: 1786, economia: 98,  mensalEquiv: '148,83' },
-  business: { original: 2844, promo: 2697, economia: 147, mensalEquiv: '224,75' },
-}
-
-const PLANOS = [
+const PLANOS_PERIODO: PlanoPeriodo[] = [
   {
-    id: 'starter' as Plano,
-    nome: 'Starter',
-    descricao: 'Para operações pequenas',
-    limite: 'Até 3 motoristas',
-    emoji: '🚐',
+    id: 'mensal',
+    nome: 'Mensal',
+    preco: 127,
+    subtitulo: 'sem compromisso',
     destaque: false,
+    badgeLabel: null,
   },
   {
-    id: 'pro' as Plano,
-    nome: 'Pro',
-    descricao: 'Para empresas em crescimento',
-    limite: 'Até 8 motoristas',
-    emoji: '⭐',
+    id: 'semestral',
+    nome: 'Semestral',
+    preco: 97,
+    subtitulo: 'economia de 24%',
     destaque: true,
+    badgeLabel: '⭐ MAIS ESCOLHIDO',
+    badgeStyle: { bg: '#0F6E56', text: '#E1F5EE' },
   },
   {
-    id: 'business' as Plano,
-    nome: 'Business',
-    descricao: 'Para grandes operações',
-    limite: 'Ilimitado',
-    emoji: '🏢',
+    id: 'anual',
+    nome: 'Anual',
+    preco: 77,
+    subtitulo: 'economia de 39% + 2 meses grátis',
     destaque: false,
+    badgeLabel: '🏆 MELHOR CUSTO-BENEFÍCIO',
+    badgeStyle: { bg: '#C2410C', text: '#FFF7ED' },
   },
+]
+
+const BENEFICIOS = [
+  'Motoristas ilimitados',
+  'Acesso completo a todos os recursos',
+  'Rotas fixas e transfer/turismo',
+  'Agenda e controle financeiro',
+  'Suporte incluso',
 ]
 
 type FormDados = {
@@ -70,22 +77,21 @@ const FORM_VAZIO: FormDados = {
 export default function RegistroEmpresaPage() {
   const router = useRouter()
   const [etapa, setEtapa]   = useState<Etapa>('plano')
-  const [periodo, setPeriodo] = useState<Periodo>('mensal')
-  const [plano, setPlano]   = useState<Plano | null>(null)
+  const [periodo, setPeriodo] = useState<Periodo | null>(null)
   const [form, setForm]     = useState<FormDados>(FORM_VAZIO)
   const [loading, setLoading] = useState(false)
   const [erro, setErro]     = useState('')
   const [erroTelefone, setErroTelefone] = useState('')
 
-  function escolherPlano(p: Plano) {
-    setPlano(p)
+  function escolherPeriodo(p: Periodo) {
+    setPeriodo(p)
     setEtapa('dados')
     setErro('')
     window.scrollTo(0, 0)
   }
 
   async function cadastrar() {
-    if (!plano) return
+    if (!periodo) return
     if (!form.nomeEmpresa.trim()) { setErro('Nome da empresa é obrigatório'); return }
     if (!form.nome.trim())        { setErro('Seu nome é obrigatório'); return }
     const tel = form.telefone.replace(/\D/g, '')
@@ -123,7 +129,7 @@ export default function RegistroEmpresaPage() {
           email:        form.email.trim(),
           telefone:     form.telefone.trim(),
           tipoOperacao: form.tipoOperacao,
-          plano,
+          plano: 'fleet',
         }),
       })
 
@@ -143,7 +149,7 @@ export default function RegistroEmpresaPage() {
     }
   }
 
-  const planoInfo = plano ? PLANOS.find(p => p.id === plano)! : null
+  const planoInfo = periodo ? PLANOS_PERIODO.find(p => p.id === periodo) ?? null : null
 
   return (
     <div className="min-h-dvh" style={{ background: '#f0f0ec' }}>
@@ -160,7 +166,7 @@ export default function RegistroEmpresaPage() {
               {etapa === 'plano' ? 'Criar conta empresarial' : 'Dados da empresa'}
             </p>
             <p style={{ color: '#5DCAA5' }} className="text-xs">
-              {etapa === 'plano' ? 'RotaGenda Empresarial' : planoInfo ? `Plano ${planoInfo.nome} selecionado` : ''}
+              {etapa === 'plano' ? 'RotaGenda Empresarial' : planoInfo ? `${planoInfo.nome} — R$ ${planoInfo.preco}/mês` : ''}
             </p>
           </div>
         </div>
@@ -168,13 +174,12 @@ export default function RegistroEmpresaPage() {
 
       <div className="px-4 py-5 pb-16">
         {etapa === 'plano' ? (
-          <EtapaPlano periodo={periodo} setPeriodo={setPeriodo} onEscolher={escolherPlano} />
+          <EtapaPlano onEscolher={escolherPeriodo} />
         ) : (
           <EtapaDados
             form={form}
             setForm={setForm}
-            plano={plano!}
-            periodo={periodo}
+            periodoInfo={PLANOS_PERIODO.find(p => p.id === periodo)!}
             loading={loading}
             erro={erro}
             erroTelefone={erroTelefone}
@@ -187,150 +192,69 @@ export default function RegistroEmpresaPage() {
   )
 }
 
-/* ─── Etapa 1: Seleção de plano ─── */
+/* ─── Etapa 1: Seleção de período ─── */
 
-function EtapaPlano({
-  periodo, setPeriodo, onEscolher,
-}: {
-  periodo: Periodo
-  setPeriodo: (p: Periodo) => void
-  onEscolher: (p: Plano) => void
-}) {
+function EtapaPlano({ onEscolher }: { onEscolher: (p: Periodo) => void }) {
   return (
     <div className="flex flex-col gap-4">
       {/* Banner trial */}
       <div className="rounded-xl px-4 py-3 text-center"
         style={{ background: '#E1F5EE', border: '1px solid #9FE1CB' }}>
         <p className="text-sm font-semibold" style={{ color: '#085041' }}>
-          🎉 15 dias de trial grátis em todos os planos
+          🎉 15 dias de trial grátis
         </p>
         <p className="text-xs mt-0.5" style={{ color: '#0F6E56' }}>
           Sem cartão de crédito. Cancele quando quiser.
         </p>
       </div>
 
-      {/* Toggle período */}
-      <div>
-        <p className="text-xs font-semibold text-center mb-2 uppercase tracking-widest" style={{ color: '#0F6E56' }}>
-          Período de cobrança
-        </p>
-        <div className="rounded-2xl p-1.5 flex border-2" style={{ background: '#E1F5EE', borderColor: '#0F6E56' }}>
-          {(['mensal', 'semestral', 'anual'] as Periodo[]).map(p => (
-            <button key={p} onClick={() => setPeriodo(p)}
-              className="flex-1 py-2.5 rounded-xl font-bold transition-all flex flex-col items-center gap-1"
-              style={periodo === p
-                ? { background: '#0F6E56', color: '#fff' }
-                : { background: 'transparent', color: '#555' }}>
-              <span className="text-xs">{p === 'mensal' ? 'Mensal' : p === 'semestral' ? 'Semestral' : 'Anual'}</span>
-              <span
-                className="text-[10px] font-extrabold px-2 py-0.5 rounded-full"
-                style={p === 'mensal'
-                  ? { visibility: 'hidden' }
-                  : periodo === p
-                    ? { background: '#9FE1CB', color: '#085041' }
-                    : { background: '#fff', color: '#0F6E56' }}>
-                {p === 'semestral' ? '−10%' : '2 meses grátis'}
-              </span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Cards de plano */}
-      {PLANOS.map(pl => {
-        const preco = PRECOS[pl.id][periodo]
-        return (
-          <div key={pl.id} className="bg-white rounded-2xl border overflow-hidden"
-            style={{
-              borderColor: pl.destaque ? '#0F6E56' : '#e5e7eb',
-              boxShadow:   pl.destaque ? '0 4px 16px rgba(15,110,86,0.14)' : '0 1px 4px rgba(0,0,0,0.05)',
-            }}>
-            {pl.destaque && (
-              <div className="py-1.5 text-center text-xs font-bold tracking-wide"
-                style={{ background: '#0F6E56', color: '#E1F5EE' }}>
-                ⭐ MAIS ESCOLHIDO
-              </div>
-            )}
-            {periodo === 'anual' && (
-              <div className="py-1.5 text-center text-xs font-bold tracking-wide"
-                style={{ background: '#FED7AA', color: '#C2410C' }}>
-                🎁 2 meses grátis
-              </div>
-            )}
-            <div className="p-5">
-              {/* Cabeçalho do plano */}
-              <div className="flex items-start justify-between gap-2 mb-3">
-                <div>
-                  <p className="text-base font-bold text-gray-800">{pl.nome}</p>
-                  <p className="text-xs text-gray-400">{pl.descricao}</p>
-                </div>
-                <div className="text-right flex-shrink-0">
-                  <p className="text-xs line-through text-gray-400 leading-none mb-0.5"
-                    style={{ visibility: periodo === 'mensal' ? 'hidden' : 'visible' }}>
-                    R$ {PRECOS[pl.id]['mensal']}/mês
-                  </p>
-                  <p className="text-2xl font-bold leading-none" style={{ color: '#0F6E56' }}>
-                    R$ {preco}
-                  </p>
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    /mês{periodo !== 'mensal' ? ` · cobrado ${periodo}` : ''}
-                  </p>
-                </div>
-              </div>
-              {periodo === 'anual' ? (
-                <div className="mb-3 rounded-xl p-3" style={{ background: '#FFF7ED', border: '1px solid #FED7AA' }}>
-                  <p className="text-xs font-bold mb-2" style={{ color: '#C2410C' }}>
-                    🎉 Promoção de lançamento — pague 10, use 12
-                  </p>
-                  <div className="flex justify-between text-xs" style={{ color: '#92400E' }}>
-                    <span>10 meses × R$ {PRECOS[pl.id]['anual']}</span>
-                    <span>R$ {PRECOS[pl.id]['anual'] * 10}</span>
-                  </div>
-                  <div className="flex justify-between text-xs font-semibold mt-0.5" style={{ color: '#0F6E56' }}>
-                    <span>+ 2 meses grátis</span>
-                    <span>R$ 0</span>
-                  </div>
-                  <div className="flex justify-between text-xs font-bold mt-1.5 pt-1.5"
-                    style={{ borderTop: '1px solid #FED7AA', color: '#C2410C' }}>
-                    <span>Total anual</span>
-                    <span>R$ {PRECOS[pl.id]['anual'] * 10}</span>
-                  </div>
-                  <p className="text-[10px] mt-1.5" style={{ color: '#92400E' }}>
-                    Você economiza R$ {PRECOS[pl.id]['mensal'] * 12 - PRECOS[pl.id]['anual'] * 10} vs pagar mês a mês
-                  </p>
-                </div>
-              ) : periodo === 'semestral' ? (
-                <div className="mb-3 rounded-xl px-3 py-2.5" style={{ background: '#E1F5EE', border: '1px solid #9FE1CB' }}>
-                  <p className="text-xs font-semibold" style={{ color: '#085041' }}>
-                    💰 Você economiza R$ {(PRECOS[pl.id]['mensal'] - preco) * 6} comparado ao plano mensal
-                  </p>
-                </div>
-              ) : null}
-
-              {/* Limite */}
-              <div className="flex items-center gap-2 mb-4 px-3 py-2.5 rounded-xl"
-                style={{ background: '#f9fafb' }}>
-                <span className="text-base">{pl.emoji}</span>
-                <span className="text-xs font-medium text-gray-700">{pl.limite}</span>
-              </div>
-
-              <button onClick={() => onEscolher(pl.id)}
-                className="w-full py-3 rounded-xl text-sm font-semibold transition-opacity active:opacity-75"
-                style={pl.destaque
-                  ? { background: '#0F6E56', color: '#fff' }
-                  : { background: '#E1F5EE', color: '#0F6E56' }}>
-                Começar trial grátis →
-              </button>
+      {/* Cards de período */}
+      {PLANOS_PERIODO.map(pl => (
+        <div key={pl.id} className="bg-white rounded-2xl border overflow-hidden"
+          style={{
+            borderColor: pl.destaque ? '#0F6E56' : '#e5e7eb',
+            boxShadow: pl.destaque ? '0 4px 16px rgba(15,110,86,0.14)' : '0 1px 4px rgba(0,0,0,0.05)',
+          }}>
+          {pl.badgeLabel && (
+            <div className="py-1.5 text-center text-xs font-bold tracking-wide"
+              style={{ background: pl.badgeStyle!.bg, color: pl.badgeStyle!.text }}>
+              {pl.badgeLabel}
             </div>
-          </div>
-        )
-      })}
+          )}
+          <div className="p-5">
+            <div className="flex items-start justify-between gap-2 mb-3">
+              <div>
+                <p className="text-base font-bold text-gray-800">{pl.nome}</p>
+                <p className="text-xs text-gray-400">{pl.subtitulo}</p>
+              </div>
+              <div className="text-right flex-shrink-0">
+                <p className="text-2xl font-bold leading-none" style={{ color: '#0F6E56' }}>
+                  R$ {pl.preco}
+                </p>
+                <p className="text-xs text-gray-400 mt-0.5">/mês</p>
+              </div>
+            </div>
 
-      {periodo === 'anual' && (
-        <p className="text-xs text-center px-2" style={{ color: '#92400E' }}>
-          ⏳ Promoção válida por tempo limitado para os primeiros clientes. Após contratar, o preço fica garantido.
-        </p>
-      )}
+            <ul className="flex flex-col gap-1.5 mb-4">
+              {BENEFICIOS.map(b => (
+                <li key={b} className="flex items-center gap-2 text-xs text-gray-600">
+                  <span style={{ color: '#1D9E75' }}>✓</span>
+                  {b}
+                </li>
+              ))}
+            </ul>
+
+            <button onClick={() => onEscolher(pl.id)}
+              className="w-full py-3 rounded-xl text-sm font-semibold transition-opacity active:opacity-75"
+              style={pl.destaque
+                ? { background: '#0F6E56', color: '#fff' }
+                : { background: '#E1F5EE', color: '#0F6E56' }}>
+              Começar trial grátis →
+            </button>
+          </div>
+        </div>
+      ))}
+
       <div className="text-center py-2">
         <p className="text-xs text-gray-400">
           Já tem uma conta?{' '}
@@ -346,12 +270,11 @@ function EtapaPlano({
 /* ─── Etapa 2: Dados da empresa e conta ─── */
 
 function EtapaDados({
-  form, setForm, plano, periodo, loading, erro, erroTelefone, onClearErroTelefone, onCadastrar,
+  form, setForm, periodoInfo, loading, erro, erroTelefone, onClearErroTelefone, onCadastrar,
 }: {
   form: FormDados
   setForm: React.Dispatch<React.SetStateAction<FormDados>>
-  plano: Plano
-  periodo: Periodo
+  periodoInfo: PlanoPeriodo
   loading: boolean
   erro: string
   erroTelefone: string
@@ -362,21 +285,18 @@ function EtapaDados({
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
       setForm(f => ({ ...f, [k]: e.target.value }))
 
-  const planoInfo = PLANOS.find(p => p.id === plano)!
-  const preco     = PRECOS[plano][periodo]
-
   return (
     <div className="flex flex-col gap-3">
       {/* Resumo do plano escolhido */}
       <div className="rounded-xl px-4 py-3 flex items-center gap-3"
         style={{ background: '#E1F5EE', border: '1px solid #9FE1CB' }}>
-        <span className="text-xl">{planoInfo.emoji}</span>
+        <span className="text-xl">🚐</span>
         <div>
           <p className="text-sm font-semibold" style={{ color: '#085041' }}>
-            Plano {planoInfo.nome} — R$ {preco}/mês
+            {periodoInfo.nome} — R$ {periodoInfo.preco}/mês
           </p>
           <p className="text-xs" style={{ color: '#0F6E56' }}>
-            15 dias grátis · {planoInfo.limite}
+            15 dias grátis · motoristas ilimitados
           </p>
         </div>
       </div>
