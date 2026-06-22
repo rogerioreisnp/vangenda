@@ -27,22 +27,21 @@ const PLANOS_PERIODO: PlanoPeriodo[] = [
     badgeLabel: null,
   },
   {
-    id: 'semestral',
-    nome: 'Semestral',
-    preco: 97,
-    subtitulo: 'economia de 24%',
-    destaque: true,
-    badgeLabel: '⭐ MAIS ESCOLHIDO',
-    badgeStyle: { bg: '#0F6E56', text: '#E1F5EE' },
-  },
-  {
     id: 'anual',
     nome: 'Anual',
     preco: 77,
     subtitulo: 'economia de 39% + 2 meses grátis',
+    destaque: true,
+    badgeLabel: '⭐ MAIS ESCOLHIDO',
+    badgeStyle: { bg: '#FAC775', text: '#7C3E00' },
+  },
+  {
+    id: 'semestral',
+    nome: 'Semestral',
+    preco: 97,
+    subtitulo: 'economia de 24%',
     destaque: false,
-    badgeLabel: '🏆 MELHOR CUSTO-BENEFÍCIO',
-    badgeStyle: { bg: '#C2410C', text: '#FFF7ED' },
+    badgeLabel: null,
   },
 ]
 
@@ -209,51 +208,65 @@ function EtapaPlano({ onEscolher }: { onEscolher: (p: Periodo) => void }) {
       </div>
 
       {/* Cards de período */}
-      {PLANOS_PERIODO.map(pl => (
-        <div key={pl.id} className="bg-white rounded-2xl border overflow-hidden"
-          style={{
-            borderColor: pl.destaque ? '#0F6E56' : '#e5e7eb',
-            boxShadow: pl.destaque ? '0 4px 16px rgba(15,110,86,0.14)' : '0 1px 4px rgba(0,0,0,0.05)',
-          }}>
-          {pl.badgeLabel && (
-            <div className="py-1.5 text-center text-xs font-bold tracking-wide"
-              style={{ background: pl.badgeStyle!.bg, color: pl.badgeStyle!.text }}>
-              {pl.badgeLabel}
-            </div>
-          )}
-          <div className="p-5">
-            <div className="flex items-start justify-between gap-2 mb-3">
-              <div>
-                <p className="text-base font-bold text-gray-800">{pl.nome}</p>
-                <p className="text-xs text-gray-400">{pl.subtitulo}</p>
+      {PLANOS_PERIODO.map(pl => {
+        const inv = pl.destaque
+        return (
+          <div key={pl.id} className="rounded-2xl border overflow-hidden"
+            style={{
+              background: inv ? '#0F6E56' : '#fff',
+              borderColor: inv ? '#0F6E56' : '#e5e7eb',
+              boxShadow: inv ? '0 8px 28px rgba(15,110,86,0.30)' : '0 1px 4px rgba(0,0,0,0.05)',
+            }}>
+            {pl.badgeLabel && (
+              <div className="py-1.5 text-center text-xs font-bold tracking-wide"
+                style={{ background: pl.badgeStyle!.bg, color: pl.badgeStyle!.text }}>
+                {pl.badgeLabel}
               </div>
-              <div className="text-right flex-shrink-0">
-                <p className="text-2xl font-bold leading-none" style={{ color: '#0F6E56' }}>
-                  R$ {pl.preco}
-                </p>
-                <p className="text-xs text-gray-400 mt-0.5">/mês</p>
+            )}
+            <div className="p-5">
+              <div className="flex items-start justify-between gap-2 mb-3">
+                <div>
+                  <p className="text-base font-bold" style={{ color: inv ? '#E1F5EE' : '#1a1a1a' }}>
+                    {pl.nome}
+                  </p>
+                  {inv ? (
+                    <span className="inline-flex items-center mt-1 px-2 py-0.5 rounded-full text-xs font-semibold"
+                      style={{ background: '#FAC775', color: '#7C3E00' }}>
+                      🎁 2 meses grátis
+                    </span>
+                  ) : (
+                    <p className="text-xs text-gray-400">{pl.subtitulo}</p>
+                  )}
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <p className="text-2xl font-bold leading-none" style={{ color: inv ? '#fff' : '#0F6E56' }}>
+                    R$ {pl.preco}
+                  </p>
+                  <p className="text-xs mt-0.5" style={{ color: inv ? '#9FE1CB' : '#9ca3af' }}>/mês</p>
+                </div>
               </div>
+
+              <ul className="flex flex-col gap-1.5 mb-4">
+                {BENEFICIOS.map(b => (
+                  <li key={b} className="flex items-center gap-2 text-xs"
+                    style={{ color: inv ? '#E1F5EE' : '#4b5563' }}>
+                    <span style={{ color: inv ? '#FAC775' : '#1D9E75' }}>✓</span>
+                    {b}
+                  </li>
+                ))}
+              </ul>
+
+              <button onClick={() => onEscolher(pl.id)}
+                className="w-full py-3 rounded-xl text-sm font-semibold transition-opacity active:opacity-75"
+                style={inv
+                  ? { background: '#fff', color: '#0F6E56' }
+                  : { background: '#E1F5EE', color: '#0F6E56' }}>
+                Começar trial grátis →
+              </button>
             </div>
-
-            <ul className="flex flex-col gap-1.5 mb-4">
-              {BENEFICIOS.map(b => (
-                <li key={b} className="flex items-center gap-2 text-xs text-gray-600">
-                  <span style={{ color: '#1D9E75' }}>✓</span>
-                  {b}
-                </li>
-              ))}
-            </ul>
-
-            <button onClick={() => onEscolher(pl.id)}
-              className="w-full py-3 rounded-xl text-sm font-semibold transition-opacity active:opacity-75"
-              style={pl.destaque
-                ? { background: '#0F6E56', color: '#fff' }
-                : { background: '#E1F5EE', color: '#0F6E56' }}>
-              Começar trial grátis →
-            </button>
           </div>
-        </div>
-      ))}
+        )
+      })}
 
       <div className="text-center py-2">
         <p className="text-xs text-gray-400">

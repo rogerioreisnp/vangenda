@@ -56,10 +56,11 @@ export default function EmpresaLayout({ children }: { children: React.ReactNode 
     if (empresa) {
       setPlanoEmpresa(empresa.plano || '')
       setStatusEmpresa(empresa.status || '')
-      if (empresa.status === 'trial' && empresa.trial_fim) {
-        const hoje = new Date().toISOString().split('T')[0]
-        if (empresa.trial_fim < hoje) setTrialExpirado(true)
-      }
+      const agora = new Date()
+      const ativa =
+        empresa.status === 'ativo' ||
+        (empresa.status === 'trial' && !!empresa.trial_fim && new Date(empresa.trial_fim) > agora)
+      if (!ativa) setTrialExpirado(true)
     }
 
     setChecando(false)
