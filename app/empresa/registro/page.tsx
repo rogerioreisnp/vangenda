@@ -75,6 +75,7 @@ export default function RegistroEmpresaPage() {
   const [form, setForm]     = useState<FormDados>(FORM_VAZIO)
   const [loading, setLoading] = useState(false)
   const [erro, setErro]     = useState('')
+  const [erroTelefone, setErroTelefone] = useState('')
 
   function escolherPlano(p: Plano) {
     setPlano(p)
@@ -87,7 +88,10 @@ export default function RegistroEmpresaPage() {
     if (!plano) return
     if (!form.nomeEmpresa.trim()) { setErro('Nome da empresa é obrigatório'); return }
     if (!form.nome.trim())        { setErro('Seu nome é obrigatório'); return }
-    if (!form.telefone.trim())    { setErro('Telefone é obrigatório'); return }
+    const tel = form.telefone.replace(/\D/g, '')
+    if (!form.telefone.trim()) { setErroTelefone('Informe seu telefone para continuar'); return }
+    if (tel.length < 10)       { setErroTelefone('Informe um telefone com DDD (mínimo 10 dígitos)'); return }
+    setErroTelefone('')
     if (!form.email.trim())       { setErro('E-mail é obrigatório'); return }
     if (form.senha.length < 6)    { setErro('A senha precisa ter pelo menos 6 caracteres'); return }
     if (form.senha !== form.confirmarSenha) { setErro('As senhas não coincidem'); return }
@@ -173,6 +177,8 @@ export default function RegistroEmpresaPage() {
             periodo={periodo}
             loading={loading}
             erro={erro}
+            erroTelefone={erroTelefone}
+            onClearErroTelefone={() => setErroTelefone('')}
             onCadastrar={cadastrar}
           />
         )}
@@ -340,7 +346,7 @@ function EtapaPlano({
 /* ─── Etapa 2: Dados da empresa e conta ─── */
 
 function EtapaDados({
-  form, setForm, plano, periodo, loading, erro, onCadastrar,
+  form, setForm, plano, periodo, loading, erro, erroTelefone, onClearErroTelefone, onCadastrar,
 }: {
   form: FormDados
   setForm: React.Dispatch<React.SetStateAction<FormDados>>
@@ -348,6 +354,8 @@ function EtapaDados({
   periodo: Periodo
   loading: boolean
   erro: string
+  erroTelefone: string
+  onClearErroTelefone: () => void
   onCadastrar: () => void
 }) {
   const set = (k: keyof FormDados) =>
@@ -384,8 +392,11 @@ function EtapaDados({
       </Campo>
 
       <Campo label="Telefone / WhatsApp *">
-        <input value={form.telefone} onChange={set('telefone')} type="tel"
-          placeholder="(95) 99999-9999" className="campo-input" />
+        <input value={form.telefone}
+          onChange={e => { set('telefone')(e); onClearErroTelefone() }} type="tel"
+          placeholder="(95) 99999-9999" className="campo-input"
+          style={erroTelefone ? { borderColor: '#f87171' } : undefined} />
+        {erroTelefone && <p className="text-xs text-red-600 mt-1">⚠️ {erroTelefone}</p>}
       </Campo>
 
       <Campo label="E-mail (será o login) *">
