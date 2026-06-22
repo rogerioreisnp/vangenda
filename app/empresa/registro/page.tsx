@@ -53,6 +53,12 @@ const BENEFICIOS = [
   'Suporte incluso',
 ]
 
+const BENEFICIOS_ANUAL = [
+  'Suporte prioritário via WhatsApp',
+  'Suporte na configuração inicial',
+  'Você recebe as novidades antes de todo mundo',
+]
+
 type FormDados = {
   nomeEmpresa: string
   nome: string
@@ -254,6 +260,20 @@ function EtapaPlano({ onEscolher }: { onEscolher: (p: Periodo) => void }) {
                     {b}
                   </li>
                 ))}
+                {inv && (
+                  <>
+                    <li className="my-1">
+                      <div style={{ borderTop: '1px solid rgba(255,255,255,0.18)' }} />
+                    </li>
+                    {BENEFICIOS_ANUAL.map(b => (
+                      <li key={b} className="flex items-center gap-2 text-xs font-semibold"
+                        style={{ color: '#FAC775' }}>
+                        <span>⭐</span>
+                        {b}
+                      </li>
+                    ))}
+                  </>
+                )}
               </ul>
 
               <button onClick={() => onEscolher(pl.id)}
