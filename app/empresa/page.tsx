@@ -700,6 +700,16 @@ type MotEmpresa = {
   status: string
 }
 
+type RotaRFPainel = {
+  id: string
+  nome: string | null
+  horario_ida: string | null
+  horario_volta: string | null
+  capacidade: number | null
+  motorista_id: string | null
+  dias_semana: number[] | null
+}
+
 function DashboardRotaFixa({
   nomeGestor,
   nomeEmpresa,
@@ -710,180 +720,103 @@ function DashboardRotaFixa({
   empresaId: string
 }) {
   const [loading, setLoading] = useState(true)
-  const [viagensHoje, setViagensHoje] = useState(0)
-  const [passageirosHoje, setPassageirosHoje] = useState(0)
-  const [receitaMes, setReceitaMes] = useState(0)
-  const [aReceber, setAReceber] = useState(0)
-  const [despesasMes, setDespesasMes] = useState(0)
-  const [motoristas, setMotoristas] = useState<MotEmpresa[]>([])
+  const [motById, setMotById] = useState<Record<string, MotEmpresa>>({})
+  const [rotasHoje, setRotasHoje] = useState<RotaRFPainel[]>([])
   const [agsHoje, setAgsHoje] = useState<AgRF[]>([])
-  const [proximas, setProximas] = useState<AgRF[]>([])
-  const [grafico, setGrafico] = useState<DiaSemanaRF[]>([])
-  const [periodoGrafico, setPeriodoGrafico] = useState<'semana' | 'mes' | 'ano'>('semana')
-  const [loadingGrafico, setLoadingGrafico] = useState(false)
-  const [userIdsCache, setUserIdsCache] = useState<string[]>([])
+  const [passageirosHoje, setPassageirosHoje] = useState(0)
+  const [receitaDia, setReceitaDia] = useState(0)
+  const [naoConfirmados, setNaoConfirmados] = useState(0)
+  const [fiadoVencido, setFiadoVencido] = useState(0)
+  const [checklistPendentes, setChecklistPendentes] = useState(0)
+  const [receitaMes, setReceitaMes] = useState(0)
+  const [despesasMes, setDespesasMes] = useState(0)
+  const [aReceber, setAReceber] = useState(0)
 
   const hora = new Date().getHours()
   const saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite'
 
   useEffect(() => { carregarDados() }, [])
-  useEffect(() => {
-    if (userIdsCache.length > 0) carregarGrafico(periodoGrafico, userIdsCache)
-  }, [periodoGrafico])
 
   async function carregarDados() {
     const agora = new Date()
     const hojeStr = format(agora, 'yyyy-MM-dd')
-    const em7Dias = format(addDays(agora, 7), 'yyyy-MM-dd')
+    const amanhaStr = format(addDays(agora, 1), 'yyyy-MM-dd')
     const inicioMes = format(startOfMonth(agora), 'yyyy-MM-dd')
     const fimMes = format(endOfMonth(agora), 'yyyy-MM-dd')
+    const diaHoje = agora.getDay()
 
-    const { data: mots } = await supabase
-      .from('motoristas_empresa')
-      .select('id, user_id, nome, veiculo, placa, status')
-      .eq('empresa_id', empresaId)
-      .eq('status', 'ativo')
-      .order('nome')
+    const [{ data: mots }, { data: rotasData }, { data: cobMesData }] = await Promise.all([
+      supabase.from('motoristas_empresa')
+        .select('id, user_id, nome, veiculo, placa, status')
+        .eq('empresa_id', empresaId).eq('status', 'ativo').order('nome'),
+      supabase.from('rotas_empresa')
+        .select('id, nome, horario_ida, horario_volta, capacidade, motorista_id, dias_semana')
+        .eq('empresa_id', empresaId).eq('ativa', true),
+      supabase.from('cobrancas_empresa')
+        .select('tipo, valor')
+        .eq('empresa_id', empresaId).in('tipo', ['receita', 'despesa'])
+        .gte('data', inicioMes).lte('data', fimMes),
+    ])
 
     const motsAtivos = (mots ?? []) as MotEmpresa[]
-    setMotoristas(motsAtivos)
+    const motByIdMap = Object.fromEntries(motsAtivos.map(m => [m.id, m]))
+    setMotById(motByIdMap)
+
+    const rotasHojeArr = ((rotasData ?? []) as RotaRFPainel[])
+      .filter(r => r.dias_semana?.includes(diaHoje) ?? false)
+    setRotasHoje(rotasHojeArr)
+
+    const cob = cobMesData ?? []
+    const recCob = cob.filter((c: any) => c.tipo === 'receita').reduce((s: number, c: any) => s + Number(c.valor), 0)
+    const despCob = cob.filter((c: any) => c.tipo === 'despesa').reduce((s: number, c: any) => s + Number(c.valor), 0)
+    setDespesasMes(despCob)
 
     const userIds = motsAtivos.map(m => m.user_id).filter(Boolean) as string[]
 
     if (userIds.length === 0) {
+      setChecklistPendentes(motsAtivos.length)
+      setReceitaMes(recCob)
       setLoading(false)
       return
     }
 
     const [
       { data: agsHojeData },
-      { data: proximasData },
-      { data: recMesData },
+      { data: naoConfData },
+      { data: fiadoData },
       { data: aReceberData },
-      { data: cobMesData },
+      { data: recMesData },
+      { data: checklistData },
     ] = await Promise.all([
-      supabase.from('agendamentos').select('*')
+      supabase.from('agendamentos')
+        .select('id, motorista_id, nome_passageiro, parada_origem, parada_destino, turno, data_viagem, valor, forma_pagamento, status')
         .in('motorista_id', userIds).eq('data_viagem', hojeStr).neq('status', 'cancelado'),
-      supabase.from('agendamentos').select('*')
-        .in('motorista_id', userIds).gte('data_viagem', hojeStr).lte('data_viagem', em7Dias)
-        .neq('status', 'cancelado').order('data_viagem').order('turno'),
-      supabase.from('agendamentos').select('valor')
-        .in('motorista_id', userIds).gte('data_viagem', inicioMes).lte('data_viagem', fimMes)
-        .neq('status', 'cancelado'),
+      supabase.from('agendamentos').select('id')
+        .in('motorista_id', userIds).in('data_viagem', [hojeStr, amanhaStr]).eq('status', 'agendado'),
+      supabase.from('agendamentos').select('id')
+        .in('motorista_id', userIds).eq('forma_pagamento', 'pendente').neq('status', 'cancelado').lt('data_viagem', hojeStr),
       supabase.from('agendamentos').select('valor')
         .in('motorista_id', userIds).eq('forma_pagamento', 'pendente').neq('status', 'cancelado'),
-      supabase.from('cobrancas_empresa').select('tipo, valor, data')
-        .eq('empresa_id', empresaId).in('tipo', ['receita', 'despesa'])
-        .gte('data', inicioMes).lte('data', fimMes),
+      supabase.from('agendamentos').select('valor')
+        .in('motorista_id', userIds).gte('data_viagem', inicioMes).lte('data_viagem', fimMes).neq('status', 'cancelado'),
+      supabase.from('checklist_empresa').select('motorista_id')
+        .eq('empresa_id', empresaId).eq('data', hojeStr),
     ])
 
     const hojeAgs = (agsHojeData ?? []) as AgRF[]
-    const rotasUnicas = new Set(hojeAgs.map(a => `${a.parada_origem}|${a.parada_destino}|${a.turno}`))
-
-    const cobMes = cobMesData ?? []
-    const receitaAgs = (recMesData ?? []).reduce((s, a) => s + Number(a.valor), 0)
-    const receitaCob = cobMes.filter(c => c.tipo === 'receita').reduce((s, c) => s + Number(c.valor), 0)
-    const despesaCob = cobMes.filter(c => c.tipo === 'despesa').reduce((s, c) => s + Number(c.valor), 0)
+    const checklistFeitos = new Set((checklistData ?? []).map((c: any) => c.motorista_id as string))
+    const checkPend = motsAtivos.filter(m => !checklistFeitos.has(m.id)).length
 
     setAgsHoje(hojeAgs)
-    setViagensHoje(rotasUnicas.size)
     setPassageirosHoje(hojeAgs.length)
-    setReceitaMes(receitaAgs + receitaCob)
-    setDespesasMes(despesaCob)
+    setReceitaDia(hojeAgs.reduce((s, a) => s + Number(a.valor), 0))
+    setNaoConfirmados(naoConfData?.length ?? 0)
+    setFiadoVencido(fiadoData?.length ?? 0)
+    setChecklistPendentes(checkPend)
+    setReceitaMes((recMesData ?? []).reduce((s, a) => s + Number(a.valor), 0) + recCob)
     setAReceber((aReceberData ?? []).reduce((s, a) => s + Number(a.valor), 0))
-    setProximas((proximasData ?? []) as AgRF[])
-
-    setUserIdsCache(userIds)
-    await carregarGrafico('semana', userIds)
 
     setLoading(false)
-  }
-
-  async function carregarGrafico(periodo: 'semana' | 'mes' | 'ano', uIds: string[]) {
-    setLoadingGrafico(true)
-    const agora = new Date()
-    const anoAtual = agora.getFullYear()
-
-    if (periodo === 'semana') {
-      const ha7 = format(subDays(agora, 6), 'yyyy-MM-dd')
-      const hoje = format(agora, 'yyyy-MM-dd')
-      const [{ data: agsData }, { data: cobData }] = await Promise.all([
-        supabase.from('agendamentos').select('data_viagem, valor')
-          .in('motorista_id', uIds).gte('data_viagem', ha7).lte('data_viagem', hoje)
-          .neq('status', 'cancelado'),
-        supabase.from('cobrancas_empresa').select('tipo, valor, data')
-          .eq('empresa_id', empresaId).in('tipo', ['receita', 'despesa'])
-          .gte('data', ha7).lte('data', hoje),
-      ])
-      const cob = cobData ?? []
-      const pontos: DiaSemanaRF[] = []
-      for (let i = 6; i >= 0; i--) {
-        const d = subDays(agora, i)
-        const dStr = format(d, 'yyyy-MM-dd')
-        const raw = format(d, 'EEE', { locale: ptBR })
-        const label = raw.charAt(0).toUpperCase() + raw.slice(1, 3)
-        const recAgs = (agsData ?? []).filter(r => r.data_viagem === dStr).reduce((s, r) => s + Number(r.valor), 0)
-        const recCob = cob.filter(c => c.data === dStr && c.tipo === 'receita').reduce((s, c) => s + Number(c.valor), 0)
-        const despCob = cob.filter(c => c.data === dStr && c.tipo === 'despesa').reduce((s, c) => s + Number(c.valor), 0)
-        pontos.push({ data: dStr, receita: recAgs + recCob, despesa: despCob, label })
-      }
-      setGrafico(pontos)
-
-    } else if (periodo === 'mes') {
-      const ini = format(startOfMonth(agora), 'yyyy-MM-dd')
-      const fim = format(endOfMonth(agora), 'yyyy-MM-dd')
-      const [{ data: agsData }, { data: cobData }] = await Promise.all([
-        supabase.from('agendamentos').select('data_viagem, valor')
-          .in('motorista_id', uIds).gte('data_viagem', ini).lte('data_viagem', fim)
-          .neq('status', 'cancelado'),
-        supabase.from('cobrancas_empresa').select('tipo, valor, data')
-          .eq('empresa_id', empresaId).in('tipo', ['receita', 'despesa'])
-          .gte('data', ini).lte('data', fim),
-      ])
-      const ags = agsData ?? []
-      const cob = cobData ?? []
-      const totalDias = endOfMonth(agora).getDate()
-      const semanasConf = [
-        { label: 'Sem 1', ini: 1,  fim: 7  },
-        { label: 'Sem 2', ini: 8,  fim: 14 },
-        { label: 'Sem 3', ini: 15, fim: 21 },
-        { label: 'Sem 4', ini: 22, fim: 28 },
-        ...(totalDias > 28 ? [{ label: 'Sem 5', ini: 29, fim: totalDias }] : []),
-      ]
-      const pontos: DiaSemanaRF[] = semanasConf.map(s => {
-        const inRange = (dateStr: string) => { const d = +dateStr.slice(8, 10); return d >= s.ini && d <= s.fim }
-        const recAgs  = ags.filter(a => inRange(a.data_viagem)).reduce((sum, a) => sum + Number(a.valor), 0)
-        const recCob  = cob.filter(c => inRange(c.data) && c.tipo === 'receita').reduce((sum, c) => sum + Number(c.valor), 0)
-        const despCob = cob.filter(c => inRange(c.data) && c.tipo === 'despesa').reduce((sum, c) => sum + Number(c.valor), 0)
-        return { data: s.label, receita: recAgs + recCob, despesa: despCob, label: s.label }
-      })
-      setGrafico(pontos)
-
-    } else {
-      const inicioAno = `${anoAtual}-01-01`
-      const fimAno   = `${anoAtual}-12-31`
-      const [{ data: agsData }, { data: cobData }] = await Promise.all([
-        supabase.from('agendamentos').select('data_viagem, valor')
-          .in('motorista_id', uIds).gte('data_viagem', inicioAno).lte('data_viagem', fimAno)
-          .neq('status', 'cancelado'),
-        supabase.from('cobrancas_empresa').select('tipo, valor, data')
-          .eq('empresa_id', empresaId).in('tipo', ['receita', 'despesa'])
-          .gte('data', inicioAno).lte('data', fimAno),
-      ])
-      const ags = agsData ?? []
-      const cob = cobData ?? []
-      const mesesLabel = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
-      const pontos: DiaSemanaRF[] = mesesLabel.map((label, idx) => {
-        const prefix = `${anoAtual}-${String(idx + 1).padStart(2, '0')}`
-        const recAgs  = ags.filter(a => a.data_viagem.startsWith(prefix)).reduce((s, a) => s + Number(a.valor), 0)
-        const recCob  = cob.filter(c => c.data.startsWith(prefix) && c.tipo === 'receita').reduce((s, c) => s + Number(c.valor), 0)
-        const despCob = cob.filter(c => c.data.startsWith(prefix) && c.tipo === 'despesa').reduce((s, c) => s + Number(c.valor), 0)
-        return { data: prefix, receita: recAgs + recCob, despesa: despCob, label }
-      })
-      setGrafico(pontos)
-    }
-
-    setLoadingGrafico(false)
   }
 
   if (loading) {
@@ -894,43 +827,25 @@ function DashboardRotaFixa({
     )
   }
 
-  const motPorUserId = Object.fromEntries(
-    motoristas.filter(m => m.user_id).map(m => [m.user_id!, m])
-  )
-  const agsHojePorMot = agsHoje.reduce<Record<string, AgRF[]>>((acc, ag) => {
+  const saldo = receitaMes - despesasMes
+  const rotasSemMot = rotasHoje.filter(r => !r.motorista_id).length
+  const temAlertas = rotasSemMot > 0 || naoConfirmados > 0 || fiadoVencido > 0 || checklistPendentes > 0
+  const mesLabel = format(new Date(), "MMMM 'de' yyyy", { locale: ptBR })
+  const mesLabelCap = mesLabel.charAt(0).toUpperCase() + mesLabel.slice(1)
+
+  const agsHojePorUid = agsHoje.reduce<Record<string, AgRF[]>>((acc, ag) => {
     if (!acc[ag.motorista_id]) acc[ag.motorista_id] = []
     acc[ag.motorista_id].push(ag)
     return acc
   }, {})
 
-  // Agrupa próximas por (data_viagem, origem, destino, turno, motorista_id)
-  type GrupoViagem = {
-    key: string; data_viagem: string; parada_origem: string; parada_destino: string
-    turno: string; motorista_id: string; count: number; valor_total: number
-  }
-  const gruposMap = new Map<string, GrupoViagem>()
-  for (const ag of proximas) {
-    const key = `${ag.data_viagem}|${ag.parada_origem}|${ag.parada_destino}|${ag.turno}|${ag.motorista_id}`
-    if (!gruposMap.has(key)) {
-      gruposMap.set(key, {
-        key, data_viagem: ag.data_viagem, parada_origem: ag.parada_origem,
-        parada_destino: ag.parada_destino, turno: ag.turno, motorista_id: ag.motorista_id,
-        count: 0, valor_total: 0,
-      })
-    }
-    const g = gruposMap.get(key)!
-    g.count++
-    g.valor_total += Number(ag.valor)
-  }
-  const grupos = Array.from(gruposMap.values())
+  const fmt = (v: number) =>
+    `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
 
-  const maxBar = Math.max(...grafico.map(d => Math.max(d.receita, d.despesa)), 1)
-  const temDadosGrafico = grafico.some(d => d.receita > 0 || d.despesa > 0)
-  const totalRecSemana = grafico.reduce((s, d) => s + d.receita, 0)
-  const totalDespSemana = grafico.reduce((s, d) => s + d.despesa, 0)
-  const lucroSemana = totalRecSemana - totalDespSemana
-  const hojeStr = format(new Date(), 'yyyy-MM-dd')
-  const lucroMes = receitaMes - despesasMes
+  function fmtHora(t: string | null) {
+    if (!t) return ''
+    return t.slice(0, 5)
+  }
 
   return (
     <div className="pb-24">
@@ -948,46 +863,192 @@ function DashboardRotaFixa({
         </p>
       </div>
 
-      <div className="px-4 py-4 flex flex-col gap-4">
+      <div className="px-4 py-4 flex flex-col gap-5">
 
-        {/* Métricas */}
-        <div className="grid grid-cols-2 gap-3">
-          <CardMetrica label="Viagens hoje" valor={viagensHoje} emoji="🛣️" cor="#0F6E56" />
-          <CardMetrica label="Passageiros hoje" valor={passageirosHoje} emoji="👥" cor="#0F6E56" />
-          <CardMetrica
-            label="Receita do mês"
-            valor={`R$ ${receitaMes.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
-            emoji="💰"
-            cor="#1D9E75"
-          />
-          <CardMetrica
-            label="Despesas do mês"
-            valor={`R$ ${despesasMes.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
-            emoji="📤"
-            cor="#A32D2D"
-          />
-        </div>
-
-        {/* Lucro do mês */}
-        <div className="rounded-2xl px-4 py-3 border flex items-center justify-between"
-          style={{
-            background: lucroMes >= 0 ? '#E1F5EE' : '#FCEBEB',
-            borderColor: lucroMes >= 0 ? '#9FE1CB' : '#FECACA',
-          }}>
-          <div>
-            <p className="text-xs font-medium" style={{ color: lucroMes >= 0 ? '#085041' : '#A32D2D' }}>
-              {lucroMes >= 0 ? '📈 Lucro do mês' : '📉 Prejuízo do mês'}
-            </p>
-            <p className="text-[10px] mt-0.5" style={{ color: lucroMes >= 0 ? '#1D9E75' : '#C0392B', opacity: 0.8 }}>
-              Receita − Despesas lançadas
-            </p>
+        {/* ── ALERTAS ─────────────────────────────────────────── */}
+        {temAlertas && (
+          <div className="flex flex-col gap-2">
+            {rotasSemMot > 0 && (
+              <Link href="/empresa/rotas"
+                className="rounded-xl px-4 py-3 flex items-center gap-3 active:opacity-80"
+                style={{ background: '#FCEBEB', border: '1px solid #FECACA' }}>
+                <span className="text-lg flex-shrink-0">🔴</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold" style={{ color: '#A32D2D' }}>
+                    {rotasSemMot} rota{rotasSemMot !== 1 ? 's' : ''} sem motorista hoje
+                  </p>
+                  <p className="text-xs mt-0.5" style={{ color: '#C0392B', opacity: 0.8 }}>
+                    Toque para atribuir motorista
+                  </p>
+                </div>
+                <span className="text-xs font-semibold px-3 py-1.5 rounded-lg flex-shrink-0"
+                  style={{ background: '#A32D2D', color: '#fff' }}>
+                  Atribuir
+                </span>
+              </Link>
+            )}
+            {naoConfirmados > 0 && (
+              <Link href="/empresa/agendamentos"
+                className="rounded-xl px-4 py-3 flex items-center gap-3 active:opacity-80"
+                style={{ background: '#FAEEDA', border: '1px solid #FAC775' }}>
+                <span className="text-lg flex-shrink-0">⚠️</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold" style={{ color: '#854F0B' }}>
+                    {naoConfirmados} passageiro{naoConfirmados !== 1 ? 's' : ''} não confirmado{naoConfirmados !== 1 ? 's' : ''}
+                  </p>
+                  <p className="text-xs mt-0.5" style={{ color: '#A0622A', opacity: 0.8 }}>
+                    Hoje e amanhã · status: agendado
+                  </p>
+                </div>
+                <span className="text-xs font-semibold px-3 py-1.5 rounded-lg flex-shrink-0"
+                  style={{ background: '#854F0B', color: '#fff' }}>
+                  Ver
+                </span>
+              </Link>
+            )}
+            {fiadoVencido > 0 && (
+              <Link href="/empresa/agendamentos"
+                className="rounded-xl px-4 py-3 flex items-center gap-3 active:opacity-80"
+                style={{ background: '#FAEEDA', border: '1px solid #FAC775' }}>
+                <span className="text-lg flex-shrink-0">💸</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold" style={{ color: '#854F0B' }}>
+                    {fiadoVencido} pagamento{fiadoVencido !== 1 ? 's' : ''} pendente{fiadoVencido !== 1 ? 's' : ''}
+                  </p>
+                  <p className="text-xs mt-0.5" style={{ color: '#A0622A', opacity: 0.8 }}>
+                    Passagens de datas passadas não pagas
+                  </p>
+                </div>
+                <span className="text-xs font-semibold px-3 py-1.5 rounded-lg flex-shrink-0"
+                  style={{ background: '#854F0B', color: '#fff' }}>
+                  Cobrar
+                </span>
+              </Link>
+            )}
+            {checklistPendentes > 0 && (
+              <Link href="/empresa/motoristas"
+                className="rounded-xl px-4 py-3 flex items-center gap-3 active:opacity-80"
+                style={{ background: '#FAEEDA', border: '1px solid #FAC775' }}>
+                <span className="text-lg flex-shrink-0">📋</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold" style={{ color: '#854F0B' }}>
+                    {checklistPendentes} motorista{checklistPendentes !== 1 ? 's' : ''} sem checklist hoje
+                  </p>
+                  <p className="text-xs mt-0.5" style={{ color: '#A0622A', opacity: 0.8 }}>
+                    Checklist de veículo não preenchido
+                  </p>
+                </div>
+                <span className="text-xs font-semibold px-3 py-1.5 rounded-lg flex-shrink-0"
+                  style={{ background: '#854F0B', color: '#fff' }}>
+                  Ver
+                </span>
+              </Link>
+            )}
           </div>
-          <p className="text-xl font-bold" style={{ color: lucroMes >= 0 ? '#0F6E56' : '#A32D2D' }}>
-            R$ {Math.abs(lucroMes).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-          </p>
+        )}
+
+        {/* ── OPERAÇÃO DE HOJE ────────────────────────────────── */}
+        <div>
+          <p className="text-sm font-semibold text-gray-700 mb-3">Operação de hoje</p>
+
+          <div className="grid grid-cols-3 gap-2 mb-3">
+            {([
+              { label: 'Rotas', valor: String(rotasHoje.length), cor: '#0F6E56' },
+              { label: 'Passageiros', valor: String(passageirosHoje), cor: '#0F6E56' },
+              { label: 'Receita esp.', valor: fmt(receitaDia), cor: '#1D9E75' },
+            ] as const).map(m => (
+              <div key={m.label} className="bg-white rounded-xl p-3 border border-gray-100">
+                <p className="text-[10px] text-gray-400 leading-tight mb-1">{m.label}</p>
+                <p className="text-sm font-bold leading-none" style={{ color: m.cor }}>{m.valor}</p>
+              </div>
+            ))}
+          </div>
+
+          {rotasHoje.length === 0 ? (
+            <div className="bg-white rounded-2xl p-5 border border-gray-100 text-center">
+              <p className="text-3xl mb-2">🛣️</p>
+              <p className="text-sm font-medium text-gray-700">Nenhuma rota programada para hoje</p>
+              <p className="text-xs text-gray-400 mt-1">Verifique a configuração de dias das rotas</p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {rotasHoje.map(rota => {
+                const mot = rota.motorista_id ? motById[rota.motorista_id] : null
+                const uid = mot?.user_id ?? null
+                const agsRota = uid ? (agsHojePorUid[uid] ?? []) : []
+                const recRota = agsRota.reduce((s, a) => s + Number(a.valor), 0)
+                const semMot = !rota.motorista_id
+                const horarios = [
+                  rota.horario_ida ? `Ida ${fmtHora(rota.horario_ida)}` : null,
+                  rota.horario_volta ? `Volta ${fmtHora(rota.horario_volta)}` : null,
+                ].filter(Boolean).join(' · ')
+
+                return (
+                  <Link key={rota.id} href="/empresa/agendamentos"
+                    className="bg-white rounded-2xl px-4 py-3 border flex items-center gap-3 active:opacity-75"
+                    style={{ borderColor: semMot ? '#FECACA' : '#f0f0f0', background: semMot ? '#FFFBFB' : '#fff' }}>
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg flex-shrink-0"
+                      style={{ background: semMot ? '#FCEBEB' : '#E1F5EE' }}>
+                      🚐
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-800 truncate">
+                        {rota.nome ?? 'Rota sem nome'}
+                      </p>
+                      <p className="text-xs mt-0.5 truncate"
+                        style={{ color: semMot ? '#A32D2D' : '#6b7280' }}>
+                        {semMot ? 'Sem motorista atribuído' : (mot?.nome ?? '')}
+                      </p>
+                      {horarios ? (
+                        <p className="text-[10px] text-gray-400 mt-0.5">{horarios}</p>
+                      ) : null}
+                    </div>
+                    <div className="flex flex-col items-end flex-shrink-0 gap-0.5 text-right">
+                      <p className="text-sm font-bold" style={{ color: '#0F6E56' }}>
+                        {agsRota.length} pass.
+                      </p>
+                      <p className="text-xs text-gray-400">{fmt(recRota)}</p>
+                    </div>
+                    <span className="text-gray-300 text-sm flex-shrink-0">›</span>
+                  </Link>
+                )
+              })}
+            </div>
+          )}
         </div>
 
-        {/* Operar rota */}
+        {/* ── FINANCEIRO DO MÊS ───────────────────────────────── */}
+        <div>
+          <p className="text-sm font-semibold text-gray-700 mb-3">{mesLabelCap}</p>
+          <div className="grid grid-cols-2 gap-2 mb-3">
+            <div className="bg-white rounded-xl p-3 border border-gray-100">
+              <p className="text-[10px] text-gray-400 mb-1">💰 Receitas</p>
+              <p className="text-base font-bold" style={{ color: '#0F6E56' }}>{fmt(receitaMes)}</p>
+            </div>
+            <div className="bg-white rounded-xl p-3 border border-gray-100">
+              <p className="text-[10px] text-gray-400 mb-1">📤 Despesas</p>
+              <p className="text-base font-bold" style={{ color: '#A32D2D' }}>{fmt(despesasMes)}</p>
+            </div>
+            <div className="bg-white rounded-xl p-3 border border-gray-100">
+              <p className="text-[10px] text-gray-400 mb-1">{saldo >= 0 ? '📈' : '📉'} Saldo</p>
+              <p className="text-base font-bold" style={{ color: saldo >= 0 ? '#0F6E56' : '#A32D2D' }}>
+                {saldo < 0 ? '- ' : ''}{fmt(Math.abs(saldo))}
+              </p>
+            </div>
+            <div className="bg-white rounded-xl p-3 border border-gray-100">
+              <p className="text-[10px] text-gray-400 mb-1">🕐 A receber</p>
+              <p className="text-base font-bold" style={{ color: '#1D4ED8' }}>{fmt(aReceber)}</p>
+            </div>
+          </div>
+          <Link href="/empresa/financeiro"
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border text-sm font-medium active:opacity-75"
+            style={{ background: '#fff', borderColor: '#e5e7eb', color: '#374151' }}>
+            <span>📄</span>
+            Financeiro completo e relatórios
+          </Link>
+        </div>
+
+        {/* ── OPERAR ROTA ─────────────────────────────────────── */}
         <Link href="/dashboard"
           className="rounded-2xl px-4 py-3 flex items-center justify-between active:opacity-75"
           style={{ background: '#0F6E56', boxShadow: '0 2px 8px rgba(15,110,86,0.25)' }}>
@@ -1001,222 +1062,6 @@ function DashboardRotaFixa({
           </div>
           <span style={{ color: '#9FE1CB' }} className="text-xs">›</span>
         </Link>
-
-        {/* Frota hoje */}
-        <div>
-          <p className="text-sm font-semibold text-gray-700 mb-2">Frota hoje</p>
-          {motoristas.length === 0 ? (
-            <div className="bg-white rounded-2xl p-5 border border-gray-100 text-center">
-              <p className="text-3xl mb-2">🚐</p>
-              <p className="text-sm font-medium text-gray-700">Nenhum motorista cadastrado</p>
-              <Link href="/empresa/motoristas"
-                className="inline-block mt-3 px-5 py-2 rounded-xl text-xs font-semibold"
-                style={{ background: '#1D9E75', color: '#fff' }}>
-                + Cadastrar motorista
-              </Link>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-2">
-              {motoristas.map(mot => {
-                const uid = mot.user_id ?? ''
-                const agsMotHoje = agsHojePorMot[uid] ?? []
-                const emRota = agsMotHoje.length > 0
-                const iniciais = mot.nome.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase()
-                const rotaLabel = emRota
-                  ? `${agsMotHoje[0].parada_origem} → ${agsMotHoje[0].parada_destino}`
-                  : null
-                return (
-                  <div key={mot.id}
-                    className="bg-white rounded-2xl px-4 py-3 border border-gray-100 flex items-center gap-3"
-                    style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
-                    <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0"
-                      style={{ background: emRota ? '#E1F5EE' : '#f0f0ec', color: emRota ? '#0F6E56' : '#9ca3af' }}>
-                      {iniciais}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-gray-800 truncate">{mot.nome}</p>
-                      {rotaLabel ? (
-                        <p className="text-xs text-gray-400 truncate">
-                          {rotaLabel} · {agsMotHoje.length} passageiro{agsMotHoje.length !== 1 ? 's' : ''}
-                        </p>
-                      ) : mot.veiculo ? (
-                        <p className="text-xs text-gray-400">{mot.veiculo}{mot.placa ? ` · ${mot.placa}` : ''}</p>
-                      ) : null}
-                    </div>
-                    <span className="text-[10px] font-semibold px-2 py-1 rounded-full flex-shrink-0"
-                      style={emRota
-                        ? { background: '#E1F5EE', color: '#0F6E56' }
-                        : { background: '#f0f0ec', color: '#9ca3af' }}>
-                      {emRota ? 'Em rota' : 'Disponível'}
-                    </span>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Próximas viagens */}
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-sm font-semibold text-gray-700">Próximas viagens</p>
-            <Link href="/empresa/agendamentos"
-              className="text-xs font-medium" style={{ color: '#0F6E56' }}>
-              Ver todas →
-            </Link>
-          </div>
-          {grupos.length === 0 ? (
-            <div className="bg-white rounded-2xl p-5 border border-gray-100 text-center">
-              <p className="text-3xl mb-2">📅</p>
-              <p className="text-sm font-medium text-gray-700">Nenhuma viagem nos próximos 7 dias</p>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-2">
-              {grupos.map(g => {
-                const mot = motPorUserId[g.motorista_id]
-                const dataFmt = format(new Date(g.data_viagem + 'T00:00:00'), "dd/MM", { locale: ptBR })
-                const isHoje = g.data_viagem === hojeStr
-                return (
-                  <div key={g.key}
-                    className="bg-white rounded-2xl px-4 py-3 border border-gray-100"
-                    style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-gray-800 truncate">
-                          {g.parada_origem} → {g.parada_destino}
-                        </p>
-                        <p className="text-xs text-gray-400 mt-0.5">
-                          {isHoje ? 'Hoje' : dataFmt}
-                          {' · '}{g.turno === 'ida' ? 'Ida' : 'Volta'}
-                          {mot && <> · <span className="text-gray-500">{mot.nome}</span></>}
-                        </p>
-                        <p className="text-xs mt-0.5 font-medium" style={{ color: '#1D9E75' }}>
-                          {g.count} passageiro{g.count !== 1 ? 's' : ''}
-                        </p>
-                      </div>
-                      <p className="text-sm font-bold flex-shrink-0" style={{ color: '#0F6E56' }}>
-                        R$ {g.valor_total.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                      </p>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Gráfico comparativo Receita x Despesa */}
-        <div className="bg-white rounded-2xl p-4 border border-gray-100"
-          style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
-
-          {/* Seletor de período */}
-          <div className="flex gap-1.5 mb-3">
-            {(['semana', 'mes', 'ano'] as const).map(p => (
-              <button key={p} onClick={() => setPeriodoGrafico(p)}
-                className="flex-1 py-1.5 rounded-lg text-[11px] font-semibold"
-                style={periodoGrafico === p
-                  ? { background: '#0F6E56', color: '#fff' }
-                  : { background: '#f3f4f6', color: '#9ca3af' }}>
-                {p === 'semana' ? 'Semana' : p === 'mes' ? 'Mês' : 'Ano'}
-              </button>
-            ))}
-          </div>
-
-          {/* Título + legenda */}
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-sm font-semibold text-gray-700">Receita x Despesa</p>
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-1">
-                <div className="w-2.5 h-2.5 rounded-sm" style={{ background: '#1D9E75' }} />
-                <span className="text-[10px] text-gray-500">Receita</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="w-2.5 h-2.5 rounded-sm" style={{ background: '#E24B4A' }} />
-                <span className="text-[10px] text-gray-500">Despesa</span>
-              </div>
-            </div>
-          </div>
-
-          {loadingGrafico ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="text-2xl animate-pulse">📊</div>
-            </div>
-          ) : !temDadosGrafico ? (
-            <div className="text-center py-5">
-              <p className="text-xs text-gray-400">Nenhum dado no período</p>
-            </div>
-          ) : (
-            <div>
-              {/* Barras agrupadas */}
-              <div className="flex items-end" style={{ height: '64px', gap: grafico.length > 7 ? '2px' : '6px' }}>
-                {grafico.map((d, i) => {
-                  const recH  = maxBar > 0 ? Math.max(Math.round((d.receita  / maxBar) * 60), d.receita  > 0 ? 4 : 0) : 0
-                  const despH = maxBar > 0 ? Math.max(Math.round((d.despesa  / maxBar) * 60), d.despesa  > 0 ? 4 : 0) : 0
-                  const anoMesAtual = format(new Date(), 'yyyy-MM')
-                  const eHoje = periodoGrafico === 'semana'
-                    ? d.data === hojeStr
-                    : periodoGrafico === 'ano'
-                      ? d.data === anoMesAtual
-                      : false
-                  return (
-                    <div key={i} className="flex-1 flex items-end gap-px">
-                      <div className="flex-1 rounded-t-sm"
-                        style={{
-                          height: d.receita > 0 ? `${recH}px` : '2px',
-                          background: d.receita > 0 ? '#1D9E75' : '#e5e7eb',
-                          opacity: eHoje ? 1 : 0.72,
-                        }} />
-                      <div className="flex-1 rounded-t-sm"
-                        style={{
-                          height: d.despesa > 0 ? `${despH}px` : '2px',
-                          background: d.despesa > 0 ? '#E24B4A' : '#e5e7eb',
-                          opacity: eHoje ? 1 : 0.72,
-                        }} />
-                    </div>
-                  )
-                })}
-              </div>
-              {/* Labels */}
-              <div className="flex mt-1.5" style={{ gap: grafico.length > 7 ? '2px' : '6px' }}>
-                {grafico.map((d, i) => {
-                  const anoMesAtual = format(new Date(), 'yyyy-MM')
-                  const eHoje = periodoGrafico === 'semana'
-                    ? d.data === hojeStr
-                    : periodoGrafico === 'ano'
-                      ? d.data === anoMesAtual
-                      : false
-                  return (
-                    <p key={i} className="flex-1 text-center leading-none"
-                      style={{ fontSize: '8px', color: eHoje ? '#0F6E56' : '#9ca3af', fontWeight: eHoje ? 700 : 400 }}>
-                      {d.label}
-                    </p>
-                  )
-                })}
-              </div>
-              {/* Rodapé */}
-              <div className="flex justify-around mt-3 pt-3 border-t border-gray-50">
-                <div className="text-center">
-                  <p className="text-[10px] text-gray-400 mb-0.5">Receita</p>
-                  <p className="text-xs font-bold" style={{ color: '#1D9E75' }}>
-                    R$ {totalRecSemana.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                  </p>
-                </div>
-                <div className="text-center">
-                  <p className="text-[10px] text-gray-400 mb-0.5">Despesa</p>
-                  <p className="text-xs font-bold" style={{ color: '#E24B4A' }}>
-                    R$ {totalDespSemana.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                  </p>
-                </div>
-                <div className="text-center">
-                  <p className="text-[10px] text-gray-400 mb-0.5">Lucro</p>
-                  <p className="text-xs font-bold" style={{ color: lucroSemana >= 0 ? '#0F6E56' : '#E24B4A' }}>
-                    R$ {Math.abs(lucroSemana).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
 
       </div>
     </div>
