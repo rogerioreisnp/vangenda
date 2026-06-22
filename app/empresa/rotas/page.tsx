@@ -230,7 +230,7 @@ export default function RotasPage() {
       motorista_id: r.motorista_id || '',
       veiculo_placa: r.veiculo_placa || '',
       ativa: r.ativa ?? true,
-      dias_semana: r.dias_semana || [1, 2, 3, 4, 5],
+      dias_semana: (r.dias_semana ?? [1, 2, 3, 4, 5]).map(Number),
     })
     const { data: trechos } = await supabase
       .from('paradas_empresa')
@@ -271,7 +271,7 @@ export default function RotasPage() {
       motorista_id: formRF.motorista_id || null,
       veiculo_placa: formRF.veiculo_placa.trim() || null,
       ativa: formRF.ativa,
-      dias_semana: formRF.dias_semana,
+      dias_semana: Array.from(new Set(formRF.dias_semana.map(Number))),
     }
 
     let rotaId: string

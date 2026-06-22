@@ -770,7 +770,7 @@ function DashboardRotaFixa({
     setMotById(motByIdMap)
 
     const rotasHojeArr = ((rotasData ?? []) as RotaRFPainel[])
-      .filter(r => r.dias_semana?.includes(diaHoje) ?? false)
+      .filter(r => r.dias_semana?.some(d => Number(d) === diaHoje) ?? false)
     setRotasHoje(rotasHojeArr)
 
     const cob = cobMesData ?? []
