@@ -154,6 +154,14 @@ export default function MotoristasPage() {
     carregarDados()
   }
 
+  async function ativar(id: string) {
+    await supabase
+      .from('motoristas_empresa')
+      .update({ status: 'ativo' })
+      .eq('id', id)
+    carregarDados()
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -241,14 +249,26 @@ export default function MotoristasPage() {
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2 px-1">Inativos</p>
             <div className="flex flex-col gap-2">
               {motInativos.map(m => (
-                <div key={m.id} className="bg-white rounded-2xl p-4 border border-gray-100 opacity-55">
-                  <p className="text-sm font-medium text-gray-500">{m.nome}</p>
-                  {m.telefone && <p className="text-xs text-gray-400 mt-0.5">{m.telefone}</p>}
-                  {(m.veiculo || m.placa) && (
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      {[m.veiculo, m.placa].filter(Boolean).join(' · ')}
-                    </p>
-                  )}
+                <div key={m.id} className="bg-white rounded-2xl p-4 border border-gray-100 opacity-70">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-500">{m.nome}</p>
+                      {m.telefone && <p className="text-xs text-gray-400 mt-0.5">{m.telefone}</p>}
+                      {(m.veiculo || m.placa) && (
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {[m.veiculo, m.placa].filter(Boolean).join(' · ')}
+                        </p>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => !atingiuLimite && ativar(m.id)}
+                      disabled={atingiuLimite}
+                      title={atingiuLimite ? 'Limite do plano atingido' : 'Reativar motorista'}
+                      className="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+                      style={{ background: '#E1F5EE', color: '#0F6E56' }}>
+                      Reativar
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
