@@ -59,6 +59,7 @@ type AgendamentoRF = {
   rua: string | null
   numero: string | null
   bairro: string | null
+  municipio: string | null
   cep: string | null
   referencia: string | null
 }
@@ -116,6 +117,7 @@ type FormAgPassageiro = {
   rua: string
   numero: string
   bairro: string
+  municipio: string
   cep: string
   referencia: string
 }
@@ -135,6 +137,7 @@ const FORM_AG_VAZIO: FormAgPassageiro = {
   rua: '',
   numero: '',
   bairro: '',
+  municipio: '',
   cep: '',
   referencia: '',
 }
@@ -305,7 +308,7 @@ export default function AgendamentosPage() {
       if (userIds.length > 0) {
         const { data: ags } = await supabase
           .from('agendamentos')
-          .select('id, motorista_id, nome_passageiro, telefone_passageiro, parada_origem, parada_destino, turno, valor, status, data_viagem, forma_pagamento, observacoes, rua, numero, bairro, cep, referencia')
+          .select('id, motorista_id, nome_passageiro, telefone_passageiro, parada_origem, parada_destino, turno, valor, status, data_viagem, forma_pagamento, observacoes, rua, numero, bairro, municipio, cep, referencia')
           .in('motorista_id', userIds)
           .order('data_viagem', { ascending: false })
           .limit(50)
@@ -523,6 +526,7 @@ export default function AgendamentosPage() {
       rua: ag.rua || '',
       numero: ag.numero || '',
       bairro: ag.bairro || '',
+      municipio: ag.municipio || '',
       cep: ag.cep || '',
       referencia: ag.referencia || '',
     })
@@ -579,6 +583,7 @@ export default function AgendamentosPage() {
       rua: formAg.rua.trim() || null,
       numero: formAg.numero.trim() || null,
       bairro: formAg.bairro.trim() || null,
+      municipio: formAg.municipio.trim() || null,
       cep: formAg.cep.trim() || null,
       referencia: formAg.referencia.trim() || null,
     }
@@ -671,7 +676,9 @@ export default function AgendamentosPage() {
       <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-4 flex items-center gap-3">
         <Link href="/empresa" style={{ color: '#9FE1CB' }} className="text-2xl leading-none flex-shrink-0">‹</Link>
         <div>
-          <p style={{ color: '#E1F5EE' }} className="text-base font-semibold">Agendamentos</p>
+          <p style={{ color: '#E1F5EE' }} className="text-base font-semibold">
+            {tipoOperacao === 'rota_fixa' ? 'Fretamentos' : 'Agendamentos'}
+          </p>
           <p style={{ color: '#5DCAA5' }} className="text-xs mt-0.5">
             {qtdAtivas} ativa{qtdAtivas !== 1 ? 's' : ''}
           </p>
@@ -1298,6 +1305,11 @@ export default function AgendamentosPage() {
                 <input value={formAg.bairro}
                   onChange={e => setFormAg(f => ({ ...f, bairro: e.target.value }))}
                   placeholder="Ex: Centro" className="campo-input" />
+              </Campo>
+              <Campo label="Município">
+                <input value={formAg.municipio}
+                  onChange={e => setFormAg(f => ({ ...f, municipio: e.target.value }))}
+                  placeholder="Ex: São Paulo" className="campo-input" />
               </Campo>
               <Campo label="CEP">
                 <input value={formAg.cep}

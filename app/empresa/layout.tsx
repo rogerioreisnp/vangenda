@@ -26,6 +26,7 @@ export default function EmpresaLayout({ children }: { children: React.ReactNode 
   const [planoEmpresa, setPlanoEmpresa] = useState('')
   const [statusEmpresa, setStatusEmpresa] = useState('')
   const [trialExpirado, setTrialExpirado] = useState(false)
+  const [tipoOperacao, setTipoOperacao] = useState('')
 
   useEffect(() => {
     verificarGestor()
@@ -49,13 +50,14 @@ export default function EmpresaLayout({ children }: { children: React.ReactNode 
 
     const { data: empresa } = await supabase
       .from('empresas')
-      .select('plano, status, trial_fim')
+      .select('plano, status, trial_fim, tipo_operacao')
       .eq('id', gestor.empresa_id)
       .single()
 
     if (empresa) {
       setPlanoEmpresa(empresa.plano || '')
       setStatusEmpresa(empresa.status || '')
+      setTipoOperacao(empresa.tipo_operacao || '')
       const agora = new Date()
       const ativa =
         empresa.status === 'ativo' ||
@@ -206,7 +208,9 @@ export default function EmpresaLayout({ children }: { children: React.ReactNode 
                 className="flex flex-col items-center py-2 pb-3 gap-0.5 transition-colors"
                 style={{ color: ativo ? '#0F6E56' : '#aaa' }}>
                 <span className="text-lg leading-none">{item.emoji}</span>
-                <span className="text-[9px] font-medium">{item.label}</span>
+                <span className="text-[9px] font-medium">
+                  {item.href === '/empresa/agendamentos' && tipoOperacao === 'rota_fixa' ? 'Fretamentos' : item.label}
+                </span>
               </Link>
             )
           })}

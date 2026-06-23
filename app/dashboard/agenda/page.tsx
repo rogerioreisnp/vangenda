@@ -55,7 +55,7 @@ export default function AgendaPage() {
   const [nomeMotorista, setNomeMotorista] = useState('')
   const [encomendasDoDia, setEncomendasDoDia] = useState<Encomenda[]>([])
   const [empresaCtx, setEmpresaCtx] = useState<{ empresaId: string; motEmpresaId?: string } | null | undefined>(undefined)
-  const [rotasEmpresa, setRotasEmpresa] = useState<{ id: string; nome: string | null; origem: string | null; destino: string | null }[]>([])
+  const [rotasEmpresa, setRotasEmpresa] = useState<{ id: string; nome: string | null; origem: string | null; destino: string | null; horario_ida: string | null; horario_volta: string | null }[]>([])
   const [isGestor, setIsGestor] = useState(false)
   const [gestorUserIds, setGestorUserIds] = useState<string[]>([])
   const [empresaReady, setEmpresaReady] = useState(false)
@@ -132,7 +132,7 @@ export default function AgendaPage() {
       setNomeMotorista(gestorRow.nome || '')
       setEmpresaCtx({ empresaId: gestorRow.empresa_id })
       const { data: rts } = await supabase
-        .from('rotas_empresa').select('id, nome, origem, destino, ativa')
+        .from('rotas_empresa').select('id, nome, origem, destino, ativa, horario_ida, horario_volta')
         .eq('empresa_id', gestorRow.empresa_id).order('created_at', { ascending: true })
       setRotasEmpresa((rts || []).filter(r => r.ativa !== false))
       const { data: motsEmp } = await supabase
@@ -156,7 +156,7 @@ export default function AgendaPage() {
       setEmpresaCtx({ empresaId: motEmp.empresa_id, motEmpresaId: motEmp.id })
       const { data: rts } = await supabase
         .from('rotas_empresa')
-        .select('id, nome, origem, destino, ativa')
+        .select('id, nome, origem, destino, ativa, horario_ida, horario_volta')
         .eq('empresa_id', motEmp.empresa_id)
         .order('created_at', { ascending: true })
       setRotasEmpresa((rts || []).filter(r => r.ativa !== false))
@@ -188,8 +188,8 @@ export default function AgendaPage() {
   const isAmanha = isSameDay(diaSelecionado, amanha)
 
   const rotaPrimaria = rotas[0]
-  const horarioIda = rotaPrimaria?.horario_ida?.slice(0, 5) || '05:00'
-  const horarioVolta = rotaPrimaria?.horario_volta?.slice(0, 5) || '14:00'
+  const horarioIda = (rotaPrimaria?.horario_ida || rotasEmpresa[0]?.horario_ida)?.slice(0, 5) || ''
+  const horarioVolta = (rotaPrimaria?.horario_volta || rotasEmpresa[0]?.horario_volta)?.slice(0, 5) || ''
   const isDiaTrabalhoSelecionado = diasTrabalho.length === 0 || diasTrabalho.includes(diaSelecionado.getDay())
 
   return (
@@ -361,7 +361,7 @@ export default function AgendaPage() {
           diaSelecionado={diaSelecionado}
           agsDoDia={agsDoDia}
           nomeMotorista={nomeMotorista}
-          rotaPrimaria={rotaPrimaria}
+          rotaPrimaria={rotaPrimaria ?? rotasEmpresa[0] ?? null}
           onFechar={() => setModalPDF(false)}
         />
       )}
@@ -885,16 +885,17 @@ function DetalhePassageiro({ p, onVoltar, onAtualizar, horarioIda, horarioVolta 
 function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSalvo }: {
   data: Date, rotas: any[],
   empresaCtx: { empresaId: string; motEmpresaId?: string } | null,
-  rotasEmpresa: { id: string; nome: string | null; origem: string | null; destino: string | null }[],
+  rotasEmpresa: { id: string; nome: string | null; origem: string | null; destino: string | null; horario_ida?: string | null; horario_volta?: string | null }[],
   onFechar: () => void, onSalvo: () => void
 }) {
-  const horarioIda = rotas[0]?.horario_ida?.slice(0, 5) || '05:00'
-  const horarioVolta = rotas[0]?.horario_volta?.slice(0, 5) || '14:00'
   const [paradas, setParadas] = useState<any[]>([])
   const [precos, setPrecos] = useState<any[]>([])
   const [clientes, setClientes] = useState<any[]>([])
   const [paradasEmpresa, setParadasEmpresa] = useState<{ id: string; nome: string | null; preco: number | null }[]>([])
   const [rotaEmpresaId, setRotaEmpresaId] = useState(rotasEmpresa[0]?.id || '')
+  const rotaEmpAtual = rotasEmpresa.find(r => r.id === rotaEmpresaId) ?? rotasEmpresa[0]
+  const horarioIda = (empresaCtx ? rotaEmpAtual?.horario_ida : rotas[0]?.horario_ida)?.slice(0, 5) || ''
+  const horarioVolta = (empresaCtx ? rotaEmpAtual?.horario_volta : rotas[0]?.horario_volta)?.slice(0, 5) || ''
   const [form, setForm] = useState({
     rota_id: rotas[0]?.id || '',
     nome_passageiro: '',
@@ -1005,7 +1006,37 @@ function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSa
 
   async function carregarClientes() {
     const { data: { user } } = await supabase.auth.getUser()
-    const { data } = await supabase.from('clientes').select('*').eq('motorista_id', user!.id).order('nome')
+    if (!user) return
+
+    if (empresaCtx) {
+      const { data: mots } = await supabase
+        .from('motoristas_empresa').select('user_id')
+        .eq('empresa_id', empresaCtx.empresaId).eq('status', 'ativo')
+      const userIds = ((mots || []).map(m => m.user_id).filter(Boolean) as string[])
+      if (userIds.length > 0) {
+        const { data: ags } = await supabase
+          .from('agendamentos').select('nome_passageiro, telefone_passageiro')
+          .in('motorista_id', userIds).order('nome_passageiro')
+        if (ags) {
+          const seen = new Set<string>()
+          const deduped = ags.filter(a => {
+            if (seen.has(a.nome_passageiro)) return false
+            seen.add(a.nome_passageiro)
+            return true
+          })
+          setClientes(deduped.map(a => ({
+            id: a.nome_passageiro,
+            nome: a.nome_passageiro,
+            telefone: a.telefone_passageiro,
+            parada_origem_frequente: '',
+            parada_destino_frequente: '',
+          })))
+        }
+      }
+      return
+    }
+
+    const { data } = await supabase.from('clientes').select('*').eq('motorista_id', user.id).order('nome')
     if (data) setClientes(data)
   }
 
