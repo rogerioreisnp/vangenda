@@ -311,10 +311,10 @@ function TelaBloqueio() {
       <div style={{ background: '#0F6E56' }} className="px-4 pt-14 pb-8 text-center">
         <svg width="80" height="80" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg" className="mb-3 mx-auto">
           <rect width="192" height="192" rx="42" fill="#04342C"/>
-          <ellipse cx="138" cy="38" rx="21" ry="21" fill="none" stroke="#5DCAA5" strokeWidth="7"/>
-          <ellipse cx="138" cy="33" rx="10" ry="10" fill="#5DCAA5"/>
-          <polygon points="126,55 150,55 138,75" fill="none" stroke="#5DCAA5" strokeWidth="7" strokeLinejoin="round"/>
-          <text x="96" y="135" fontFamily="Arial,sans-serif" fontSize="90" fontWeight="700" fill="white" textAnchor="middle">RG</text>
+          <text x="96" y="148" fontFamily="Arial,sans-serif" fontSize="90" fontWeight="700" fill="white" textAnchor="middle">RG</text>
+          <ellipse cx="158" cy="38" rx="22" ry="22" fill="none" stroke="#5DCAA5" strokeWidth="8"/>
+          <ellipse cx="158" cy="33" rx="11" ry="11" fill="#5DCAA5"/>
+          <polygon points="145,56 171,56 158,76" fill="none" stroke="#5DCAA5" strokeWidth="8" strokeLinejoin="round"/>
         </svg>
         <h1 style={{ color: '#E1F5EE' }} className="text-xl font-bold">RotaGenda</h1>
         <p style={{ color: '#9FE1CB' }} className="text-sm mt-1">Gestão de agendamentos, passagens e finanças para vans, táxis, transfers e operadores de turismo</p>
@@ -407,10 +407,10 @@ function TelaBloqueioEmpresa() {
       <div style={{ background: '#0F6E56' }} className="px-4 pt-14 pb-8 text-center">
         <svg width="80" height="80" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg" className="mb-3 mx-auto">
           <rect width="192" height="192" rx="42" fill="#04342C"/>
-          <ellipse cx="138" cy="38" rx="21" ry="21" fill="none" stroke="#5DCAA5" strokeWidth="7"/>
-          <ellipse cx="138" cy="33" rx="10" ry="10" fill="#5DCAA5"/>
-          <polygon points="126,55 150,55 138,75" fill="none" stroke="#5DCAA5" strokeWidth="7" strokeLinejoin="round"/>
-          <text x="96" y="135" fontFamily="Arial,sans-serif" fontSize="90" fontWeight="700" fill="white" textAnchor="middle">RG</text>
+          <text x="96" y="148" fontFamily="Arial,sans-serif" fontSize="90" fontWeight="700" fill="white" textAnchor="middle">RG</text>
+          <ellipse cx="158" cy="38" rx="22" ry="22" fill="none" stroke="#5DCAA5" strokeWidth="8"/>
+          <ellipse cx="158" cy="33" rx="11" ry="11" fill="#5DCAA5"/>
+          <polygon points="145,56 171,56 158,76" fill="none" stroke="#5DCAA5" strokeWidth="8" strokeLinejoin="round"/>
         </svg>
         <h1 style={{ color: '#E1F5EE' }} className="text-xl font-bold">RotaGenda</h1>
         <p style={{ color: '#9FE1CB' }} className="text-sm mt-1">Gestão de agendamentos para sua empresa</p>
