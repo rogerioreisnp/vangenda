@@ -116,9 +116,9 @@ export default function LoginPage() {
       <div className="mb-8 text-center">
         <svg width="80" height="80" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg" className="mb-3 mx-auto">
           <rect width="192" height="192" rx="42" fill="#04342C"/>
-          <ellipse cx="138" cy="56" rx="21" ry="21" fill="none" stroke="#5DCAA5" strokeWidth="7"/>
-          <ellipse cx="138" cy="51" rx="10" ry="10" fill="#5DCAA5"/>
-          <polygon points="126,73 150,73 138,93" fill="none" stroke="#5DCAA5" strokeWidth="7" strokeLinejoin="round"/>
+          <ellipse cx="138" cy="38" rx="21" ry="21" fill="none" stroke="#5DCAA5" strokeWidth="7"/>
+          <ellipse cx="138" cy="33" rx="10" ry="10" fill="#5DCAA5"/>
+          <polygon points="126,55 150,55 138,75" fill="none" stroke="#5DCAA5" strokeWidth="7" strokeLinejoin="round"/>
           <text x="96" y="135" fontFamily="Arial,sans-serif" fontSize="90" fontWeight="700" fill="white" textAnchor="middle">RG</text>
         </svg>
         <h1 className="text-2xl font-bold" style={{ color: '#0F6E56' }}>RotaGenda</h1>
