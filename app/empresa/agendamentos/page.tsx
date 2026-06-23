@@ -712,26 +712,11 @@ export default function AgendamentosPage() {
         )}
 
         {/* Botões de ação */}
-        {tipoOperacao === 'rota_fixa' ? (
-          <div className="grid grid-cols-2 gap-2">
-            <button onClick={abrirAgPassageiro}
-              className="py-3 rounded-xl text-sm font-semibold"
-              style={{ background: '#0F6E56', color: '#fff' }}>
-              + Agendar passageiro
-            </button>
-            <button onClick={abrirNovaCorrida}
-              className="py-3 rounded-xl text-sm font-semibold border-2"
-              style={{ background: '#fff', color: '#0F6E56', borderColor: '#0F6E56' }}>
-              + Nova corrida
-            </button>
-          </div>
-        ) : (
-          <button onClick={abrirNovaCorrida}
-            className="w-full py-3 rounded-xl text-sm font-semibold"
-            style={{ background: '#1D9E75', color: '#fff' }}>
-            + Nova corrida
-          </button>
-        )}
+        <button onClick={abrirNovaCorrida}
+          className="w-full py-3 rounded-xl text-sm font-semibold"
+          style={{ background: '#1D9E75', color: '#fff' }}>
+          + Nova corrida
+        </button>
 
         {/* Lista de corridas e agendamentos */}
         {corridas.length === 0 && agendamentosRF.length === 0 && (
