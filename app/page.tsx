@@ -119,7 +119,7 @@ export default function LoginPage() {
           <ellipse cx="138" cy="56" rx="21" ry="21" fill="none" stroke="#5DCAA5" strokeWidth="7"/>
           <ellipse cx="138" cy="51" rx="10" ry="10" fill="#5DCAA5"/>
           <polygon points="126,73 150,73 138,93" fill="none" stroke="#5DCAA5" strokeWidth="7" strokeLinejoin="round"/>
-          <text x="75" y="135" fontFamily="Arial,sans-serif" fontSize="90" fontWeight="700" fill="white" textAnchor="middle">RG</text>
+          <text x="96" y="135" fontFamily="Arial,sans-serif" fontSize="90" fontWeight="700" fill="white" textAnchor="middle">RG</text>
         </svg>
         <h1 className="text-2xl font-bold" style={{ color: '#0F6E56' }}>RotaGenda</h1>
         <p className="text-sm mt-1" style={{ color: '#666' }}>Gestão de agendamentos, passagens e finanças para vans, táxis, transfers e operadores de turismo</p>

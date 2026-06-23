@@ -314,7 +314,7 @@ function TelaBloqueio() {
           <ellipse cx="138" cy="56" rx="21" ry="21" fill="none" stroke="#5DCAA5" strokeWidth="7"/>
           <ellipse cx="138" cy="51" rx="10" ry="10" fill="#5DCAA5"/>
           <polygon points="126,73 150,73 138,93" fill="none" stroke="#5DCAA5" strokeWidth="7" strokeLinejoin="round"/>
-          <text x="75" y="135" fontFamily="Arial,sans-serif" fontSize="90" fontWeight="700" fill="white" textAnchor="middle">RG</text>
+          <text x="96" y="135" fontFamily="Arial,sans-serif" fontSize="90" fontWeight="700" fill="white" textAnchor="middle">RG</text>
         </svg>
         <h1 style={{ color: '#E1F5EE' }} className="text-xl font-bold">RotaGenda</h1>
         <p style={{ color: '#9FE1CB' }} className="text-sm mt-1">Gestão de agendamentos, passagens e finanças para vans, táxis, transfers e operadores de turismo</p>
@@ -410,7 +410,7 @@ function TelaBloqueioEmpresa() {
           <ellipse cx="138" cy="56" rx="21" ry="21" fill="none" stroke="#5DCAA5" strokeWidth="7"/>
           <ellipse cx="138" cy="51" rx="10" ry="10" fill="#5DCAA5"/>
           <polygon points="126,73 150,73 138,93" fill="none" stroke="#5DCAA5" strokeWidth="7" strokeLinejoin="round"/>
-          <text x="75" y="135" fontFamily="Arial,sans-serif" fontSize="90" fontWeight="700" fill="white" textAnchor="middle">RG</text>
+          <text x="96" y="135" fontFamily="Arial,sans-serif" fontSize="90" fontWeight="700" fill="white" textAnchor="middle">RG</text>
         </svg>
         <h1 style={{ color: '#E1F5EE' }} className="text-xl font-bold">RotaGenda</h1>
         <p style={{ color: '#9FE1CB' }} className="text-sm mt-1">Gestão de agendamentos para sua empresa</p>
