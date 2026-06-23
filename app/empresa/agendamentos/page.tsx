@@ -156,6 +156,11 @@ const STATUS_COR_AG: Record<string, { bg: string; text: string; label: string }>
   cancelado:  { bg: '#FCEBEB', text: '#A32D2D', label: 'Cancelado' },
 }
 
+const HOJE = (() => {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+})()
+
 function statusPar(ida: Corrida, volta: Corrida): string {
   if (ida.status === volta.status) return ida.status
   if (ida.status === 'cancelada' || volta.status === 'cancelada') return 'parcialmente_cancelada'
@@ -231,6 +236,8 @@ export default function AgendamentosPage() {
   const [erroAg, setErroAg] = useState('')
   const [agendamentosRF, setAgendamentosRF] = useState<AgendamentoRF[]>([])
   const [agEditando, setAgEditando] = useState<AgendamentoRF | null>(null)
+  const [filtroData, setFiltroData] = useState(HOJE)
+  const [verTodos, setVerTodos] = useState(false)
   const [contactsApi, setContactsApi] = useState(false)
   useEffect(() => { setContactsApi('contacts' in navigator) }, [])
   async function selecionarContatoAg() {
@@ -295,7 +302,7 @@ export default function AgendamentosPage() {
         .select('id, rota_id, origem, destino, data_hora, created_at, cliente_nome, cliente_telefone, valor, status, motorista_id, tipo_servico, forma_pagamento, status_pagamento, valor_recebido, observacoes, motoristas_empresa(nome)')
         .eq('empresa_id', gestor.empresa_id)
         .order('data_hora', { ascending: false })
-        .limit(50),
+        .limit(300),
     ])
 
     if (empresa) setTipoOperacao(empresa.tipo_operacao || 'transfer')
@@ -311,7 +318,7 @@ export default function AgendamentosPage() {
           .select('id, motorista_id, nome_passageiro, telefone_passageiro, parada_origem, parada_destino, turno, valor, status, data_viagem, forma_pagamento, observacoes, rua, numero, bairro, municipio, cep, referencia')
           .in('motorista_id', userIds)
           .order('data_viagem', { ascending: false })
-          .limit(50)
+          .limit(300)
         if (ags) setAgendamentosRF(ags as AgendamentoRF[])
       }
     }
@@ -659,7 +666,17 @@ export default function AgendamentosPage() {
     )
   }
 
-  const corridasAgrupadas = agruparPares(corridas)
+  function navegarDia(delta: number) {
+    const d = new Date(filtroData + 'T12:00:00')
+    d.setDate(d.getDate() + delta)
+    const nova = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+    setFiltroData(nova)
+    setVerTodos(false)
+  }
+
+  const corridasFiltradas = verTodos ? corridas : corridas.filter(c => c.data_hora.slice(0, 10) === filtroData)
+  const agendamentosFiltrados = verTodos ? agendamentosRF : agendamentosRF.filter(ag => ag.data_viagem === filtroData)
+  const corridasAgrupadas = agruparPares(corridasFiltradas)
   const eAtivo = (s: string) => s !== 'cancelada' && s !== 'concluida'
   const qtdAtivas = corridasAgrupadas.filter(g =>
     g.tipo === 'simples'
@@ -686,6 +703,55 @@ export default function AgendamentosPage() {
       </div>
 
       <div className="px-4 py-4 flex flex-col gap-3">
+
+        {/* Filtro de data */}
+        <div className="bg-white rounded-2xl border border-gray-100 flex items-center px-2 py-2 gap-1">
+          <button
+            onClick={() => navegarDia(-1)}
+            disabled={verTodos}
+            className="w-9 h-9 flex items-center justify-center rounded-xl text-xl font-bold flex-shrink-0 disabled:opacity-25"
+            style={{ background: '#f9fafb', color: '#0F6E56' }}>
+            ‹
+          </button>
+          <label className="flex-1 text-center cursor-pointer py-1 block">
+            <input
+              type="date"
+              value={filtroData}
+              onChange={e => { if (e.target.value) { setFiltroData(e.target.value); setVerTodos(false) } }}
+              className="sr-only"
+            />
+            <p className="text-sm font-semibold text-gray-800 leading-tight">
+              {verTodos ? 'Todos os fretamentos' : filtroData === HOJE ? 'Hoje' : formatarDataFiltro(filtroData)}
+            </p>
+            {!verTodos && (
+              <p className="text-[11px] text-gray-400 mt-0.5">
+                {filtroData === HOJE ? formatarDataFiltro(filtroData) : filtroData.split('-').reverse().join('/')}
+              </p>
+            )}
+          </label>
+          <button
+            onClick={() => navegarDia(1)}
+            disabled={verTodos}
+            className="w-9 h-9 flex items-center justify-center rounded-xl text-xl font-bold flex-shrink-0 disabled:opacity-25"
+            style={{ background: '#f9fafb', color: '#0F6E56' }}>
+            ›
+          </button>
+          {!verTodos ? (
+            <button
+              onClick={() => setVerTodos(true)}
+              className="text-xs font-medium px-2.5 py-1.5 rounded-lg border border-gray-200 flex-shrink-0"
+              style={{ color: '#6B7280', background: '#f9fafb' }}>
+              Ver todos
+            </button>
+          ) : (
+            <button
+              onClick={() => { setFiltroData(HOJE); setVerTodos(false) }}
+              className="text-xs font-medium px-2.5 py-1.5 rounded-lg border flex-shrink-0"
+              style={{ color: '#0F6E56', borderColor: '#9FE1CB', background: '#E1F5EE' }}>
+              Hoje
+            </button>
+          )}
+        </div>
 
         {/* Banner salvar rota manual */}
         {rotaManualParaSalvar && (
@@ -719,16 +785,40 @@ export default function AgendamentosPage() {
         </button>
 
         {/* Lista de corridas e agendamentos */}
-        {corridas.length === 0 && agendamentosRF.length === 0 && (
+        {corridasFiltradas.length === 0 && agendamentosFiltrados.length === 0 && (
           <div className="bg-white rounded-2xl p-6 border border-gray-100 text-center">
             <p className="text-3xl mb-2">📋</p>
-            <p className="text-sm text-gray-500">Nenhum agendamento ainda.</p>
-            <p className="text-xs text-gray-400 mt-1">
-              {tipoOperacao === 'rota_fixa' ? 'Toque em "+ Agendar passageiro" para começar.' : 'Toque em "+ Nova corrida" para começar.'}
-            </p>
+            {!verTodos && filtroData === HOJE ? (
+              <>
+                <p className="text-sm text-gray-500">Nenhum fretamento para hoje.</p>
+                <button
+                  onClick={() => setVerTodos(true)}
+                  className="mt-3 text-xs font-semibold px-4 py-2 rounded-xl border"
+                  style={{ color: '#0F6E56', borderColor: '#9FE1CB', background: '#E1F5EE' }}>
+                  Ver todos os fretamentos
+                </button>
+              </>
+            ) : !verTodos ? (
+              <>
+                <p className="text-sm text-gray-500">Nenhum fretamento neste dia.</p>
+                <button
+                  onClick={() => setVerTodos(true)}
+                  className="mt-3 text-xs font-semibold px-4 py-2 rounded-xl border"
+                  style={{ color: '#0F6E56', borderColor: '#9FE1CB', background: '#E1F5EE' }}>
+                  Ver todos os fretamentos
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-gray-500">Nenhum agendamento ainda.</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  {tipoOperacao === 'rota_fixa' ? 'Toque em "+ Agendar passageiro" para começar.' : 'Toque em "+ Nova corrida" para começar.'}
+                </p>
+              </>
+            )}
           </div>
         )}
-        {corridas.length > 0 && (
+        {corridasFiltradas.length > 0 && (
           <div className="flex flex-col gap-2">
             {corridasAgrupadas.map(grupo => {
 
@@ -864,12 +954,12 @@ export default function AgendamentosPage() {
         )}
 
         {/* Passageiros agendados (rota_fixa) */}
-        {tipoOperacao === 'rota_fixa' && agendamentosRF.length > 0 && (
+        {tipoOperacao === 'rota_fixa' && agendamentosFiltrados.length > 0 && (
           <div className="flex flex-col gap-2">
-            {corridas.length > 0 && (
+            {corridasFiltradas.length > 0 && (
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mt-1">Passageiros agendados</p>
             )}
-            {agendamentosRF.map(ag => {
+            {agendamentosFiltrados.map(ag => {
               const cor = STATUS_COR_AG[ag.status] ?? { bg: '#EFF6FF', text: '#1D4ED8', label: ag.status }
               const nomeMotorista = motoristasOpcoes.find(m => m.user_id === ag.motorista_id)?.nome ?? null
               const dp = ag.data_viagem.split('-')
@@ -1401,4 +1491,10 @@ function Campo({ label, children }: { label: string; children: React.ReactNode }
       {children}
     </div>
   )
+}
+
+function formatarDataFiltro(str: string): string {
+  const meses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
+  const [, mes, dia] = str.split('-')
+  return `${parseInt(dia)} de ${meses[parseInt(mes) - 1]}`
 }
