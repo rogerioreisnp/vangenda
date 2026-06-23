@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192">
   <rect width="192" height="192" rx="42" fill="#04342C"/>
-  <ellipse cx="138" cy="56" rx="21" ry="21" fill="none" stroke="#5DCAA5" stroke-width="7"/>
-  <ellipse cx="138" cy="51" rx="10" ry="10" fill="#5DCAA5"/>
-  <polygon points="126,73 150,73 138,93" fill="none" stroke="#5DCAA5" stroke-width="7" stroke-linejoin="round"/>
+  <ellipse cx="138" cy="38" rx="21" ry="21" fill="none" stroke="#5DCAA5" stroke-width="7"/>
+  <ellipse cx="138" cy="33" rx="10" ry="10" fill="#5DCAA5"/>
+  <polygon points="126,55 150,55 138,75" fill="none" stroke="#5DCAA5" stroke-width="7" stroke-linejoin="round"/>
   <text x="96" y="135" font-family="Arial,sans-serif" font-size="90" font-weight="700" fill="white" text-anchor="middle">RG</text>
 </svg>
