@@ -18,7 +18,13 @@ function GuiaPage({ onFechar }: { onFechar: () => void }) {
       <div className="flex-1 overflow-y-auto px-5 py-6">
 
         <div className="text-center mb-8">
-          <div className="text-5xl mb-3">🚐</div>
+          <svg width="80" height="80" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg" className="mb-3 mx-auto">
+            <rect width="192" height="192" rx="42" fill="#04342C"/>
+            <text x="96" y="148" fontFamily="Arial,sans-serif" fontSize="90" fontWeight="700" fill="white" textAnchor="middle">RG</text>
+            <ellipse cx="158" cy="38" rx="22" ry="22" fill="none" stroke="#5DCAA5" strokeWidth="8"/>
+            <ellipse cx="158" cy="33" rx="11" ry="11" fill="#5DCAA5"/>
+            <polygon points="145,56 171,56 158,76" fill="none" stroke="#5DCAA5" strokeWidth="8" strokeLinejoin="round"/>
+          </svg>
           <h1 className="text-xl font-bold mb-2" style={{ color: '#0F6E56' }}>Bem-vindo ao RotaGenda!</h1>
           <p className="text-sm text-gray-500 leading-relaxed">
             Este guia explica tudo que você precisa saber para organizar sua van com o app.
@@ -524,7 +530,15 @@ export default function ConfiguracoesPage() {
 
   if (loading) return (
     <div className="flex items-center justify-center py-20">
-      <div className="text-4xl animate-pulse">🚐</div>
+      <div className="animate-pulse">
+        <svg width="64" height="64" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg">
+          <rect width="192" height="192" rx="42" fill="#04342C"/>
+          <text x="96" y="148" fontFamily="Arial,sans-serif" fontSize="90" fontWeight="700" fill="white" textAnchor="middle">RG</text>
+          <ellipse cx="158" cy="38" rx="22" ry="22" fill="none" stroke="#5DCAA5" strokeWidth="8"/>
+          <ellipse cx="158" cy="33" rx="11" ry="11" fill="#5DCAA5"/>
+          <polygon points="145,56 171,56 158,76" fill="none" stroke="#5DCAA5" strokeWidth="8" strokeLinejoin="round"/>
+        </svg>
+      </div>
     </div>
   )
 

@@ -209,7 +209,15 @@ export default function AgendamentoPublico({
 
   if (loadingRotas) return (
     <div className="min-h-dvh flex items-center justify-center" style={{ background: '#f0f0ec' }}>
-      <div className="text-4xl animate-pulse">🚐</div>
+      <div className="animate-pulse">
+        <svg width="64" height="64" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg">
+          <rect width="192" height="192" rx="42" fill="#04342C"/>
+          <text x="96" y="148" fontFamily="Arial,sans-serif" fontSize="90" fontWeight="700" fill="white" textAnchor="middle">RG</text>
+          <ellipse cx="158" cy="38" rx="22" ry="22" fill="none" stroke="#5DCAA5" strokeWidth="8"/>
+          <ellipse cx="158" cy="33" rx="11" ry="11" fill="#5DCAA5"/>
+          <polygon points="145,56 171,56 158,76" fill="none" stroke="#5DCAA5" strokeWidth="8" strokeLinejoin="round"/>
+        </svg>
+      </div>
     </div>
   )
 
@@ -225,7 +233,13 @@ export default function AgendamentoPublico({
             onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
           />
         ) : (
-          <div className="text-4xl mb-2">🚐</div>
+          <svg width="64" height="64" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg" className="mb-2 mx-auto">
+            <rect width="192" height="192" rx="42" fill="#04342C"/>
+            <text x="96" y="148" fontFamily="Arial,sans-serif" fontSize="90" fontWeight="700" fill="white" textAnchor="middle">RG</text>
+            <ellipse cx="158" cy="38" rx="22" ry="22" fill="none" stroke="#5DCAA5" strokeWidth="8"/>
+            <ellipse cx="158" cy="33" rx="11" ry="11" fill="#5DCAA5"/>
+            <polygon points="145,56 171,56 158,76" fill="none" stroke="#5DCAA5" strokeWidth="8" strokeLinejoin="round"/>
+          </svg>
         )}
         <h1 className="text-xl font-bold" style={{ color: '#fff' }}>{empresa.nome}</h1>
         {empresa.descricao && (
