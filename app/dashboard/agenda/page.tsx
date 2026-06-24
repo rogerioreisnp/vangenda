@@ -940,7 +940,7 @@ function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSa
       const raw = localStorage.getItem('vangenda_form_agendamento')
       if (raw) {
         const saved = JSON.parse(raw)
-        if (saved.form) setForm(f => ({ ...f, ...saved.form }))
+        if (saved.form) setForm(f => ({ ...f, ...saved.form, data_viagem: f.data_viagem, quantidade: 0 }))
         if (saved.rotaEmpresaId) setRotaEmpresaId(saved.rotaEmpresaId)
       }
     } catch {}
@@ -1241,6 +1241,9 @@ function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSa
           </div>
           {vagasDisponiveis > 0 && (
             <p className="text-xs text-gray-400 mt-1 text-center">{vagasDisponiveis} vaga{vagasDisponiveis !== 1 ? 's' : ''} disponível{vagasDisponiveis !== 1 ? 'is' : ''}</p>
+          )}
+          {vagasDisponiveis === 0 && vagasOcupadas > 0 && !empresaCtx && (
+            <p className="text-xs text-amber-500 mt-1 text-center">Turno completo ({vagasOcupadas}/{capacidade}) · você pode adicionar mesmo assim</p>
           )}
         </Campo>
 
