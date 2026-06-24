@@ -697,6 +697,7 @@ type AgRF = {
   valor: number
   forma_pagamento: string | null
   status: string
+  telefone_passageiro?: string | null
 }
 
 type MotEmpresa = {
@@ -743,6 +744,8 @@ function DashboardRotaFixa({
   const [chartPeriodo, setChartPeriodo] = useState<'semana' | 'mes' | 'ano'>('mes')
   const [chartDados, setChartDados] = useState<DiaSemanaRF[]>([])
   const [loadingChart, setLoadingChart] = useState(false)
+  const [modalPendentes, setModalPendentes] = useState(false)
+  const [pendentes, setPendentes] = useState<AgRF[]>([])
   const motUserIdsRef = useRef<string[]>([])
 
   const hora = new Date().getHours()
@@ -810,8 +813,8 @@ function DashboardRotaFixa({
         .in('motorista_id', userIds).eq('data_viagem', hojeStr).neq('status', 'cancelado'),
       supabase.from('agendamentos').select('id')
         .in('motorista_id', userIds).in('data_viagem', [hojeStr, amanhaStr]).eq('status', 'agendado'),
-      supabase.from('agendamentos').select('id')
-        .in('motorista_id', userIds).eq('forma_pagamento', 'pendente').neq('status', 'cancelado').lt('data_viagem', hojeStr),
+      supabase.from('agendamentos').select('id, motorista_id, nome_passageiro, telefone_passageiro, parada_origem, parada_destino, turno, data_viagem, valor')
+        .in('motorista_id', userIds).eq('forma_pagamento', 'pendente').neq('status', 'cancelado').lt('data_viagem', hojeStr).order('data_viagem'),
       supabase.from('agendamentos').select('valor')
         .in('motorista_id', userIds).eq('forma_pagamento', 'pendente').neq('status', 'cancelado'),
       supabase.from('agendamentos').select('valor')
@@ -831,6 +834,7 @@ function DashboardRotaFixa({
     setReceitaDia(hojeAgs.reduce((s, a) => s + Number(a.valor), 0))
     setNaoConfirmados(naoConfData?.length ?? 0)
     setFiadoVencido(fiadoData?.length ?? 0)
+    setPendentes((fiadoData ?? []) as AgRF[])
     setReceitaMes((recMesData ?? []).reduce((s, a) => s + Number(a.valor), 0) + recCob)
     setAReceber((aReceberData ?? []).reduce((s, a) => s + Number(a.valor), 0))
 
@@ -962,7 +966,18 @@ function DashboardRotaFixa({
     return t.slice(0, 5)
   }
 
+  const motByUserId = Object.fromEntries(
+    Object.values(motById).filter(m => m.user_id).map(m => [m.user_id!, m])
+  )
+
+  async function marcarComoPago(id: string) {
+    await supabase.from('agendamentos').update({ forma_pagamento: 'dinheiro' }).eq('id', id)
+    setPendentes(prev => prev.filter(p => p.id !== id))
+    setFiadoVencido(prev => Math.max(0, prev - 1))
+  }
+
   return (
+    <>
     <div className="pb-24">
       {/* Cabeçalho */}
       <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-5">
@@ -1022,8 +1037,8 @@ function DashboardRotaFixa({
               </Link>
             )}
             {fiadoVencido > 0 && (
-              <Link href="/empresa/agendamentos"
-                className="rounded-xl px-4 py-3 flex items-center gap-3 active:opacity-80"
+              <button onClick={() => setModalPendentes(true)}
+                className="rounded-xl px-4 py-3 flex items-center gap-3 active:opacity-80 w-full text-left"
                 style={{ background: '#FAEEDA', border: '1px solid #FAC775' }}>
                 <span className="text-lg flex-shrink-0">💸</span>
                 <div className="flex-1 min-w-0">
@@ -1038,7 +1053,7 @@ function DashboardRotaFixa({
                   style={{ background: '#854F0B', color: '#fff' }}>
                   Cobrar
                 </span>
-              </Link>
+              </button>
             )}
             {/* Alerta de checklist removido — reativar quando a tela de preenchimento existir */}
           </div>
@@ -1192,6 +1207,82 @@ function DashboardRotaFixa({
 
       </div>
     </div>
+
+    {/* Modal pagamentos pendentes */}
+    {modalPendentes && (
+      <div className="fixed inset-0 z-50 flex flex-col" style={{ background: 'rgba(0,0,0,0.5)' }}
+        onClick={e => { if (e.target === e.currentTarget) setModalPendentes(false) }}>
+        <div className="bg-white flex-1 mt-20 rounded-t-3xl flex flex-col overflow-hidden">
+          <div className="px-4 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
+            <div>
+              <p className="text-base font-semibold text-gray-800">Pagamentos pendentes</p>
+              {pendentes.length > 0 && (
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Total: R$ {pendentes.reduce((s, p) => s + Number(p.valor), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </p>
+              )}
+            </div>
+            <button onClick={() => setModalPendentes(false)}
+              className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 text-lg"
+              style={{ background: '#f0f0ec' }}>✕</button>
+          </div>
+          <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-3">
+            {pendentes.length === 0 ? (
+              <p className="text-center text-gray-400 text-sm py-10">Nenhum pagamento pendente</p>
+            ) : pendentes.map(ag => {
+              const mot = motByUserId[ag.motorista_id]
+              const rawTel = (ag.telefone_passageiro ?? '').replace(/\D/g, '')
+              const tel = rawTel ? (rawTel.startsWith('55') ? rawTel : `55${rawTel}`) : null
+              const dataFmt = ag.data_viagem.split('-').reverse().join('/')
+              const msg = encodeURIComponent(
+                `Olá ${ag.nome_passageiro.split(' ')[0]}, tudo bem? A sua passagem de ${ag.parada_origem} → ${ag.parada_destino} do dia ${dataFmt} no valor de R$${Number(ag.valor).toFixed(2).replace('.', ',')} está pendente de pagamento. Poderia realizar o pagamento?`
+              )
+              return (
+                <div key={ag.id} className="rounded-xl p-3 flex flex-col gap-2 border border-gray-100"
+                  style={{ background: '#FAFAF8' }}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-gray-800 truncate">{ag.nome_passageiro}</p>
+                      {ag.telefone_passageiro && (
+                        <p className="text-xs text-gray-400">{ag.telefone_passageiro}</p>
+                      )}
+                      {mot && (
+                        <p className="text-xs text-gray-400">Motorista: {mot.nome}</p>
+                      )}
+                    </div>
+                    <p className="text-sm font-bold flex-shrink-0" style={{ color: '#0F6E56' }}>
+                      R$ {Number(ag.valor).toFixed(2).replace('.', ',')}
+                    </p>
+                  </div>
+                  <p className="text-xs text-gray-500">{ag.parada_origem} → {ag.parada_destino}</p>
+                  <p className="text-xs text-gray-400">{dataFmt} · {ag.turno === 'ida' ? 'Ida' : 'Volta'}</p>
+                  <div className="flex gap-2 mt-1">
+                    {tel ? (
+                      <a href={`https://wa.me/${tel}?text=${msg}`} target="_blank" rel="noopener noreferrer"
+                        className="flex-1 py-2 rounded-xl text-center text-xs font-semibold"
+                        style={{ background: '#25D366', color: '#fff' }}>
+                        📱 WhatsApp
+                      </a>
+                    ) : (
+                      <div className="flex-1 py-2 rounded-xl text-center text-xs text-gray-300 border border-gray-100">
+                        Sem telefone
+                      </div>
+                    )}
+                    <button onClick={() => marcarComoPago(ag.id)}
+                      className="flex-1 py-2 rounded-xl text-xs font-semibold border border-gray-200"
+                      style={{ background: '#f0f0ec', color: '#0F6E56' }}>
+                      ✓ Marcar como pago
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+            <div className="h-6" />
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   )
 }
 
