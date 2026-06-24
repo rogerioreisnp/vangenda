@@ -50,12 +50,17 @@ export default function LoginPage() {
     <div className="min-h-dvh flex flex-col items-center justify-center p-4" style={{ background: '#f0f0ec' }}>
       {/* Logo */}
       <div className="mb-8 text-center">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-3"
-          style={{ background: '#0F6E56' }}>
-          <span className="text-3xl">🚐</span>
+        <div className="mb-3">
+          <svg width="64" height="64" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg">
+            <rect width="192" height="192" rx="42" fill="#04342C"/>
+            <text x="96" y="148" fontFamily="Arial,sans-serif" fontSize="90" fontWeight="700" fill="white" textAnchor="middle">RG</text>
+            <ellipse cx="158" cy="38" rx="22" ry="22" fill="none" stroke="#5DCAA5" strokeWidth="8"/>
+            <ellipse cx="158" cy="33" rx="11" ry="11" fill="#5DCAA5"/>
+            <polygon points="145,56 171,56 158,76" fill="none" stroke="#5DCAA5" strokeWidth="8" strokeLinejoin="round"/>
+          </svg>
         </div>
-        <h1 className="text-2xl font-bold" style={{ color: '#0F6E56' }}>VanGenda</h1>
-        <p className="text-sm mt-1" style={{ color: '#666' }}>Agendamentos para motoristas de van</p>
+        <h1 className="text-2xl font-bold" style={{ color: '#0F6E56' }}>RotaGenda</h1>
+        <p className="text-sm mt-1" style={{ color: '#666' }}>Gestão de agendamentos e finanças</p>
       </div>
 
       {/* Card */}

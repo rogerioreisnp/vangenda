@@ -351,7 +351,7 @@ export default function EmpresaPage() {
         {/* Métricas */}
         <div className="grid grid-cols-2 gap-3">
           <CardMetrica label="Corridas hoje" valor={corridasHoje} emoji="📋" cor="#0F6E56" />
-          <CardMetrica label="Motoristas ativos" valor={motoristasAtivos} emoji="🚐" cor="#0F6E56" />
+          <CardMetrica label="Motoristas ativos" valor={motoristasAtivos} emoji="🚗" cor="#0F6E56" />
           <CardMetrica
             label="Receita do mês"
             valor={`R$ ${receitaMes.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
@@ -606,7 +606,7 @@ export default function EmpresaPage() {
             {[
               { emoji: '📋', label: 'Nova corrida', href: '/empresa/agendamentos?nova=1' },
               { emoji: '💰', label: 'Financeiro', href: '/empresa/financeiro' },
-              { emoji: '🚐', label: 'Motoristas', href: '/empresa/motoristas' },
+              { emoji: '🚗', label: 'Motoristas', href: '/empresa/motoristas' },
               { emoji: '🛣️', label: 'Operar rota', href: '/dashboard/agenda' },
             ].map(item => (
               <Link key={item.href} href={item.href}
@@ -1101,7 +1101,7 @@ function DashboardRotaFixa({
                     style={{ borderColor: semMot ? '#FECACA' : '#f0f0f0', background: semMot ? '#FFFBFB' : '#fff' }}>
                     <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg flex-shrink-0"
                       style={{ background: semMot ? '#FCEBEB' : '#E1F5EE' }}>
-                      🚐
+                      🚗
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-gray-800 truncate">

@@ -457,7 +457,7 @@ export default function RotasPage() {
                           {r.horario_ida?.slice(0, 5)} → {r.horario_volta?.slice(0, 5)}
                           {r.capacidade ? ` · ${r.capacidade} lugares` : ''}
                         </p>
-                        {mot && <p className="text-xs text-gray-400 mt-0.5">🚐 {mot.nome}</p>}
+                        {mot && <p className="text-xs text-gray-400 mt-0.5">🚗 {mot.nome}</p>}
                         {r.veiculo_placa && <p className="text-xs text-gray-400">{r.veiculo_placa}</p>}
                       </div>
                       <div className="flex gap-2 flex-shrink-0">

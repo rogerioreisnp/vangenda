@@ -741,7 +741,7 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
 
               <div style={{ background: '#f0f0ec' }} className="rounded-xl p-4 text-left mb-4">
                 <p className="text-xs font-semibold text-gray-500 mb-2">Motorista</p>
-                <p className="text-sm font-semibold text-gray-800">🚐 {motorista.nome}</p>
+                <p className="text-sm font-semibold text-gray-800">🚗 {motorista.nome}</p>
                 {motorista.telefone && (
                   <p className="text-sm text-gray-500 mt-0.5">📱 {motorista.telefone}</p>
                 )}

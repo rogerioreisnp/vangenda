@@ -721,7 +721,7 @@ export default function ConfiguracoesPage() {
                   className="campo-input" />
               </Campo>
             </div>
-            <Campo label="🚐 Capacidade da van (passageiros)">
+            <Campo label="🚗 Capacidade da van (passageiros)">
               <input type="number" value={rota?.capacidade ?? 0}
                 onChange={e => setRota((r: any) => ({ ...r, capacidade: parseInt(e.target.value) || 0 }))}
                 min={1} max={100} placeholder="Ex: 15" className="campo-input" />

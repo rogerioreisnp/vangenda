@@ -167,7 +167,7 @@ export default function FinanceiroPage() {
           <div className="bg-white rounded-xl overflow-hidden border border-gray-100">
             {receitas.slice(0, 10).map((r, i) => (
               <div key={i} className="flex items-center px-4 py-3 border-b border-gray-50 last:border-0">
-                <span className="text-xl mr-3">🚐</span>
+                <span className="text-xl mr-3">🚗</span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-800 truncate">{r.nome_passageiro}</p>
                   <p className="text-xs text-gray-400">{r.parada_origem} → {r.parada_destino} · {format(new Date(r.data_viagem + 'T00:00:00'), 'dd/MM')}</p>

@@ -199,7 +199,7 @@ export default function DashboardPage() {
           style={{ border: '1px solid #f0f0f0', boxShadow: '0 1px 6px rgba(0,0,0,0.06)' }}>
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <span className="text-base">🚐</span>
+              <span className="text-base">🚗</span>
               <p className="text-sm font-semibold text-gray-700">Hoje</p>
             </div>
             <span className="text-gray-300 text-xs">›</span>

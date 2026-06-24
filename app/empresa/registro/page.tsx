@@ -344,7 +344,7 @@ function EtapaDados({
       {/* Resumo do plano escolhido */}
       <div className="rounded-xl px-4 py-3 flex items-center gap-3"
         style={{ background: '#E1F5EE', border: '1px solid #9FE1CB' }}>
-        <span className="text-xl">🚐</span>
+        <span className="text-xl">🚗</span>
         <div>
           <p className="text-sm font-semibold" style={{ color: '#085041' }}>
             {periodoInfo.nome} — R$ {periodoInfo.preco}{periodoInfo.precoLabel}

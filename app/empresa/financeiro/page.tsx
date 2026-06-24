@@ -90,7 +90,7 @@ type LancamentoEmpresa = {
 type FiltroRF = 'hoje' | '7dias' | '30dias' | 'mes'
 
 const categoriasReceitaRF = [
-  { value: 'rota_diaria',       label: 'Rota diária',      emoji: '🚐' },
+  { value: 'rota_diaria',       label: 'Rota diária',      emoji: '🚗' },
   { value: 'passagens_avulsas', label: 'Passagens avulsas', emoji: '💵' },
   { value: 'fretamento',        label: 'Fretamento',        emoji: '🏢' },
   { value: 'excursao',          label: 'Excursão',          emoji: '🎉' },
@@ -400,7 +400,7 @@ export default function FinanceiroPage() {
               </div>
 
               <div className="col-span-2 bg-white rounded-2xl p-4 border border-gray-100">
-                <p className="text-xs text-gray-400 mb-2">🚐 Corridas concluídas</p>
+                <p className="text-xs text-gray-400 mb-2">🚗 Corridas concluídas</p>
                 <p className="text-xl font-bold" style={{ color: '#6B7280' }}>{corridasConcluidas.length}</p>
               </div>
             </div>
@@ -435,7 +435,7 @@ export default function FinanceiroPage() {
                             <p className="text-xs text-gray-400 mt-0.5">
                               {c.data_hora.slice(8, 10)}/{c.data_hora.slice(5, 7)} · {c.cliente_nome}
                             </p>
-                            {mot?.nome && <p className="text-xs text-gray-400">🚐 {mot.nome}</p>}
+                            {mot?.nome && <p className="text-xs text-gray-400">🚗 {mot.nome}</p>}
                           </div>
                           <p className="text-sm font-bold flex-shrink-0" style={{ color: '#0F6E56' }}>{fmt(Number(c.valor))}</p>
                         </div>
@@ -472,7 +472,7 @@ export default function FinanceiroPage() {
                             <p className="text-xs text-gray-400 mt-0.5">
                               {c.data_hora.slice(8, 10)}/{c.data_hora.slice(5, 7)} às {c.data_hora.slice(11, 16)} · {c.cliente_nome}
                             </p>
-                            {mot?.nome && <p className="text-xs text-gray-400">🚐 {mot.nome}</p>}
+                            {mot?.nome && <p className="text-xs text-gray-400">🚗 {mot.nome}</p>}
                           </div>
                           <p className="text-sm font-bold flex-shrink-0" style={{ color: '#1D4ED8' }}>{fmt(Number(c.valor))}</p>
                         </div>
@@ -524,7 +524,7 @@ export default function FinanceiroPage() {
                           </p>
                           {(m || d.veiculo) && (
                             <p className="text-xs text-gray-400">
-                              🚐 {[m?.nome, d.veiculo].filter(Boolean).join(' · ')}
+                              🚗 {[m?.nome, d.veiculo].filter(Boolean).join(' · ')}
                             </p>
                           )}
                           {d.km_odometro != null && (

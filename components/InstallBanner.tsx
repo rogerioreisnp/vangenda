@@ -59,7 +59,7 @@ export default function InstallBanner() {
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1 }}>
-        <span style={{ fontSize: '22px' }}>🚐</span>
+        <img src="/icon-192.svg" width="28" height="28" alt="RotaGenda" style={{ borderRadius: '6px', flexShrink: 0 }} />
         <div style={{ lineHeight: '1.3' }}>
           <strong style={{ display: 'block', marginBottom: '2px' }}>
             Instale o RotaGenda no seu celular

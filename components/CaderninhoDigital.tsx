@@ -482,7 +482,7 @@ function ExtratoCliente({
                   <div
                     className="w-7 h-7 rounded-lg flex-shrink-0 flex items-center justify-center text-sm"
                     style={{ background: isDivida ? 'rgba(226,75,74,0.15)' : 'rgba(29,158,117,0.15)' }}>
-                    {isDivida ? (categoria === 'fiado' ? '🚐' : '📦') : '💵'}
+                    {isDivida ? (categoria === 'fiado' ? '💳' : '📦') : '💵'}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-[13px] font-medium truncate"

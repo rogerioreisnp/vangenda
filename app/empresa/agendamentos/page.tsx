@@ -848,7 +848,7 @@ export default function AgendamentosPage() {
                       <div className="min-w-0">
                         <p className="text-xs font-medium text-gray-700 truncate">{c.cliente_nome}</p>
                         {nomeMotorista && (
-                          <p className="text-xs text-gray-400 mt-0.5">🚐 {nomeMotorista}</p>
+                          <p className="text-xs text-gray-400 mt-0.5">🚗 {nomeMotorista}</p>
                         )}
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
@@ -917,7 +917,7 @@ export default function AgendamentosPage() {
                     <div className="min-w-0">
                       <p className="text-xs font-medium text-gray-700 truncate">{ida.cliente_nome}</p>
                       {nomeMotorista && (
-                        <p className="text-xs text-gray-400 mt-0.5">🚐 {nomeMotorista}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">🚗 {nomeMotorista}</p>
                       )}
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
@@ -985,7 +985,7 @@ export default function AgendamentosPage() {
                     <div className="min-w-0">
                       <p className="text-xs font-medium text-gray-700 truncate">{ag.nome_passageiro}</p>
                       {nomeMotorista && (
-                        <p className="text-xs text-gray-400 mt-0.5">🚐 {nomeMotorista}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">🚗 {nomeMotorista}</p>
                       )}
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">

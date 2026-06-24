@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
       filters: [
         { field: 'tag', key: 'motorista_id', relation: '=', value: motorista_id }
       ],
-      headings: { pt: '🚐 Novo agendamento!' },
+      headings: { pt: '📅 Novo agendamento!' },
       contents: {
         pt: `${nome_passageiro} agendou ${origem} → ${destino} — ${turnoTexto} ${dataFormatada}`
       },
