@@ -266,17 +266,18 @@ export default function ConfiguracoesPage() {
       setMotorista(mot)
       diasTrabalhoExiste.current = 'dias_trabalho' in mot
     }
-    const { data: motEmpresa } = await supabase
-      .from('motoristas_empresa')
-      .select('empresa_id')
-      .eq('user_id', user.id)
-      .single()
-    if (motEmpresa?.empresa_id) {
+    // Verifica vínculo com empresa: motorista de empresa (motoristas_empresa) ou gestor (gestores)
+    const [{ data: motEmpresa }, { data: gestorRow }] = await Promise.all([
+      supabase.from('motoristas_empresa').select('empresa_id').eq('user_id', user.id).maybeSingle(),
+      supabase.from('gestores').select('empresa_id').eq('user_id', user.id).maybeSingle(),
+    ])
+    const empresaId = motEmpresa?.empresa_id ?? gestorRow?.empresa_id ?? null
+    if (empresaId) {
       setTemEmpresa(true)
       const { data: empresa } = await supabase
         .from('empresas')
         .select('slug')
-        .eq('id', motEmpresa.empresa_id)
+        .eq('id', empresaId)
         .single()
       if (empresa?.slug) setEmpresaSlug(empresa.slug)
     }
