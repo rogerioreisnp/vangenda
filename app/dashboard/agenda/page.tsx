@@ -79,7 +79,11 @@ export default function AgendaPage() {
           .in('motorista_id', gestorUserIds)
           .gte('data_viagem', inicio).lte('data_viagem', fim).neq('status', 'cancelado')
         if (rotaSelecionada) query = query.eq('rota_id', rotaSelecionada)
-        const { data } = await query
+        const { data, error } = await query
+        console.log('[carregarMes] rotaSelecionada:', rotaSelecionada)
+        console.log('[carregarMes] gestorUserIds:', gestorUserIds)
+        console.log('[carregarMes] resultados:', data?.length, 'erro:', error?.message)
+        data?.forEach(d => console.log('  ag:', d.nome_passageiro, '| rota_id:', d.rota_id))
         if (data) setAgendamentos([...data].sort((a, b) => {
           if (a.ordem != null && b.ordem != null) return a.ordem - b.ordem
           if (a.ordem != null) return -1
