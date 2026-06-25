@@ -59,9 +59,10 @@ export default function AgendaPage() {
   const [isGestor, setIsGestor] = useState(false)
   const [gestorUserIds, setGestorUserIds] = useState<string[]>([])
   const [empresaReady, setEmpresaReady] = useState(false)
+  const [rotaSelecionada, setRotaSelecionada] = useState('')
 
   useEffect(() => { detectarEmpresa().then(() => setEmpresaReady(true)) }, [])
-  useEffect(() => { if (empresaReady) carregarMes() }, [empresaReady, mesAtual])
+  useEffect(() => { if (empresaReady) carregarMes() }, [empresaReady, mesAtual, rotaSelecionada])
   useEffect(() => { carregarEncomendasDoDia(diaSelecionado) }, [diaSelecionado])
 
   async function carregarMes() {
@@ -74,9 +75,11 @@ export default function AgendaPage() {
 
     if (isGestor) {
       if (gestorUserIds.length > 0) {
-        const { data } = await supabase.from('agendamentos').select('*')
+        let query = supabase.from('agendamentos').select('*')
           .in('motorista_id', gestorUserIds)
           .gte('data_viagem', inicio).lte('data_viagem', fim).neq('status', 'cancelado')
+        if (rotaSelecionada) query = query.eq('rota_id', rotaSelecionada)
+        const { data } = await query
         if (data) setAgendamentos([...data].sort((a, b) => {
           if (a.ordem != null && b.ordem != null) return a.ordem - b.ordem
           if (a.ordem != null) return -1
@@ -188,8 +191,9 @@ export default function AgendaPage() {
   const isAmanha = isSameDay(diaSelecionado, amanha)
 
   const rotaPrimaria = rotas[0]
-  const horarioIda = (rotaPrimaria?.horario_ida || rotasEmpresa[0]?.horario_ida)?.slice(0, 5) || ''
-  const horarioVolta = (rotaPrimaria?.horario_volta || rotasEmpresa[0]?.horario_volta)?.slice(0, 5) || ''
+  const rotaEmpresaAtiva = rotasEmpresa.find(r => r.id === rotaSelecionada) ?? rotasEmpresa[0]
+  const horarioIda = (rotaPrimaria?.horario_ida || rotaEmpresaAtiva?.horario_ida)?.slice(0, 5) || ''
+  const horarioVolta = (rotaPrimaria?.horario_volta || rotaEmpresaAtiva?.horario_volta)?.slice(0, 5) || ''
   const isDiaTrabalhoSelecionado = diasTrabalho.length === 0 || diasTrabalho.includes(diaSelecionado.getDay())
 
   return (
@@ -249,6 +253,31 @@ export default function AgendaPage() {
             )
           })}
         </div>
+
+        {isGestor && rotasEmpresa.length > 0 && (
+          <div className="pb-3">
+            <p className="text-xs font-medium mb-1.5" style={{ color: '#9FE1CB' }}>Rota</p>
+            <select
+              value={rotaSelecionada}
+              onChange={e => setRotaSelecionada(e.target.value)}
+              className="w-full rounded-xl text-sm outline-none"
+              style={{
+                background: 'rgba(255,255,255,0.15)',
+                color: '#E1F5EE',
+                border: '1px solid rgba(255,255,255,0.25)',
+                padding: '10px 12px',
+              }}>
+              <option value="" style={{ background: '#0F6E56', color: '#9FE1CB' }}>
+                Todas as rotas
+              </option>
+              {rotasEmpresa.map(r => (
+                <option key={r.id} value={r.id} style={{ background: '#fff', color: '#222' }}>
+                  {r.nome || `${r.origem || ''} → ${r.destino || ''}`}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       <div className="px-4 py-4">
