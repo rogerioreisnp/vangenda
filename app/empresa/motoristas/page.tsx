@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 
 type Motorista = {
   id: string
+  user_id: string | null
   nome: string
   telefone: string | null
   veiculo: string | null
@@ -66,7 +67,7 @@ export default function MotoristasPage() {
 
     const { data: mots } = await supabase
       .from('motoristas_empresa')
-      .select('id, nome, telefone, veiculo, placa, status')
+      .select('id, user_id, nome, telefone, veiculo, placa, status')
       .eq('empresa_id', empresa.id)
       .order('created_at')
 
@@ -99,6 +100,11 @@ export default function MotoristasPage() {
 
     try {
       if (editando) {
+        if (form.senha && form.senha.length < 6) {
+          setErro('A nova senha deve ter no mínimo 6 caracteres')
+          return
+        }
+
         const { error } = await supabase
           .from('motoristas_empresa')
           .update({
@@ -110,6 +116,27 @@ export default function MotoristasPage() {
           .eq('id', editando.id)
 
         if (error) { setErro('Erro ao salvar: ' + error.message); return }
+
+        if (form.email.trim() || form.senha) {
+          const { data: { session } } = await supabase.auth.getSession()
+          if (!session) { setErro('Sessão expirada. Recarregue a página.'); return }
+
+          const res = await fetch('/api/empresa/motoristas/atualizar', {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session.access_token}`,
+            },
+            body: JSON.stringify({
+              motoristaEmpresaId: editando.id,
+              novoEmail: form.email.trim() || undefined,
+              novaSenha: form.senha || undefined,
+            }),
+          })
+
+          const json = await res.json()
+          if (!res.ok) { setErro(json.error || 'Erro ao atualizar credenciais'); return }
+        }
       } else {
         if (!form.email.trim()) { setErro('E-mail é obrigatório'); return }
         if (!form.senha) { setErro('Senha é obrigatória'); return }
@@ -307,18 +334,17 @@ export default function MotoristasPage() {
                 placeholder="Nome completo" className="campo-input" />
             </Campo>
 
-            {!editando && (
-              <>
-                <Campo label="E-mail de acesso *">
-                  <input value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                    placeholder="motorista@email.com" type="email" className="campo-input" />
-                </Campo>
-                <Campo label="Senha provisória *">
-                  <input value={form.senha} onChange={e => setForm(f => ({ ...f, senha: e.target.value }))}
-                    placeholder="Mínimo 6 caracteres" type="password" className="campo-input" />
-                </Campo>
-              </>
-            )}
+            <Campo label={editando ? 'Novo e-mail' : 'E-mail de acesso *'}>
+              <input value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                placeholder={editando ? 'Deixe em branco para manter o atual' : 'motorista@email.com'}
+                type="email" className="campo-input" />
+            </Campo>
+
+            <Campo label={editando ? 'Nova senha' : 'Senha provisória *'}>
+              <input value={form.senha} onChange={e => setForm(f => ({ ...f, senha: e.target.value }))}
+                placeholder={editando ? 'Deixe em branco para manter a atual' : 'Mínimo 6 caracteres'}
+                type="password" className="campo-input" />
+            </Campo>
 
             <Campo label="Telefone">
               <input value={form.telefone} onChange={e => setForm(f => ({ ...f, telefone: e.target.value }))}
