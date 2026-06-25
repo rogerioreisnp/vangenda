@@ -598,6 +598,7 @@ export default function AgendamentosPage() {
     if (agEditando) {
       const res = await supabase.from('agendamentos').update({
         motorista_id: motorista.user_id,
+        ...(formAg.rota_empresa_id ? { rota_id: formAg.rota_empresa_id } : {}),
         nome_passageiro: formAg.nome_passageiro.trim(),
         telefone_passageiro: formAg.telefone_passageiro.trim() || null,
         parada_origem: formAg.embarque,
@@ -613,7 +614,7 @@ export default function AgendamentosPage() {
     } else {
       const res = await supabase.from('agendamentos').insert({
         motorista_id: motorista.user_id,
-        rota_id: null,
+        rota_id: formAg.rota_empresa_id || null,
         nome_passageiro: formAg.nome_passageiro.trim(),
         telefone_passageiro: formAg.telefone_passageiro.trim() || null,
         parada_origem: formAg.embarque,
