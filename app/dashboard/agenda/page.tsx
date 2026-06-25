@@ -79,11 +79,7 @@ export default function AgendaPage() {
           .in('motorista_id', gestorUserIds)
           .gte('data_viagem', inicio).lte('data_viagem', fim).neq('status', 'cancelado')
         if (rotaSelecionada) query = query.eq('rota_id', rotaSelecionada)
-        const { data, error } = await query
-        console.log('[carregarMes] rotaSelecionada:', rotaSelecionada)
-        console.log('[carregarMes] gestorUserIds:', gestorUserIds)
-        console.log('[carregarMes] resultados:', data?.length, 'erro:', error?.message)
-        data?.forEach(d => console.log('  ag:', d.nome_passageiro, '| rota_id:', d.rota_id))
+        const { data } = await query
         if (data) setAgendamentos([...data].sort((a, b) => {
           if (a.ordem != null && b.ordem != null) return a.ordem - b.ordem
           if (a.ordem != null) return -1
@@ -1132,7 +1128,7 @@ function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSa
     setErroSalvar('')
     const { data: { user } } = await supabase.auth.getUser()
     const registros = Array.from({ length: form.quantidade }, (_, i) => ({
-      rota_id: empresaCtx ? null : form.rota_id,
+      rota_id: empresaCtx ? (rotaEmpresaId || null) : form.rota_id,
       motorista_id: user!.id,
       nome_passageiro: form.quantidade > 1 ? `${form.nome_passageiro} (${i + 1}/${form.quantidade})` : form.nome_passageiro,
       telefone_passageiro: form.telefone_passageiro || null,

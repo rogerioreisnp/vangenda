@@ -612,7 +612,6 @@ export default function AgendamentosPage() {
       }).eq('id', agEditando.id)
       dbError = res.error
     } else {
-      console.log('[salvarAg] rota_empresa_id sendo salvo:', formAg.rota_empresa_id)
       const res = await supabase.from('agendamentos').insert({
         motorista_id: motorista.user_id,
         rota_id: formAg.rota_empresa_id || null,
