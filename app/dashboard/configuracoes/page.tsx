@@ -247,6 +247,7 @@ export default function ConfiguracoesPage() {
   const [loading, setLoading] = useState(true)
   const [motorista, setMotorista] = useState<any>(null)
   const [empresaSlug, setEmpresaSlug] = useState<string | null>(null)
+  const [temEmpresa, setTemEmpresa] = useState(false)
   const [linkCopiado, setLinkCopiado] = useState(false)
   const [mostrarGuia, setMostrarGuia] = useState(false)
   const qrRef = useRef<HTMLCanvasElement>(null)
@@ -271,6 +272,7 @@ export default function ConfiguracoesPage() {
       .eq('user_id', user.id)
       .single()
     if (motEmpresa?.empresa_id) {
+      setTemEmpresa(true)
       const { data: empresa } = await supabase
         .from('empresas')
         .select('slug')
@@ -428,9 +430,10 @@ export default function ConfiguracoesPage() {
   }
 
   function copiarLink() {
-    const link = empresaSlug
-      ? `${window.location.origin}/agendar/${empresaSlug}`
+    const link = temEmpresa
+      ? (empresaSlug ? `${window.location.origin}/agendar/${empresaSlug}` : '')
       : `${window.location.origin}/agendar/${motorista?.slug || motorista?.id}`
+    if (!link) return
     navigator.clipboard.writeText(link)
     setLinkCopiado(true)
     setTimeout(() => setLinkCopiado(false), 2000)
@@ -543,8 +546,8 @@ export default function ConfiguracoesPage() {
   )
 
   const linkPublico = typeof window !== 'undefined'
-    ? empresaSlug
-      ? `${window.location.origin}/agendar/${empresaSlug}`
+    ? temEmpresa
+      ? (empresaSlug ? `${window.location.origin}/agendar/${empresaSlug}` : '')
       : `${window.location.origin}/agendar/${motorista?.slug || motorista?.id}`
     : ''
 
@@ -586,42 +589,52 @@ export default function ConfiguracoesPage() {
         </Secao>
 
         <Secao titulo="🔗 Meu link de agendamento">
-          {empresaSlug ? (
+          {temEmpresa && empresaSlug && (
             <div className="rounded-xl p-3 mb-3" style={{ background: '#E1F5EE', border: '1px solid #9FE1CB' }}>
               <p className="text-xs" style={{ color: '#085041' }}>
                 Este é o link da sua empresa. Compartilhe com seus passageiros para que eles possam agendar.
               </p>
             </div>
-          ) : (
-            <p className="text-xs text-gray-400 mb-3">Compartilhe este link ou QR Code com seus passageiros.</p>
           )}
-          <div className="bg-gray-50 rounded-xl p-3 mb-3">
-            <p className="text-xs text-gray-600 break-all">{linkPublico}</p>
-          </div>
-          {linkPublico && (
-            <div className="flex flex-col items-center mb-3">
-              <QRCodeCanvas
-                ref={qrRef}
-                value={linkPublico}
-                size={180}
-                bgColor="#ffffff"
-                fgColor="#0F6E56"
-                level="M"
-              />
+          {temEmpresa && !empresaSlug && (
+            <div className="rounded-xl p-3 mb-3" style={{ background: '#FEF9C3', border: '1px solid #FDE68A' }}>
+              <p className="text-xs" style={{ color: '#92400E' }}>
+                Sua empresa ainda não configurou um link público. Peça ao gestor para definir o slug em Configurações da Empresa.
+              </p>
             </div>
           )}
-          <div className="grid grid-cols-2 gap-2">
-            <button onClick={copiarLink}
-              className="py-2.5 rounded-xl text-sm font-medium"
-              style={{ background: linkCopiado ? '#E1F5EE' : '#0F6E56', color: linkCopiado ? '#0F6E56' : '#fff' }}>
-              {linkCopiado ? '✓ Copiado!' : '📋 Copiar link'}
-            </button>
-            <button onClick={baixarQRCode}
-              className="py-2.5 rounded-xl text-sm font-medium"
-              style={{ background: '#085041', color: '#fff' }}>
-              ⬇️ Baixar QR Code
-            </button>
-          </div>
+          {!temEmpresa && (
+            <p className="text-xs text-gray-400 mb-3">Compartilhe este link ou QR Code com seus passageiros.</p>
+          )}
+          {linkPublico && (
+            <>
+              <div className="bg-gray-50 rounded-xl p-3 mb-3">
+                <p className="text-xs text-gray-600 break-all">{linkPublico}</p>
+              </div>
+              <div className="flex flex-col items-center mb-3">
+                <QRCodeCanvas
+                  ref={qrRef}
+                  value={linkPublico}
+                  size={180}
+                  bgColor="#ffffff"
+                  fgColor="#0F6E56"
+                  level="M"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <button onClick={copiarLink}
+                  className="py-2.5 rounded-xl text-sm font-medium"
+                  style={{ background: linkCopiado ? '#E1F5EE' : '#0F6E56', color: linkCopiado ? '#0F6E56' : '#fff' }}>
+                  {linkCopiado ? '✓ Copiado!' : '📋 Copiar link'}
+                </button>
+                <button onClick={baixarQRCode}
+                  className="py-2.5 rounded-xl text-sm font-medium"
+                  style={{ background: '#085041', color: '#fff' }}>
+                  ⬇️ Baixar QR Code
+                </button>
+              </div>
+            </>
+          )}
         </Secao>
 
         <Secao titulo="💰 Pagamento via Pix">
