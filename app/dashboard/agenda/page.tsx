@@ -78,7 +78,7 @@ export default function AgendaPage() {
         let query = supabase.from('agendamentos').select('*')
           .in('motorista_id', gestorUserIds)
           .gte('data_viagem', inicio).lte('data_viagem', fim).neq('status', 'cancelado')
-        if (rotaSelecionada) query = query.eq('rota_id', rotaSelecionada)
+        if (rotaSelecionada) query = query.or(`rota_id.eq.${rotaSelecionada},rota_id.is.null`)
         const { data } = await query
         if (data) setAgendamentos([...data].sort((a, b) => {
           if (a.ordem != null && b.ordem != null) return a.ordem - b.ordem
