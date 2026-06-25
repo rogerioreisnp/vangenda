@@ -120,7 +120,7 @@ export default function RegistroEmpresaPage() {
       const { data: authData, error: errAuth } = await supabase.auth.signUp({
         email: form.email.trim(),
         password: form.senha,
-        options: { data: { nome: form.nome.trim() } },
+        options: { data: { nome: form.nome.trim(), telefone: form.telefone.trim() } },
       })
       if (errAuth) throw errAuth
 

@@ -119,13 +119,14 @@ create policy "despesa_proprio" on despesas for all using (auth.uid() = motorist
 create or replace function public.handle_new_user()
 returns trigger as $$
 begin
-  insert into public.motoristas (id, nome, telefone, trial_inicio, assinatura_status)
+  insert into public.motoristas (id, nome, telefone, trial_inicio, assinatura_status, assinatura_expira)
   values (
     new.id,
     new.raw_user_meta_data->>'nome',
     new.raw_user_meta_data->>'telefone',
     now(),
-    'inativo'
+    'trial',
+    now() + interval '10 days'
   );
   return new;
 end;

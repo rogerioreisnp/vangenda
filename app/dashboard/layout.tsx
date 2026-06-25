@@ -136,8 +136,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       criado_em: motorista.criado_em,
     })
 
+    // assinatura_expira = null → tratar como expirado independente do status
+    if (!motorista.assinatura_expira) {
+      console.warn('[acesso] assinatura_expira null — bloqueando')
+      setStatusAcesso('bloqueado')
+      setChecando(false)
+      return
+    }
+
     if (motorista.assinatura_status === 'ativo') {
-      const expira = new Date(motorista.assinatura_expira!)
+      const expira = new Date(motorista.assinatura_expira)
       const agora = new Date()
       console.log('[acesso] status=ativo | expira:', expira.toISOString(), '| expirou?', expira <= agora)
       if (expira > agora) {
@@ -158,7 +166,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       return
     }
 
-    // null / qualquer outro valor → verifica trial
+    // null / trial / qualquer outro valor → verifica trial
     const referenciaInicio = motorista.trial_inicio ?? motorista.criado_em
     const trialInicio = new Date(referenciaInicio!)
     const agora = new Date()
