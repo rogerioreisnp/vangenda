@@ -101,24 +101,26 @@ export default function AgendaPage() {
       }
 
       const agsNormais: Agendamento[] = agsData
-      const corrMapped: Agendamento[] = corrData.map((c: any) => {
+      const corrMapped: Agendamento[] = corrData.reduce((acc: Agendamento[], c: any) => {
+        if (!c.data_hora || !c.cliente_nome) return acc
         const horaStr = c.data_hora.slice(11, 16)
         const rota = rotasEmpresa.find(r => r.id === c.rota_id)
         const turno: 'ida' | 'volta' = rota?.horario_volta?.slice(0, 5) === horaStr ? 'volta' : 'ida'
-        return {
+        acc.push({
           id: c.id,
           nome_passageiro: c.cliente_nome,
-          parada_origem: c.origem ?? '',
-          parada_destino: c.destino ?? '',
+          parada_origem: c.origem || rota?.origem || '',
+          parada_destino: c.destino || rota?.destino || '',
           turno,
-          valor: Number(c.valor),
+          valor: Number(c.valor) || 0,
           status: (c.status === 'confirmada' ? 'confirmado' : 'agendado') as 'agendado' | 'confirmado' | 'cancelado',
           data_viagem: c.data_hora.slice(0, 10),
           telefone_passageiro: c.cliente_telefone ?? undefined,
           forma_pagamento: c.forma_pagamento ?? undefined,
           _source: 'corrida_empresa' as const,
-        }
-      })
+        })
+        return acc
+      }, [])
 
       const todos = [...agsNormais, ...corrMapped].sort((a, b) => {
         if ((a.ordem ?? null) != null && (b.ordem ?? null) != null) return (a.ordem ?? 0) - (b.ordem ?? 0)
@@ -562,9 +564,10 @@ function BlocoTurno({ turno, horario, passageiros, onAtualizar, onVerDetalhe }: 
 function CardPassageiro({ p, onVerDetalhe, onGripTouchStart }: {
   p: Agendamento, onVerDetalhe: () => void, onGripTouchStart?: (e: React.TouchEvent) => void
 }) {
-  const iniciais = p.nome_passageiro.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase()
+  const nome = p.nome_passageiro || '?'
+  const iniciais = nome.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase()
   const cores = ['#E1F5EE|#0F6E56', '#FAEEDA|#854F0B', '#E6F1FB|#185FA5', '#EEEDFE|#534AB7']
-  const cor = cores[p.nome_passageiro.charCodeAt(0) % cores.length].split('|')
+  const cor = cores[nome.charCodeAt(0) % cores.length].split('|')
 
   return (
     <button
