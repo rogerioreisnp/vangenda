@@ -443,7 +443,18 @@ export default function ConfiguracoesPage() {
   function baixarQRCode() {
     const canvas = qrRef.current
     if (!canvas) return
-    const url = canvas.toDataURL('image/png')
+    // Gera versão em alta resolução (600px) para impressão
+    const scale = 600 / canvas.width
+    const hiRes = document.createElement('canvas')
+    hiRes.width = 600
+    hiRes.height = 600
+    const ctx = hiRes.getContext('2d')
+    if (ctx) {
+      ctx.imageSmoothingEnabled = false
+      ctx.scale(scale, scale)
+      ctx.drawImage(canvas, 0, 0)
+    }
+    const url = hiRes.toDataURL('image/png')
     const a = document.createElement('a')
     a.href = url
     a.download = 'qrcode-agendamento.png'
@@ -616,10 +627,10 @@ export default function ConfiguracoesPage() {
                 <QRCodeCanvas
                   ref={qrRef}
                   value={linkPublico}
-                  size={180}
+                  size={240}
                   bgColor="#ffffff"
                   fgColor="#0F6E56"
-                  level="M"
+                  level="H"
                 />
               </div>
               <div className="grid grid-cols-2 gap-2">

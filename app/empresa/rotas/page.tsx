@@ -276,8 +276,18 @@ export default function RotasPage() {
 
     let rotaId: string
     if (rotaRFEditando) {
-      const { error } = await supabase.from('rotas_empresa').update(payload).eq('id', rotaRFEditando.id)
+      const { error, data: updated } = await supabase
+        .from('rotas_empresa')
+        .update(payload)
+        .eq('id', rotaRFEditando.id)
+        .eq('empresa_id', empresaId)
+        .select('id')
       if (error) { setErroRF('Erro ao salvar: ' + error.message); setSalvandoRF(false); return }
+      if (!updated || updated.length === 0) {
+        setErroRF('Não foi possível salvar. Recarregue a página e tente novamente.')
+        setSalvandoRF(false)
+        return
+      }
       rotaId = rotaRFEditando.id
     } else {
       const { data, error } = await supabase.from('rotas_empresa').insert({ ...payload, empresa_id: empresaId }).select('id').single()

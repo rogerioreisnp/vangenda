@@ -91,6 +91,7 @@ export default function AgendamentoPublico({
   const [embarque, setEmbarque] = useState('')
   const [desembarque, setDesembarque] = useState('')
   const [valorTrechoRF, setValorTrechoRF] = useState<number | null>(null)
+  const [vagasDisponiveis, setVagasDisponiveis] = useState<number | null>(null)
 
   useEffect(() => {
     document.title = `Agendar — ${empresa.nome}`
@@ -158,6 +159,24 @@ export default function AgendamentoPublico({
     setValorTrechoRF(trecho ? Number(trecho.preco) : null)
   }, [embarque, desembarque, trechosRF])
 
+  // Carrega vagas disponíveis para rota_fixa quando data/turno/rota mudam
+  useEffect(() => {
+    if (empresa.tipo_operacao !== 'rota_fixa' || !rotaSelecionada || !form.data || !form.horario) {
+      setVagasDisponiveis(null)
+      return
+    }
+    supabase
+      .from('corridas_empresa')
+      .select('*', { count: 'exact', head: true })
+      .eq('rota_id', rotaSelecionada.id)
+      .eq('data_hora', `${form.data}T${form.horario}:00`)
+      .neq('status', 'cancelada')
+      .then(({ count }) => {
+        const cap = rotaSelecionada.capacidade ?? 0
+        setVagasDisponiveis(Math.max(0, cap - (count || 0)))
+      })
+  }, [rotaSelecionada, form.data, form.horario, empresa.tipo_operacao])
+
   // Validação de dia da semana para rota_fixa
   const diaSelecionadoNum = form.data ? new Date(form.data + 'T00:00:00').getDay() : -1
   const diasRota: number[] = rotaSelecionada?.dias_semana ?? []
@@ -183,6 +202,21 @@ export default function AgendamentoPublico({
       setErro('Trecho não disponível para esta rota'); return
     }
     if (!rotaSelecionada) return
+
+    // Verificar vagas disponíveis para rota_fixa
+    if (empresa.tipo_operacao === 'rota_fixa' && rotaSelecionada.capacidade) {
+      const { count: ocupadas } = await supabase
+        .from('corridas_empresa')
+        .select('*', { count: 'exact', head: true })
+        .eq('rota_id', rotaSelecionada.id)
+        .eq('data_hora', `${form.data}T${form.horario}:00`)
+        .neq('status', 'cancelada')
+      const vagasDisponiveis = rotaSelecionada.capacidade - (ocupadas || 0)
+      if (vagasDisponiveis <= 0) {
+        setErro('Não há vagas disponíveis para esta rota nesta data e horário.')
+        return
+      }
+    }
 
     setSalvando(true)
     setErro('')
@@ -241,6 +275,7 @@ export default function AgendamentoPublico({
     setValorTrechoRF(null)
     setTrechosRF([])
     setParadasUnicas([])
+    setVagasDisponiveis(null)
     setErro('')
   }
 
@@ -467,6 +502,22 @@ export default function AgendamentoPublico({
                     })}
                   </div>
                 </Campo>
+              )}
+
+              {/* Vagas disponíveis (rota_fixa) */}
+              {empresa.tipo_operacao === 'rota_fixa' && rotaSelecionada && form.data && form.horario && vagasDisponiveis !== null && (
+                <div className="rounded-xl px-4 py-3 border"
+                  style={vagasDisponiveis === 0
+                    ? { background: '#FCEBEB', borderColor: '#F5BCBC' }
+                    : { background: '#E1F5EE', borderColor: '#9FE1CB' }}>
+                  {vagasDisponiveis === 0 ? (
+                    <p className="text-sm font-semibold" style={{ color: '#A32D2D' }}>🚫 Sem vagas disponíveis neste horário</p>
+                  ) : (
+                    <p className="text-sm font-medium" style={{ color: '#085041' }}>
+                      ✅ {vagasDisponiveis} vaga{vagasDisponiveis !== 1 ? 's' : ''} disponível{vagasDisponiveis !== 1 ? 'is' : ''}
+                    </p>
+                  )}
+                </div>
               )}
 
               {/* Horário livre (transfer) */}
