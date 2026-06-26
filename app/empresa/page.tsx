@@ -607,7 +607,7 @@ export default function EmpresaPage() {
               { emoji: '📋', label: 'Nova corrida', href: '/empresa/agendamentos?nova=1' },
               { emoji: '💰', label: 'Financeiro', href: '/empresa/financeiro' },
               { emoji: '🚗', label: 'Motoristas', href: '/empresa/motoristas' },
-              { emoji: '🛣️', label: 'Operar rota', href: '/empresa/agendamentos' },
+              { emoji: '🛣️', label: 'Operar rota', href: '/dashboard/agenda' },
             ].map(item => (
               <Link key={item.href} href={item.href}
                 className="bg-white rounded-2xl flex flex-col items-center justify-center py-4 gap-1.5 active:opacity-75"
@@ -1103,7 +1103,7 @@ function DashboardRotaFixa({
                 ].filter(Boolean).join(' · ')
 
                 return (
-                  <Link key={rota.id} href={`/empresa/agendamentos?rota=${rota.id}`}
+                  <Link key={rota.id} href="/dashboard/agenda"
                     className="bg-white rounded-2xl px-4 py-3 border flex items-center gap-3 active:opacity-75"
                     style={{ borderColor: semMot ? '#FECACA' : '#f0f0f0', background: semMot ? '#FFFBFB' : '#fff' }}>
                     <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg flex-shrink-0"
@@ -1198,7 +1198,7 @@ function DashboardRotaFixa({
         </div>
 
         {/* ── OPERAR ROTA ─────────────────────────────────────── */}
-        <Link href="/empresa/agendamentos"
+        <Link href="/dashboard/agenda"
           className="rounded-2xl px-4 py-3 flex items-center justify-between active:opacity-75"
           style={{ background: '#0F6E56', boxShadow: '0 2px 8px rgba(15,110,86,0.25)' }}>
           <div className="flex items-center gap-3">

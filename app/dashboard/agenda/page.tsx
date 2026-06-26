@@ -24,6 +24,7 @@ type Agendamento = {
   cep?: string
   referencia?: string
   ordem?: number | null
+  _source?: 'corrida_empresa'
 }
 
 type Encomenda = {
@@ -74,19 +75,58 @@ export default function AgendaPage() {
     const fim = format(endOfMonth(mesAtual), 'yyyy-MM-dd')
 
     if (isGestor) {
+      const empresaId = empresaCtx?.empresaId
+
+      let agsData: any[] = []
       if (gestorUserIds.length > 0) {
-        let query = supabase.from('agendamentos').select('*')
+        let q = supabase.from('agendamentos').select('*')
           .in('motorista_id', gestorUserIds)
           .gte('data_viagem', inicio).lte('data_viagem', fim).neq('status', 'cancelado')
-        if (rotaSelecionada) query = query.eq('rota_id', rotaSelecionada)
-        const { data } = await query
-        if (data) setAgendamentos([...data].sort((a, b) => {
-          if (a.ordem != null && b.ordem != null) return a.ordem - b.ordem
-          if (a.ordem != null) return -1
-          if (b.ordem != null) return 1
-          return 0
-        }))
+        if (rotaSelecionada) q = q.eq('rota_id', rotaSelecionada)
+        const { data } = await q
+        agsData = data || []
       }
+
+      let corrData: any[] = []
+      if (empresaId) {
+        let cq = supabase.from('corridas_empresa')
+          .select('id, rota_id, origem, destino, data_hora, cliente_nome, cliente_telefone, valor, status, forma_pagamento')
+          .eq('empresa_id', empresaId)
+          .gte('data_hora', `${inicio}T00:00:00`)
+          .lte('data_hora', `${fim}T23:59:59`)
+          .neq('status', 'cancelada')
+        if (rotaSelecionada) cq = cq.eq('rota_id', rotaSelecionada)
+        const { data: cd } = await cq
+        corrData = cd || []
+      }
+
+      const agsNormais: Agendamento[] = agsData
+      const corrMapped: Agendamento[] = corrData.map((c: any) => {
+        const horaStr = c.data_hora.slice(11, 16)
+        const rota = rotasEmpresa.find(r => r.id === c.rota_id)
+        const turno: 'ida' | 'volta' = rota?.horario_volta?.slice(0, 5) === horaStr ? 'volta' : 'ida'
+        return {
+          id: c.id,
+          nome_passageiro: c.cliente_nome,
+          parada_origem: c.origem ?? '',
+          parada_destino: c.destino ?? '',
+          turno,
+          valor: Number(c.valor),
+          status: (c.status === 'confirmada' ? 'confirmado' : 'agendado') as 'agendado' | 'confirmado' | 'cancelado',
+          data_viagem: c.data_hora.slice(0, 10),
+          telefone_passageiro: c.cliente_telefone ?? undefined,
+          forma_pagamento: c.forma_pagamento ?? undefined,
+          _source: 'corrida_empresa' as const,
+        }
+      })
+
+      const todos = [...agsNormais, ...corrMapped].sort((a, b) => {
+        if ((a.ordem ?? null) != null && (b.ordem ?? null) != null) return (a.ordem ?? 0) - (b.ordem ?? 0)
+        if ((a.ordem ?? null) != null) return -1
+        if ((b.ordem ?? null) != null) return 1
+        return 0
+      })
+      setAgendamentos(todos)
       setLoading(false)
       return
     }
@@ -591,19 +631,31 @@ function DetalhePassageiro({ p, onVoltar, onAtualizar, horarioIda, horarioVolta 
   }
 
   async function confirmar() {
-    await supabase.from('agendamentos').update({ status: 'confirmado' }).eq('id', p.id)
+    if (p._source === 'corrida_empresa') {
+      await supabase.from('corridas_empresa').update({ status: 'confirmada' }).eq('id', p.id)
+    } else {
+      await supabase.from('agendamentos').update({ status: 'confirmado' }).eq('id', p.id)
+    }
     onAtualizar()
   }
 
   async function cancelar() {
     if (!confirm('Cancelar este agendamento?')) return
-    await supabase.from('agendamentos').update({ status: 'cancelado' }).eq('id', p.id)
+    if (p._source === 'corrida_empresa') {
+      await supabase.from('corridas_empresa').update({ status: 'cancelada' }).eq('id', p.id)
+    } else {
+      await supabase.from('agendamentos').update({ status: 'cancelado' }).eq('id', p.id)
+    }
     setStatusLocal('cancelado')
   }
 
   async function apagar() {
     if (!confirm('Tem certeza que deseja apagar este agendamento?')) return
-    await supabase.from('agendamentos').delete().eq('id', p.id)
+    if (p._source === 'corrida_empresa') {
+      await supabase.from('corridas_empresa').delete().eq('id', p.id)
+    } else {
+      await supabase.from('agendamentos').delete().eq('id', p.id)
+    }
     onAtualizar()
   }
 
@@ -642,22 +694,33 @@ function DetalhePassageiro({ p, onVoltar, onAtualizar, horarioIda, horarioVolta 
 
   async function salvarEdicao() {
     setSalvandoEdit(true)
-    await supabase.from('agendamentos').update({
-      nome_passageiro: formEdit.nome_passageiro,
-      telefone_passageiro: formEdit.telefone_passageiro || null,
-      data_viagem: formEdit.data_viagem,
-      parada_origem: formEdit.parada_origem,
-      parada_destino: formEdit.parada_destino,
-      turno: formEdit.turno,
-      valor: parseFloat(formEdit.valor),
-      forma_pagamento: formEdit.forma_pagamento,
-      rua: formEdit.rua || null,
-      numero: formEdit.numero || null,
-      bairro: formEdit.bairro || null,
-      municipio: formEdit.municipio || null,
-      cep: formEdit.cep || null,
-      referencia: formEdit.referencia || null,
-    }).eq('id', p.id)
+    if (p._source === 'corrida_empresa') {
+      await supabase.from('corridas_empresa').update({
+        cliente_nome: formEdit.nome_passageiro,
+        cliente_telefone: formEdit.telefone_passageiro || null,
+        origem: formEdit.parada_origem,
+        destino: formEdit.parada_destino,
+        valor: parseFloat(formEdit.valor),
+        forma_pagamento: formEdit.forma_pagamento,
+      }).eq('id', p.id)
+    } else {
+      await supabase.from('agendamentos').update({
+        nome_passageiro: formEdit.nome_passageiro,
+        telefone_passageiro: formEdit.telefone_passageiro || null,
+        data_viagem: formEdit.data_viagem,
+        parada_origem: formEdit.parada_origem,
+        parada_destino: formEdit.parada_destino,
+        turno: formEdit.turno,
+        valor: parseFloat(formEdit.valor),
+        forma_pagamento: formEdit.forma_pagamento,
+        rua: formEdit.rua || null,
+        numero: formEdit.numero || null,
+        bairro: formEdit.bairro || null,
+        municipio: formEdit.municipio || null,
+        cep: formEdit.cep || null,
+        referencia: formEdit.referencia || null,
+      }).eq('id', p.id)
+    }
     setSalvandoEdit(false)
     setEditando(false)
     onAtualizar()
