@@ -1194,7 +1194,7 @@ function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSa
     setErroSalvar('')
     const { data: { user } } = await supabase.auth.getUser()
     const registros = Array.from({ length: form.quantidade }, (_, i) => ({
-      rota_id: empresaCtx ? (rotaEmpresaId || null) : form.rota_id,
+      rota_id: empresaCtx ? null : form.rota_id,
       motorista_id: user!.id,
       nome_passageiro: form.quantidade > 1 ? `${form.nome_passageiro} (${i + 1}/${form.quantidade})` : form.nome_passageiro,
       telefone_passageiro: form.telefone_passageiro || null,
