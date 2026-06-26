@@ -178,8 +178,9 @@ export default function AgendamentoPublico({
   }, [rotaSelecionada, form.data, form.horario, empresa.tipo_operacao])
 
   // Validação de dia da semana para rota_fixa
+  // Força conversão para number para evitar mismatch string vs number vindo do Postgres
   const diaSelecionadoNum = form.data ? new Date(form.data + 'T00:00:00').getDay() : -1
-  const diasRota: number[] = rotaSelecionada?.dias_semana ?? []
+  const diasRota: number[] = (rotaSelecionada?.dias_semana ?? []).map(Number)
   const isDiaOperacao = empresa.tipo_operacao !== 'rota_fixa' || diasRota.length === 0 || diasRota.includes(diaSelecionadoNum)
   const diasNomesCompletos = diasRota.map(d => NOMES_DIAS_COMPLETOS[d])
   const diasTexto = diasNomesCompletos.length === 0 ? 'todos os dias'
