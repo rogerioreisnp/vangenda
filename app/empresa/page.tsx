@@ -607,7 +607,7 @@ export default function EmpresaPage() {
               { emoji: '📋', label: 'Nova corrida', href: '/empresa/agendamentos?nova=1' },
               { emoji: '💰', label: 'Financeiro', href: '/empresa/financeiro' },
               { emoji: '🚗', label: 'Motoristas', href: '/empresa/motoristas' },
-              { emoji: '🛣️', label: 'Operar rota', href: '/dashboard/agenda' },
+              { emoji: '🛣️', label: 'Operar rota', href: '/empresa/agendamentos' },
             ].map(item => (
               <Link key={item.href} href={item.href}
                 className="bg-white rounded-2xl flex flex-col items-center justify-center py-4 gap-1.5 active:opacity-75"
@@ -732,6 +732,7 @@ function DashboardRotaFixa({
   const [motById, setMotById] = useState<Record<string, MotEmpresa>>({})
   const [rotasHoje, setRotasHoje] = useState<RotaRFPainel[]>([])
   const [agsHoje, setAgsHoje] = useState<AgRF[]>([])
+  const [corridasPubHoje, setCorridasPubHoje] = useState<{ id: string; rota_id: string | null; valor: number }[]>([])
   const [passageirosHoje, setPassageirosHoje] = useState(0)
   const [receitaDia, setReceitaDia] = useState(0)
   const [naoConfirmados, setNaoConfirmados] = useState(0)
@@ -805,8 +806,7 @@ function DashboardRotaFixa({
       { data: fiadoData },
       { data: aReceberData },
       { data: recMesData },
-      // Reativar quando a tela de preenchimento de checklist existir:
-      // { data: checklistData },
+      { data: corrPubHojeData },
     ] = await Promise.all([
       supabase.from('agendamentos')
         .select('id, motorista_id, nome_passageiro, parada_origem, parada_destino, turno, data_viagem, valor, forma_pagamento, status')
@@ -819,19 +819,24 @@ function DashboardRotaFixa({
         .in('motorista_id', userIds).eq('forma_pagamento', 'pendente').neq('status', 'cancelado'),
       supabase.from('agendamentos').select('valor')
         .in('motorista_id', userIds).gte('data_viagem', inicioMes).lte('data_viagem', fimMes).neq('status', 'cancelado'),
-      // supabase.from('checklist_empresa').select('motorista_id')   // Reativar quando a tela de preenchimento de checklist existir
-      //   .eq('empresa_id', empresaId).eq('data', hojeStr),
+      // Passageiros agendados pelo link público (corridas_empresa com tipo_servico rota_fixa)
+      supabase.from('corridas_empresa')
+        .select('id, rota_id, valor')
+        .eq('empresa_id', empresaId)
+        .gte('data_hora', `${hojeStr}T00:00:00`)
+        .lte('data_hora', `${hojeStr}T23:59:59`)
+        .neq('status', 'cancelada'),
     ])
 
-    // Reativar quando a tela de preenchimento de checklist existir:
-    // const checklistFeitos = new Set((checklistData ?? []).map((c: any) => c.motorista_id as string))
-    // const checkPend = motsAtivos.filter(m => !checklistFeitos.has(m.id)).length
-    // setChecklistPendentes(checkPend)
-
     const hojeAgs = (agsHojeData ?? []) as AgRF[]
+    const corrPub = (corrPubHojeData ?? []) as { id: string; rota_id: string | null; valor: number }[]
     setAgsHoje(hojeAgs)
-    setPassageirosHoje(hojeAgs.length)
-    setReceitaDia(hojeAgs.reduce((s, a) => s + Number(a.valor), 0))
+    setCorridasPubHoje(corrPub)
+    setPassageirosHoje(hojeAgs.length + corrPub.length)
+    setReceitaDia(
+      hojeAgs.reduce((s, a) => s + Number(a.valor), 0) +
+      corrPub.reduce((s, c) => s + Number(c.valor), 0)
+    )
     setNaoConfirmados(naoConfData?.length ?? 0)
     setFiadoVencido(fiadoData?.length ?? 0)
     setPendentes((fiadoData ?? []) as AgRF[])
@@ -1088,7 +1093,9 @@ function DashboardRotaFixa({
                 const mot = rota.motorista_id ? motById[rota.motorista_id] : null
                 const uid = mot?.user_id ?? null
                 const agsRota = uid ? (agsHojePorUid[uid] ?? []) : []
-                const recRota = agsRota.reduce((s, a) => s + Number(a.valor), 0)
+                const corrRota = corridasPubHoje.filter(c => c.rota_id === rota.id)
+                const totalPass = agsRota.length + corrRota.length
+                const recRota = agsRota.reduce((s, a) => s + Number(a.valor), 0) + corrRota.reduce((s, c) => s + Number(c.valor), 0)
                 const semMot = !rota.motorista_id
                 const horarios = [
                   rota.horario_ida ? `Ida ${fmtHora(rota.horario_ida)}` : null,
@@ -1096,7 +1103,7 @@ function DashboardRotaFixa({
                 ].filter(Boolean).join(' · ')
 
                 return (
-                  <Link key={rota.id} href="/empresa/agendamentos"
+                  <Link key={rota.id} href={`/empresa/agendamentos?rota=${rota.id}`}
                     className="bg-white rounded-2xl px-4 py-3 border flex items-center gap-3 active:opacity-75"
                     style={{ borderColor: semMot ? '#FECACA' : '#f0f0f0', background: semMot ? '#FFFBFB' : '#fff' }}>
                     <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg flex-shrink-0"
@@ -1117,7 +1124,7 @@ function DashboardRotaFixa({
                     </div>
                     <div className="flex flex-col items-end flex-shrink-0 gap-0.5 text-right">
                       <p className="text-sm font-bold" style={{ color: '#0F6E56' }}>
-                        {agsRota.length} pass.
+                        {totalPass} pass.
                       </p>
                       <p className="text-xs text-gray-400">{fmt(recRota)}</p>
                     </div>
@@ -1191,7 +1198,7 @@ function DashboardRotaFixa({
         </div>
 
         {/* ── OPERAR ROTA ─────────────────────────────────────── */}
-        <Link href="/dashboard/agenda"
+        <Link href="/empresa/agendamentos"
           className="rounded-2xl px-4 py-3 flex items-center justify-between active:opacity-75"
           style={{ background: '#0F6E56', boxShadow: '0 2px 8px rgba(15,110,86,0.25)' }}>
           <div className="flex items-center gap-3">

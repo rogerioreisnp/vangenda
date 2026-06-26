@@ -7,8 +7,8 @@ import { supabase } from '@/lib/supabase'
 type RotaOpcao = {
   id: string
   nome: string | null
-  origem: string
-  destino: string
+  origem: string | null
+  destino: string | null
   preco: number
   motorista_id: string | null
 }
@@ -238,6 +238,7 @@ export default function AgendamentosPage() {
   const [agEditando, setAgEditando] = useState<AgendamentoRF | null>(null)
   const [filtroData, setFiltroData] = useState(HOJE)
   const [verTodos, setVerTodos] = useState(false)
+  const [filtroRotaId, setFiltroRotaId] = useState('')
   const [contactsApi, setContactsApi] = useState(false)
   useEffect(() => { setContactsApi('contacts' in navigator) }, [])
   async function selecionarContatoAg() {
@@ -256,8 +257,10 @@ export default function AgendamentosPage() {
   useEffect(() => { carregarDados() }, [])
 
   useEffect(() => {
-    if (!loading && searchParams.get('nova') === '1') {
-      abrirNovaCorrida()
+    if (!loading) {
+      if (searchParams.get('nova') === '1') abrirNovaCorrida()
+      const rotaParam = searchParams.get('rota')
+      if (rotaParam) setFiltroRotaId(rotaParam)
     }
   }, [loading, searchParams])
 
@@ -374,8 +377,8 @@ export default function AgendamentosPage() {
       setForm(f => ({
         ...f,
         rota_id: rotaId,
-        origem: rota.origem,
-        destino: rota.destino,
+        origem: rota.origem || '',
+        destino: rota.destino || '',
         preco: String(rota.preco),
       }))
     }
@@ -675,8 +678,15 @@ export default function AgendamentosPage() {
     setVerTodos(false)
   }
 
-  const corridasFiltradas = verTodos ? corridas : corridas.filter(c => c.data_hora.slice(0, 10) === filtroData)
-  const agendamentosFiltrados = verTodos ? agendamentosRF : agendamentosRF.filter(ag => ag.data_viagem === filtroData)
+  const corridasFiltradas = (() => {
+    let list = verTodos ? corridas : corridas.filter(c => c.data_hora.slice(0, 10) === filtroData)
+    if (filtroRotaId) list = list.filter(c => c.rota_id === filtroRotaId)
+    return list
+  })()
+  const agendamentosFiltrados = (() => {
+    let list = verTodos ? agendamentosRF : agendamentosRF.filter(ag => ag.data_viagem === filtroData)
+    return list
+  })()
   const corridasAgrupadas = agruparPares(corridasFiltradas)
   const eAtivo = (s: string) => s !== 'cancelada' && s !== 'concluida'
   const qtdAtivas = corridasAgrupadas.filter(g =>
@@ -704,6 +714,25 @@ export default function AgendamentosPage() {
       </div>
 
       <div className="px-4 py-4 flex flex-col gap-3">
+
+        {/* Seletor de rota (rota_fixa) */}
+        {tipoOperacao === 'rota_fixa' && rotasOpcoes.length > 0 && (
+          <div className="bg-white rounded-2xl border border-gray-100 px-3 py-2">
+            <p className="text-[10px] font-medium text-gray-400 mb-1 uppercase tracking-wide">Rota</p>
+            <select
+              value={filtroRotaId}
+              onChange={e => setFiltroRotaId(e.target.value)}
+              className="w-full text-sm font-semibold text-gray-800 bg-transparent outline-none"
+            >
+              <option value="">Todas as rotas</option>
+              {rotasOpcoes.map(r => (
+                <option key={r.id} value={r.id}>
+                  {r.nome || `${r.origem} → ${r.destino}`}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* Filtro de data */}
         <div className="bg-white rounded-2xl border border-gray-100 flex items-center px-2 py-2 gap-1">
