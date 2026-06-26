@@ -150,6 +150,18 @@ const STATUS_COR: Record<string, { bg: string; text: string; label: string }> = 
   parcialmente_cancelada: { bg: '#FEF3C7', text: '#92400E', label: 'Parc. cancelada' },
 }
 
+type TipoMeta = { badge: string; bg: string; text: string; clienteLabel: string }
+const TIPO_META: Record<string, TipoMeta> = {
+  rota_fixa:  { badge: '🛣️ Rota Fixa',  bg: '#E1F5EE', text: '#085041', clienteLabel: 'Passageiro' },
+  fretamento: { badge: '🚌 Fretamento', bg: '#FEF3C7', text: '#92400E', clienteLabel: 'Responsável' },
+  excursao:   { badge: '🗺️ Excursão',   bg: '#EDE9FE', text: '#5B21B6', clienteLabel: 'Responsável' },
+  transfer:   { badge: '✈️ Transfer',   bg: '#EFF6FF', text: '#1D4ED8', clienteLabel: 'Cliente'     },
+  city_tour:  { badge: '🏙️ City Tour',  bg: '#F0FDF4', text: '#166534', clienteLabel: 'Cliente'     },
+}
+function tipoMeta(tipo: string | null): TipoMeta {
+  return TIPO_META[tipo ?? ''] ?? { badge: tipo ?? 'Serviço', bg: '#F3F4F6', text: '#6B7280', clienteLabel: 'Cliente' }
+}
+
 const STATUS_COR_AG: Record<string, { bg: string; text: string; label: string }> = {
   agendado:   { bg: '#EFF6FF', text: '#1D4ED8', label: 'Agendado' },
   confirmado: { bg: '#E1F5EE', text: '#0F6E56', label: 'Confirmado' },
@@ -857,10 +869,17 @@ export default function AgendamentosPage() {
                 const c = grupo.corrida
                 const cor = STATUS_COR[c.status] ?? STATUS_COR.confirmada
                 const nomeMotorista = c.motoristas_empresa?.nome ?? null
+                const tm = tipoMeta(c.tipo_servico)
                 return (
                   <div key={c.id} className="bg-white rounded-2xl p-4 border border-gray-100">
                     <div className="flex items-start justify-between gap-2 mb-2">
                       <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
+                            style={{ background: tm.bg, color: tm.text }}>
+                            {tm.badge}
+                          </span>
+                        </div>
                         <p className="text-sm font-semibold text-gray-800 truncate">
                           {c.origem} → {c.destino}
                         </p>
@@ -876,7 +895,11 @@ export default function AgendamentosPage() {
                     <div className="flex items-end justify-between gap-2"
                       style={{ borderTop: '1px solid #f5f5f5', paddingTop: '8px' }}>
                       <div className="min-w-0">
+                        <p className="text-[10px] text-gray-400">{tm.clienteLabel}</p>
                         <p className="text-xs font-medium text-gray-700 truncate">{c.cliente_nome}</p>
+                        {c.cliente_telefone && (
+                          <p className="text-xs text-gray-400 mt-0.5">📞 {c.cliente_telefone}</p>
+                        )}
                         {nomeMotorista && (
                           <p className="text-xs text-gray-400 mt-0.5">🚗 {nomeMotorista}</p>
                         )}
@@ -919,20 +942,25 @@ export default function AgendamentosPage() {
               const valorTotal = Number(ida.valor) + Number(volta.valor)
               const nomeMotorista = ida.motoristas_empresa?.nome ?? volta.motoristas_empresa?.nome ?? null
               const idsCancelar = [ida, volta].filter(c => c.status === 'confirmada').map(c => c.id)
+              const tmPar = tipoMeta(ida.tipo_servico)
 
               return (
                 <div key={`${ida.id}-${volta.id}`} className="bg-white rounded-2xl p-4 border border-gray-100">
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-semibold text-gray-800 truncate">
-                          {ida.origem} → {ida.destino}
-                        </p>
-                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0"
+                      <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
+                          style={{ background: tmPar.bg, color: tmPar.text }}>
+                          {tmPar.badge}
+                        </span>
+                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
                           style={{ background: '#E1F5EE', color: '#0F6E56' }}>
                           ↔ Ida e volta
                         </span>
                       </div>
+                      <p className="text-sm font-semibold text-gray-800 truncate">
+                        {ida.origem} → {ida.destino}
+                      </p>
                       <p className="text-xs text-gray-400 mt-0.5">
                         Ida {ida.data_hora.slice(11, 16)} · Volta {volta.data_hora.slice(11, 16)} · {ida.data_hora.slice(8, 10)}/{ida.data_hora.slice(5, 7)}/{ida.data_hora.slice(0, 4)}
                       </p>
@@ -945,7 +973,11 @@ export default function AgendamentosPage() {
                   <div className="flex items-end justify-between gap-2"
                     style={{ borderTop: '1px solid #f5f5f5', paddingTop: '8px' }}>
                     <div className="min-w-0">
+                      <p className="text-[10px] text-gray-400">{tmPar.clienteLabel}</p>
                       <p className="text-xs font-medium text-gray-700 truncate">{ida.cliente_nome}</p>
+                      {ida.cliente_telefone && (
+                        <p className="text-xs text-gray-400 mt-0.5">📞 {ida.cliente_telefone}</p>
+                      )}
                       {nomeMotorista && (
                         <p className="text-xs text-gray-400 mt-0.5">🚗 {nomeMotorista}</p>
                       )}
