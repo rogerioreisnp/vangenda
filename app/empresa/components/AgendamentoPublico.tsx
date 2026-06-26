@@ -160,20 +160,21 @@ export default function AgendamentoPublico({
   }, [embarque, desembarque, trechosRF])
 
   // Carrega vagas disponíveis para rota_fixa quando data/turno/rota mudam
+  // Usa RPC para contornar RLS (anon não tem SELECT em corridas_empresa)
   useEffect(() => {
     if (empresa.tipo_operacao !== 'rota_fixa' || !rotaSelecionada || !form.data || !form.horario) {
       setVagasDisponiveis(null)
       return
     }
     supabase
-      .from('corridas_empresa')
-      .select('*', { count: 'exact', head: true })
-      .eq('rota_id', rotaSelecionada.id)
-      .eq('data_hora', `${form.data}T${form.horario}:00`)
-      .neq('status', 'cancelada')
-      .then(({ count }) => {
+      .rpc('count_vagas_ocupadas', {
+        p_rota_id: rotaSelecionada.id,
+        p_data: form.data,
+        p_horario: form.horario,
+      })
+      .then(({ data: ocupadas }) => {
         const cap = rotaSelecionada.capacidade ?? 0
-        setVagasDisponiveis(Math.max(0, cap - (count || 0)))
+        setVagasDisponiveis(Math.max(0, cap - (ocupadas || 0)))
       })
   }, [rotaSelecionada, form.data, form.horario, empresa.tipo_operacao])
 
@@ -204,14 +205,13 @@ export default function AgendamentoPublico({
     }
     if (!rotaSelecionada) return
 
-    // Verificar vagas disponíveis para rota_fixa
+    // Verificar vagas disponíveis para rota_fixa (RPC bypassa RLS para anon)
     if (empresa.tipo_operacao === 'rota_fixa' && rotaSelecionada.capacidade) {
-      const { count: ocupadas } = await supabase
-        .from('corridas_empresa')
-        .select('*', { count: 'exact', head: true })
-        .eq('rota_id', rotaSelecionada.id)
-        .eq('data_hora', `${form.data}T${form.horario}:00`)
-        .neq('status', 'cancelada')
+      const { data: ocupadas } = await supabase.rpc('count_vagas_ocupadas', {
+        p_rota_id: rotaSelecionada.id,
+        p_data: form.data,
+        p_horario: form.horario,
+      })
       const vagasDisponiveis = rotaSelecionada.capacidade - (ocupadas || 0)
       if (vagasDisponiveis <= 0) {
         setErro('Não há vagas disponíveis para esta rota nesta data e horário.')
