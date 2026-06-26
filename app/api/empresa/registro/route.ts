@@ -13,6 +13,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Dados incompletos' }, { status: 400 })
     }
 
+    const telLimpo = (telefone ?? '').replace(/\D/g, '')
+    if (telLimpo.length < 10) {
+      return NextResponse.json({ error: 'Telefone obrigatório (mínimo 10 dígitos com DDD)' }, { status: 400 })
+    }
+
     const trialFim = new Date()
     trialFim.setDate(trialFim.getDate() + 15)
 
