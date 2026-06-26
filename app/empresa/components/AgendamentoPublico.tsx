@@ -235,7 +235,7 @@ export default function AgendamentoPublico({
       cliente_nome: form.nome.trim(),
       cliente_telefone: form.telefone.trim(),
       valor: valorSave,
-      status: 'confirmada',
+      status: 'pendente',
       motorista_id: null,
       tipo_servico: empresa.tipo_operacao === 'rota_fixa' ? 'rota_fixa' : 'transfer',
       forma_pagamento: 'a_definir',
