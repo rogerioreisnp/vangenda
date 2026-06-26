@@ -793,8 +793,20 @@ function DashboardRotaFixa({
     const userIds = motsAtivos.map(m => m.user_id).filter(Boolean) as string[]
     motUserIdsRef.current = userIds
 
+    // Sempre busca corridas_empresa independente de ter motoristas ativos
+    const { data: corrPubHojeData } = await supabase.from('corridas_empresa')
+      .select('id, rota_id, valor')
+      .eq('empresa_id', empresaId)
+      .gte('data_hora', `${hojeStr}T00:00:00`)
+      .lte('data_hora', `${hojeStr}T23:59:59`)
+      .neq('status', 'cancelada')
+
+    const corrPub = (corrPubHojeData ?? []) as { id: string; rota_id: string | null; valor: number }[]
+    setCorridasPubHoje(corrPub)
+
     if (userIds.length === 0) {
-      // setChecklistPendentes(motsAtivos.length) // Reativar quando a tela de preenchimento de checklist existir
+      setPassageirosHoje(corrPub.length)
+      setReceitaDia(corrPub.reduce((s, c) => s + Number(c.valor), 0))
       setReceitaMes(recCob)
       setLoading(false)
       return
@@ -806,7 +818,6 @@ function DashboardRotaFixa({
       { data: fiadoData },
       { data: aReceberData },
       { data: recMesData },
-      { data: corrPubHojeData },
     ] = await Promise.all([
       supabase.from('agendamentos')
         .select('id, motorista_id, nome_passageiro, parada_origem, parada_destino, turno, data_viagem, valor, forma_pagamento, status')
@@ -819,19 +830,10 @@ function DashboardRotaFixa({
         .in('motorista_id', userIds).eq('forma_pagamento', 'pendente').neq('status', 'cancelado'),
       supabase.from('agendamentos').select('valor')
         .in('motorista_id', userIds).gte('data_viagem', inicioMes).lte('data_viagem', fimMes).neq('status', 'cancelado'),
-      // Passageiros agendados pelo link público (corridas_empresa com tipo_servico rota_fixa)
-      supabase.from('corridas_empresa')
-        .select('id, rota_id, valor')
-        .eq('empresa_id', empresaId)
-        .gte('data_hora', `${hojeStr}T00:00:00`)
-        .lte('data_hora', `${hojeStr}T23:59:59`)
-        .neq('status', 'cancelada'),
     ])
 
     const hojeAgs = (agsHojeData ?? []) as AgRF[]
-    const corrPub = (corrPubHojeData ?? []) as { id: string; rota_id: string | null; valor: number }[]
     setAgsHoje(hojeAgs)
-    setCorridasPubHoje(corrPub)
     setPassageirosHoje(hojeAgs.length + corrPub.length)
     setReceitaDia(
       hojeAgs.reduce((s, a) => s + Number(a.valor), 0) +
