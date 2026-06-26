@@ -101,6 +101,7 @@ function contarContratos(corridas: { id: string; created_at: string; cliente_nom
 
 export default function EmpresaPage() {
   const [nomeGestor, setNomeGestor] = useState<string | null>(null)
+  const [gestorUserId, setGestorUserId] = useState<string | null>(null)
   const [nomeEmpresa, setNomeEmpresa] = useState<string | null>(null)
   const [plano, setPlano] = useState('')
   const [statusEmpresa, setStatusEmpresa] = useState('')
@@ -131,6 +132,7 @@ export default function EmpresaPage() {
   async function carregarDados() {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) return
+    setGestorUserId(session.user.id)
 
     const { data: gestor } = await supabase
       .from('gestores')
@@ -314,7 +316,7 @@ export default function EmpresaPage() {
   }
 
   if (tipoOperacao === 'rota_fixa' && empresaId) {
-    return <DashboardRotaFixa nomeGestor={nomeGestor} nomeEmpresa={nomeEmpresa} empresaId={empresaId} />
+    return <DashboardRotaFixa nomeGestor={nomeGestor} nomeEmpresa={nomeEmpresa} empresaId={empresaId} gestorUserId={gestorUserId} />
   }
 
   const hojeStr = format(new Date(), 'yyyy-MM-dd')
@@ -723,10 +725,12 @@ function DashboardRotaFixa({
   nomeGestor,
   nomeEmpresa,
   empresaId,
+  gestorUserId,
 }: {
   nomeGestor: string | null
   nomeEmpresa: string | null
   empresaId: string
+  gestorUserId: string | null
 }) {
   const [loading, setLoading] = useState(true)
   const [motById, setMotById] = useState<Record<string, MotEmpresa>>({})
@@ -790,16 +794,22 @@ function DashboardRotaFixa({
     const despCob = cob.filter((c: any) => c.tipo === 'despesa').reduce((s: number, c: any) => s + Number(c.valor), 0)
     setDespesasMes(despCob)
 
-    const userIds = motsAtivos.map(m => m.user_id).filter(Boolean) as string[]
-    motUserIdsRef.current = userIds
+    const motoristasUserIds = motsAtivos.map(m => m.user_id).filter(Boolean) as string[]
+    motUserIdsRef.current = motoristasUserIds
+    // Inclui o próprio gestor para que agendamentos criados por ele também apareçam
+    const userIds = gestorUserId && !motoristasUserIds.includes(gestorUserId)
+      ? [...motoristasUserIds, gestorUserId]
+      : motoristasUserIds
 
     // Sempre busca corridas_empresa independente de ter motoristas ativos
-    const { data: corrPubHojeData } = await supabase.from('corridas_empresa')
+    const { data: corrPubHojeData, error: corrPubErr } = await supabase.from('corridas_empresa')
       .select('id, rota_id, valor')
       .eq('empresa_id', empresaId)
-      .gte('data_hora', `${hojeStr}T00:00:00`)
-      .lte('data_hora', `${hojeStr}T23:59:59`)
+      .gte('data_hora', hojeStr)
+      .lt('data_hora', amanhaStr)
       .neq('status', 'cancelada')
+
+    if (corrPubErr) console.error('corridas_empresa erro:', corrPubErr)
 
     const corrPub = (corrPubHojeData ?? []) as { id: string; rota_id: string | null; valor: number }[]
     setCorridasPubHoje(corrPub)
