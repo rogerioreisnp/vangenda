@@ -51,7 +51,14 @@ type Rota = {
   origem: string | null
   destino: string | null
   preco: number
+  horario_ida: string | null
+  horario_volta: string | null
+  dias_semana: number[] | null
+  capacidade: number | null
 }
+
+const NOMES_DIAS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+const NOMES_DIAS_COMPLETOS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
 
 export default function AgendamentoPublico({
   empresa,
@@ -74,6 +81,7 @@ export default function AgendamentoPublico({
     observacoes: '',
   })
   const [rotaSelecionada, setRotaSelecionada] = useState<Rota | null>(null)
+  const [turnoRF, setTurnoRF] = useState<'ida' | 'volta'>('ida')
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
   const [chavePix, setChavePix] = useState<string | null>(null)
@@ -99,7 +107,7 @@ export default function AgendamentoPublico({
   async function carregarRotas() {
     const { data } = await supabase
       .from('rotas_empresa')
-      .select('id, nome, origem, destino, preco')
+      .select('id, nome, origem, destino, preco, horario_ida, horario_volta, dias_semana, capacidade')
       .eq('empresa_id', empresa.id)
       .order('created_at')
     if (data) setRotas(data)
@@ -109,7 +117,10 @@ export default function AgendamentoPublico({
   async function selecionarRota(rotaId: string) {
     const rota = rotas.find(r => r.id === rotaId) || null
     setRotaSelecionada(rota)
-    setForm(f => ({ ...f, rota_id: rotaId }))
+    setTurnoRF('ida')
+    // Para rota_fixa, o horário vem automaticamente da rota
+    const horaInicial = rota?.horario_ida?.slice(0, 5) ?? ''
+    setForm(f => ({ ...f, rota_id: rotaId, horario: horaInicial }))
     setEmbarque('')
     setDesembarque('')
     setValorTrechoRF(null)
@@ -134,17 +145,36 @@ export default function AgendamentoPublico({
     }
   }
 
+  // Sincroniza form.horario quando o turno muda (só rota_fixa)
+  useEffect(() => {
+    if (empresa.tipo_operacao !== 'rota_fixa' || !rotaSelecionada) return
+    const hora = turnoRF === 'ida' ? rotaSelecionada.horario_ida : rotaSelecionada.horario_volta
+    setForm(f => ({ ...f, horario: hora?.slice(0, 5) ?? '' }))
+  }, [turnoRF, rotaSelecionada])
+
   useEffect(() => {
     if (!embarque || !desembarque || empresa.tipo_operacao !== 'rota_fixa') return
     const trecho = trechosRF.find(t => t.nome === `${embarque} → ${desembarque}`)
     setValorTrechoRF(trecho ? Number(trecho.preco) : null)
   }, [embarque, desembarque, trechosRF])
 
+  // Validação de dia da semana para rota_fixa
+  const diaSelecionadoNum = form.data ? new Date(form.data + 'T00:00:00').getDay() : -1
+  const diasRota: number[] = rotaSelecionada?.dias_semana ?? []
+  const isDiaOperacao = empresa.tipo_operacao !== 'rota_fixa' || diasRota.length === 0 || diasRota.includes(diaSelecionadoNum)
+  const diasNomesCompletos = diasRota.map(d => NOMES_DIAS_COMPLETOS[d])
+  const diasTexto = diasNomesCompletos.length === 0 ? 'todos os dias'
+    : diasNomesCompletos.length === 1 ? diasNomesCompletos[0]
+    : diasNomesCompletos.slice(0, -1).join(', ') + ' e ' + diasNomesCompletos[diasNomesCompletos.length - 1]
+
   async function confirmar() {
     if (!form.nome.trim()) { setErro('Seu nome é obrigatório'); return }
     if (!form.telefone.trim()) { setErro('Seu telefone é obrigatório'); return }
     if (!form.rota_id) { setErro('Selecione uma rota'); return }
     if (!form.data) { setErro('Data é obrigatória'); return }
+    if (empresa.tipo_operacao === 'rota_fixa' && !isDiaOperacao) {
+      setErro(`Esta rota não opera neste dia. Dias disponíveis: ${diasTexto}.`); return
+    }
     if (!form.horario) { setErro('Horário é obrigatório'); return }
     if (empresa.tipo_operacao === 'rota_fixa' && (!embarque || !desembarque)) {
       setErro('Selecione o embarque e desembarque'); return
@@ -184,7 +214,6 @@ export default function AgendamentoPublico({
       return
     }
 
-    // Busca chave Pix da empresa pelo slug — usa a mesma RLS pública que carrega a página
     const { data: pixData } = await supabase
       .from('empresas')
       .select('chave_pix, tipo_chave_pix')
@@ -202,10 +231,26 @@ export default function AgendamentoPublico({
     }
   }
 
+  function resetForm() {
+    setEtapa('form')
+    setForm({ rota_id: '', data: '', horario: '', nome: '', telefone: '', observacoes: '' })
+    setRotaSelecionada(null)
+    setTurnoRF('ida')
+    setEmbarque('')
+    setDesembarque('')
+    setValorTrechoRF(null)
+    setTrechosRF([])
+    setParadasUnicas([])
+    setErro('')
+  }
+
   const valorParaPix = empresa.tipo_operacao === 'rota_fixa' ? (valorTrechoRF ?? 0) : Number(rotaSelecionada?.preco ?? 0)
   const pixPayload = chavePix && rotaSelecionada && valorParaPix > 0
     ? gerarPayloadPix(chavePix, empresa.nome, valorParaPix)
     : null
+
+  const labelTurno = turnoRF === 'ida' ? 'Ida' : 'Volta'
+  const horaExibicao = form.horario || '—'
 
   if (loadingRotas) return (
     <div className="min-h-dvh flex items-center justify-center" style={{ background: '#f0f0ec' }}>
@@ -305,6 +350,7 @@ export default function AgendamentoPublico({
 
               {rotaSelecionada && empresa.tipo_operacao === 'rota_fixa' && (
                 <>
+                  {/* Paradas de embarque/desembarque */}
                   <div className="grid grid-cols-2 gap-2">
                     <Campo label="Embarque *">
                       <select value={embarque} onChange={e => setEmbarque(e.target.value)} className="campo-input">
@@ -323,6 +369,7 @@ export default function AgendamentoPublico({
                       </select>
                     </Campo>
                   </div>
+
                   {valorTrechoRF !== null && (
                     <div className="rounded-xl px-4 py-3" style={{ background: '#f0f0ec' }}>
                       <div className="flex justify-between items-center">
@@ -333,6 +380,7 @@ export default function AgendamentoPublico({
                       </div>
                     </div>
                   )}
+
                   {embarque && desembarque && valorTrechoRF === null && (
                     <div className="rounded-xl px-4 py-3 border" style={{ background: '#FCEBEB', borderColor: '#F5BCBC' }}>
                       <p className="text-xs text-center" style={{ color: '#A32D2D' }}>Trecho não disponível para esta rota.</p>
@@ -352,16 +400,77 @@ export default function AgendamentoPublico({
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-2">
-                <Campo label="Data *">
-                  <input
-                    type="date"
-                    value={form.data}
-                    onChange={e => setForm(f => ({ ...f, data: e.target.value }))}
-                    min={new Date().toISOString().slice(0, 10)}
-                    className="campo-input"
-                  />
+              {/* Data */}
+              <Campo label="Data *">
+                <input
+                  type="date"
+                  value={form.data}
+                  onChange={e => setForm(f => ({ ...f, data: e.target.value }))}
+                  min={new Date().toISOString().slice(0, 10)}
+                  className="campo-input"
+                />
+              </Campo>
+
+              {/* Dias de operação (só rota_fixa, quando rota selecionada e tem dias configurados) */}
+              {empresa.tipo_operacao === 'rota_fixa' && rotaSelecionada && diasRota.length > 0 && (
+                <div className="rounded-xl p-3 border border-gray-100" style={{ background: '#f9fafb' }}>
+                  <p className="text-xs text-gray-500 mb-2">Dias de operação desta rota:</p>
+                  <div className="grid grid-cols-7 gap-1">
+                    {NOMES_DIAS.map((dia, i) => {
+                      const ativo = diasRota.includes(i)
+                      return (
+                        <div key={i}
+                          className="py-1.5 rounded-lg text-xs font-semibold text-center"
+                          style={ativo
+                            ? { background: cor, color: '#fff' }
+                            : { background: '#fff', color: '#d1d5db', border: '1px solid #e5e7eb' }}>
+                          {dia}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Aviso de dia inválido (rota_fixa) */}
+              {empresa.tipo_operacao === 'rota_fixa' && rotaSelecionada && form.data && !isDiaOperacao && (
+                <div className="rounded-xl px-4 py-3 border" style={{ background: '#FCEBEB', borderColor: '#F5BCBC' }}>
+                  <p className="text-sm font-semibold" style={{ color: '#A32D2D' }}>
+                    🚫 Esta rota não opera neste dia
+                  </p>
+                  <p className="text-xs mt-1" style={{ color: '#7f1d1d' }}>
+                    Dias disponíveis: {diasTexto}
+                  </p>
+                </div>
+              )}
+
+              {/* Turno (rota_fixa) — horário fixo da rota */}
+              {empresa.tipo_operacao === 'rota_fixa' && rotaSelecionada && (
+                <Campo label="Turno *">
+                  <div className="grid grid-cols-2 gap-2">
+                    {(['ida', 'volta'] as const).map(t => {
+                      const hora = t === 'ida' ? rotaSelecionada.horario_ida : rotaSelecionada.horario_volta
+                      return (
+                        <button key={t} type="button" onClick={() => setTurnoRF(t)}
+                          className="py-2.5 rounded-xl text-sm font-medium border transition-all"
+                          style={turnoRF === t
+                            ? { background: cor, color: '#fff', borderColor: cor }
+                            : { background: '#fff', color: '#666', borderColor: '#e5e7eb' }}>
+                          {t === 'ida' ? '↑ Ida' : '↓ Volta'}
+                          {hora && (
+                            <span className="block text-xs mt-0.5 opacity-80">
+                              {hora.slice(0, 5)}h
+                            </span>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
                 </Campo>
+              )}
+
+              {/* Horário livre (transfer) */}
+              {empresa.tipo_operacao !== 'rota_fixa' && (
                 <Campo label="Horário *">
                   <input
                     type="time"
@@ -370,7 +479,7 @@ export default function AgendamentoPublico({
                     className="campo-input"
                   />
                 </Campo>
-              </div>
+              )}
 
               <Campo label="Observações">
                 <textarea
@@ -450,7 +559,7 @@ export default function AgendamentoPublico({
               <div style={{ background: '#E1F5EE' }} className="rounded-xl p-3 mb-4">
                 <p className="text-xs mb-1" style={{ color: '#085041' }}>Valor a pagar</p>
                 <p className="text-2xl font-bold" style={{ color: cor }}>
-                  R$ {(empresa.tipo_operacao === 'rota_fixa' ? (valorTrechoRF ?? 0) : Number(rotaSelecionada?.preco ?? 0)).toFixed(2).replace('.', ',')}
+                  R$ {valorParaPix.toFixed(2).replace('.', ',')}
                 </p>
               </div>
 
@@ -463,9 +572,15 @@ export default function AgendamentoPublico({
                   <p className="text-xs text-gray-600">
                     📍 {empresa.tipo_operacao === 'rota_fixa' ? `${embarque} → ${desembarque}` : `${rotaSelecionada.origem} → ${rotaSelecionada.destino}`}
                   </p>
-                  <p className="text-xs text-gray-600">
-                    📅 {form.data.slice(8, 10)}/{form.data.slice(5, 7)}/{form.data.slice(0, 4)} às {form.horario}
-                  </p>
+                  {empresa.tipo_operacao === 'rota_fixa' ? (
+                    <p className="text-xs text-gray-600">
+                      🕐 {labelTurno} · {horaExibicao}h · {form.data.slice(8, 10)}/{form.data.slice(5, 7)}/{form.data.slice(0, 4)}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-gray-600">
+                      📅 {form.data.slice(8, 10)}/{form.data.slice(5, 7)}/{form.data.slice(0, 4)} às {form.horario}
+                    </p>
+                  )}
                   <p className="text-xs text-gray-600">👤 {form.nome}</p>
                 </div>
               )}
@@ -478,8 +593,9 @@ export default function AgendamentoPublico({
               const origem = empresa.tipo_operacao === 'rota_fixa' ? embarque : rotaSelecionada?.origem ?? ''
               const destino = empresa.tipo_operacao === 'rota_fixa' ? desembarque : rotaSelecionada?.destino ?? ''
               const dataFmt = form.data ? `${form.data.slice(8, 10)}/${form.data.slice(5, 7)}/${form.data.slice(0, 4)}` : ''
+              const horarioFmt = empresa.tipo_operacao === 'rota_fixa' ? ` (${labelTurno} ${horaExibicao}h)` : ` às ${form.horario}`
               const msg = encodeURIComponent(
-                `Olá ${empresa.nome}, segue o comprovante do meu agendamento para ${dataFmt} - ${origem} → ${destino}`
+                `Olá ${empresa.nome}, segue o comprovante do meu agendamento para ${dataFmt}${horarioFmt} - ${origem} → ${destino}`
               )
               return (
                 <div className="bg-white rounded-2xl p-4 border border-gray-100">
@@ -501,20 +617,8 @@ export default function AgendamentoPublico({
               )
             })()}
 
-            <button
-              onClick={() => {
-                setEtapa('form')
-                setForm({ rota_id: '', data: '', horario: '', nome: '', telefone: '', observacoes: '' })
-                setRotaSelecionada(null)
-                setEmbarque('')
-                setDesembarque('')
-                setValorTrechoRF(null)
-                setTrechosRF([])
-                setParadasUnicas([])
-                setErro('')
-              }}
-              className="w-full py-3 rounded-2xl text-sm font-medium border border-gray-200 bg-white text-gray-600"
-            >
+            <button onClick={resetForm}
+              className="w-full py-3 rounded-2xl text-sm font-medium border border-gray-200 bg-white text-gray-600">
               Fazer outro agendamento
             </button>
           </div>
@@ -535,12 +639,20 @@ export default function AgendamentoPublico({
                   <p className="text-xs font-semibold text-gray-500 mb-2">Resumo do agendamento</p>
                   <div className="flex flex-col gap-1.5">
                     <p className="text-sm text-gray-700">👤 {form.nome}</p>
-                    <p className="text-sm text-gray-700">📍 {empresa.tipo_operacao === 'rota_fixa' ? `${embarque} → ${desembarque}` : `${rotaSelecionada.origem} → ${rotaSelecionada.destino}`}</p>
                     <p className="text-sm text-gray-700">
-                      📅 {form.data.slice(8, 10)}/{form.data.slice(5, 7)}/{form.data.slice(0, 4)} às {form.horario}
+                      📍 {empresa.tipo_operacao === 'rota_fixa' ? `${embarque} → ${desembarque}` : `${rotaSelecionada.origem} → ${rotaSelecionada.destino}`}
                     </p>
+                    {empresa.tipo_operacao === 'rota_fixa' ? (
+                      <p className="text-sm text-gray-700">
+                        🕐 {labelTurno} · {horaExibicao}h · {form.data.slice(8, 10)}/{form.data.slice(5, 7)}/{form.data.slice(0, 4)}
+                      </p>
+                    ) : (
+                      <p className="text-sm text-gray-700">
+                        📅 {form.data.slice(8, 10)}/{form.data.slice(5, 7)}/{form.data.slice(0, 4)} às {form.horario}
+                      </p>
+                    )}
                     <p className="text-sm font-semibold" style={{ color: cor }}>
-                      💰 R$ {(empresa.tipo_operacao === 'rota_fixa' ? (valorTrechoRF ?? 0) : Number(rotaSelecionada.preco)).toFixed(2).replace('.', ',')}
+                      💰 R$ {valorParaPix.toFixed(2).replace('.', ',')}
                     </p>
                   </div>
                 </div>
@@ -554,8 +666,9 @@ export default function AgendamentoPublico({
               const origem = empresa.tipo_operacao === 'rota_fixa' ? embarque : rotaSelecionada?.origem ?? ''
               const destino = empresa.tipo_operacao === 'rota_fixa' ? desembarque : rotaSelecionada?.destino ?? ''
               const dataFmt = form.data ? `${form.data.slice(8, 10)}/${form.data.slice(5, 7)}/${form.data.slice(0, 4)}` : ''
+              const horarioFmt = empresa.tipo_operacao === 'rota_fixa' ? ` (${labelTurno} ${horaExibicao}h)` : ` às ${form.horario}`
               const msg = encodeURIComponent(
-                `Olá ${empresa.nome}, segue o comprovante do meu agendamento para ${dataFmt} - ${origem} → ${destino}`
+                `Olá ${empresa.nome}, segue o comprovante do meu agendamento para ${dataFmt}${horarioFmt} - ${origem} → ${destino}`
               )
               return (
                 <a
@@ -570,20 +683,8 @@ export default function AgendamentoPublico({
               )
             })()}
 
-            <button
-              onClick={() => {
-                setEtapa('form')
-                setForm({ rota_id: '', data: '', horario: '', nome: '', telefone: '', observacoes: '' })
-                setRotaSelecionada(null)
-                setEmbarque('')
-                setDesembarque('')
-                setValorTrechoRF(null)
-                setTrechosRF([])
-                setParadasUnicas([])
-                setErro('')
-              }}
-              className="w-full py-3 rounded-2xl text-sm font-medium border border-gray-200 bg-white text-gray-600"
-            >
+            <button onClick={resetForm}
+              className="w-full py-3 rounded-2xl text-sm font-medium border border-gray-200 bg-white text-gray-600">
               Fazer outro agendamento
             </button>
           </div>
