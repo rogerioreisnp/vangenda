@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { format, addDays } from 'date-fns'
+import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import InstallBanner from '@/components/InstallBanner'
 import AgendamentoPublico from '@/app/empresa/components/AgendamentoPublico'
@@ -56,7 +56,7 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
     telefone: '',
     origem: '',
     destino: '',
-    data: format(addDays(new Date(), 1), 'yyyy-MM-dd'),
+    data: format(new Date(), 'yyyy-MM-dd'),
     turno: 'ida',
     quantidade: 1,
     forma_pagamento: 'dinheiro',
@@ -82,6 +82,19 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
   useEffect(() => {
     if (form.data && form.turno && rota) verificarVagas()
   }, [form.data, form.turno, rota])
+
+  // Se ida já passou e turno ainda está em 'ida', troca para 'volta'
+  useEffect(() => {
+    if (!rota) return
+    const hoje = format(new Date(), 'yyyy-MM-dd')
+    if (form.data === hoje && form.turno === 'ida') {
+      const [h, m] = (rota.horario_ida ?? '').split(':').map(Number)
+      const agora = new Date()
+      if (agora.getHours() > h || (agora.getHours() === h && agora.getMinutes() >= m)) {
+        setForm(f => ({ ...f, turno: 'volta' }))
+      }
+    }
+  }, [rota, form.data])
 
   // Encerra qualquer sessão de motorista ativa neste dispositivo.
   // A página de agendamento é pública — sessões de motorista aqui causam
@@ -183,6 +196,17 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
     : diasNomes.length === 1 ? diasNomes[0]
     : diasNomes.slice(0, -1).join(', ') + ' e ' + diasNomes[diasNomes.length - 1]
 
+  // Verifica se o horário de um turno já passou (só aplica quando a data é hoje)
+  function horarioJaPassou(horario: string | undefined): boolean {
+    if (!horario || form.data !== format(new Date(), 'yyyy-MM-dd')) return false
+    const [h, m] = horario.split(':').map(Number)
+    const agora = new Date()
+    return agora.getHours() > h || (agora.getHours() === h && agora.getMinutes() >= m)
+  }
+  const idaJaPassou = horarioJaPassou(rota?.horario_ida)
+  const voltaJaPassou = horarioJaPassou(rota?.horario_volta)
+  const turnoSelecionadoJaPassou = form.turno === 'ida' ? idaJaPassou : voltaJaPassou
+
   async function enviarNotificacao(qtd: number) {
     try {
       await fetch('/api/notificar-agendamento', {
@@ -211,6 +235,10 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
     }
     if (!isDiaTrabalho) {
       setErroMsg(`${motorista.nome.split(' ')[0]} não faz rota neste dia. Dias disponíveis: ${diasTexto}.`)
+      return
+    }
+    if (turnoSelecionadoJaPassou) {
+      setErroMsg(`O horário de ${form.turno === 'ida' ? 'ida' : 'volta'} já passou para hoje. Escolha outro turno ou outra data.`)
       return
     }
     if (lotado) {
@@ -373,7 +401,7 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
               <p className="text-sm font-semibold text-gray-700">Sua viagem</p>
               <Campo label="Data da viagem">
                 <input value={form.data} onChange={e => setForm(f => ({ ...f, data: e.target.value }))}
-                  type="date" min={format(addDays(new Date(), 1), 'yyyy-MM-dd')} className="campo-input" />
+                  type="date" min={format(new Date(), 'yyyy-MM-dd')} className="campo-input" />
               </Campo>
 
               {!isDiaTrabalho && form.data && diasTrabalho.length > 0 && (
@@ -390,16 +418,34 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
 
               <Campo label="Turno">
                 <div className="grid grid-cols-2 gap-2">
-                  {(['ida', 'volta'] as const).map(t => (
-                    <button key={t} onClick={() => setForm(f => ({ ...f, turno: t }))}
-                      className="py-2.5 rounded-xl text-sm font-medium border transition-all"
-                      style={form.turno === t
-                        ? { background: '#0F6E56', color: '#fff', borderColor: '#0F6E56' }
-                        : { background: '#fff', color: '#666', borderColor: '#e5e7eb' }}>
-                      {t === 'ida' ? `↑ Ida (${rota?.horario_ida?.substring(0, 5)}h)` : `↓ Volta (${rota?.horario_volta?.substring(0, 5)}h)`}
-                    </button>
-                  ))}
+                  {(['ida', 'volta'] as const).map(t => {
+                    const jaPassou = t === 'ida' ? idaJaPassou : voltaJaPassou
+                    const selecionado = form.turno === t
+                    return (
+                      <button key={t}
+                        onClick={() => !jaPassou && setForm(f => ({ ...f, turno: t }))}
+                        disabled={jaPassou}
+                        title={jaPassou ? 'Horário já encerrado para hoje' : undefined}
+                        className="py-2.5 rounded-xl text-sm font-medium border transition-all"
+                        style={jaPassou
+                          ? { background: '#f5f5f5', color: '#bbb', borderColor: '#e5e7eb', cursor: 'not-allowed' }
+                          : selecionado
+                          ? { background: '#0F6E56', color: '#fff', borderColor: '#0F6E56' }
+                          : { background: '#fff', color: '#666', borderColor: '#e5e7eb' }}>
+                        {t === 'ida'
+                          ? `↑ Ida (${rota?.horario_ida?.substring(0, 5)}h)${jaPassou ? ' ✕' : ''}`
+                          : `↓ Volta (${rota?.horario_volta?.substring(0, 5)}h)${jaPassou ? ' ✕' : ''}`}
+                      </button>
+                    )
+                  })}
                 </div>
+                {(idaJaPassou || voltaJaPassou) && (
+                  <p className="text-xs mt-1.5" style={{ color: '#854F0B' }}>
+                    {idaJaPassou && voltaJaPassou
+                      ? '⚠️ Todos os horários de hoje já passaram. Selecione outra data.'
+                      : `⚠️ Horário de ${idaJaPassou ? 'ida' : 'volta'} já encerrado para hoje.`}
+                  </p>
+                )}
               </Campo>
 
               {!verificandoVagas && form.data && (
@@ -581,15 +627,17 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
             )}
 
             <button onClick={agendar}
-              disabled={salvando || !form.nome || !form.origem || !form.destino || !form.data || lotado || vagasInsuficientes || !isDiaTrabalho}
+              disabled={salvando || !form.nome || !form.origem || !form.destino || !form.data || lotado || vagasInsuficientes || !isDiaTrabalho || turnoSelecionadoJaPassou}
               className="w-full py-4 rounded-2xl text-white text-base font-bold disabled:opacity-40"
-              style={{ background: lotado || !isDiaTrabalho ? '#ccc' : '#1D9E75' }}>
+              style={{ background: lotado || !isDiaTrabalho || turnoSelecionadoJaPassou ? '#ccc' : '#1D9E75' }}>
               {salvando
                 ? 'Agendando...'
                 : lotado
                 ? '🚫 Van lotada'
                 : !isDiaTrabalho
                 ? '🚫 Sem rota neste dia'
+                : turnoSelecionadoJaPassou
+                ? '🚫 Horário encerrado'
                 : motorista.pagamento_obrigatorio
                 ? `→ Avançar para pagamento${form.quantidade > 1 ? ` (${form.quantidade} passageiros)` : ''}`
                 : `✓ Confirmar agendamento${form.quantidade > 1 ? ` (${form.quantidade} passageiros)` : ''}`}
@@ -776,7 +824,7 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
 
             <button onClick={() => {
               setEtapa('form')
-              setForm({ nome: '', telefone: '', origem: '', destino: '', data: format(addDays(new Date(), 1), 'yyyy-MM-dd'), turno: 'ida', quantidade: 1, forma_pagamento: 'dinheiro', rua: '', numero: '', bairro: '', municipio: '', cep: '', referencia: '' })
+              setForm({ nome: '', telefone: '', origem: '', destino: '', data: format(new Date(), 'yyyy-MM-dd'), turno: 'ida', quantidade: 1, forma_pagamento: 'dinheiro', rua: '', numero: '', bairro: '', municipio: '', cep: '', referencia: '' })
               setValorUnitario(null)
               setErroMsg(null)
             }} className="w-full py-3 rounded-2xl text-sm font-medium border border-gray-200 bg-white text-gray-600">

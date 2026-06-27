@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { format, addDays } from 'date-fns'
+import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
 function gerarPayloadPix(chave: string, nome: string, valor: number, cidade: string = 'Brasil'): string {
@@ -55,7 +55,7 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
     telefone: '',
     origem: '',
     destino: '',
-    data: format(addDays(new Date(), 1), 'yyyy-MM-dd'),
+    data: format(new Date(), 'yyyy-MM-dd'),
     turno: 'ida',
   })
   const [valor, setValor] = useState<number | null>(null)
@@ -63,6 +63,19 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
   const [agendamentoId, setAgendamentoId] = useState<string | null>(null)
 
   useEffect(() => { carregarMotorista() }, [])
+
+  // Se ida já passou e turno ainda está em 'ida', troca para 'volta'
+  useEffect(() => {
+    if (!rota) return
+    const hoje = format(new Date(), 'yyyy-MM-dd')
+    if (form.data === hoje && form.turno === 'ida') {
+      const [h, m] = (rota.horario_ida ?? '').split(':').map(Number)
+      const agora = new Date()
+      if (agora.getHours() > h || (agora.getHours() === h && agora.getMinutes() >= m)) {
+        setForm(f => ({ ...f, turno: 'volta' }))
+      }
+    }
+  }, [rota, form.data])
 
   async function carregarMotorista() {
     const { data: mot } = await supabase
@@ -127,6 +140,17 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
       }
     }
   }
+
+  // Verifica se o horário de um turno já passou (só aplica quando a data é hoje)
+  function horarioJaPassou(horario: string | undefined): boolean {
+    if (!horario || form.data !== format(new Date(), 'yyyy-MM-dd')) return false
+    const [h, m] = horario.split(':').map(Number)
+    const agora = new Date()
+    return agora.getHours() > h || (agora.getHours() === h && agora.getMinutes() >= m)
+  }
+  const idaJaPassou = horarioJaPassou(rota?.horario_ida)
+  const voltaJaPassou = horarioJaPassou(rota?.horario_volta)
+  const turnoSelecionadoJaPassou = form.turno === 'ida' ? idaJaPassou : voltaJaPassou
 
   const pixPayload = motorista?.pix_chave && valor
     ? gerarPayloadPix(motorista.pix_chave, motorista.nome, valor)
@@ -202,20 +226,38 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
               <p className="text-sm font-semibold text-gray-700">Sua viagem</p>
               <Campo label="Data da viagem">
                 <input value={form.data} onChange={e => setForm(f => ({ ...f, data: e.target.value }))}
-                  type="date" min={format(addDays(new Date(), 1), 'yyyy-MM-dd')} className="campo-input" />
+                  type="date" min={format(new Date(), 'yyyy-MM-dd')} className="campo-input" />
               </Campo>
               <Campo label="Turno">
                 <div className="grid grid-cols-2 gap-2">
-                  {(['ida', 'volta'] as const).map(t => (
-                    <button key={t} onClick={() => setForm(f => ({ ...f, turno: t }))}
-                      className="py-2.5 rounded-xl text-sm font-medium border transition-all"
-                      style={form.turno === t
-                        ? { background: '#0F6E56', color: '#fff', borderColor: '#0F6E56' }
-                        : { background: '#fff', color: '#666', borderColor: '#e5e7eb' }}>
-                      {t === 'ida' ? `↑ Ida (${rota?.horario_ida}h)` : `↓ Volta (${rota?.horario_volta}h)`}
-                    </button>
-                  ))}
+                  {(['ida', 'volta'] as const).map(t => {
+                    const jaPassou = t === 'ida' ? idaJaPassou : voltaJaPassou
+                    const selecionado = form.turno === t
+                    return (
+                      <button key={t}
+                        onClick={() => !jaPassou && setForm(f => ({ ...f, turno: t }))}
+                        disabled={jaPassou}
+                        title={jaPassou ? 'Horário já encerrado para hoje' : undefined}
+                        className="py-2.5 rounded-xl text-sm font-medium border transition-all"
+                        style={jaPassou
+                          ? { background: '#f5f5f5', color: '#bbb', borderColor: '#e5e7eb', cursor: 'not-allowed' }
+                          : selecionado
+                          ? { background: '#0F6E56', color: '#fff', borderColor: '#0F6E56' }
+                          : { background: '#fff', color: '#666', borderColor: '#e5e7eb' }}>
+                        {t === 'ida'
+                          ? `↑ Ida (${rota?.horario_ida}h)${jaPassou ? ' ✕' : ''}`
+                          : `↓ Volta (${rota?.horario_volta}h)${jaPassou ? ' ✕' : ''}`}
+                      </button>
+                    )
+                  })}
                 </div>
+                {(idaJaPassou || voltaJaPassou) && (
+                  <p className="text-xs mt-1.5" style={{ color: '#854F0B' }}>
+                    {idaJaPassou && voltaJaPassou
+                      ? '⚠️ Todos os horários de hoje já passaram. Selecione outra data.'
+                      : `⚠️ Horário de ${idaJaPassou ? 'ida' : 'volta'} já encerrado para hoje.`}
+                  </p>
+                )}
               </Campo>
               <div className="grid grid-cols-2 gap-2">
                 <Campo label="Embarca em">
@@ -246,10 +288,16 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
             </div>
 
             <button onClick={agendar}
-              disabled={salvando || !form.nome || !form.origem || !form.destino || !form.data}
+              disabled={salvando || !form.nome || !form.origem || !form.destino || !form.data || turnoSelecionadoJaPassou}
               className="w-full py-4 rounded-2xl text-white text-base font-bold disabled:opacity-40"
-              style={{ background: '#1D9E75' }}>
-              {salvando ? 'Agendando...' : motorista.pagamento_obrigatorio ? '→ Avançar para pagamento' : '✓ Confirmar agendamento'}
+              style={{ background: turnoSelecionadoJaPassou ? '#ccc' : '#1D9E75' }}>
+              {salvando
+                ? 'Agendando...'
+                : turnoSelecionadoJaPassou
+                ? '🚫 Horário encerrado'
+                : motorista.pagamento_obrigatorio
+                ? '→ Avançar para pagamento'
+                : '✓ Confirmar agendamento'}
             </button>
 
             {motorista.pagamento_obrigatorio && (
@@ -348,7 +396,7 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
               )}
             </div>
 
-            <button onClick={() => { setEtapa('form'); setForm({ nome: '', telefone: '', origem: '', destino: '', data: format(addDays(new Date(), 1), 'yyyy-MM-dd'), turno: 'ida' }); setValor(null) }}
+            <button onClick={() => { setEtapa('form'); setForm({ nome: '', telefone: '', origem: '', destino: '', data: format(new Date(), 'yyyy-MM-dd'), turno: 'ida' }); setValor(null) }}
               className="w-full py-3 rounded-2xl text-sm font-medium border border-gray-200 bg-white text-gray-600">
               Fazer novo agendamento
             </button>
