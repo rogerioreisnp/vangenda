@@ -554,9 +554,8 @@ export default function EmpresaPage() {
                   const cor = STATUS_COR[c.status] ?? STATUS_COR.confirmada
                   const motoristaNome = (c.motoristas_empresa as any)?.nome ?? null
                   return (
-                    <button key={c.id}
-                      onClick={() => setAbaTransfer('solicitacoes')}
-                      className="w-full text-left bg-white rounded-2xl px-4 py-3 border border-gray-100"
+                    <Link key={c.id} href={`/empresa/agendamentos?todos=1`}
+                      className="block bg-white rounded-2xl px-4 py-3 border border-gray-100"
                       style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.04)', borderColor: c.status === 'pendente' ? '#FCD34D' : undefined }}>
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1 min-w-0">
@@ -576,10 +575,12 @@ export default function EmpresaPage() {
                             style={{ background: cor.bg, color: cor.text }}>
                             {cor.label}
                           </span>
-                          <span className="text-gray-300 text-sm">›</span>
+                          <p className="text-xs font-bold" style={{ color: '#0F6E56' }}>
+                            R$ {Number(c.valor).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                          </p>
                         </div>
                       </div>
-                    </button>
+                    </Link>
                   )
                 }
                 const { ida, volta } = grupo
