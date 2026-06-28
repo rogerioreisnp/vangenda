@@ -81,6 +81,9 @@ export default function AgendamentoPublico({
     observacoes: '',
   })
   const [rotaSelecionada, setRotaSelecionada] = useState<Rota | null>(null)
+  const [rotaManual, setRotaManual] = useState(false)
+  const [origemManual, setOrigemManual] = useState('')
+  const [destinoManual, setDestinoManual] = useState('')
   const [turnoRF, setTurnoRF] = useState<'ida' | 'volta'>('ida')
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
@@ -116,6 +119,20 @@ export default function AgendamentoPublico({
   }
 
   async function selecionarRota(rotaId: string) {
+    if (rotaId === 'manual') {
+      setRotaSelecionada(null)
+      setRotaManual(true)
+      setForm(f => ({ ...f, rota_id: 'manual', horario: '' }))
+      setEmbarque('')
+      setDesembarque('')
+      setValorTrechoRF(null)
+      setTrechosRF([])
+      setParadasUnicas([])
+      return
+    }
+    setRotaManual(false)
+    setOrigemManual('')
+    setDestinoManual('')
     const rota = rotas.find(r => r.id === rotaId) || null
     setRotaSelecionada(rota)
     setTurnoRF('ida')
@@ -192,6 +209,8 @@ export default function AgendamentoPublico({
     if (!form.nome.trim()) { setErro('Seu nome é obrigatório'); return }
     if (!form.telefone.trim()) { setErro('Seu telefone é obrigatório'); return }
     if (!form.rota_id) { setErro('Selecione uma rota'); return }
+    if (rotaManual && !origemManual.trim()) { setErro('Informe a origem da viagem'); return }
+    if (rotaManual && !destinoManual.trim()) { setErro('Informe o destino da viagem'); return }
     if (!form.data) { setErro('Data é obrigatória'); return }
     if (empresa.tipo_operacao === 'rota_fixa' && !isDiaOperacao) {
       setErro(`Esta rota não opera neste dia. Dias disponíveis: ${diasTexto}.`); return
@@ -203,7 +222,7 @@ export default function AgendamentoPublico({
     if (empresa.tipo_operacao === 'rota_fixa' && valorTrechoRF === null) {
       setErro('Trecho não disponível para esta rota'); return
     }
-    if (!rotaSelecionada) return
+    if (!rotaManual && !rotaSelecionada) return
 
     // Verificar vagas disponíveis para rota_fixa (RPC bypassa RLS para anon)
     if (empresa.tipo_operacao === 'rota_fixa' && rotaSelecionada.capacidade) {
@@ -222,13 +241,13 @@ export default function AgendamentoPublico({
     setSalvando(true)
     setErro('')
 
-    const origemSave = empresa.tipo_operacao === 'rota_fixa' ? embarque : rotaSelecionada.origem
-    const destinoSave = empresa.tipo_operacao === 'rota_fixa' ? desembarque : rotaSelecionada.destino
-    const valorSave = empresa.tipo_operacao === 'rota_fixa' ? (valorTrechoRF ?? 0) : rotaSelecionada.preco
+    const origemSave = empresa.tipo_operacao === 'rota_fixa' ? embarque : (rotaManual ? origemManual.trim() : rotaSelecionada!.origem)
+    const destinoSave = empresa.tipo_operacao === 'rota_fixa' ? desembarque : (rotaManual ? destinoManual.trim() : rotaSelecionada!.destino)
+    const valorSave = empresa.tipo_operacao === 'rota_fixa' ? (valorTrechoRF ?? 0) : (rotaManual ? 0 : rotaSelecionada!.preco)
 
     const { error } = await supabase.from('corridas_empresa').insert({
       empresa_id: empresa.id,
-      rota_id: rotaSelecionada.id,
+      rota_id: rotaManual ? null : rotaSelecionada!.id,
       origem: origemSave,
       destino: destinoSave,
       data_hora: `${form.data}T${form.horario}:00`,
@@ -270,6 +289,9 @@ export default function AgendamentoPublico({
     setEtapa('form')
     setForm({ rota_id: '', data: '', horario: '', nome: '', telefone: '', observacoes: '' })
     setRotaSelecionada(null)
+    setRotaManual(false)
+    setOrigemManual('')
+    setDestinoManual('')
     setTurnoRF('ida')
     setEmbarque('')
     setDesembarque('')
@@ -280,7 +302,7 @@ export default function AgendamentoPublico({
     setErro('')
   }
 
-  const valorParaPix = empresa.tipo_operacao === 'rota_fixa' ? (valorTrechoRF ?? 0) : Number(rotaSelecionada?.preco ?? 0)
+  const valorParaPix = empresa.tipo_operacao === 'rota_fixa' ? (valorTrechoRF ?? 0) : (rotaManual ? 0 : Number(rotaSelecionada?.preco ?? 0))
   const pixPayload = chavePix && rotaSelecionada && valorParaPix > 0
     ? gerarPayloadPix(chavePix, empresa.nome, valorParaPix)
     : null
@@ -380,9 +402,29 @@ export default function AgendamentoPublico({
                           : `${r.nome || `${r.origem} → ${r.destino}`} — R$ ${Number(r.preco).toFixed(2).replace('.', ',')}`}
                       </option>
                     ))}
+                    {empresa.tipo_operacao !== 'rota_fixa' && (
+                      <option value="manual">✏️ Outra rota (digitar manualmente)</option>
+                    )}
                   </select>
                 )}
               </Campo>
+
+              {rotaManual && (
+                <>
+                  <Campo label="Origem *">
+                    <input value={origemManual}
+                      onChange={e => setOrigemManual(e.target.value)}
+                      placeholder="Ex: Aeroporto, Hotel, Endereço..."
+                      className="campo-input" />
+                  </Campo>
+                  <Campo label="Destino *">
+                    <input value={destinoManual}
+                      onChange={e => setDestinoManual(e.target.value)}
+                      placeholder="Ex: Hotel, Aeroporto, Endereço..."
+                      className="campo-input" />
+                  </Campo>
+                </>
+              )}
 
               {rotaSelecionada && empresa.tipo_operacao === 'rota_fixa' && (
                 <>
@@ -642,8 +684,8 @@ export default function AgendamentoPublico({
               const tel = (empresa.whatsapp_comercial || empresa.telefone || '').replace(/\D/g, '')
               if (!tel) return null
               const telFormatado = tel.startsWith('55') ? tel : `55${tel}`
-              const origem = empresa.tipo_operacao === 'rota_fixa' ? embarque : rotaSelecionada?.origem ?? ''
-              const destino = empresa.tipo_operacao === 'rota_fixa' ? desembarque : rotaSelecionada?.destino ?? ''
+              const origem = empresa.tipo_operacao === 'rota_fixa' ? embarque : (rotaManual ? origemManual : rotaSelecionada?.origem ?? '')
+              const destino = empresa.tipo_operacao === 'rota_fixa' ? desembarque : (rotaManual ? destinoManual : rotaSelecionada?.destino ?? '')
               const dataFmt = form.data ? `${form.data.slice(8, 10)}/${form.data.slice(5, 7)}/${form.data.slice(0, 4)}` : ''
               const horarioFmt = empresa.tipo_operacao === 'rota_fixa' ? ` (${labelTurno} ${horaExibicao}h)` : ` às ${form.horario}`
               const msg = encodeURIComponent(
@@ -692,7 +734,7 @@ export default function AgendamentoPublico({
                   <div className="flex flex-col gap-1.5">
                     <p className="text-sm text-gray-700">👤 {form.nome}</p>
                     <p className="text-sm text-gray-700">
-                      📍 {empresa.tipo_operacao === 'rota_fixa' ? `${embarque} → ${desembarque}` : `${rotaSelecionada.origem} → ${rotaSelecionada.destino}`}
+                      📍 {empresa.tipo_operacao === 'rota_fixa' ? `${embarque} → ${desembarque}` : rotaManual ? `${origemManual} → ${destinoManual}` : `${rotaSelecionada!.origem} → ${rotaSelecionada!.destino}`}
                     </p>
                     {empresa.tipo_operacao === 'rota_fixa' ? (
                       <p className="text-sm text-gray-700">
@@ -715,8 +757,8 @@ export default function AgendamentoPublico({
               const tel = (empresa.whatsapp_comercial || empresa.telefone || '').replace(/\D/g, '')
               if (!tel) return null
               const telFormatado = tel.startsWith('55') ? tel : `55${tel}`
-              const origem = empresa.tipo_operacao === 'rota_fixa' ? embarque : rotaSelecionada?.origem ?? ''
-              const destino = empresa.tipo_operacao === 'rota_fixa' ? desembarque : rotaSelecionada?.destino ?? ''
+              const origem = empresa.tipo_operacao === 'rota_fixa' ? embarque : (rotaManual ? origemManual : rotaSelecionada?.origem ?? '')
+              const destino = empresa.tipo_operacao === 'rota_fixa' ? desembarque : (rotaManual ? destinoManual : rotaSelecionada?.destino ?? '')
               const dataFmt = form.data ? `${form.data.slice(8, 10)}/${form.data.slice(5, 7)}/${form.data.slice(0, 4)}` : ''
               const horarioFmt = empresa.tipo_operacao === 'rota_fixa' ? ` (${labelTurno} ${horaExibicao}h)` : ` às ${form.horario}`
               const msg = encodeURIComponent(
