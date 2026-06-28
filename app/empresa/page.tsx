@@ -966,10 +966,8 @@ export default function EmpresaPage() {
                   <div className="relative flex-1">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">R$</span>
                     <input
-                      type="number"
+                      type="text"
                       inputMode="decimal"
-                      min="0"
-                      step="0.01"
                       value={valorModal}
                       onChange={e => setValorModal(e.target.value)}
                       className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 bg-white outline-none"
