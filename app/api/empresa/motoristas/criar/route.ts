@@ -47,16 +47,22 @@ export async function POST(req: NextRequest) {
       email: emailNorm,
       password: senha,
       email_confirm: true,
+      user_metadata: {
+        tipo: 'motorista_empresa',
+        nome: nome.trim(),
+        telefone: telefone?.trim() || null,
+      },
     })
 
     if (errUser) {
       console.error('[criar-motorista] Erro ao criar auth user:', errUser.message)
       const msg = errUser.message.toLowerCase()
-      // GoTrue pode retornar diferentes mensagens para email duplicado
+      // GoTrue retorna mensagens variadas para email duplicado ou constraint violation
       if (
         msg.includes('already') ||
         msg.includes('registered') ||
         msg.includes('exists') ||
+        msg.includes('database error creating new user') ||
         (errUser as any).status === 422
       ) {
         return NextResponse.json({ error: 'Este e-mail já está em uso' }, { status: 400 })
