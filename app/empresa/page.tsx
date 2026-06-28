@@ -178,12 +178,14 @@ export default function EmpresaPage() {
 
   async function carregarSolicitacoes(eid: string) {
     setLoadingSolicitacoes(true)
+    console.log('[solicitacoes] carregando para empresa_id:', eid)
     const { data, error } = await supabase
       .from('solicitacoes_transfer')
       .select('*')
       .eq('empresa_id', eid)
       .order('created_at', { ascending: false })
-    if (error) console.error('[solicitacoes_transfer] erro ao carregar:', error.message, error.code)
+    console.log('[solicitacoes] resultado:', { total: data?.length ?? 0, erro: error?.message ?? null })
+    if (error) console.error('[solicitacoes_transfer] erro RLS/query:', error.message, error.code)
     setSolicitacoes((data as SolicitacaoTransfer[]) ?? [])
     setLoadingSolicitacoes(false)
   }
