@@ -470,7 +470,7 @@ export default function EmpresaPage() {
         <div>
           <div className="flex items-center justify-between mb-2">
             <p className="text-sm font-semibold text-gray-700">Próximas corridas</p>
-            <Link href="/empresa/agendamentos"
+            <Link href="/empresa/agendamentos?todos=1"
               className="text-xs font-medium" style={{ color: '#0F6E56' }}>
               Ver todas →
             </Link>
@@ -495,8 +495,9 @@ export default function EmpresaPage() {
                   const cor = STATUS_COR[c.status] ?? STATUS_COR.confirmada
                   const motoristaNome = (c.motoristas_empresa as any)?.nome ?? null
                   return (
-                    <div key={c.id} className="bg-white rounded-2xl px-4 py-3 border border-gray-100"
-                      style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+                    <Link key={c.id} href={`/empresa/agendamentos?todos=1`}
+                      className="block bg-white rounded-2xl px-4 py-3 border border-gray-100"
+                      style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.04)', borderColor: c.status === 'pendente' ? '#FCD34D' : undefined }}>
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold text-gray-800 truncate">
@@ -520,7 +521,7 @@ export default function EmpresaPage() {
                           </p>
                         </div>
                       </div>
-                    </div>
+                    </Link>
                   )
                 }
                 const { ida, volta } = grupo

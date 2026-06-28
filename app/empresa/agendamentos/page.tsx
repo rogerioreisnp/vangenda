@@ -283,6 +283,7 @@ export default function AgendamentosPage() {
   useEffect(() => {
     if (!loading) {
       if (searchParams.get('nova') === '1') abrirNovaCorrida()
+      if (searchParams.get('todos') === '1') setVerTodos(true)
       const rotaParam = searchParams.get('rota')
       if (rotaParam) setFiltroRotaId(rotaParam)
     }
