@@ -178,11 +178,12 @@ export default function EmpresaPage() {
 
   async function carregarSolicitacoes(eid: string) {
     setLoadingSolicitacoes(true)
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('solicitacoes_transfer')
       .select('*')
       .eq('empresa_id', eid)
       .order('created_at', { ascending: false })
+    if (error) console.error('[solicitacoes_transfer] erro ao carregar:', error.message, error.code)
     setSolicitacoes((data as SolicitacaoTransfer[]) ?? [])
     setLoadingSolicitacoes(false)
   }
