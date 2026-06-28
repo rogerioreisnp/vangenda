@@ -89,6 +89,9 @@ export default function AgendamentoPublico({
   const [showPassageiro2, setShowPassageiro2] = useState(false)
   const [nomePassageiro2, setNomePassageiro2] = useState('')
   const [telefonePassageiro2, setTelefonePassageiro2] = useState('')
+  const [origemPassageiro2, setOrigemPassageiro2] = useState('')
+  const [destinoPassageiro2, setDestinoPassageiro2] = useState('')
+  const [enderecosSugeridos, setEnderecosSugeridos] = useState<string[]>([])
   const [showRetorno, setShowRetorno] = useState(false)
   const [retornoData, setRetornoData] = useState('')
   const [retornoHorario, setRetornoHorario] = useState('')
@@ -133,6 +136,45 @@ export default function AgendamentoPublico({
       .order('created_at')
     if (data) setRotas(data)
     setLoadingRotas(false)
+  }
+
+  async function buscarEnderecosPorTelefone(telefone: string) {
+    if (!telefone.trim() || empresa.tipo_operacao === 'rota_fixa') return
+    try {
+      const { data } = await supabase
+        .from('enderecos_clientes')
+        .select('endereco')
+        .eq('empresa_id', empresa.id)
+        .eq('telefone', telefone.trim())
+        .order('contador', { ascending: false })
+      setEnderecosSugeridos(data?.map(r => r.endereco) ?? [])
+    } catch {}
+  }
+
+  async function salvarEndereco(endereco: string) {
+    if (!endereco.trim()) return
+    try {
+      const { data: existing } = await supabase
+        .from('enderecos_clientes')
+        .select('id, contador')
+        .eq('empresa_id', empresa.id)
+        .eq('telefone', form.telefone.trim())
+        .eq('endereco', endereco.trim())
+        .maybeSingle()
+      if (existing) {
+        await supabase
+          .from('enderecos_clientes')
+          .update({ contador: (existing.contador || 1) + 1 })
+          .eq('id', existing.id)
+      } else {
+        await supabase.from('enderecos_clientes').insert({
+          empresa_id: empresa.id,
+          telefone: form.telefone.trim(),
+          endereco: endereco.trim(),
+          contador: 1,
+        })
+      }
+    } catch {}
   }
 
   async function selecionarRota(rotaId: string) {
@@ -258,15 +300,59 @@ export default function AgendamentoPublico({
     setSalvando(true)
     setErro('')
 
-    const origemSave = empresa.tipo_operacao === 'rota_fixa' ? embarque : (rotaManual ? origemManual.trim() : rotaSelecionada!.origem)
-    const destinoSave = empresa.tipo_operacao === 'rota_fixa' ? desembarque : (rotaManual ? destinoManual.trim() : rotaSelecionada!.destino)
-    const valorSave = empresa.tipo_operacao === 'rota_fixa' ? (valorTrechoRF ?? 0) : (rotaManual ? 0 : rotaSelecionada!.preco)
+    const origemSave = empresa.tipo_operacao === 'rota_fixa' ? embarque : (rotaManual ? origemManual.trim() : rotaSelecionada!.origem ?? '')
+    const destinoSave = empresa.tipo_operacao === 'rota_fixa' ? desembarque : (rotaManual ? destinoManual.trim() : rotaSelecionada!.destino ?? '')
 
-    const isTransfer = empresa.tipo_operacao !== 'rota_fixa'
+    // ── Caminho transfer: salva em solicitacoes_transfer ─────────────────────
+    if (empresa.tipo_operacao !== 'rota_fixa') {
+      const { error } = await supabase.from('solicitacoes_transfer').insert({
+        empresa_id: empresa.id,
+        nome_cliente: form.nome.trim(),
+        telefone_cliente: form.telefone.trim(),
+        data: form.data,
+        horario: form.horario,
+        origem: origemSave,
+        destino: destinoSave,
+        numero_voo: numeroVoo.trim() || null,
+        forma_pagamento: formaPagamento,
+        observacoes: form.observacoes.trim() || null,
+        nome_passageiro2: showPassageiro2 && nomePassageiro2.trim() ? nomePassageiro2.trim() : null,
+        telefone_passageiro2: showPassageiro2 && telefonePassageiro2.trim() ? telefonePassageiro2.trim() : null,
+        origem_passageiro2: showPassageiro2 && origemPassageiro2.trim() ? origemPassageiro2.trim() : null,
+        destino_passageiro2: showPassageiro2 && destinoPassageiro2.trim() ? destinoPassageiro2.trim() : null,
+        retorno_data: showRetorno && retornoData ? retornoData : null,
+        retorno_horario: showRetorno && retornoHorario ? retornoHorario : null,
+        retorno_origem: showRetorno && retornoOrigem.trim() ? retornoOrigem.trim() : null,
+        retorno_destino: showRetorno && retornoDestino.trim() ? retornoDestino.trim() : null,
+        status: 'pendente',
+      })
+
+      if (error) {
+        setSalvando(false)
+        setErro('Erro ao enviar solicitação. Tente novamente.')
+        return
+      }
+
+      // Salva endereços para autocomplete futuro
+      await salvarEndereco(origemSave)
+      await salvarEndereco(destinoSave)
+
+      try {
+        localStorage.setItem('ag_nome', form.nome.trim())
+        localStorage.setItem('ag_telefone', form.telefone.trim())
+      } catch {}
+
+      setSalvando(false)
+      setEtapa('sucesso')
+      return
+    }
+
+    // ── Caminho rota_fixa: salva em corridas_empresa (sem alteração) ─────────
+    const valorSave = valorTrechoRF ?? 0
 
     const { error } = await supabase.from('corridas_empresa').insert({
       empresa_id: empresa.id,
-      rota_id: rotaManual ? null : rotaSelecionada!.id,
+      rota_id: rotaSelecionada!.id,
       origem: origemSave,
       destino: destinoSave,
       data_hora: `${form.data}T${form.horario}:00`,
@@ -275,18 +361,9 @@ export default function AgendamentoPublico({
       valor: valorSave,
       status: 'pendente',
       motorista_id: null,
-      tipo_servico: isTransfer ? 'transfer' : 'rota_fixa',
-      forma_pagamento: isTransfer ? formaPagamento : 'a_definir',
+      tipo_servico: 'rota_fixa',
+      forma_pagamento: 'a_definir',
       observacoes: form.observacoes.trim() || null,
-      ...(isTransfer && {
-        numero_voo: numeroVoo.trim() || null,
-        nome_passageiro2: showPassageiro2 && nomePassageiro2.trim() ? nomePassageiro2.trim() : null,
-        telefone_passageiro2: showPassageiro2 && telefonePassageiro2.trim() ? telefonePassageiro2.trim() : null,
-        retorno_data: showRetorno && retornoData ? retornoData : null,
-        retorno_horario: showRetorno && retornoHorario ? retornoHorario : null,
-        retorno_origem: showRetorno && retornoOrigem.trim() ? retornoOrigem.trim() : null,
-        retorno_destino: showRetorno && retornoDestino.trim() ? retornoDestino.trim() : null,
-      }),
     })
 
     if (error) {
@@ -303,13 +380,6 @@ export default function AgendamentoPublico({
       .single()
 
     setSalvando(false)
-
-    if (empresa.tipo_operacao !== 'rota_fixa') {
-      try {
-        localStorage.setItem('ag_nome', form.nome.trim())
-        localStorage.setItem('ag_telefone', form.telefone.trim())
-      } catch {}
-    }
 
     if (pixData?.chave_pix) {
       setChavePix(pixData.chave_pix)
@@ -332,6 +402,9 @@ export default function AgendamentoPublico({
     setShowPassageiro2(false)
     setNomePassageiro2('')
     setTelefonePassageiro2('')
+    setOrigemPassageiro2('')
+    setDestinoPassageiro2('')
+    setEnderecosSugeridos([])
     setShowRetorno(false)
     setRetornoData('')
     setRetornoHorario('')
@@ -417,6 +490,7 @@ export default function AgendamentoPublico({
                 <input
                   value={form.telefone}
                   onChange={e => setForm(f => ({ ...f, telefone: e.target.value }))}
+                  onBlur={e => buscarEnderecosPorTelefone(e.target.value)}
                   placeholder="(XX) XXXXX-XXXX"
                   type="tel"
                   className="campo-input"
@@ -473,6 +547,16 @@ export default function AgendamentoPublico({
                       <input value={telefonePassageiro2} onChange={e => setTelefonePassageiro2(e.target.value)}
                         placeholder="(XX) XXXXX-XXXX" type="tel" className="campo-input" />
                     </Campo>
+                    <Campo label="Origem do 2º passageiro">
+                      <input value={origemPassageiro2} onChange={e => setOrigemPassageiro2(e.target.value)}
+                        placeholder="Ex: Aeroporto, Hotel, Endereço..."
+                        className="campo-input" list="sugestoes-enderecos" />
+                    </Campo>
+                    <Campo label="Destino do 2º passageiro">
+                      <input value={destinoPassageiro2} onChange={e => setDestinoPassageiro2(e.target.value)}
+                        placeholder="Ex: Hotel, Aeroporto, Endereço..."
+                        className="campo-input" list="sugestoes-enderecos" />
+                    </Campo>
                   </>
                 )}
               </div>
@@ -514,13 +598,15 @@ export default function AgendamentoPublico({
                     <input value={origemManual}
                       onChange={e => setOrigemManual(e.target.value)}
                       placeholder="Ex: Aeroporto, Hotel, Endereço..."
-                      className="campo-input" />
+                      className="campo-input"
+                      list="sugestoes-enderecos" />
                   </Campo>
                   <Campo label="Destino *">
                     <input value={destinoManual}
                       onChange={e => setDestinoManual(e.target.value)}
                       placeholder="Ex: Hotel, Aeroporto, Endereço..."
-                      className="campo-input" />
+                      className="campo-input"
+                      list="sugestoes-enderecos" />
                   </Campo>
                 </>
               )}
@@ -710,15 +796,21 @@ export default function AgendamentoPublico({
                     </div>
                     <Campo label="Origem do retorno">
                       <input value={retornoOrigem} onChange={e => setRetornoOrigem(e.target.value)}
-                        placeholder="Ex: Hotel, Endereço..." className="campo-input" />
+                        placeholder="Ex: Hotel, Endereço..." className="campo-input" list="sugestoes-enderecos" />
                     </Campo>
                     <Campo label="Destino do retorno">
                       <input value={retornoDestino} onChange={e => setRetornoDestino(e.target.value)}
-                        placeholder="Ex: Aeroporto, Endereço..." className="campo-input" />
+                        placeholder="Ex: Aeroporto, Endereço..." className="campo-input" list="sugestoes-enderecos" />
                     </Campo>
                   </>
                 )}
               </div>
+            )}
+
+            {enderecosSugeridos.length > 0 && (
+              <datalist id="sugestoes-enderecos">
+                {enderecosSugeridos.map(e => <option key={e} value={e} />)}
+              </datalist>
             )}
 
             {erro && (
@@ -734,7 +826,7 @@ export default function AgendamentoPublico({
               className="w-full py-4 rounded-2xl text-white text-base font-bold disabled:opacity-40"
               style={{ background: cor }}
             >
-              {salvando ? 'Enviando...' : '✓ Confirmar agendamento'}
+              {salvando ? 'Enviando...' : empresa.tipo_operacao !== 'rota_fixa' ? '✓ Enviar solicitação' : '✓ Confirmar agendamento'}
             </button>
 
             <p className="text-center text-xs text-gray-400">
@@ -856,10 +948,14 @@ export default function AgendamentoPublico({
           <div className="flex flex-col gap-4">
             <div className="bg-white rounded-2xl p-6 border border-gray-100 text-center">
               <p className="text-5xl mb-3">🎉</p>
-              <p className="text-lg font-bold text-gray-800 mb-2">Agendamento confirmado!</p>
+              <p className="text-lg font-bold text-gray-800 mb-2">
+                {empresa.tipo_operacao !== 'rota_fixa' ? 'Solicitação enviada!' : 'Agendamento confirmado!'}
+              </p>
               <p className="text-sm text-gray-500 leading-relaxed">
-                A equipe da <span className="font-semibold">{empresa.nome}</span> entrará em contato
-                para confirmar os detalhes.
+                {empresa.tipo_operacao !== 'rota_fixa'
+                  ? <>Em breve você receberá a confirmação da <span className="font-semibold">{empresa.nome}</span>.</>
+                  : <>A equipe da <span className="font-semibold">{empresa.nome}</span> entrará em contato para confirmar os detalhes.</>
+                }
               </p>
 
               {rotaSelecionada && (

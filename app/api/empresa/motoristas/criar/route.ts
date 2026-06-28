@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
     }
 
-    const { nome, email, senha, telefone, veiculo, placa } = await req.json()
+    const { nome, email, senha, telefone, veiculo, placa, cor } = await req.json()
 
     if (!nome?.trim() || !email?.trim() || !senha) {
       return NextResponse.json({ error: 'Nome, e-mail e senha são obrigatórios' }, { status: 400 })
@@ -106,6 +106,7 @@ export async function POST(req: NextRequest) {
         telefone: telefone?.trim() || null,
         veiculo: veiculo?.trim() || null,
         placa: placa?.trim() || null,
+        cor: cor?.trim() || null,
         status: 'ativo',
       })
 

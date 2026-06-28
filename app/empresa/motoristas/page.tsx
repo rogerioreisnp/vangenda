@@ -10,6 +10,7 @@ type Motorista = {
   telefone: string | null
   veiculo: string | null
   placa: string | null
+  cor: string | null
   status: string
 }
 
@@ -20,6 +21,7 @@ type FormMotorista = {
   telefone: string
   veiculo: string
   placa: string
+  cor: string
 }
 
 const LIMITES_PLANO: Record<string, number> = {
@@ -35,7 +37,7 @@ export default function MotoristasPage() {
   const [loading, setLoading] = useState(true)
   const [modalAberto, setModalAberto] = useState(false)
   const [editando, setEditando] = useState<Motorista | null>(null)
-  const [form, setForm] = useState<FormMotorista>({ nome: '', email: '', senha: '', telefone: '', veiculo: '', placa: '' })
+  const [form, setForm] = useState<FormMotorista>({ nome: '', email: '', senha: '', telefone: '', veiculo: '', placa: '', cor: '' })
   const [salvando, setSalvando] = useState(false)
   const salvandoRef = useRef(false)
   const [erro, setErro] = useState('')
@@ -67,7 +69,7 @@ export default function MotoristasPage() {
 
     const { data: mots } = await supabase
       .from('motoristas_empresa')
-      .select('id, user_id, nome, telefone, veiculo, placa, status')
+      .select('id, user_id, nome, telefone, veiculo, placa, cor, status')
       .eq('empresa_id', empresa.id)
       .order('created_at')
 
@@ -77,14 +79,14 @@ export default function MotoristasPage() {
 
   function abrirAdicionar() {
     setEditando(null)
-    setForm({ nome: '', email: '', senha: '', telefone: '', veiculo: '', placa: '' })
+    setForm({ nome: '', email: '', senha: '', telefone: '', veiculo: '', placa: '', cor: '' })
     setErro('')
     setModalAberto(true)
   }
 
   function abrirEditar(m: Motorista) {
     setEditando(m)
-    setForm({ nome: m.nome, email: '', senha: '', telefone: m.telefone || '', veiculo: m.veiculo || '', placa: m.placa || '' })
+    setForm({ nome: m.nome, email: '', senha: '', telefone: m.telefone || '', veiculo: m.veiculo || '', placa: m.placa || '', cor: m.cor || '' })
     setErro('')
     setModalAberto(true)
   }
@@ -112,6 +114,7 @@ export default function MotoristasPage() {
             telefone: form.telefone.trim() || null,
             veiculo: form.veiculo.trim() || null,
             placa: form.placa.trim() || null,
+            cor: form.cor.trim() || null,
           })
           .eq('id', editando.id)
 
@@ -158,6 +161,7 @@ export default function MotoristasPage() {
             telefone: form.telefone.trim() || null,
             veiculo: form.veiculo.trim() || null,
             placa: form.placa.trim() || null,
+            cor: form.cor.trim() || null,
           }),
         })
 
@@ -259,9 +263,9 @@ export default function MotoristasPage() {
                     {m.telefone && (
                       <p className="text-xs text-gray-400 mt-0.5">{m.telefone}</p>
                     )}
-                    {(m.veiculo || m.placa) && (
+                    {(m.veiculo || m.placa || m.cor) && (
                       <p className="text-xs text-gray-400 mt-0.5">
-                        {[m.veiculo, m.placa].filter(Boolean).join(' · ')}
+                        {[m.veiculo, m.cor, m.placa].filter(Boolean).join(' · ')}
                       </p>
                     )}
                   </div>
@@ -357,6 +361,10 @@ export default function MotoristasPage() {
             <Campo label="Placa">
               <input value={form.placa} onChange={e => setForm(f => ({ ...f, placa: e.target.value }))}
                 placeholder="Ex: ABC-1234" className="campo-input" />
+            </Campo>
+            <Campo label="Cor do veículo">
+              <input value={form.cor} onChange={e => setForm(f => ({ ...f, cor: e.target.value }))}
+                placeholder="Ex: Preto, Branco, Prata" className="campo-input" />
             </Campo>
 
             {erro && (

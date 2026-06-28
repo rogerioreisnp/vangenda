@@ -104,6 +104,7 @@ function contarContratos(corridas: { id: string; created_at: string; cliente_nom
 type SolicitacaoTransfer = {
   id: string
   empresa_id: string
+  numero_reserva: number | null
   nome_cliente: string
   telefone_cliente: string
   data: string
@@ -115,12 +116,24 @@ type SolicitacaoTransfer = {
   observacoes: string | null
   nome_passageiro2: string | null
   telefone_passageiro2: string | null
+  origem_passageiro2: string | null
+  destino_passageiro2: string | null
   retorno_data: string | null
   retorno_horario: string | null
   retorno_origem: string | null
   retorno_destino: string | null
+  motorista_id: string | null
   status: string
   created_at: string
+}
+
+type MotoristaTransfer = {
+  id: string
+  nome: string
+  telefone: string | null
+  veiculo: string | null
+  placa: string | null
+  cor: string | null
 }
 
 export default function EmpresaPage() {
@@ -148,6 +161,10 @@ export default function EmpresaPage() {
   const [abaTransfer, setAbaTransfer] = useState<'painel' | 'solicitacoes'>('painel')
   const [solicitacoes, setSolicitacoes] = useState<SolicitacaoTransfer[]>([])
   const [loadingSolicitacoes, setLoadingSolicitacoes] = useState(false)
+  const [motoristasTransfer, setMotoristasTransfer] = useState<MotoristaTransfer[]>([])
+  const [fichaAberta, setFichaAberta] = useState<SolicitacaoTransfer | null>(null)
+  const [motoristaIdModal, setMotoristaIdModal] = useState('')
+  const [enviandoFicha, setEnviandoFicha] = useState(false)
 
   useEffect(() => { carregarDados() }, [])
   useEffect(() => {
@@ -170,21 +187,59 @@ export default function EmpresaPage() {
     setLoadingSolicitacoes(false)
   }
 
-  async function confirmarSolicitacao(sol: SolicitacaoTransfer) {
-    await supabase.from('solicitacoes_transfer').update({ status: 'confirmado' }).eq('id', sol.id)
-    setSolicitacoes(prev => prev.map(s => s.id === sol.id ? { ...s, status: 'confirmado' } : s))
-    const rawTel = sol.telefone_cliente.replace(/\D/g, '')
-    const tel = rawTel.startsWith('55') ? rawTel : `55${rawTel}`
+  function montarMsgWhatsApp(sol: SolicitacaoTransfer, motoristaId: string): string {
+    const motorista = motoristasTransfer.find(m => m.id === motoristaId)
     const dataFmt = sol.data.split('-').reverse().join('/')
-    const msg = encodeURIComponent(
-      `Olá ${sol.nome_cliente}, sua solicitação de transfer de ${sol.origem} para ${sol.destino} no dia ${dataFmt} às ${sol.horario.slice(0, 5)} foi confirmada! Qualquer dúvida estamos à disposição.`
-    )
-    window.open(`https://wa.me/${tel}?text=${msg}`, '_blank')
+    const diasSemana = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado']
+    const diaSemana = diasSemana[new Date(sol.data + 'T12:00:00').getDay()]
+    const passageiros = [sol.nome_cliente, sol.nome_passageiro2].filter(Boolean).join(', ')
+    const telefones = [sol.telefone_cliente, sol.telefone_passageiro2].filter(Boolean).join(', ')
+
+    let msg = `Olá, tudo bem?\nSegue a confirmação do *Transfer: #${sol.numero_reserva ?? ''}*\n*Data/Hora:* ${dataFmt} às ${sol.horario.slice(0, 5)} (${diaSemana})\n*Passageiros:* ${passageiros}\n*Telefones:* ${telefones}`
+    if (sol.numero_voo) msg += `\n*Numero Voo:* ${sol.numero_voo}`
+    msg += `\n*Origem:* ${sol.origem}\n*Destino:* ${sol.destino}`
+    if (motorista) {
+      msg += `\nMotorista ${motorista.nome}`
+      if (motorista.veiculo) msg += `\nVeículo ${motorista.veiculo}`
+      if (motorista.cor) msg += `\nCor ${motorista.cor}`
+      if (motorista.placa) msg += `\nPlaca ${motorista.placa}`
+      if (motorista.telefone) msg += `\nTel ${motorista.telefone}`
+    }
+    if (nomeEmpresa) msg += `\n*${nomeEmpresa}*`
+    return msg
   }
 
-  async function recusarSolicitacao(id: string) {
-    await supabase.from('solicitacoes_transfer').update({ status: 'recusado' }).eq('id', id)
-    setSolicitacoes(prev => prev.map(s => s.id === id ? { ...s, status: 'recusado' } : s))
+  function abrirWhatsApp(telefone: string, msg: string) {
+    const raw = telefone.replace(/\D/g, '')
+    const tel = raw.startsWith('55') ? raw : `55${raw}`
+    window.open(`https://wa.me/${tel}?text=${encodeURIComponent(msg)}`, '_blank')
+  }
+
+  async function confirmarSolicitacao(sol: SolicitacaoTransfer, motoristaId: string) {
+    setEnviandoFicha(true)
+    const updateData: Record<string, unknown> = { status: 'confirmado' }
+    if (motoristaId) updateData.motorista_id = motoristaId
+    await supabase.from('solicitacoes_transfer').update(updateData).eq('id', sol.id)
+    setSolicitacoes(prev => prev.map(s => s.id === sol.id ? { ...s, status: 'confirmado', motorista_id: motoristaId || null } : s))
+    setEnviandoFicha(false)
+    setFichaAberta(null)
+    abrirWhatsApp(sol.telefone_cliente, montarMsgWhatsApp(sol, motoristaId))
+  }
+
+  function enviarDadosMotorista(sol: SolicitacaoTransfer) {
+    const mId = sol.motorista_id ?? motoristaIdModal
+    abrirWhatsApp(sol.telefone_cliente, montarMsgWhatsApp(sol, mId))
+  }
+
+  async function recusarSolicitacao(sol: SolicitacaoTransfer) {
+    setEnviandoFicha(true)
+    await supabase.from('solicitacoes_transfer').update({ status: 'recusado' }).eq('id', sol.id)
+    setSolicitacoes(prev => prev.map(s => s.id === sol.id ? { ...s, status: 'recusado' } : s))
+    setEnviandoFicha(false)
+    setFichaAberta(null)
+    const dataFmt = sol.data.split('-').reverse().join('/')
+    const msg = `Olá ${sol.nome_cliente}, infelizmente não conseguimos atender sua solicitação de transfer para ${dataFmt}. Entre em contato conosco para verificar disponibilidade.`
+    abrirWhatsApp(sol.telefone_cliente, msg)
   }
 
   async function carregarDados() {
@@ -247,8 +302,8 @@ export default function EmpresaPage() {
       supabase.from('corridas_empresa').select('id, created_at, cliente_nome, origem, destino').eq('empresa_id', eid)
         .gte('data_hora', `${hoje}T00:00:00`).lte('data_hora', `${hoje}T23:59:59`)
         .neq('status', 'cancelada'),
-      supabase.from('motoristas_empresa').select('id')
-        .eq('empresa_id', eid).eq('status', 'ativo'),
+      supabase.from('motoristas_empresa').select('id, nome, telefone, veiculo, placa, cor')
+        .eq('empresa_id', eid).eq('status', 'ativo').order('nome'),
       supabase.from('corridas_empresa').select('valor').eq('empresa_id', eid)
         .eq('status', 'concluida')
         .gte('data_hora', `${inicioMes}T00:00:00`).lte('data_hora', `${fimMes}T23:59:59`),
@@ -267,6 +322,7 @@ export default function EmpresaPage() {
 
     setCorridasHoje(contarContratos(cHoje ?? []))
     setMotoristasAtivos(mAtivos?.length ?? 0)
+    setMotoristasTransfer((mAtivos as unknown as MotoristaTransfer[]) ?? [])
     setReceitaMes(recMes?.reduce((s, c) => s + (Number(c.valor) || 0), 0) ?? 0)
     setAReceberMes(aReceberMesData?.reduce((s, c) => s + (Number(c.valor) || 0), 0) ?? 0)
     setCorridasConfirmadas(contarContratos(cConf ?? []))
@@ -405,7 +461,7 @@ export default function EmpresaPage() {
       <div className="flex gap-1.5 px-4 pt-3 pb-1">
         {([
           { key: 'painel', label: 'Painel' },
-          { key: 'solicitacoes', label: `Solicitações${solicitacoes.length > 0 ? ` (${solicitacoes.length})` : ''}` },
+          { key: 'solicitacoes', label: `Solicitações${solicitacoes.filter(s => s.status === 'pendente').length > 0 ? ` (${solicitacoes.filter(s => s.status === 'pendente').length})` : ''}` },
         ] as { key: 'painel' | 'solicitacoes'; label: string }[]).map(aba => (
           <button key={aba.key} onClick={() => setAbaTransfer(aba.key)}
             className="flex-1 py-2 rounded-xl text-xs font-semibold transition-all"
@@ -725,93 +781,165 @@ export default function EmpresaPage() {
                   : { bg: '#FAEEDA', text: '#854F0B', label: 'Pendente' }
 
               const dataFmt = sol.data.split('-').reverse().join('/')
-              const formaPgto = sol.forma_pagamento === 'cartao' ? '💳 Cartão'
-                : sol.forma_pagamento === 'pix' ? '📱 Pix'
-                : sol.forma_pagamento === 'faturado' ? '📄 Faturado'
-                : sol.forma_pagamento
 
               return (
-                <div key={sol.id} className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-3">
-                  {/* Cabeçalho do card */}
+                <button
+                  key={sol.id}
+                  onClick={() => { setFichaAberta(sol); setMotoristaIdModal(sol.motorista_id ?? '') }}
+                  className="w-full bg-white rounded-2xl p-4 border border-gray-100 text-left flex flex-col gap-2 active:opacity-75"
+                  style={{ borderColor: sol.status === 'pendente' ? '#FCD34D' : undefined }}
+                >
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-gray-800">{sol.nome_cliente}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">📱 {sol.telefone_cliente}</p>
+                      {sol.numero_reserva && (
+                        <p className="text-[10px] font-semibold text-gray-400 mb-0.5">#{sol.numero_reserva}</p>
+                      )}
+                      <p className="text-sm font-semibold text-gray-800 truncate">{sol.nome_cliente}</p>
+                      <p className="text-xs text-gray-400 mt-0.5 truncate">📍 {sol.origem} → {sol.destino}</p>
+                      <p className="text-xs text-gray-400">📅 {dataFmt} às {sol.horario.slice(0, 5)}</p>
                     </div>
-                    <span className="text-[10px] font-semibold px-2 py-1 rounded-full flex-shrink-0"
-                      style={{ background: statusBadge.bg, color: statusBadge.text }}>
-                      {statusBadge.label}
-                    </span>
+                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                      <span className="text-[10px] font-semibold px-2 py-1 rounded-full"
+                        style={{ background: statusBadge.bg, color: statusBadge.text }}>
+                        {statusBadge.label}
+                      </span>
+                      <span className="text-gray-300 text-sm">›</span>
+                    </div>
                   </div>
-
-                  {/* Detalhes da viagem */}
-                  <div className="rounded-xl p-3 flex flex-col gap-1" style={{ background: '#f9fafb' }}>
-                    <p className="text-xs font-medium text-gray-700">
-                      📍 {sol.origem} → {sol.destino}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      📅 {dataFmt} às {sol.horario.slice(0, 5)}
-                    </p>
-                    {sol.numero_voo && (
-                      <p className="text-xs text-gray-500">✈️ Voo: {sol.numero_voo}</p>
-                    )}
-                    <p className="text-xs text-gray-500">{formaPgto}</p>
-                    {sol.observacoes && (
-                      <p className="text-xs text-gray-500 mt-1">💬 {sol.observacoes}</p>
-                    )}
-                  </div>
-
-                  {/* Passageiro adicional */}
-                  {sol.nome_passageiro2 && (
-                    <div className="rounded-xl px-3 py-2" style={{ background: '#EFF6FF' }}>
-                      <p className="text-xs font-semibold" style={{ color: '#1D4ED8' }}>👥 2º Passageiro</p>
-                      <p className="text-xs mt-0.5" style={{ color: '#1D4ED8' }}>
-                        {sol.nome_passageiro2}
-                        {sol.telefone_passageiro2 && ` · ${sol.telefone_passageiro2}`}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Retorno */}
-                  {sol.retorno_data && (
-                    <div className="rounded-xl px-3 py-2" style={{ background: '#F0FDF4' }}>
-                      <p className="text-xs font-semibold" style={{ color: '#166534' }}>🔄 Retorno</p>
-                      <p className="text-xs mt-0.5" style={{ color: '#166534' }}>
-                        {sol.retorno_data.split('-').reverse().join('/')} às {(sol.retorno_horario ?? '').slice(0, 5)}
-                        {sol.retorno_origem && ` · ${sol.retorno_origem} → ${sol.retorno_destino}`}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Ações */}
-                  {sol.status === 'pendente' && (
-                    <div className="flex gap-2">
-                      <button onClick={() => confirmarSolicitacao(sol)}
-                        className="flex-1 py-2.5 rounded-xl text-xs font-semibold"
-                        style={{ background: '#25D366', color: '#fff' }}>
-                        💬 Confirmar via WhatsApp
-                      </button>
-                      <button onClick={() => recusarSolicitacao(sol.id)}
-                        className="px-3 py-2.5 rounded-xl text-xs font-semibold"
-                        style={{ background: '#FCEBEB', color: '#A32D2D' }}>
-                        Recusar
-                      </button>
-                    </div>
-                  )}
-                  {sol.status === 'confirmado' && (
-                    <div className="rounded-xl px-3 py-2 text-center" style={{ background: '#E1F5EE' }}>
-                      <p className="text-xs font-medium" style={{ color: '#085041' }}>✓ Transfer confirmado</p>
-                    </div>
-                  )}
-                  {sol.status === 'recusado' && (
-                    <div className="rounded-xl px-3 py-2 text-center" style={{ background: '#FCEBEB' }}>
-                      <p className="text-xs font-medium" style={{ color: '#A32D2D' }}>✕ Solicitação recusada</p>
-                    </div>
-                  )}
-                </div>
+                </button>
               )
             })
           )}
+        </div>
+      )}
+
+      {/* Modal ficha completa */}
+      {fichaAberta && (
+        <div className="fixed inset-0 z-50 flex flex-col" style={{ background: '#fff' }}>
+          <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-4 flex items-center gap-3 flex-shrink-0">
+            <button onClick={() => setFichaAberta(null)} style={{ color: '#9FE1CB' }} className="text-2xl leading-none">‹</button>
+            <div className="flex-1 min-w-0">
+              <p style={{ color: '#E1F5EE' }} className="text-sm font-semibold">
+                Ficha do Transfer{fichaAberta.numero_reserva ? ` #${fichaAberta.numero_reserva}` : ''}
+              </p>
+              <span className="inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full mt-0.5"
+                style={{
+                  background: fichaAberta.status === 'confirmado' ? '#E1F5EE' : fichaAberta.status === 'recusado' ? '#FCEBEB' : '#FAEEDA',
+                  color: fichaAberta.status === 'confirmado' ? '#085041' : fichaAberta.status === 'recusado' ? '#A32D2D' : '#854F0B',
+                }}>
+                {fichaAberta.status === 'confirmado' ? 'Confirmado' : fichaAberta.status === 'recusado' ? 'Recusado' : 'Pendente'}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
+            {/* Viagem */}
+            <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-1.5">
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Viagem</p>
+              <p className="text-sm font-semibold text-gray-800">{fichaAberta.origem} → {fichaAberta.destino}</p>
+              <p className="text-xs text-gray-500">📅 {fichaAberta.data.split('-').reverse().join('/')} às {fichaAberta.horario.slice(0, 5)}</p>
+              {fichaAberta.numero_voo && <p className="text-xs text-gray-500">✈️ Voo: {fichaAberta.numero_voo}</p>}
+              <p className="text-xs text-gray-500">
+                {fichaAberta.forma_pagamento === 'cartao' ? '💳 Cartão' : fichaAberta.forma_pagamento === 'pix' ? '📱 Pix' : '📄 Faturado'}
+              </p>
+            </div>
+
+            {/* Cliente */}
+            <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-1.5">
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Cliente</p>
+              <p className="text-sm font-semibold text-gray-800">{fichaAberta.nome_cliente}</p>
+              <p className="text-xs text-gray-500">📱 {fichaAberta.telefone_cliente}</p>
+            </div>
+
+            {/* Passageiro adicional */}
+            {fichaAberta.nome_passageiro2 && (
+              <div className="rounded-2xl p-4 flex flex-col gap-1" style={{ background: '#EFF6FF' }}>
+                <p className="text-[10px] font-semibold uppercase tracking-wide mb-0.5" style={{ color: '#1D4ED8' }}>👥 2º Passageiro</p>
+                <p className="text-sm font-semibold" style={{ color: '#1D4ED8' }}>{fichaAberta.nome_passageiro2}</p>
+                {fichaAberta.telefone_passageiro2 && <p className="text-xs" style={{ color: '#1D4ED8' }}>📱 {fichaAberta.telefone_passageiro2}</p>}
+                {fichaAberta.origem_passageiro2 && (
+                  <p className="text-xs" style={{ color: '#1D4ED8' }}>📍 {fichaAberta.origem_passageiro2} → {fichaAberta.destino_passageiro2}</p>
+                )}
+              </div>
+            )}
+
+            {/* Retorno */}
+            {fichaAberta.retorno_data && (
+              <div className="rounded-2xl p-4 flex flex-col gap-1" style={{ background: '#F0FDF4' }}>
+                <p className="text-[10px] font-semibold uppercase tracking-wide mb-0.5" style={{ color: '#166534' }}>🔄 Retorno</p>
+                <p className="text-xs" style={{ color: '#166534' }}>
+                  📅 {fichaAberta.retorno_data.split('-').reverse().join('/')} às {(fichaAberta.retorno_horario ?? '').slice(0, 5)}
+                </p>
+                {fichaAberta.retorno_origem && (
+                  <p className="text-xs" style={{ color: '#166534' }}>📍 {fichaAberta.retorno_origem} → {fichaAberta.retorno_destino}</p>
+                )}
+              </div>
+            )}
+
+            {/* Observações */}
+            {fichaAberta.observacoes && (
+              <div className="bg-white rounded-2xl p-4 border border-gray-100">
+                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Observações</p>
+                <p className="text-sm text-gray-700">{fichaAberta.observacoes}</p>
+              </div>
+            )}
+
+            {/* Motorista */}
+            <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-2">
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Motorista</p>
+              {motoristasTransfer.length === 0 ? (
+                <p className="text-xs text-gray-400">Nenhum motorista ativo cadastrado</p>
+              ) : (
+                <select
+                  value={motoristaIdModal}
+                  onChange={e => setMotoristaIdModal(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 bg-white outline-none"
+                >
+                  <option value="">Selecione o motorista...</option>
+                  {motoristasTransfer.map(m => (
+                    <option key={m.id} value={m.id}>
+                      {m.nome}{m.veiculo ? ` — ${m.veiculo}` : ''}{m.placa ? ` (${m.placa})` : ''}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+          </div>
+
+          {/* Botões de ação */}
+          <div className="flex-shrink-0 px-4 py-4 border-t border-gray-100 flex flex-col gap-2">
+            {fichaAberta.status === 'pendente' && (
+              <>
+                <button
+                  onClick={() => confirmarSolicitacao(fichaAberta, motoristaIdModal)}
+                  disabled={enviandoFicha}
+                  className="w-full py-3.5 rounded-xl text-sm font-semibold disabled:opacity-40"
+                  style={{ background: '#25D366', color: '#fff' }}>
+                  {enviandoFicha ? 'Confirmando...' : '💬 Confirmar via WhatsApp'}
+                </button>
+                <button
+                  onClick={() => recusarSolicitacao(fichaAberta)}
+                  disabled={enviandoFicha}
+                  className="w-full py-3 rounded-xl text-sm font-semibold disabled:opacity-40"
+                  style={{ background: '#FCEBEB', color: '#A32D2D' }}>
+                  Recusar
+                </button>
+              </>
+            )}
+            {fichaAberta.status === 'confirmado' && (
+              <button
+                onClick={() => enviarDadosMotorista(fichaAberta)}
+                className="w-full py-3.5 rounded-xl text-sm font-semibold"
+                style={{ background: '#25D366', color: '#fff' }}>
+                💬 Enviar dados do motorista via WhatsApp
+              </button>
+            )}
+            {fichaAberta.status === 'recusado' && (
+              <div className="rounded-xl px-3 py-3 text-center" style={{ background: '#FCEBEB' }}>
+                <p className="text-sm font-medium" style={{ color: '#A32D2D' }}>✕ Solicitação recusada</p>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
