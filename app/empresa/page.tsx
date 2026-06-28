@@ -823,16 +823,19 @@ export default function EmpresaPage() {
             <button onClick={() => setFichaAberta(null)} style={{ color: '#9FE1CB' }} className="text-2xl leading-none">‹</button>
             <div className="flex-1 min-w-0">
               <p style={{ color: '#E1F5EE' }} className="text-sm font-semibold">
-                Ficha do Transfer{fichaAberta.numero_reserva ? ` #${fichaAberta.numero_reserva}` : ''}
+                Transfer{fichaAberta.numero_reserva ? ` #${fichaAberta.numero_reserva}` : ''}
               </p>
-              <span className="inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full mt-0.5"
-                style={{
-                  background: fichaAberta.status === 'confirmado' ? '#E1F5EE' : fichaAberta.status === 'recusado' ? '#FCEBEB' : '#FAEEDA',
-                  color: fichaAberta.status === 'confirmado' ? '#085041' : fichaAberta.status === 'recusado' ? '#A32D2D' : '#854F0B',
-                }}>
-                {fichaAberta.status === 'confirmado' ? 'Confirmado' : fichaAberta.status === 'recusado' ? 'Recusado' : 'Pendente'}
-              </span>
+              <p style={{ color: '#9FE1CB' }} className="text-[10px] mt-0.5">
+                Solicitado em {fichaAberta.created_at.slice(8,10)}/{fichaAberta.created_at.slice(5,7)}/{fichaAberta.created_at.slice(0,4)} às {fichaAberta.created_at.slice(11,16)}
+              </p>
             </div>
+            <span className="flex-shrink-0 text-[10px] font-semibold px-2 py-1 rounded-full"
+              style={{
+                background: fichaAberta.status === 'confirmado' ? '#E1F5EE' : fichaAberta.status === 'recusado' ? '#FCEBEB' : '#FAEEDA',
+                color: fichaAberta.status === 'confirmado' ? '#085041' : fichaAberta.status === 'recusado' ? '#A32D2D' : '#854F0B',
+              }}>
+              {fichaAberta.status === 'confirmado' ? 'Confirmado' : fichaAberta.status === 'recusado' ? 'Recusado' : 'Pendente'}
+            </span>
           </div>
 
           <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
