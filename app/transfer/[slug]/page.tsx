@@ -13,6 +13,14 @@ type EmpresaTransfer = {
   whatsapp_comercial: string | null
 }
 
+type RotaOpcao = {
+  id: string
+  nome: string | null
+  origem: string | null
+  destino: string | null
+  preco: number
+}
+
 type FormTransfer = {
   nome: string
   telefone: string
@@ -33,6 +41,9 @@ type FormTransfer = {
 
 export default function TransferSlugPage({ params }: { params: { slug: string } }) {
   const [empresa, setEmpresa] = useState<EmpresaTransfer | null>(null)
+  const [rotas, setRotas] = useState<RotaOpcao[]>([])
+  const [rotaSelecionada, setRotaSelecionada] = useState<RotaOpcao | null>(null)
+  const [rotaManual, setRotaManual] = useState(false)
   const [loading, setLoading] = useState(true)
   const [etapa, setEtapa] = useState<'form' | 'sucesso'>('form')
   const [showPassageiro2, setShowPassageiro2] = useState(false)
@@ -69,13 +80,43 @@ export default function TransferSlugPage({ params }: { params: { slug: string } 
   }, [])
 
   async function carregarEmpresa() {
-    const { data } = await supabase
+    const { data: emp } = await supabase
       .from('empresas')
       .select('id, nome, descricao, cor_destaque, logo_url, tipo_operacao, telefone, whatsapp_comercial')
       .eq('slug', params.slug)
       .single()
-    if (data) setEmpresa(data)
+    if (emp) {
+      setEmpresa(emp)
+      const { data: rts } = await supabase
+        .from('rotas_empresa')
+        .select('id, nome, origem, destino, preco')
+        .eq('empresa_id', emp.id)
+        .eq('ativa', true)
+        .order('created_at')
+      if (rts && rts.length > 0) setRotas(rts)
+    }
     setLoading(false)
+  }
+
+  function selecionarRota(rotaId: string) {
+    if (rotaId === 'manual') {
+      setRotaSelecionada(null)
+      setRotaManual(true)
+      setForm(f => ({ ...f, origem: '', destino: '' }))
+      return
+    }
+    if (!rotaId) {
+      setRotaSelecionada(null)
+      setRotaManual(false)
+      setForm(f => ({ ...f, origem: '', destino: '' }))
+      return
+    }
+    const rota = rotas.find(r => r.id === rotaId) ?? null
+    setRotaSelecionada(rota)
+    setRotaManual(false)
+    if (rota) {
+      setForm(f => ({ ...f, origem: rota.origem ?? '', destino: rota.destino ?? '' }))
+    }
   }
 
   async function enviar() {
@@ -199,6 +240,40 @@ export default function TransferSlugPage({ params }: { params: { slug: string } 
             {/* Detalhes da viagem */}
             <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-3">
               <p className="text-sm font-semibold text-gray-700">Sua viagem</p>
+
+              {/* Seletor de rota — aparece se a empresa tem rotas cadastradas */}
+              {rotas.length > 0 && (
+                <Campo label="Rota">
+                  <select
+                    value={rotaSelecionada?.id ?? (rotaManual ? 'manual' : '')}
+                    onChange={e => selecionarRota(e.target.value)}
+                    className="campo-input"
+                  >
+                    <option value="">Selecione uma rota...</option>
+                    {rotas.map(r => (
+                      <option key={r.id} value={r.id}>
+                        {r.nome
+                          ? `${r.nome} — ${r.origem} → ${r.destino}`
+                          : `${r.origem} → ${r.destino}`}
+                        {r.preco > 0 ? ` · R$ ${Number(r.preco).toFixed(2).replace('.', ',')}` : ''}
+                      </option>
+                    ))}
+                    <option value="manual">✏️ Outra rota (digitar manualmente)</option>
+                  </select>
+                </Campo>
+              )}
+
+              {/* Valor da rota selecionada */}
+              {rotaSelecionada && rotaSelecionada.preco > 0 && (
+                <div className="rounded-xl px-4 py-3 flex items-center justify-between"
+                  style={{ background: '#E1F5EE' }}>
+                  <span className="text-sm font-medium" style={{ color: '#085041' }}>Valor da corrida</span>
+                  <span className="text-xl font-bold" style={{ color: cor }}>
+                    R$ {Number(rotaSelecionada.preco).toFixed(2).replace('.', ',')}
+                  </span>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-2">
                 <Campo label="Data *">
                   <input type="date" value={form.data}
@@ -211,16 +286,25 @@ export default function TransferSlugPage({ params }: { params: { slug: string } 
                     className="campo-input" />
                 </Campo>
               </div>
+
+              {/* Origem/Destino: bloqueado se rota selecionada, livre se manual ou sem rotas */}
               <Campo label="Origem *">
                 <input value={form.origem}
                   onChange={e => setForm(f => ({ ...f, origem: e.target.value }))}
-                  placeholder="Ex: Aeroporto, Hotel, Endereço..." className="campo-input" />
+                  readOnly={!!rotaSelecionada && !rotaManual}
+                  placeholder="Ex: Aeroporto, Hotel, Endereço..."
+                  className="campo-input"
+                  style={rotaSelecionada && !rotaManual ? { background: '#f9fafb', color: '#6B7280' } : {}} />
               </Campo>
               <Campo label="Destino *">
                 <input value={form.destino}
                   onChange={e => setForm(f => ({ ...f, destino: e.target.value }))}
-                  placeholder="Ex: Hotel, Aeroporto, Endereço..." className="campo-input" />
+                  readOnly={!!rotaSelecionada && !rotaManual}
+                  placeholder="Ex: Hotel, Aeroporto, Endereço..."
+                  className="campo-input"
+                  style={rotaSelecionada && !rotaManual ? { background: '#f9fafb', color: '#6B7280' } : {}} />
               </Campo>
+
               <Campo label="Número do voo">
                 <input value={form.numero_voo}
                   onChange={e => setForm(f => ({ ...f, numero_voo: e.target.value }))}
