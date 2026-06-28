@@ -215,15 +215,18 @@ export default function EmpresaPage() {
     window.open(`https://wa.me/${tel}?text=${encodeURIComponent(msg)}`, '_blank')
   }
 
-  async function confirmarSolicitacao(sol: SolicitacaoTransfer, motoristaId: string) {
+  function enviarConfirmacaoWhatsApp(sol: SolicitacaoTransfer, motoristaId: string) {
+    abrirWhatsApp(sol.telefone_cliente, montarMsgWhatsApp(sol, motoristaId))
+  }
+
+  async function marcarComoConfirmado(sol: SolicitacaoTransfer, motoristaId: string) {
     setEnviandoFicha(true)
     const updateData: Record<string, unknown> = { status: 'confirmado' }
     if (motoristaId) updateData.motorista_id = motoristaId
     await supabase.from('solicitacoes_transfer').update(updateData).eq('id', sol.id)
     setSolicitacoes(prev => prev.map(s => s.id === sol.id ? { ...s, status: 'confirmado', motorista_id: motoristaId || null } : s))
+    setFichaAberta(prev => prev ? { ...prev, status: 'confirmado', motorista_id: motoristaId || null } : prev)
     setEnviandoFicha(false)
-    setFichaAberta(null)
-    abrirWhatsApp(sol.telefone_cliente, montarMsgWhatsApp(sol, motoristaId))
   }
 
   function enviarDadosMotorista(sol: SolicitacaoTransfer) {
@@ -911,18 +914,24 @@ export default function EmpresaPage() {
             {fichaAberta.status === 'pendente' && (
               <>
                 <button
-                  onClick={() => confirmarSolicitacao(fichaAberta, motoristaIdModal)}
-                  disabled={enviandoFicha}
-                  className="w-full py-3.5 rounded-xl text-sm font-semibold disabled:opacity-40"
+                  onClick={() => enviarConfirmacaoWhatsApp(fichaAberta, motoristaIdModal)}
+                  className="w-full py-3.5 rounded-xl text-sm font-semibold"
                   style={{ background: '#25D366', color: '#fff' }}>
-                  {enviandoFicha ? 'Confirmando...' : '💬 Confirmar via WhatsApp'}
+                  💬 Enviar confirmação via WhatsApp
+                </button>
+                <button
+                  onClick={() => marcarComoConfirmado(fichaAberta, motoristaIdModal)}
+                  disabled={enviandoFicha}
+                  className="w-full py-3 rounded-xl text-sm font-semibold disabled:opacity-40"
+                  style={{ background: '#E1F5EE', color: '#085041' }}>
+                  {enviandoFicha ? 'Salvando...' : '✓ Marcar como confirmado'}
                 </button>
                 <button
                   onClick={() => recusarSolicitacao(fichaAberta)}
                   disabled={enviandoFicha}
                   className="w-full py-3 rounded-xl text-sm font-semibold disabled:opacity-40"
                   style={{ background: '#FCEBEB', color: '#A32D2D' }}>
-                  Recusar
+                  Recusar solicitação
                 </button>
               </>
             )}
