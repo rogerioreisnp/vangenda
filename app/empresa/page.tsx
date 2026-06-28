@@ -219,6 +219,15 @@ export default function EmpresaPage() {
     abrirWhatsApp(sol.telefone_cliente, montarMsgWhatsApp(sol, motoristaId))
   }
 
+  async function atribuirMotorista(sol: SolicitacaoTransfer, motoristaId: string) {
+    if (!motoristaId) return
+    setEnviandoFicha(true)
+    await supabase.from('solicitacoes_transfer').update({ motorista_id: motoristaId }).eq('id', sol.id)
+    setSolicitacoes(prev => prev.map(s => s.id === sol.id ? { ...s, motorista_id: motoristaId } : s))
+    setFichaAberta(prev => prev ? { ...prev, motorista_id: motoristaId } : prev)
+    setEnviandoFicha(false)
+  }
+
   async function marcarComoConfirmado(sol: SolicitacaoTransfer, motoristaId: string) {
     setEnviandoFicha(true)
     const updateData: Record<string, unknown> = { status: 'confirmado' }
@@ -914,6 +923,15 @@ export default function EmpresaPage() {
 
           {/* Botões de ação */}
           <div className="flex-shrink-0 px-4 py-4 border-t border-gray-100 flex flex-col gap-2">
+            {fichaAberta.status !== 'recusado' && motoristaIdModal && motoristaIdModal !== fichaAberta.motorista_id && (
+              <button
+                onClick={() => atribuirMotorista(fichaAberta, motoristaIdModal)}
+                disabled={enviandoFicha}
+                className="w-full py-3 rounded-xl text-sm font-semibold disabled:opacity-40"
+                style={{ background: '#0F6E56', color: '#fff' }}>
+                {enviandoFicha ? 'Salvando...' : '✓ Salvar motorista'}
+              </button>
+            )}
             {fichaAberta.status === 'pendente' && (
               <>
                 <button
