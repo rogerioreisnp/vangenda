@@ -25,10 +25,12 @@ type DiaSemana = { data: string; total: number; label: string }
 type DiaSemanaRF = { data: string; receita: number; despesa: number; label: string }
 
 const STATUS_COR: Record<string, { bg: string; text: string; label: string }> = {
+  pendente:               { bg: '#FEF3C7', text: '#92400E', label: 'Pendente' },
   confirmada:             { bg: '#EFF6FF', text: '#1D4ED8', label: 'Confirmada' },
   em_andamento:           { bg: '#E1F5EE', text: '#0F6E56', label: 'Em andamento' },
   concluida:              { bg: '#F3F4F6', text: '#6B7280', label: 'Concluída' },
   cancelada:              { bg: '#FCEBEB', text: '#A32D2D', label: 'Cancelada' },
+  recusada:               { bg: '#FCEBEB', text: '#A32D2D', label: 'Recusada' },
   parcialmente_cancelada: { bg: '#FEF3C7', text: '#92400E', label: 'Parc. cancelada' },
 }
 
