@@ -818,7 +818,7 @@ export default function EmpresaPage() {
 
       {/* Modal ficha completa */}
       {fichaAberta && (
-        <div className="fixed inset-0 z-50 flex flex-col" style={{ background: '#fff' }}>
+        <div className="fixed inset-0 z-[200] flex flex-col" style={{ background: '#fff' }}>
           <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-4 flex items-center gap-3 flex-shrink-0">
             <button onClick={() => setFichaAberta(null)} style={{ color: '#9FE1CB' }} className="text-2xl leading-none">‹</button>
             <div className="flex-1 min-w-0">
@@ -838,7 +838,7 @@ export default function EmpresaPage() {
             </span>
           </div>
 
-          <div className="flex-1 overflow-y-auto px-4 py-4 pb-28 flex flex-col gap-3">
+          <div className="flex-1 overflow-y-auto px-4 py-4 pb-8 flex flex-col gap-3">
             {/* Viagem */}
             <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-1.5">
               <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Viagem</p>
