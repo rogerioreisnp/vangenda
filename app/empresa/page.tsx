@@ -99,6 +99,28 @@ function contarContratos(corridas: { id: string; created_at: string; cliente_nom
   return total
 }
 
+type SolicitacaoTransfer = {
+  id: string
+  empresa_id: string
+  nome_cliente: string
+  telefone_cliente: string
+  data: string
+  horario: string
+  origem: string
+  destino: string
+  numero_voo: string | null
+  forma_pagamento: string
+  observacoes: string | null
+  nome_passageiro2: string | null
+  telefone_passageiro2: string | null
+  retorno_data: string | null
+  retorno_horario: string | null
+  retorno_origem: string | null
+  retorno_destino: string | null
+  status: string
+  created_at: string
+}
+
 export default function EmpresaPage() {
   const [nomeGestor, setNomeGestor] = useState<string | null>(null)
   const [gestorUserId, setGestorUserId] = useState<string | null>(null)
@@ -121,6 +143,9 @@ export default function EmpresaPage() {
   const [loading, setLoading] = useState(true)
   const [empresaId, setEmpresaId] = useState<string | null>(null)
   const [tipoOperacao, setTipoOperacao] = useState<string | null>(null)
+  const [abaTransfer, setAbaTransfer] = useState<'painel' | 'solicitacoes'>('painel')
+  const [solicitacoes, setSolicitacoes] = useState<SolicitacaoTransfer[]>([])
+  const [loadingSolicitacoes, setLoadingSolicitacoes] = useState(false)
 
   useEffect(() => { carregarDados() }, [])
   useEffect(() => {
@@ -128,6 +153,37 @@ export default function EmpresaPage() {
       carregarGraficoTransfer(periodoGraficoTransfer, empresaId)
     }
   }, [periodoGraficoTransfer])
+  useEffect(() => {
+    if (abaTransfer === 'solicitacoes' && empresaId) carregarSolicitacoes(empresaId)
+  }, [abaTransfer, empresaId])
+
+  async function carregarSolicitacoes(eid: string) {
+    setLoadingSolicitacoes(true)
+    const { data } = await supabase
+      .from('solicitacoes_transfer')
+      .select('*')
+      .eq('empresa_id', eid)
+      .order('created_at', { ascending: false })
+    setSolicitacoes((data as SolicitacaoTransfer[]) ?? [])
+    setLoadingSolicitacoes(false)
+  }
+
+  async function confirmarSolicitacao(sol: SolicitacaoTransfer) {
+    await supabase.from('solicitacoes_transfer').update({ status: 'confirmado' }).eq('id', sol.id)
+    setSolicitacoes(prev => prev.map(s => s.id === sol.id ? { ...s, status: 'confirmado' } : s))
+    const rawTel = sol.telefone_cliente.replace(/\D/g, '')
+    const tel = rawTel.startsWith('55') ? rawTel : `55${rawTel}`
+    const dataFmt = sol.data.split('-').reverse().join('/')
+    const msg = encodeURIComponent(
+      `Olá ${sol.nome_cliente}, sua solicitação de transfer de ${sol.origem} para ${sol.destino} no dia ${dataFmt} às ${sol.horario.slice(0, 5)} foi confirmada! Qualquer dúvida estamos à disposição.`
+    )
+    window.open(`https://wa.me/${tel}?text=${msg}`, '_blank')
+  }
+
+  async function recusarSolicitacao(id: string) {
+    await supabase.from('solicitacoes_transfer').update({ status: 'recusado' }).eq('id', id)
+    setSolicitacoes(prev => prev.map(s => s.id === id ? { ...s, status: 'recusado' } : s))
+  }
 
   async function carregarDados() {
     const { data: { session } } = await supabase.auth.getSession()
@@ -343,7 +399,23 @@ export default function EmpresaPage() {
         </div>
       </div>
 
-      <div className="px-4 py-4 flex flex-col gap-4">
+      {/* Abas Painel / Solicitações (só transfer) */}
+      <div className="flex gap-1.5 px-4 pt-3 pb-1">
+        {([
+          { key: 'painel', label: 'Painel' },
+          { key: 'solicitacoes', label: `Solicitações${solicitacoes.length > 0 ? ` (${solicitacoes.length})` : ''}` },
+        ] as { key: 'painel' | 'solicitacoes'; label: string }[]).map(aba => (
+          <button key={aba.key} onClick={() => setAbaTransfer(aba.key)}
+            className="flex-1 py-2 rounded-xl text-xs font-semibold transition-all"
+            style={abaTransfer === aba.key
+              ? { background: '#0F6E56', color: '#fff' }
+              : { background: '#f3f4f6', color: '#9ca3af' }}>
+            {aba.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="px-4 py-4 flex flex-col gap-4" style={abaTransfer === 'solicitacoes' ? { display: 'none' } : {}}>
 
         {/* Banner boas-vindas (primeira vez, sem motoristas) */}
         {!loading && motoristasAtivos === 0 && corridasHoje === 0 && (
@@ -624,6 +696,121 @@ export default function EmpresaPage() {
         </div>
 
       </div>
+
+      {/* Solicitações de Transfer */}
+      {abaTransfer === 'solicitacoes' && (
+        <div className="px-4 py-4 flex flex-col gap-3">
+          {loadingSolicitacoes ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-pulse text-3xl">📋</div>
+            </div>
+          ) : solicitacoes.length === 0 ? (
+            <div className="bg-white rounded-2xl p-6 border border-gray-100 text-center">
+              <p className="text-3xl mb-2">📭</p>
+              <p className="text-sm font-medium text-gray-700">Nenhuma solicitação recebida</p>
+              <p className="text-xs text-gray-400 mt-1">
+                Compartilhe o link de transfer para começar a receber solicitações
+              </p>
+            </div>
+          ) : (
+            solicitacoes.map(sol => {
+              const statusBadge =
+                sol.status === 'confirmado'
+                  ? { bg: '#E1F5EE', text: '#085041', label: 'Confirmado' }
+                  : sol.status === 'recusado'
+                  ? { bg: '#FCEBEB', text: '#A32D2D', label: 'Recusado' }
+                  : { bg: '#FAEEDA', text: '#854F0B', label: 'Pendente' }
+
+              const dataFmt = sol.data.split('-').reverse().join('/')
+              const formaPgto = sol.forma_pagamento === 'cartao' ? '💳 Cartão'
+                : sol.forma_pagamento === 'pix' ? '📱 Pix'
+                : sol.forma_pagamento === 'faturado' ? '📄 Faturado'
+                : sol.forma_pagamento
+
+              return (
+                <div key={sol.id} className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-3">
+                  {/* Cabeçalho do card */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-800">{sol.nome_cliente}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">📱 {sol.telefone_cliente}</p>
+                    </div>
+                    <span className="text-[10px] font-semibold px-2 py-1 rounded-full flex-shrink-0"
+                      style={{ background: statusBadge.bg, color: statusBadge.text }}>
+                      {statusBadge.label}
+                    </span>
+                  </div>
+
+                  {/* Detalhes da viagem */}
+                  <div className="rounded-xl p-3 flex flex-col gap-1" style={{ background: '#f9fafb' }}>
+                    <p className="text-xs font-medium text-gray-700">
+                      📍 {sol.origem} → {sol.destino}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      📅 {dataFmt} às {sol.horario.slice(0, 5)}
+                    </p>
+                    {sol.numero_voo && (
+                      <p className="text-xs text-gray-500">✈️ Voo: {sol.numero_voo}</p>
+                    )}
+                    <p className="text-xs text-gray-500">{formaPgto}</p>
+                    {sol.observacoes && (
+                      <p className="text-xs text-gray-500 mt-1">💬 {sol.observacoes}</p>
+                    )}
+                  </div>
+
+                  {/* Passageiro adicional */}
+                  {sol.nome_passageiro2 && (
+                    <div className="rounded-xl px-3 py-2" style={{ background: '#EFF6FF' }}>
+                      <p className="text-xs font-semibold" style={{ color: '#1D4ED8' }}>👥 2º Passageiro</p>
+                      <p className="text-xs mt-0.5" style={{ color: '#1D4ED8' }}>
+                        {sol.nome_passageiro2}
+                        {sol.telefone_passageiro2 && ` · ${sol.telefone_passageiro2}`}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Retorno */}
+                  {sol.retorno_data && (
+                    <div className="rounded-xl px-3 py-2" style={{ background: '#F0FDF4' }}>
+                      <p className="text-xs font-semibold" style={{ color: '#166534' }}>🔄 Retorno</p>
+                      <p className="text-xs mt-0.5" style={{ color: '#166534' }}>
+                        {sol.retorno_data.split('-').reverse().join('/')} às {(sol.retorno_horario ?? '').slice(0, 5)}
+                        {sol.retorno_origem && ` · ${sol.retorno_origem} → ${sol.retorno_destino}`}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Ações */}
+                  {sol.status === 'pendente' && (
+                    <div className="flex gap-2">
+                      <button onClick={() => confirmarSolicitacao(sol)}
+                        className="flex-1 py-2.5 rounded-xl text-xs font-semibold"
+                        style={{ background: '#25D366', color: '#fff' }}>
+                        💬 Confirmar via WhatsApp
+                      </button>
+                      <button onClick={() => recusarSolicitacao(sol.id)}
+                        className="px-3 py-2.5 rounded-xl text-xs font-semibold"
+                        style={{ background: '#FCEBEB', color: '#A32D2D' }}>
+                        Recusar
+                      </button>
+                    </div>
+                  )}
+                  {sol.status === 'confirmado' && (
+                    <div className="rounded-xl px-3 py-2 text-center" style={{ background: '#E1F5EE' }}>
+                      <p className="text-xs font-medium" style={{ color: '#085041' }}>✓ Transfer confirmado</p>
+                    </div>
+                  )}
+                  {sol.status === 'recusado' && (
+                    <div className="rounded-xl px-3 py-2 text-center" style={{ background: '#FCEBEB' }}>
+                      <p className="text-xs font-medium" style={{ color: '#A32D2D' }}>✕ Solicitação recusada</p>
+                    </div>
+                  )}
+                </div>
+              )
+            })
+          )}
+        </div>
+      )}
     </div>
   )
 }
