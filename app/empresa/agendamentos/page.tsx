@@ -538,21 +538,22 @@ export default function AgendamentosPage() {
     setModalFichaAberto(true)
   }
 
-  async function confirmarViaWhatsApp(c: Corrida) {
+  function enviarWhatsAppConfirmacao(c: Corrida) {
+    const tel = (c.cliente_telefone || '').replace(/\D/g, '')
+    if (!tel) return
+    const telFmt = tel.startsWith('55') ? tel : `55${tel}`
+    const data = `${c.data_hora.slice(8,10)}/${c.data_hora.slice(5,7)}/${c.data_hora.slice(0,4)}`
+    const hora = c.data_hora.slice(11,16)
+    const msg = encodeURIComponent(`Olá ${c.cliente_nome}, sua solicitação de transfer de ${c.origem} para ${c.destino} no dia ${data} às ${hora} foi confirmada! Qualquer dúvida estamos à disposição.`)
+    window.open(`https://wa.me/${telFmt}?text=${msg}`, '_blank')
+  }
+
+  async function marcarConfirmada(c: Corrida) {
     setConfirmandoFicha(true)
     await supabase.from('corridas_empresa').update({ status: 'confirmada' }).eq('id', c.id)
     setCorridas(prev => prev.map(x => x.id === c.id ? { ...x, status: 'confirmada' } : x))
     setCorridaFicha(prev => prev ? { ...prev, status: 'confirmada' } : prev)
     setConfirmandoFicha(false)
-    const tel = (c.cliente_telefone || '').replace(/\D/g, '')
-    if (tel) {
-      const telFmt = tel.startsWith('55') ? tel : `55${tel}`
-      const data = `${c.data_hora.slice(8,10)}/${c.data_hora.slice(5,7)}/${c.data_hora.slice(0,4)}`
-      const hora = c.data_hora.slice(11,16)
-      const msg = encodeURIComponent(`Olá ${c.cliente_nome}, sua solicitação de transfer de ${c.origem} para ${c.destino} no dia ${data} às ${hora} foi confirmada! Qualquer dúvida estamos à disposição.`)
-      window.open(`https://wa.me/${telFmt}?text=${msg}`, '_blank')
-    }
-    setModalFichaAberto(false)
   }
 
   async function recusarFicha(c: Corrida) {
@@ -1217,11 +1218,17 @@ export default function AgendamentosPage() {
             {corridaFicha.status === 'pendente' && (
               <div className="flex flex-col gap-2 mt-2">
                 <button
-                  onClick={() => confirmarViaWhatsApp(corridaFicha)}
-                  disabled={confirmandoFicha}
-                  className="w-full py-4 rounded-2xl text-white text-sm font-bold disabled:opacity-40 flex items-center justify-center gap-2"
+                  onClick={() => enviarWhatsAppConfirmacao(corridaFicha)}
+                  className="w-full py-4 rounded-2xl text-white text-sm font-bold flex items-center justify-center gap-2"
                   style={{ background: '#25D366' }}>
-                  💬 Confirmar via WhatsApp
+                  💬 Enviar confirmação via WhatsApp
+                </button>
+                <button
+                  onClick={() => marcarConfirmada(corridaFicha)}
+                  disabled={confirmandoFicha}
+                  className="w-full py-3.5 rounded-2xl text-sm font-bold border disabled:opacity-40"
+                  style={{ background: '#E1F5EE', color: '#085041', borderColor: '#9FE1CB' }}>
+                  {confirmandoFicha ? 'Salvando...' : '✓ Marcar como confirmado'}
                 </button>
                 <button
                   onClick={() => recusarFicha(corridaFicha)}
