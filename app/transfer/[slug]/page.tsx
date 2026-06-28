@@ -126,6 +126,7 @@ export default function TransferSlugPage({ params }: { params: { slug: string } 
     if (!form.horario) { setErroMsg('Horário é obrigatório'); return }
     if (!form.origem.trim()) { setErroMsg('Origem é obrigatória'); return }
     if (!form.destino.trim()) { setErroMsg('Destino é obrigatório'); return }
+    if (showRetorno && !form.retorno_data) { setErroMsg('Data do retorno é obrigatória'); return }
     if (!empresa) return
 
     setSalvando(true)

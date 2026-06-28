@@ -123,6 +123,7 @@ type SolicitacaoTransfer = {
   retorno_origem: string | null
   retorno_destino: string | null
   motorista_id: string | null
+  valor: number | null
   status: string
   created_at: string
 }
@@ -165,6 +166,9 @@ export default function EmpresaPage() {
   const [fichaAberta, setFichaAberta] = useState<SolicitacaoTransfer | null>(null)
   const [motoristaIdModal, setMotoristaIdModal] = useState('')
   const [enviandoFicha, setEnviandoFicha] = useState(false)
+  const [editandoValor, setEditandoValor] = useState(false)
+  const [valorModal, setValorModal] = useState('')
+  const [confirmandoExclusao, setConfirmandoExclusao] = useState(false)
 
   useEffect(() => { carregarDados() }, [])
   useEffect(() => {
@@ -241,6 +245,24 @@ export default function EmpresaPage() {
   function enviarDadosMotorista(sol: SolicitacaoTransfer) {
     const mId = sol.motorista_id ?? motoristaIdModal
     abrirWhatsApp(sol.telefone_cliente, montarMsgWhatsApp(sol, mId))
+  }
+
+  async function salvarValor(sol: SolicitacaoTransfer, valorStr: string) {
+    const num = parseFloat(valorStr.replace(',', '.'))
+    if (isNaN(num) || num < 0) return
+    setEnviandoFicha(true)
+    await supabase.from('solicitacoes_transfer').update({ valor: num }).eq('id', sol.id)
+    setSolicitacoes(prev => prev.map(s => s.id === sol.id ? { ...s, valor: num } : s))
+    setFichaAberta(prev => prev ? { ...prev, valor: num } : prev)
+    setEditandoValor(false)
+    setEnviandoFicha(false)
+  }
+
+  async function excluirSolicitacao(sol: SolicitacaoTransfer) {
+    await supabase.from('solicitacoes_transfer').delete().eq('id', sol.id)
+    setSolicitacoes(prev => prev.filter(s => s.id !== sol.id))
+    setFichaAberta(null)
+    setConfirmandoExclusao(false)
   }
 
   async function recusarSolicitacao(sol: SolicitacaoTransfer) {
@@ -797,7 +819,7 @@ export default function EmpresaPage() {
               return (
                 <button
                   key={sol.id}
-                  onClick={() => { setFichaAberta(sol); setMotoristaIdModal(sol.motorista_id ?? '') }}
+                  onClick={() => { setFichaAberta(sol); setMotoristaIdModal(sol.motorista_id ?? ''); setValorModal(sol.valor?.toString() ?? ''); setEditandoValor(false); setConfirmandoExclusao(false) }}
                   className="w-full bg-white rounded-2xl p-4 border border-gray-100 text-left flex flex-col gap-2 active:opacity-75"
                   style={{ borderColor: sol.status === 'pendente' ? '#FCD34D' : undefined }}
                 >
@@ -845,6 +867,13 @@ export default function EmpresaPage() {
               }}>
               {fichaAberta.status === 'confirmado' ? 'Confirmado' : fichaAberta.status === 'recusado' ? 'Recusado' : 'Pendente'}
             </span>
+            <button
+              onClick={() => setConfirmandoExclusao(true)}
+              className="ml-1 p-1.5 rounded-lg"
+              style={{ background: 'rgba(255,255,255,0.15)' }}
+              title="Excluir solicitação">
+              🗑️
+            </button>
           </div>
 
           <div className="flex-1 overflow-y-auto px-4 py-4 pb-8 flex flex-col gap-3">
@@ -919,7 +948,80 @@ export default function EmpresaPage() {
                 </select>
               )}
             </div>
+
+            {/* Valor */}
+            <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Valor</p>
+                {!editandoValor && (
+                  <button onClick={() => { setEditandoValor(true); setValorModal(fichaAberta.valor?.toString() ?? '') }}
+                    className="text-xs px-2 py-1 rounded-lg"
+                    style={{ color: '#0F6E56', background: '#E1F5EE' }}>
+                    ✏️ Editar
+                  </button>
+                )}
+              </div>
+              {editandoValor ? (
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">R$</span>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      min="0"
+                      step="0.01"
+                      value={valorModal}
+                      onChange={e => setValorModal(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 bg-white outline-none"
+                      placeholder="0,00"
+                      autoFocus
+                    />
+                  </div>
+                  <button
+                    onClick={() => salvarValor(fichaAberta, valorModal)}
+                    disabled={enviandoFicha}
+                    className="px-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40"
+                    style={{ background: '#0F6E56', color: '#fff' }}>
+                    Salvar
+                  </button>
+                  <button
+                    onClick={() => setEditandoValor(false)}
+                    className="px-3 py-2.5 rounded-xl text-sm"
+                    style={{ background: '#F3F4F6', color: '#6B7280' }}>
+                    ✕
+                  </button>
+                </div>
+              ) : (
+                <p className="text-sm font-semibold text-gray-800">
+                  {fichaAberta.valor != null
+                    ? `R$ ${fichaAberta.valor.toFixed(2).replace('.', ',')}`
+                    : <span className="text-gray-400 font-normal">Não informado</span>}
+                </p>
+              )}
+            </div>
           </div>
+
+          {/* Confirmação de exclusão */}
+          {confirmandoExclusao && (
+            <div className="fixed inset-0 z-[300] flex items-end justify-center" style={{ background: 'rgba(0,0,0,0.5)' }}>
+              <div className="bg-white rounded-t-3xl p-6 w-full max-w-md flex flex-col gap-4">
+                <p className="text-base font-bold text-gray-800 text-center">Excluir solicitação?</p>
+                <p className="text-sm text-gray-500 text-center">Esta ação não pode ser desfeita. A solicitação de {fichaAberta.nome_cliente} será removida permanentemente.</p>
+                <button
+                  onClick={() => excluirSolicitacao(fichaAberta)}
+                  className="w-full py-3.5 rounded-xl text-sm font-semibold"
+                  style={{ background: '#DC2626', color: '#fff' }}>
+                  Sim, excluir
+                </button>
+                <button
+                  onClick={() => setConfirmandoExclusao(false)}
+                  className="w-full py-3 rounded-xl text-sm font-semibold"
+                  style={{ background: '#F3F4F6', color: '#374151' }}>
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Botões de ação */}
           <div className="flex-shrink-0 px-4 py-4 border-t border-gray-100 flex flex-col gap-2">
