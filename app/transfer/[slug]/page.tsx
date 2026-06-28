@@ -417,7 +417,7 @@ export default function TransferSlugPage({ params }: { params: { slug: string } 
               {salvando ? 'Enviando...' : '✓ Solicitar Transfer'}
             </button>
 
-            <p className="text-center text-xs text-gray-400">Solicitação via RotaGenda</p>
+            <p className="text-center text-xs text-gray-400">Solicitação via RotaGenda · v2</p>
           </div>
         )}
 
