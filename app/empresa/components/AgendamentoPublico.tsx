@@ -84,6 +84,16 @@ export default function AgendamentoPublico({
   const [rotaManual, setRotaManual] = useState(false)
   const [origemManual, setOrigemManual] = useState('')
   const [destinoManual, setDestinoManual] = useState('')
+  const [numeroVoo, setNumeroVoo] = useState('')
+  const [formaPagamento, setFormaPagamento] = useState('pix')
+  const [showPassageiro2, setShowPassageiro2] = useState(false)
+  const [nomePassageiro2, setNomePassageiro2] = useState('')
+  const [telefonePassageiro2, setTelefonePassageiro2] = useState('')
+  const [showRetorno, setShowRetorno] = useState(false)
+  const [retornoData, setRetornoData] = useState('')
+  const [retornoHorario, setRetornoHorario] = useState('')
+  const [retornoOrigem, setRetornoOrigem] = useState('')
+  const [retornoDestino, setRetornoDestino] = useState('')
   const [turnoRF, setTurnoRF] = useState<'ida' | 'volta'>('ida')
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
@@ -106,6 +116,13 @@ export default function AgendamentoPublico({
     }
     metaTheme.setAttribute('content', cor)
     carregarRotas()
+    if (empresa.tipo_operacao !== 'rota_fixa') {
+      try {
+        const n = localStorage.getItem('ag_nome') ?? ''
+        const t = localStorage.getItem('ag_telefone') ?? ''
+        if (n || t) setForm(f => ({ ...f, nome: n, telefone: t }))
+      } catch {}
+    }
   }, [])
 
   async function carregarRotas() {
@@ -245,6 +262,8 @@ export default function AgendamentoPublico({
     const destinoSave = empresa.tipo_operacao === 'rota_fixa' ? desembarque : (rotaManual ? destinoManual.trim() : rotaSelecionada!.destino)
     const valorSave = empresa.tipo_operacao === 'rota_fixa' ? (valorTrechoRF ?? 0) : (rotaManual ? 0 : rotaSelecionada!.preco)
 
+    const isTransfer = empresa.tipo_operacao !== 'rota_fixa'
+
     const { error } = await supabase.from('corridas_empresa').insert({
       empresa_id: empresa.id,
       rota_id: rotaManual ? null : rotaSelecionada!.id,
@@ -256,9 +275,18 @@ export default function AgendamentoPublico({
       valor: valorSave,
       status: 'pendente',
       motorista_id: null,
-      tipo_servico: empresa.tipo_operacao === 'rota_fixa' ? 'rota_fixa' : 'transfer',
-      forma_pagamento: 'a_definir',
+      tipo_servico: isTransfer ? 'transfer' : 'rota_fixa',
+      forma_pagamento: isTransfer ? formaPagamento : 'a_definir',
       observacoes: form.observacoes.trim() || null,
+      ...(isTransfer && {
+        numero_voo: numeroVoo.trim() || null,
+        nome_passageiro2: showPassageiro2 && nomePassageiro2.trim() ? nomePassageiro2.trim() : null,
+        telefone_passageiro2: showPassageiro2 && telefonePassageiro2.trim() ? telefonePassageiro2.trim() : null,
+        retorno_data: showRetorno && retornoData ? retornoData : null,
+        retorno_horario: showRetorno && retornoHorario ? retornoHorario : null,
+        retorno_origem: showRetorno && retornoOrigem.trim() ? retornoOrigem.trim() : null,
+        retorno_destino: showRetorno && retornoDestino.trim() ? retornoDestino.trim() : null,
+      }),
     })
 
     if (error) {
@@ -276,6 +304,13 @@ export default function AgendamentoPublico({
 
     setSalvando(false)
 
+    if (empresa.tipo_operacao !== 'rota_fixa') {
+      try {
+        localStorage.setItem('ag_nome', form.nome.trim())
+        localStorage.setItem('ag_telefone', form.telefone.trim())
+      } catch {}
+    }
+
     if (pixData?.chave_pix) {
       setChavePix(pixData.chave_pix)
       setTipoChavePix(pixData.tipo_chave_pix ?? null)
@@ -292,6 +327,16 @@ export default function AgendamentoPublico({
     setRotaManual(false)
     setOrigemManual('')
     setDestinoManual('')
+    setNumeroVoo('')
+    setFormaPagamento('pix')
+    setShowPassageiro2(false)
+    setNomePassageiro2('')
+    setTelefonePassageiro2('')
+    setShowRetorno(false)
+    setRetornoData('')
+    setRetornoHorario('')
+    setRetornoOrigem('')
+    setRetornoDestino('')
     setTurnoRF('ida')
     setEmbarque('')
     setDesembarque('')
@@ -377,7 +422,61 @@ export default function AgendamentoPublico({
                   className="campo-input"
                 />
               </Campo>
+              {empresa.tipo_operacao !== 'rota_fixa' && (
+                <Campo label="Número do voo">
+                  <input value={numeroVoo} onChange={e => setNumeroVoo(e.target.value)}
+                    placeholder="Ex: G3 1234 (opcional)" className="campo-input" />
+                </Campo>
+              )}
             </div>
+
+            {/* Forma de pagamento (só transfer) */}
+            {empresa.tipo_operacao !== 'rota_fixa' && (
+              <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-3">
+                <p className="text-sm font-semibold text-gray-700">Forma de pagamento</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {([
+                    { value: 'cartao', label: '💳 Cartão' },
+                    { value: 'pix', label: '📱 Pix' },
+                    { value: 'faturado', label: '📄 Faturado' },
+                  ] as const).map(op => (
+                    <button key={op.value} type="button"
+                      onClick={() => setFormaPagamento(op.value)}
+                      className="py-2.5 rounded-xl text-sm font-medium border transition-all"
+                      style={formaPagamento === op.value
+                        ? { background: cor, color: '#fff', borderColor: cor }
+                        : { background: '#fff', color: '#555', borderColor: '#e5e7eb' }}>
+                      {op.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Passageiro adicional (só transfer) */}
+            {empresa.tipo_operacao !== 'rota_fixa' && (
+              <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-3">
+                <button type="button" onClick={() => setShowPassageiro2(v => !v)}
+                  className="flex items-center justify-between w-full">
+                  <span className="text-sm font-semibold text-gray-700">👥 Passageiro adicional</span>
+                  <span className="text-sm font-semibold" style={{ color: cor }}>
+                    {showPassageiro2 ? '− Remover' : '+ Adicionar'}
+                  </span>
+                </button>
+                {showPassageiro2 && (
+                  <>
+                    <Campo label="Nome do 2º passageiro">
+                      <input value={nomePassageiro2} onChange={e => setNomePassageiro2(e.target.value)}
+                        placeholder="Nome completo" className="campo-input" />
+                    </Campo>
+                    <Campo label="Telefone do 2º passageiro">
+                      <input value={telefonePassageiro2} onChange={e => setTelefonePassageiro2(e.target.value)}
+                        placeholder="(XX) XXXXX-XXXX" type="tel" className="campo-input" />
+                    </Campo>
+                  </>
+                )}
+              </div>
+            )}
 
             {/* Detalhes da viagem */}
             <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-3">
@@ -586,6 +685,41 @@ export default function AgendamentoPublico({
                 />
               </Campo>
             </div>
+
+            {/* Retorno (só transfer) */}
+            {empresa.tipo_operacao !== 'rota_fixa' && (
+              <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-3">
+                <button type="button" onClick={() => setShowRetorno(v => !v)}
+                  className="flex items-center justify-between w-full">
+                  <span className="text-sm font-semibold text-gray-700">🔄 Quer agendar seu retorno?</span>
+                  <span className="text-sm font-semibold" style={{ color: cor }}>
+                    {showRetorno ? '− Remover' : '+ Sim, quero'}
+                  </span>
+                </button>
+                {showRetorno && (
+                  <>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Campo label="Data do retorno">
+                        <input type="date" value={retornoData} onChange={e => setRetornoData(e.target.value)}
+                          min={form.data || new Date().toISOString().slice(0, 10)} className="campo-input" />
+                      </Campo>
+                      <Campo label="Horário do retorno">
+                        <input type="time" value={retornoHorario} onChange={e => setRetornoHorario(e.target.value)}
+                          className="campo-input" />
+                      </Campo>
+                    </div>
+                    <Campo label="Origem do retorno">
+                      <input value={retornoOrigem} onChange={e => setRetornoOrigem(e.target.value)}
+                        placeholder="Ex: Hotel, Endereço..." className="campo-input" />
+                    </Campo>
+                    <Campo label="Destino do retorno">
+                      <input value={retornoDestino} onChange={e => setRetornoDestino(e.target.value)}
+                        placeholder="Ex: Aeroporto, Endereço..." className="campo-input" />
+                    </Campo>
+                  </>
+                )}
+              </div>
+            )}
 
             {erro && (
               <div style={{ background: '#FCEBEB', borderColor: '#F5BCBC' }}
