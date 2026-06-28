@@ -225,7 +225,7 @@ export default function AgendamentoPublico({
     if (!rotaManual && !rotaSelecionada) return
 
     // Verificar vagas disponíveis para rota_fixa (RPC bypassa RLS para anon)
-    if (empresa.tipo_operacao === 'rota_fixa' && rotaSelecionada.capacidade) {
+    if (empresa.tipo_operacao === 'rota_fixa' && rotaSelecionada?.capacidade) {
       const { data: ocupadas } = await supabase.rpc('count_vagas_ocupadas', {
         p_rota_id: rotaSelecionada.id,
         p_data: form.data,
