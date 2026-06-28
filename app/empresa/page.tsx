@@ -554,7 +554,7 @@ export default function EmpresaPage() {
                   const cor = STATUS_COR[c.status] ?? STATUS_COR.confirmada
                   const motoristaNome = (c.motoristas_empresa as any)?.nome ?? null
                   return (
-                    <Link key={c.id} href={`/empresa/agendamentos?todos=1`}
+                    <Link key={c.id} href={`/empresa/agendamentos?ficha=${c.id}`}
                       className="block bg-white rounded-2xl px-4 py-3 border border-gray-100"
                       style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.04)', borderColor: c.status === 'pendente' ? '#FCD34D' : undefined }}>
                       <div className="flex items-start justify-between gap-2">

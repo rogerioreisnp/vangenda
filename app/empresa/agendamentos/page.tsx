@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
@@ -264,7 +264,18 @@ export default function AgendamentosPage() {
   const [corridaFicha, setCorridaFicha] = useState<Corrida | null>(null)
   const [confirmandoFicha, setConfirmandoFicha] = useState(false)
   const [contactsApi, setContactsApi] = useState(false)
+  const fichaAutoAberta = useRef(false)
   useEffect(() => { setContactsApi('contacts' in navigator) }, [])
+  useEffect(() => {
+    const fichaId = searchParams.get('ficha')
+    if (!fichaId || corridas.length === 0 || fichaAutoAberta.current) return
+    const corrida = corridas.find(c => c.id === fichaId)
+    if (corrida) {
+      fichaAutoAberta.current = true
+      setCorridaFicha(corrida)
+      setModalFichaAberto(true)
+    }
+  }, [corridas, searchParams])
   async function selecionarContatoAg() {
     try {
       const contacts = await (navigator as any).contacts.select(['name', 'tel'], { multiple: false })
