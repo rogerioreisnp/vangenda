@@ -91,7 +91,6 @@ export default function TransferSlugPage({ params }: { params: { slug: string } 
         .from('rotas_empresa')
         .select('id, nome, origem, destino, preco')
         .eq('empresa_id', emp.id)
-        .eq('ativa', true)
         .order('created_at')
       if (rts && rts.length > 0) setRotas(rts)
     }
