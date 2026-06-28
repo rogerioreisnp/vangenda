@@ -37,6 +37,13 @@ type Corrida = {
   valor_recebido: number | null
   observacoes: string | null
   motoristas_empresa: { nome: string } | null
+  numero_voo: string | null
+  nome_passageiro2: string | null
+  telefone_passageiro2: string | null
+  retorno_data: string | null
+  retorno_horario: string | null
+  retorno_origem: string | null
+  retorno_destino: string | null
 }
 
 type CorridaAgrupada =
@@ -143,10 +150,12 @@ const FORM_AG_VAZIO: FormAgPassageiro = {
 }
 
 const STATUS_COR: Record<string, { bg: string; text: string; label: string }> = {
+  pendente:               { bg: '#FEF3C7', text: '#92400E', label: 'Pendente' },
   confirmada:             { bg: '#EFF6FF', text: '#1D4ED8', label: 'Confirmada' },
   em_andamento:           { bg: '#E1F5EE', text: '#0F6E56', label: 'Em andamento' },
   concluida:              { bg: '#F3F4F6', text: '#6B7280', label: 'Concluída' },
   cancelada:              { bg: '#FCEBEB', text: '#A32D2D', label: 'Cancelada' },
+  recusada:               { bg: '#FCEBEB', text: '#A32D2D', label: 'Recusada' },
   parcialmente_cancelada: { bg: '#FEF3C7', text: '#92400E', label: 'Parc. cancelada' },
 }
 
@@ -251,6 +260,9 @@ export default function AgendamentosPage() {
   const [filtroData, setFiltroData] = useState(HOJE)
   const [verTodos, setVerTodos] = useState(false)
   const [filtroRotaId, setFiltroRotaId] = useState('')
+  const [modalFichaAberto, setModalFichaAberto] = useState(false)
+  const [corridaFicha, setCorridaFicha] = useState<Corrida | null>(null)
+  const [confirmandoFicha, setConfirmandoFicha] = useState(false)
   const [contactsApi, setContactsApi] = useState(false)
   useEffect(() => { setContactsApi('contacts' in navigator) }, [])
   async function selecionarContatoAg() {
@@ -314,7 +326,7 @@ export default function AgendamentosPage() {
         .order('nome'),
       supabase
         .from('corridas_empresa')
-        .select('id, rota_id, origem, destino, data_hora, created_at, cliente_nome, cliente_telefone, valor, status, motorista_id, tipo_servico, forma_pagamento, status_pagamento, valor_recebido, observacoes, motoristas_empresa(nome)')
+        .select('id, rota_id, origem, destino, data_hora, created_at, cliente_nome, cliente_telefone, valor, status, motorista_id, tipo_servico, forma_pagamento, status_pagamento, valor_recebido, observacoes, motoristas_empresa(nome), numero_voo, nome_passageiro2, telefone_passageiro2, retorno_data, retorno_horario, retorno_origem, retorno_destino')
         .eq('empresa_id', gestor.empresa_id)
         .order('data_hora', { ascending: false })
         .limit(300),
@@ -518,6 +530,36 @@ export default function AgendamentosPage() {
       await supabase.from('corridas_empresa').delete().eq('id', id)
     }
     setCorridas(prev => prev.filter(c => !ids.includes(c.id)))
+  }
+
+  function abrirFicha(c: Corrida) {
+    setCorridaFicha(c)
+    setModalFichaAberto(true)
+  }
+
+  async function confirmarViaWhatsApp(c: Corrida) {
+    setConfirmandoFicha(true)
+    await supabase.from('corridas_empresa').update({ status: 'confirmada' }).eq('id', c.id)
+    setCorridas(prev => prev.map(x => x.id === c.id ? { ...x, status: 'confirmada' } : x))
+    setCorridaFicha(prev => prev ? { ...prev, status: 'confirmada' } : prev)
+    setConfirmandoFicha(false)
+    const tel = (c.cliente_telefone || '').replace(/\D/g, '')
+    if (tel) {
+      const telFmt = tel.startsWith('55') ? tel : `55${tel}`
+      const data = `${c.data_hora.slice(8,10)}/${c.data_hora.slice(5,7)}/${c.data_hora.slice(0,4)}`
+      const hora = c.data_hora.slice(11,16)
+      const msg = encodeURIComponent(`Olá ${c.cliente_nome}, sua solicitação de transfer de ${c.origem} para ${c.destino} no dia ${data} às ${hora} foi confirmada! Qualquer dúvida estamos à disposição.`)
+      window.open(`https://wa.me/${telFmt}?text=${msg}`, '_blank')
+    }
+    setModalFichaAberto(false)
+  }
+
+  async function recusarFicha(c: Corrida) {
+    setConfirmandoFicha(true)
+    await supabase.from('corridas_empresa').update({ status: 'recusada' }).eq('id', c.id)
+    setCorridas(prev => prev.map(x => x.id === c.id ? { ...x, status: 'recusada' } : x))
+    setConfirmandoFicha(false)
+    setModalFichaAberto(false)
   }
 
   function abrirAgPassageiro() {
@@ -908,7 +950,14 @@ export default function AgendamentosPage() {
                         <p className="text-sm font-bold" style={{ color: '#0F6E56' }}>
                           R$ {Number(c.valor).toFixed(2).replace('.', ',')}
                         </p>
-                        {eAtivo(c.status) && (
+                        {c.status === 'pendente' && (
+                          <button onClick={() => abrirFicha(c)}
+                            className="px-2.5 py-1 rounded-lg text-[10px] font-medium"
+                            style={{ background: '#FEF3C7', color: '#92400E' }}>
+                            Ver ficha
+                          </button>
+                        )}
+                        {eAtivo(c.status) && c.status !== 'pendente' && (
                           <button onClick={() => abrirEditar(c)}
                             className="px-2.5 py-1 rounded-lg text-[10px] font-medium"
                             style={{ background: '#E1F5EE', color: '#0F6E56' }}>
@@ -922,7 +971,7 @@ export default function AgendamentosPage() {
                             Cancelar
                           </button>
                         )}
-                        {c.status === 'cancelada' && (
+                        {(c.status === 'cancelada' || c.status === 'recusada') && (
                           <button onClick={() => apagarCorrida([c.id])}
                             className="px-2.5 py-1 rounded-lg text-[10px] font-medium"
                             style={{ background: '#FCEBEB', color: '#A32D2D' }}>
@@ -1079,6 +1128,112 @@ export default function AgendamentosPage() {
           </div>
         )}
       </div>
+
+      {/* Modal ficha de solicitação pendente (transfer) */}
+      {modalFichaAberto && corridaFicha && (
+        <div className="fixed inset-0 z-50 flex flex-col" style={{ background: '#fff' }}>
+          <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-4 flex items-center gap-3 flex-shrink-0">
+            <button onClick={() => setModalFichaAberto(false)} style={{ color: '#9FE1CB' }} className="text-2xl">‹</button>
+            <div className="flex-1">
+              <p style={{ color: '#E1F5EE' }} className="text-sm font-semibold">Solicitação de Transfer</p>
+            </div>
+            <span className="text-[11px] font-semibold px-2 py-1 rounded-full"
+              style={{ background: STATUS_COR[corridaFicha.status]?.bg ?? '#FEF3C7', color: STATUS_COR[corridaFicha.status]?.text ?? '#92400E' }}>
+              {STATUS_COR[corridaFicha.status]?.label ?? corridaFicha.status}
+            </span>
+          </div>
+
+          <div className="flex-1 overflow-y-auto px-4 pt-4 pb-24 flex flex-col gap-3">
+
+            {/* Viagem */}
+            <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-2">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Viagem</p>
+              <p className="text-base font-bold text-gray-800">{corridaFicha.origem} → {corridaFicha.destino}</p>
+              <p className="text-sm text-gray-600">
+                📅 {corridaFicha.data_hora.slice(8,10)}/{corridaFicha.data_hora.slice(5,7)}/{corridaFicha.data_hora.slice(0,4)} às {corridaFicha.data_hora.slice(11,16)}
+              </p>
+              {corridaFicha.numero_voo && (
+                <p className="text-sm text-gray-600">✈️ Voo: {corridaFicha.numero_voo}</p>
+              )}
+              {corridaFicha.forma_pagamento && corridaFicha.forma_pagamento !== 'a_definir' && (
+                <p className="text-sm text-gray-600">💳 Pagamento: {{
+                  cartao: 'Cartão', pix: 'Pix', faturado: 'Faturado',
+                  dinheiro: 'Dinheiro'
+                }[corridaFicha.forma_pagamento] ?? corridaFicha.forma_pagamento}</p>
+              )}
+              {Number(corridaFicha.valor) > 0 && (
+                <p className="text-sm font-semibold" style={{ color: '#0F6E56' }}>
+                  R$ {Number(corridaFicha.valor).toFixed(2).replace('.', ',')}
+                </p>
+              )}
+            </div>
+
+            {/* Cliente */}
+            <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-2">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Cliente</p>
+              <p className="text-sm font-semibold text-gray-800">👤 {corridaFicha.cliente_nome}</p>
+              {corridaFicha.cliente_telefone && (
+                <p className="text-sm text-gray-600">📞 {corridaFicha.cliente_telefone}</p>
+              )}
+            </div>
+
+            {/* Passageiro adicional */}
+            {corridaFicha.nome_passageiro2 && (
+              <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-2">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Passageiro adicional</p>
+                <p className="text-sm font-semibold text-gray-800">👤 {corridaFicha.nome_passageiro2}</p>
+                {corridaFicha.telefone_passageiro2 && (
+                  <p className="text-sm text-gray-600">📞 {corridaFicha.telefone_passageiro2}</p>
+                )}
+              </div>
+            )}
+
+            {/* Retorno */}
+            {corridaFicha.retorno_data && (
+              <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-2">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Retorno solicitado</p>
+                <p className="text-sm text-gray-600">
+                  📅 {corridaFicha.retorno_data.slice(8,10)}/{corridaFicha.retorno_data.slice(5,7)}/{corridaFicha.retorno_data.slice(0,4)}
+                  {corridaFicha.retorno_horario && ` às ${corridaFicha.retorno_horario.slice(0,5)}`}
+                </p>
+                {(corridaFicha.retorno_origem || corridaFicha.retorno_destino) && (
+                  <p className="text-sm text-gray-800 font-medium">
+                    {corridaFicha.retorno_origem} → {corridaFicha.retorno_destino}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Observações */}
+            {corridaFicha.observacoes && (
+              <div className="bg-white rounded-2xl p-4 border border-gray-100">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Observações</p>
+                <p className="text-sm text-gray-700 leading-relaxed">{corridaFicha.observacoes}</p>
+              </div>
+            )}
+
+            {/* Ações — só para pendente */}
+            {corridaFicha.status === 'pendente' && (
+              <div className="flex flex-col gap-2 mt-2">
+                <button
+                  onClick={() => confirmarViaWhatsApp(corridaFicha)}
+                  disabled={confirmandoFicha}
+                  className="w-full py-4 rounded-2xl text-white text-sm font-bold disabled:opacity-40 flex items-center justify-center gap-2"
+                  style={{ background: '#25D366' }}>
+                  💬 Confirmar via WhatsApp
+                </button>
+                <button
+                  onClick={() => recusarFicha(corridaFicha)}
+                  disabled={confirmandoFicha}
+                  className="w-full py-3.5 rounded-2xl text-sm font-bold border disabled:opacity-40"
+                  style={{ background: '#FCEBEB', color: '#A32D2D', borderColor: '#F5BCBC' }}>
+                  Recusar solicitação
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Modal formulário nova/editar corrida */}
       {modalAberto && (
