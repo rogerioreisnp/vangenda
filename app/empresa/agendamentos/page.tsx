@@ -907,9 +907,9 @@ export default function AgendamentosPage() {
         {tipoOperacao !== 'rota_fixa' && (
           <div className="flex gap-1.5 overflow-x-auto pb-0.5">
             {[
-              { value: '', label: 'Todos' },
-              { value: 'confirmada', label: 'Confirmada' },
+              { value: '', label: 'Todas' },
               { value: 'pendente', label: 'Pendente' },
+              { value: 'confirmada', label: 'Confirmada' },
               { value: 'em_andamento', label: 'Em andamento' },
               { value: 'concluida', label: 'Concluída' },
             ].map(op => (
