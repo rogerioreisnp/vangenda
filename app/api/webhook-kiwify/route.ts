@@ -108,8 +108,10 @@ export async function POST(req: NextRequest) {
       .eq('user_id', userId)
       .single()
 
-    if (planoParam === 'empresarial' || gestor?.empresa_id) {
-      console.log(`[kiwify] Atualizando empresa: ${gestor.empresa_id}`)
+    const empresaId = gestor?.empresa_id ?? null
+
+    if (planoParam === 'empresarial' || empresaId) {
+      console.log(`[kiwify] Atualizando empresa: ${empresaId}`)
       const { error: errEmpresa } = await supabase
         .from('empresas')
         .update({
@@ -117,14 +119,14 @@ export async function POST(req: NextRequest) {
           trial_fim: expira,
           periodo,
         })
-        .eq('id', gestor.empresa_id)
+        .eq('id', empresaId)
 
       if (errEmpresa) {
         console.error('[kiwify] Erro ao atualizar empresa:', errEmpresa.message)
         return NextResponse.json({ error: errEmpresa.message }, { status: 500 })
       }
 
-      console.log(`[kiwify] Empresa ativada | empresa_id: ${gestor.empresa_id} | expira: ${expira}`)
+      console.log(`[kiwify] Empresa ativada | empresa_id: ${empresaId} | expira: ${expira}`)
       return NextResponse.json({ ok: true, msg: `Empresa ativada: ${email}` })
     }
 
