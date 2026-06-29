@@ -344,6 +344,18 @@ export default function AgendamentoPublico({
         localStorage.setItem('ag_telefone', form.telefone.trim())
       } catch {}
 
+      // Notifica gestor
+      fetch('/api/notificar-agendamento', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          empresa_id: empresa.id,
+          nome_cliente: form.nome.trim(),
+          origem: origemSave,
+          destino: destinoSave,
+        }),
+      }).catch(() => {})
+
       setSalvando(false)
       setEtapa('sucesso')
       return
@@ -375,6 +387,18 @@ export default function AgendamentoPublico({
       setErro('Erro ao enviar agendamento. Tente novamente.')
       return
     }
+
+    // Notifica gestor
+    fetch('/api/notificar-agendamento', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        empresa_id: empresa.id,
+        nome_cliente: form.nome.trim(),
+        origem: origemSave,
+        destino: destinoSave,
+      }),
+    }).catch(() => {})
 
     const { data: pixData } = await supabase
       .from('empresas')

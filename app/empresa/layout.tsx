@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import OneSignalInit from '@/components/OneSignalInit'
 
 const navItems = [
   { href: '/empresa', label: 'Painel', emoji: '⌂' },
@@ -21,6 +22,7 @@ export default function EmpresaLayout({ children }: { children: React.ReactNode 
   const pathname = usePathname()
   const [checando, setChecando] = useState(true)
   const [menuPerfil, setMenuPerfil] = useState(false)
+  const [gestorUserId, setGestorUserId] = useState<string | null>(null)
   const [nomeGestor, setNomeGestor] = useState('')
   const [emailGestor, setEmailGestor] = useState('')
   const [planoEmpresa, setPlanoEmpresa] = useState('')
@@ -45,6 +47,7 @@ export default function EmpresaLayout({ children }: { children: React.ReactNode 
 
     if (!gestor) { router.push('/'); return }
 
+    setGestorUserId(session.user.id)
     setNomeGestor(gestor.nome || '')
     setEmailGestor(gestor.email || session.user.email || '')
 
@@ -107,6 +110,7 @@ export default function EmpresaLayout({ children }: { children: React.ReactNode 
 
   return (
     <div className="min-h-dvh flex flex-col" style={{ background: '#f0f0ec' }}>
+      {gestorUserId && <OneSignalInit motoristaId={gestorUserId} />}
       <main className="flex-1 overflow-y-auto pb-20">
         {children}
       </main>
