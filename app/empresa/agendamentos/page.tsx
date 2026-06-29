@@ -1423,9 +1423,23 @@ export default function AgendamentosPage() {
               </div>
             )}
 
-            {/* Ações — Em andamento: marcar concluído */}
+            {/* Ações — Em andamento: reenviar fichas + marcar concluído */}
             {corridaFicha.status === 'em_andamento' && (
               <div className="flex flex-col gap-2 mt-2">
+                <button
+                  onClick={() => enviarWhatsAppMotorista(corridaFicha, corridaFicha.motorista_id ?? '')}
+                  disabled={!corridaFicha.motorista_id}
+                  className="w-full py-4 rounded-2xl text-white text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-40"
+                  style={{ background: '#25D366' }}>
+                  💬 Reenviar ficha ao motorista
+                </button>
+                <button
+                  onClick={() => enviarWhatsAppClienteComMotorista(corridaFicha, corridaFicha.motorista_id ?? '')}
+                  disabled={!corridaFicha.motorista_id}
+                  className="w-full py-3.5 rounded-2xl text-white text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-40"
+                  style={{ background: '#128C7E' }}>
+                  💬 Reenviar ficha ao cliente
+                </button>
                 <button
                   onClick={() => marcarConcluida(corridaFicha)}
                   disabled={confirmandoFicha}
