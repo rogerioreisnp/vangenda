@@ -858,10 +858,8 @@ export default function AgendamentosPage() {
             {[
               { value: '', label: 'Todos' },
               { value: 'pendente', label: 'Pendente' },
-              { value: 'confirmada', label: 'Confirmada' },
-              { value: 'em_andamento', label: 'Em andamento' },
-              { value: 'concluida', label: 'Concluída' },
-              { value: 'cancelada', label: 'Cancelada' },
+              { value: 'confirmada', label: 'Em andamento' },
+              { value: 'concluida', label: 'Concluído' },
             ].map(op => (
               <button
                 key={op.value}
