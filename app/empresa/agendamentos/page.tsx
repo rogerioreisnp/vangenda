@@ -576,6 +576,14 @@ export default function AgendamentosPage() {
     setModalFichaAberto(false)
   }
 
+  async function marcarConcluida(c: Corrida) {
+    setConfirmandoFicha(true)
+    await supabase.from('corridas_empresa').update({ status: 'concluida' }).eq('id', c.id)
+    setCorridas(prev => prev.map(x => x.id === c.id ? { ...x, status: 'concluida' } : x))
+    setCorridaFicha(prev => prev ? { ...prev, status: 'concluida' } : prev)
+    setConfirmandoFicha(false)
+  }
+
   function abrirAgPassageiro() {
     setAgEditando(null)
     setFormAg(FORM_AG_VAZIO)
@@ -950,7 +958,7 @@ export default function AgendamentosPage() {
                 const nomeMotorista = c.motoristas_empresa?.nome ?? null
                 const tm = tipoMeta(c.tipo_servico)
                 return (
-                  <div key={c.id} className="bg-white rounded-2xl p-4 border border-gray-100" onClick={() => c.status === 'pendente' ? abrirFicha(c) : undefined} style={{ cursor: c.status === 'pendente' ? 'pointer' : undefined }}>
+                  <div key={c.id} className="bg-white rounded-2xl p-4 border border-gray-100" onClick={() => (c.status === 'pendente' || c.status === 'confirmada') ? abrirFicha(c) : undefined} style={{ cursor: (c.status === 'pendente' || c.status === 'confirmada') ? 'pointer' : undefined }}>
                     <div className="flex items-start justify-between gap-2 mb-2">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
@@ -1031,7 +1039,7 @@ export default function AgendamentosPage() {
               const tmPar = tipoMeta(ida.tipo_servico)
 
               return (
-                <div key={`${ida.id}-${volta.id}`} className="bg-white rounded-2xl p-4 border border-gray-100" onClick={() => ida.status === 'pendente' ? abrirFicha(ida) : undefined} style={{ cursor: ida.status === 'pendente' ? 'pointer' : undefined }}>
+                <div key={`${ida.id}-${volta.id}`} className="bg-white rounded-2xl p-4 border border-gray-100" onClick={() => (ida.status === 'pendente' || ida.status === 'confirmada') ? abrirFicha(ida) : undefined} style={{ cursor: (ida.status === 'pendente' || ida.status === 'confirmada') ? 'pointer' : undefined }}>
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
@@ -1249,7 +1257,7 @@ export default function AgendamentosPage() {
               </div>
             )}
 
-            {/* Ações — só para pendente */}
+            {/* Ações — Pendente */}
             {corridaFicha.status === 'pendente' && (
               <div className="flex flex-col gap-2 mt-2">
                 <button
@@ -1263,7 +1271,7 @@ export default function AgendamentosPage() {
                   disabled={confirmandoFicha}
                   className="w-full py-3.5 rounded-2xl text-sm font-bold border disabled:opacity-40"
                   style={{ background: '#E1F5EE', color: '#085041', borderColor: '#9FE1CB' }}>
-                  {confirmandoFicha ? 'Salvando...' : '✓ Marcar como confirmado'}
+                  {confirmandoFicha ? 'Salvando...' : '✓ Em andamento (motorista atribuído)'}
                 </button>
                 <button
                   onClick={() => recusarFicha(corridaFicha)}
@@ -1271,6 +1279,19 @@ export default function AgendamentosPage() {
                   className="w-full py-3.5 rounded-2xl text-sm font-bold border disabled:opacity-40"
                   style={{ background: '#FCEBEB', color: '#A32D2D', borderColor: '#F5BCBC' }}>
                   Recusar solicitação
+                </button>
+              </div>
+            )}
+
+            {/* Ações — Em andamento */}
+            {corridaFicha.status === 'confirmada' && (
+              <div className="flex flex-col gap-2 mt-2">
+                <button
+                  onClick={() => marcarConcluida(corridaFicha)}
+                  disabled={confirmandoFicha}
+                  className="w-full py-3.5 rounded-2xl text-sm font-bold border disabled:opacity-40"
+                  style={{ background: '#E1F5EE', color: '#085041', borderColor: '#9FE1CB' }}>
+                  {confirmandoFicha ? 'Salvando...' : '✓ Marcar como Concluído'}
                 </button>
               </div>
             )}
