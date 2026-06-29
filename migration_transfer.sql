@@ -45,6 +45,12 @@ ON solicitacoes_transfer
 FOR INSERT TO anon
 WITH CHECK (true);
 
+-- Permite que o formulário público insira corridas diretamente
+CREATE POLICY "anon_insert_corridas_empresa"
+ON corridas_empresa
+FOR INSERT TO anon
+WITH CHECK (true);
+
 -- Permite que o formulário público leia endereços (autocomplete)
 CREATE POLICY "anon_select_enderecos_clientes"
 ON enderecos_clientes

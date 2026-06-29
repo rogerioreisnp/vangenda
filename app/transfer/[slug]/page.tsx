@@ -131,12 +131,11 @@ export default function TransferSlugPage({ params }: { params: { slug: string } 
 
     setSalvando(true)
 
-    const { error } = await supabase.from('solicitacoes_transfer').insert({
+    const { error } = await supabase.from('corridas_empresa').insert({
       empresa_id: empresa.id,
-      nome_cliente: form.nome.trim(),
-      telefone_cliente: form.telefone.trim(),
-      data: form.data,
-      horario: form.horario,
+      cliente_nome: form.nome.trim(),
+      cliente_telefone: form.telefone.trim(),
+      data_hora: `${form.data}T${form.horario}:00`,
       origem: form.origem.trim(),
       destino: form.destino.trim(),
       numero_voo: form.numero_voo.trim() || null,
@@ -148,6 +147,8 @@ export default function TransferSlugPage({ params }: { params: { slug: string } 
       retorno_horario: showRetorno && form.retorno_horario ? form.retorno_horario : null,
       retorno_origem: showRetorno && form.retorno_origem.trim() ? form.retorno_origem.trim() : null,
       retorno_destino: showRetorno && form.retorno_destino.trim() ? form.retorno_destino.trim() : null,
+      tipo_servico: 'transfer',
+      valor: 0,
       status: 'pendente',
     })
 
