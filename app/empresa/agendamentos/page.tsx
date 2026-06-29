@@ -319,7 +319,7 @@ export default function AgendamentosPage() {
     await supabase.from('corridas_empresa')
       .update({ status: 'concluida' })
       .eq('empresa_id', gestor.empresa_id)
-      .eq('status', 'confirmada')
+      .eq('status', 'em_andamento')
       .lt('data_hora', new Date().toISOString())
 
     const [{ data: empresa }, { data: rts }, { data: mots }, { data: corrds }] = await Promise.all([
@@ -553,22 +553,20 @@ export default function AgendamentosPage() {
     setModalFichaAberto(true)
   }
 
-  function enviarWhatsAppConfirmacao(c: Corrida, motoristaId: string) {
+  function enviarWhatsAppConfirmacao(c: Corrida) {
     const tel = (c.cliente_telefone || '').replace(/\D/g, '')
     if (!tel) return
     const telFmt = tel.startsWith('55') ? tel : `55${tel}`
     const data = `${c.data_hora.slice(8,10)}/${c.data_hora.slice(5,7)}/${c.data_hora.slice(0,4)}`
     const hora = c.data_hora.slice(11,16)
-    const motorista = motoristasOpcoes.find(m => m.id === motoristaId)
-    let msg = `Olá ${c.cliente_nome}, tudo bem?\nSegue a confirmação do seu transfer:\n\n📅 *Data/Hora:* ${data} às ${hora}\n📍 *Origem:* ${c.origem}\n📍 *Destino:* ${c.destino}`
+    let msg = `Olá ${c.cliente_nome}, tudo bem?\nConfirmamos seu transfer:\n\n📅 *Data/Hora:* ${data} às ${hora}\n📍 *Origem:* ${c.origem}\n📍 *Destino:* ${c.destino}`
     if (c.numero_voo) msg += `\n✈️ *Voo:* ${c.numero_voo}`
     if (c.retorno_data) {
       const retData = `${c.retorno_data.slice(8,10)}/${c.retorno_data.slice(5,7)}/${c.retorno_data.slice(0,4)}`
       msg += `\n\n🔄 *Retorno:* ${retData}${c.retorno_horario ? ` às ${c.retorno_horario.slice(0,5)}` : ''}`
       if (c.retorno_origem) msg += `\n📍 ${c.retorno_origem} → ${c.retorno_destino}`
     }
-    if (motorista) msg += `\n\n🚗 *Motorista:* ${motorista.nome}`
-    msg += `\n\nQualquer dúvida estamos à disposição!`
+    msg += `\n\nEm breve informaremos o motorista responsável. Qualquer dúvida estamos à disposição!`
     window.open(`https://wa.me/${telFmt}?text=${encodeURIComponent(msg)}`, '_blank')
   }
 
@@ -594,13 +592,22 @@ export default function AgendamentosPage() {
     window.open(`https://wa.me/${telFmt}?text=${encodeURIComponent(msg)}`, '_blank')
   }
 
-  async function marcarConfirmada(c: Corrida, motoristaId: string) {
+  async function marcarConfirmada(c: Corrida) {
     setConfirmandoFicha(true)
-    const upd: Record<string, unknown> = { status: 'confirmada' }
+    await supabase.from('corridas_empresa').update({ status: 'confirmada' }).eq('id', c.id)
+    setCorridas(prev => prev.map(x => x.id === c.id ? { ...x, status: 'confirmada' } : x))
+    setCorridaFicha(prev => prev ? { ...prev, status: 'confirmada' } : prev)
+    setConfirmandoFicha(false)
+  }
+
+  async function marcarEmAndamento(c: Corrida, motoristaId: string) {
+    setConfirmandoFicha(true)
+    const upd: Record<string, unknown> = { status: 'em_andamento' }
     if (motoristaId) upd.motorista_id = motoristaId
+    const motorista = motoristasOpcoes.find(m => m.id === motoristaId) ?? null
     await supabase.from('corridas_empresa').update(upd).eq('id', c.id)
-    setCorridas(prev => prev.map(x => x.id === c.id ? { ...x, status: 'confirmada', motorista_id: motoristaId || x.motorista_id } : x))
-    setCorridaFicha(prev => prev ? { ...prev, status: 'confirmada', motorista_id: motoristaId || prev.motorista_id } : prev)
+    setCorridas(prev => prev.map(x => x.id === c.id ? { ...x, status: 'em_andamento', motorista_id: motoristaId || x.motorista_id, motoristas_empresa: motorista ? { nome: motorista.nome } : x.motoristas_empresa } : x))
+    setCorridaFicha(prev => prev ? { ...prev, status: 'em_andamento', motorista_id: motoristaId || prev.motorista_id } : prev)
     setConfirmandoFicha(false)
   }
 
@@ -995,7 +1002,7 @@ export default function AgendamentosPage() {
                 const nomeMotorista = c.motoristas_empresa?.nome ?? null
                 const tm = tipoMeta(c.tipo_servico)
                 return (
-                  <div key={c.id} className="bg-white rounded-2xl p-4 border border-gray-100" onClick={() => (c.status === 'pendente' || c.status === 'confirmada') ? abrirFicha(c) : undefined} style={{ cursor: (c.status === 'pendente' || c.status === 'confirmada') ? 'pointer' : undefined }}>
+                  <div key={c.id} className="bg-white rounded-2xl p-4 border border-gray-100" onClick={() => (c.status === 'pendente' || c.status === 'confirmada' || c.status === 'em_andamento') ? abrirFicha(c) : undefined} style={{ cursor: (c.status === 'pendente' || c.status === 'confirmada' || c.status === 'em_andamento') ? 'pointer' : undefined }}>
                     <div className="flex items-start justify-between gap-2 mb-2">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
@@ -1294,10 +1301,10 @@ export default function AgendamentosPage() {
               </div>
             )}
 
-            {/* Motorista */}
-            {(corridaFicha.status === 'pendente' || corridaFicha.status === 'confirmada') && (
+            {/* Motorista — só aparece em "Confirmada" para definição */}
+            {corridaFicha.status === 'confirmada' && (
               <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-2">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Motorista</p>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Definir motorista</p>
                 {motoristasOpcoes.length === 0 ? (
                   <p className="text-xs text-gray-400">Nenhum motorista ativo cadastrado</p>
                 ) : (
@@ -1314,29 +1321,22 @@ export default function AgendamentosPage() {
               </div>
             )}
 
-            {/* Ações — Pendente */}
+            {/* Ações — Pendente: confirmar com cliente */}
             {corridaFicha.status === 'pendente' && (
               <div className="flex flex-col gap-2 mt-2">
                 <button
-                  onClick={() => enviarWhatsAppConfirmacao(corridaFicha, motoristaFicha)}
-                  disabled={!motoristaFicha}
+                  onClick={() => enviarWhatsAppConfirmacao(corridaFicha)}
+                  disabled={!corridaFicha.cliente_telefone}
                   className="w-full py-4 rounded-2xl text-white text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-40"
                   style={{ background: '#25D366' }}>
                   💬 Confirmar com cliente via WhatsApp
                 </button>
                 <button
-                  onClick={() => enviarWhatsAppMotorista(corridaFicha, motoristaFicha)}
-                  disabled={!motoristaFicha}
-                  className="w-full py-3.5 rounded-2xl text-sm font-bold border disabled:opacity-40"
-                  style={{ background: '#E8F5E9', color: '#1B5E20', borderColor: '#A5D6A7' }}>
-                  💬 Enviar corrida ao motorista via WhatsApp
-                </button>
-                <button
-                  onClick={() => marcarConfirmada(corridaFicha, motoristaFicha)}
-                  disabled={confirmandoFicha || !motoristaFicha}
+                  onClick={() => marcarConfirmada(corridaFicha)}
+                  disabled={confirmandoFicha}
                   className="w-full py-3.5 rounded-2xl text-sm font-bold border disabled:opacity-40"
                   style={{ background: '#E1F5EE', color: '#085041', borderColor: '#9FE1CB' }}>
-                  {confirmandoFicha ? 'Salvando...' : !motoristaFicha ? 'Selecione um motorista primeiro' : '✓ Marcar como Em andamento'}
+                  {confirmandoFicha ? 'Salvando...' : '✓ Mover para Confirmada'}
                 </button>
                 <button
                   onClick={() => recusarFicha(corridaFicha)}
@@ -1348,22 +1348,29 @@ export default function AgendamentosPage() {
               </div>
             )}
 
-            {/* Ações — Em andamento */}
+            {/* Ações — Confirmada: definir motorista e marcar em andamento */}
             {corridaFicha.status === 'confirmada' && (
               <div className="flex flex-col gap-2 mt-2">
                 <button
-                  onClick={() => enviarWhatsAppConfirmacao(corridaFicha, motoristaFicha)}
-                  className="w-full py-4 rounded-2xl text-white text-sm font-bold disabled:opacity-40"
-                  style={{ background: '#25D366' }}>
-                  💬 Reenviar confirmação ao cliente
-                </button>
-                <button
                   onClick={() => enviarWhatsAppMotorista(corridaFicha, motoristaFicha)}
                   disabled={!motoristaFicha}
-                  className="w-full py-3.5 rounded-2xl text-sm font-bold border disabled:opacity-40"
-                  style={{ background: '#E8F5E9', color: '#1B5E20', borderColor: '#A5D6A7' }}>
-                  💬 Reenviar corrida ao motorista
+                  className="w-full py-4 rounded-2xl text-white text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-40"
+                  style={{ background: '#25D366' }}>
+                  💬 Enviar corrida ao motorista via WhatsApp
                 </button>
+                <button
+                  onClick={() => marcarEmAndamento(corridaFicha, motoristaFicha)}
+                  disabled={confirmandoFicha || !motoristaFicha}
+                  className="w-full py-3.5 rounded-2xl text-sm font-bold border disabled:opacity-40"
+                  style={{ background: '#E1F5EE', color: '#085041', borderColor: '#9FE1CB' }}>
+                  {confirmandoFicha ? 'Salvando...' : !motoristaFicha ? 'Selecione um motorista primeiro' : '✓ Marcar como Em andamento'}
+                </button>
+              </div>
+            )}
+
+            {/* Ações — Em andamento: marcar concluído */}
+            {corridaFicha.status === 'em_andamento' && (
+              <div className="flex flex-col gap-2 mt-2">
                 <button
                   onClick={() => marcarConcluida(corridaFicha)}
                   disabled={confirmandoFicha}
