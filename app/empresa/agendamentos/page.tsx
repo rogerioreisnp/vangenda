@@ -901,9 +901,10 @@ export default function AgendamentosPage() {
           <div className="flex gap-1.5 overflow-x-auto pb-0.5">
             {[
               { value: '', label: 'Todos' },
+              { value: 'confirmada', label: 'Confirmada' },
               { value: 'pendente', label: 'Pendente' },
-              { value: 'confirmada', label: 'Em andamento' },
-              { value: 'concluida', label: 'Concluído' },
+              { value: 'em_andamento', label: 'Em andamento' },
+              { value: 'concluida', label: 'Concluída' },
             ].map(op => (
               <button
                 key={op.value}
