@@ -77,8 +77,18 @@ export async function POST(req: NextRequest) {
 
     const usuario = userData?.users?.find(u => u.email?.toLowerCase() === email)
     if (!usuario) {
-      console.error(`[kiwify] Usuário não encontrado para email: ${email}`)
-      return NextResponse.json({ error: `Usuário não encontrado: ${email}` }, { status: 404 })
+      // Usuário pagou mas ainda não criou conta no app
+      // Salva pendência para ativar quando ele se cadastrar
+      console.warn(`[kiwify] Usuário não cadastrado ainda: ${email} | plano: ${planoParam} | expira: ${expira}`)
+      await supabase.from('ativacoes_pendentes').upsert({
+        email,
+        plano: planoParam,
+        periodo,
+        expira,
+        criado_em: new Date().toISOString(),
+      }, { onConflict: 'email' })
+      // Retorna 200 para Kiwify não marcar como falha
+      return NextResponse.json({ ok: true, msg: `Aguardando cadastro do usuário: ${email}` })
     }
 
     const userId = usuario.id
