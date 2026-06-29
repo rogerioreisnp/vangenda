@@ -78,6 +78,7 @@ export default function AgendamentoPublico({
     horario: '',
     nome: '',
     telefone: '',
+    email: '',
     observacoes: '',
   })
   const [rotaSelecionada, setRotaSelecionada] = useState<Rota | null>(null)
@@ -358,6 +359,7 @@ export default function AgendamentoPublico({
       data_hora: `${form.data}T${form.horario}:00`,
       cliente_nome: form.nome.trim(),
       cliente_telefone: form.telefone.trim(),
+      email_solicitante: form.email.trim() || null,
       valor: valorSave,
       status: 'pendente',
       motorista_id: null,
@@ -392,7 +394,7 @@ export default function AgendamentoPublico({
 
   function resetForm() {
     setEtapa('form')
-    setForm({ rota_id: '', data: '', horario: '', nome: '', telefone: '', observacoes: '' })
+    setForm({ rota_id: '', data: '', horario: '', nome: '', telefone: '', email: '', observacoes: '' })
     setRotaSelecionada(null)
     setRotaManual(false)
     setOrigemManual('')
@@ -493,6 +495,15 @@ export default function AgendamentoPublico({
                   onBlur={e => buscarEnderecosPorTelefone(e.target.value)}
                   placeholder="(XX) XXXXX-XXXX"
                   type="tel"
+                  className="campo-input"
+                />
+              </Campo>
+              <Campo label="Seu e-mail (para receber confirmação)">
+                <input
+                  value={form.email}
+                  onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                  placeholder="email@exemplo.com"
+                  type="email"
                   className="campo-input"
                 />
               </Campo>
