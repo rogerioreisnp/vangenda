@@ -24,6 +24,7 @@ type Empresa = {
   logo_url: string | null
   trial_fim: string | null
   slug: string | null
+  transfer_numero_inicio: number | null
 }
 
 const PLANO_LABEL: Record<string, string> = { starter: 'Starter', pro: 'Pro', fleet: 'Fleet' }
@@ -52,7 +53,7 @@ export default function ConfiguracoesEmpresaPage() {
 
     const { data: emp } = await supabase
       .from('empresas')
-      .select('id, nome, telefone, tipo_operacao, plano, status, cnpj, email_comercial, cidade, estado, qtd_veiculos, descricao, chave_pix, tipo_chave_pix, instagram, whatsapp_comercial, cor_destaque, logo_url, trial_fim, slug')
+      .select('id, nome, telefone, tipo_operacao, plano, status, cnpj, email_comercial, cidade, estado, qtd_veiculos, descricao, chave_pix, tipo_chave_pix, instagram, whatsapp_comercial, cor_destaque, logo_url, trial_fim, slug, transfer_numero_inicio')
       .eq('id', gestor.empresa_id)
       .single()
 
@@ -88,6 +89,7 @@ export default function ConfiguracoesEmpresaPage() {
         cor_destaque: empresa.cor_destaque || '#1D9E75',
         logo_url: empresa.logo_url?.trim() || null,
         slug: empresa.slug?.trim() || null,
+        transfer_numero_inicio: empresa.transfer_numero_inicio || 1,
       })
       .eq('id', empresa.id)
 
@@ -342,6 +344,20 @@ export default function ConfiguracoesEmpresaPage() {
                 </p>
               )}
             </Campo>
+            {(empresa?.tipo_operacao === 'transfer' || empresa?.tipo_operacao === 'turismo') && (
+              <Campo label="Número inicial do transfer">
+                <input
+                  type="number"
+                  min="1"
+                  value={empresa?.transfer_numero_inicio ?? 1}
+                  onChange={e => setEmpresa(emp => emp ? { ...emp, transfer_numero_inicio: parseInt(e.target.value) || 1 } : emp)}
+                  className="campo-input"
+                />
+                <p className="text-xs mt-2 leading-relaxed" style={{ color: '#6B7280' }}>
+                  ℹ️ Número a partir do qual sua sequência de transfers começa. Os novos agendamentos serão numerados automaticamente a partir daqui.
+                </p>
+              </Campo>
+            )}
           </div>
         </Secao>
 

@@ -48,6 +48,7 @@ type Corrida = {
   retorno_horario: string | null
   retorno_origem: string | null
   retorno_destino: string | null
+  numero_reserva: number | null
 }
 
 type CorridaAgrupada =
@@ -345,7 +346,7 @@ export default function AgendamentosPage() {
         .order('nome'),
       supabase
         .from('corridas_empresa')
-        .select('id, rota_id, origem, destino, data_hora, created_at, cliente_nome, cliente_telefone, valor, status, motorista_id, tipo_servico, forma_pagamento, status_pagamento, valor_recebido, observacoes, motoristas_empresa(nome), numero_voo, nome_passageiro2, telefone_passageiro2, retorno_data, retorno_horario, retorno_origem, retorno_destino')
+        .select('id, rota_id, origem, destino, data_hora, created_at, cliente_nome, cliente_telefone, valor, status, motorista_id, tipo_servico, forma_pagamento, status_pagamento, valor_recebido, observacoes, motoristas_empresa(nome), numero_voo, nome_passageiro2, telefone_passageiro2, retorno_data, retorno_horario, retorno_origem, retorno_destino, numero_reserva')
         .eq('empresa_id', gestor.empresa_id)
         .order('data_hora', { ascending: false })
         .limit(300),
@@ -571,7 +572,7 @@ export default function AgendamentosPage() {
     const data = `${c.data_hora.slice(8,10)}/${c.data_hora.slice(5,7)}/${c.data_hora.slice(0,4)}`
     const hora = c.data_hora.slice(11,16)
     const dia = diaSemana(c.data_hora)
-    const num = c.id.slice(-5).toUpperCase()
+    const num = c.numero_reserva ?? c.id.slice(-5).toUpperCase()
 
     let passageiros = c.cliente_nome
     if (c.nome_passageiro2) passageiros += `, ${c.nome_passageiro2}`
