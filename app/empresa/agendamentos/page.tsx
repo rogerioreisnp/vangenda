@@ -260,6 +260,7 @@ export default function AgendamentosPage() {
   const [filtroData, setFiltroData] = useState(HOJE)
   const [verTodos, setVerTodos] = useState(false)
   const [filtroRotaId, setFiltroRotaId] = useState('')
+  const [filtroStatus, setFiltroStatus] = useState('')
   const [modalFichaAberto, setModalFichaAberto] = useState(false)
   const [corridaFicha, setCorridaFicha] = useState<Corrida | null>(null)
   const [confirmandoFicha, setConfirmandoFicha] = useState(false)
@@ -748,6 +749,7 @@ export default function AgendamentosPage() {
   const corridasFiltradas = (() => {
     let list = verTodos ? corridas : corridas.filter(c => c.data_hora.slice(0, 10) === filtroData)
     if (filtroRotaId) list = list.filter(c => c.rota_id === filtroRotaId)
+    if (filtroStatus) list = list.filter(c => c.status === filtroStatus)
     return list
   })()
   const agendamentosFiltrados = (() => {
@@ -849,6 +851,30 @@ export default function AgendamentosPage() {
             </button>
           )}
         </div>
+
+        {/* Filtro de status */}
+        {tipoOperacao !== 'rota_fixa' && (
+          <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+            {[
+              { value: '', label: 'Todos' },
+              { value: 'pendente', label: 'Pendente' },
+              { value: 'confirmada', label: 'Confirmada' },
+              { value: 'em_andamento', label: 'Em andamento' },
+              { value: 'concluida', label: 'Concluída' },
+              { value: 'cancelada', label: 'Cancelada' },
+            ].map(op => (
+              <button
+                key={op.value}
+                onClick={() => setFiltroStatus(op.value)}
+                className="flex-shrink-0 text-[11px] font-semibold px-3 py-1.5 rounded-full transition-all"
+                style={filtroStatus === op.value
+                  ? { background: '#0F6E56', color: '#fff' }
+                  : { background: '#f3f4f6', color: '#6b7280' }}>
+                {op.label}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Banner salvar rota manual */}
         {rotaManualParaSalvar && (
