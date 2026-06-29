@@ -304,28 +304,29 @@ export default function AgendamentoPublico({
     const origemSave = empresa.tipo_operacao === 'rota_fixa' ? embarque : (rotaManual ? origemManual.trim() : rotaSelecionada!.origem ?? '')
     const destinoSave = empresa.tipo_operacao === 'rota_fixa' ? desembarque : (rotaManual ? destinoManual.trim() : rotaSelecionada!.destino ?? '')
 
-    // ── Caminho transfer: salva em solicitacoes_transfer ─────────────────────
+    // ── Caminho transfer/fretamento: salva em corridas_empresa como pendente ──
     if (empresa.tipo_operacao !== 'rota_fixa') {
-      const { error } = await supabase.from('solicitacoes_transfer').insert({
+      const { error } = await supabase.from('corridas_empresa').insert({
         empresa_id: empresa.id,
-        nome_cliente: form.nome.trim(),
-        telefone_cliente: form.telefone.trim(),
-        data: form.data,
-        horario: form.horario,
+        cliente_nome: form.nome.trim(),
+        cliente_telefone: form.telefone.trim(),
+        email_solicitante: form.email.trim() || null,
+        data_hora: `${form.data}T${form.horario}:00`,
         origem: origemSave,
         destino: destinoSave,
         numero_voo: numeroVoo.trim() || null,
-        forma_pagamento: formaPagamento,
+        forma_pagamento: formaPagamento || 'a_definir',
         observacoes: form.observacoes.trim() || null,
         nome_passageiro2: showPassageiro2 && nomePassageiro2.trim() ? nomePassageiro2.trim() : null,
         telefone_passageiro2: showPassageiro2 && telefonePassageiro2.trim() ? telefonePassageiro2.trim() : null,
-        origem_passageiro2: showPassageiro2 && origemPassageiro2.trim() ? origemPassageiro2.trim() : null,
-        destino_passageiro2: showPassageiro2 && destinoPassageiro2.trim() ? destinoPassageiro2.trim() : null,
         retorno_data: showRetorno && retornoData ? retornoData : null,
         retorno_horario: showRetorno && retornoHorario ? retornoHorario : null,
         retorno_origem: showRetorno && retornoOrigem.trim() ? retornoOrigem.trim() : null,
         retorno_destino: showRetorno && retornoDestino.trim() ? retornoDestino.trim() : null,
+        tipo_servico: empresa.tipo_operacao,
+        valor: 0,
         status: 'pendente',
+        motorista_id: null,
       })
 
       if (error) {
