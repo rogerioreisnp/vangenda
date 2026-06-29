@@ -32,6 +32,7 @@ type Corrida = {
   created_at: string
   cliente_nome: string
   cliente_telefone: string | null
+  email_solicitante: string | null
   valor: number
   status: string
   motorista_id: string | null
@@ -88,6 +89,7 @@ type FormCorrida = {
   motorista_id: string
   cliente_nome: string
   cliente_telefone: string
+  email_solicitante: string
   forma_pagamento: string
   status_pagamento: string
   valor_recebido: string
@@ -107,6 +109,7 @@ const FORM_VAZIO: FormCorrida = {
   motorista_id: '',
   cliente_nome: '',
   cliente_telefone: '',
+  email_solicitante: '',
   forma_pagamento: 'a_definir',
   status_pagamento: 'a_receber',
   valor_recebido: '',
@@ -270,6 +273,7 @@ export default function AgendamentosPage() {
   const [modalFichaAberto, setModalFichaAberto] = useState(false)
   const [corridaFicha, setCorridaFicha] = useState<Corrida | null>(null)
   const [confirmandoFicha, setConfirmandoFicha] = useState(false)
+  const [enviandoEmail, setEnviandoEmail] = useState(false)
   const [motoristaFicha, setMotoristaFicha] = useState('')
   const [contactsApi, setContactsApi] = useState(false)
   const fichaAutoAberta = useRef(false)
@@ -346,7 +350,7 @@ export default function AgendamentosPage() {
         .order('nome'),
       supabase
         .from('corridas_empresa')
-        .select('id, rota_id, origem, destino, data_hora, created_at, cliente_nome, cliente_telefone, valor, status, motorista_id, tipo_servico, forma_pagamento, status_pagamento, valor_recebido, observacoes, motoristas_empresa(nome), numero_voo, nome_passageiro2, telefone_passageiro2, retorno_data, retorno_horario, retorno_origem, retorno_destino, numero_reserva')
+        .select('id, rota_id, origem, destino, data_hora, created_at, cliente_nome, cliente_telefone, email_solicitante, valor, status, motorista_id, tipo_servico, forma_pagamento, status_pagamento, valor_recebido, observacoes, motoristas_empresa(nome), numero_voo, nome_passageiro2, telefone_passageiro2, retorno_data, retorno_horario, retorno_origem, retorno_destino, numero_reserva')
         .eq('empresa_id', gestor.empresa_id)
         .order('data_hora', { ascending: false })
         .limit(300),
@@ -400,6 +404,7 @@ export default function AgendamentosPage() {
       motorista_id: c.motorista_id || '',
       cliente_nome: c.cliente_nome,
       cliente_telefone: c.cliente_telefone || '',
+      email_solicitante: c.email_solicitante || '',
       forma_pagamento: c.forma_pagamento || 'a_definir',
       status_pagamento: c.status_pagamento || (c.status === 'concluida' ? 'recebido' : 'a_receber'),
       valor_recebido: c.valor_recebido != null ? String(c.valor_recebido) : '',
@@ -456,6 +461,7 @@ export default function AgendamentosPage() {
       destino: form.destino.trim(),
       cliente_nome: form.cliente_nome.trim(),
       cliente_telefone: form.cliente_telefone.trim() || null,
+      email_solicitante: form.email_solicitante.trim() || null,
       valor: preco,
       tipo_servico: form.tipo_servico,
       forma_pagamento: form.forma_pagamento,
@@ -600,6 +606,37 @@ export default function AgendamentosPage() {
     if (c.observacoes) msg += `\n\n📝 *Obs:* ${c.observacoes}`
     if (empresaNome) msg += `\n\n*${empresaNome.toUpperCase()}*`
     return msg
+  }
+
+  async function enviarEmailConfirmacao(c: Corrida) {
+    if (!c.email_solicitante) return
+    setEnviandoEmail(true)
+    try {
+      const res = await fetch('/api/enviar-confirmacao-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: c.email_solicitante,
+          cliente_nome: c.cliente_nome,
+          origem: c.origem,
+          destino: c.destino,
+          data_hora: c.data_hora,
+          numero_reserva: c.numero_reserva,
+          numero_voo: c.numero_voo,
+          observacoes: c.observacoes,
+          empresa_nome: empresaNome,
+        }),
+      })
+      if (res.ok) {
+        alert('Confirmação enviada por e-mail!')
+      } else {
+        alert('Erro ao enviar e-mail. Tente novamente.')
+      }
+    } catch {
+      alert('Erro ao enviar e-mail. Tente novamente.')
+    } finally {
+      setEnviandoEmail(false)
+    }
   }
 
   function enviarWhatsAppConfirmacao(c: Corrida) {
@@ -1312,6 +1349,9 @@ export default function AgendamentosPage() {
               {corridaFicha.cliente_telefone && (
                 <p className="text-sm text-gray-600">📞 {corridaFicha.cliente_telefone}</p>
               )}
+              {corridaFicha.email_solicitante && (
+                <p className="text-sm text-gray-600">✉️ {corridaFicha.email_solicitante}</p>
+              )}
             </div>
 
             {/* Passageiro adicional */}
@@ -1372,6 +1412,13 @@ export default function AgendamentosPage() {
             {/* Ações — Pendente: confirmar com cliente */}
             {corridaFicha.status === 'pendente' && (
               <div className="flex flex-col gap-2 mt-2">
+                <button
+                  onClick={() => enviarEmailConfirmacao(corridaFicha)}
+                  disabled={!corridaFicha.email_solicitante || enviandoEmail}
+                  className="w-full py-4 rounded-2xl text-white text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-40"
+                  style={{ background: '#2563EB' }}>
+                  {enviandoEmail ? 'Enviando...' : '✉️ Enviar confirmação por e-mail'}
+                </button>
                 <button
                   onClick={() => enviarWhatsAppConfirmacao(corridaFicha)}
                   disabled={!corridaFicha.cliente_telefone}
@@ -1584,6 +1631,12 @@ export default function AgendamentosPage() {
               <input value={form.cliente_telefone}
                 onChange={e => setForm(f => ({ ...f, cliente_telefone: e.target.value }))}
                 placeholder="(XX) XXXXX-XXXX" className="campo-input" />
+            </Campo>
+
+            <Campo label="E-mail do solicitante">
+              <input value={form.email_solicitante}
+                onChange={e => setForm(f => ({ ...f, email_solicitante: e.target.value }))}
+                placeholder="email@exemplo.com" type="email" className="campo-input" />
             </Campo>
 
             <Campo label="Forma de pagamento">
