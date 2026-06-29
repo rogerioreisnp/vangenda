@@ -926,7 +926,7 @@ export default function AgendamentosPage() {
                 const nomeMotorista = c.motoristas_empresa?.nome ?? null
                 const tm = tipoMeta(c.tipo_servico)
                 return (
-                  <div key={c.id} className="bg-white rounded-2xl p-4 border border-gray-100">
+                  <div key={c.id} className="bg-white rounded-2xl p-4 border border-gray-100" onClick={() => c.status === 'pendente' ? abrirFicha(c) : undefined} style={{ cursor: c.status === 'pendente' ? 'pointer' : undefined }}>
                     <div className="flex items-start justify-between gap-2 mb-2">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
@@ -1007,7 +1007,7 @@ export default function AgendamentosPage() {
               const tmPar = tipoMeta(ida.tipo_servico)
 
               return (
-                <div key={`${ida.id}-${volta.id}`} className="bg-white rounded-2xl p-4 border border-gray-100">
+                <div key={`${ida.id}-${volta.id}`} className="bg-white rounded-2xl p-4 border border-gray-100" onClick={() => ida.status === 'pendente' ? abrirFicha(ida) : undefined} style={{ cursor: ida.status === 'pendente' ? 'pointer' : undefined }}>
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
