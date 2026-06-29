@@ -18,6 +18,9 @@ type MotoristaOpcao = {
   nome: string
   user_id: string | null
   telefone: string | null
+  veiculo: string | null
+  placa: string | null
+  cor: string | null
 }
 
 type Corrida = {
@@ -233,6 +236,7 @@ function agruparPares(corridas: Corrida[]): CorridaAgrupada[] {
 export default function AgendamentosPage() {
   const searchParams = useSearchParams()
   const [empresaId, setEmpresaId] = useState<string | null>(null)
+  const [empresaNome, setEmpresaNome] = useState<string>('')
   const [rotasOpcoes, setRotasOpcoes] = useState<RotaOpcao[]>([])
   const [motoristasOpcoes, setMotoristasOpcoes] = useState<MotoristaOpcao[]>([])
   const [tipoOperacao, setTipoOperacao] = useState<string>('transfer')
@@ -325,7 +329,7 @@ export default function AgendamentosPage() {
     const [{ data: empresa }, { data: rts }, { data: mots }, { data: corrds }] = await Promise.all([
       supabase
         .from('empresas')
-        .select('tipo_operacao')
+        .select('tipo_operacao, nome')
         .eq('id', gestor.empresa_id)
         .single(),
       supabase
@@ -335,7 +339,7 @@ export default function AgendamentosPage() {
         .order('created_at'),
       supabase
         .from('motoristas_empresa')
-        .select('id, nome, user_id, telefone')
+        .select('id, nome, user_id, telefone, veiculo, placa, cor')
         .eq('empresa_id', gestor.empresa_id)
         .eq('status', 'ativo')
         .order('nome'),
@@ -347,7 +351,10 @@ export default function AgendamentosPage() {
         .limit(300),
     ])
 
-    if (empresa) setTipoOperacao(empresa.tipo_operacao || 'transfer')
+    if (empresa) {
+      setTipoOperacao(empresa.tipo_operacao || 'transfer')
+      setEmpresaNome((empresa as any).nome || '')
+    }
     if (rts) setRotasOpcoes(rts)
     if (mots) setMotoristasOpcoes(mots)
     if (corrds) setCorridas(corrds as any)
@@ -553,20 +560,72 @@ export default function AgendamentosPage() {
     setModalFichaAberto(true)
   }
 
+  function diaSemana(dataHora: string): string {
+    const dias = ['Domingo','Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado']
+    const d = new Date(dataHora)
+    return dias[d.getDay()]
+  }
+
+  function montarMsgDetalhada(c: Corrida, motoristaId: string): string {
+    const motorista = motoristasOpcoes.find(m => m.id === motoristaId)
+    const data = `${c.data_hora.slice(8,10)}/${c.data_hora.slice(5,7)}/${c.data_hora.slice(0,4)}`
+    const hora = c.data_hora.slice(11,16)
+    const dia = diaSemana(c.data_hora)
+    const num = c.id.slice(-5).toUpperCase()
+
+    let passageiros = c.cliente_nome
+    if (c.nome_passageiro2) passageiros += `, ${c.nome_passageiro2}`
+    let telefones = c.cliente_telefone || ''
+    if (c.telefone_passageiro2) telefones += telefones ? `, ${c.telefone_passageiro2}` : c.telefone_passageiro2
+
+    let msg = `Olá, tudo bem?\n\nSegue a confirmação do Transfer: ${num}`
+    msg += `\n📅 *Data/Hora:* ${data} às ${hora} (${dia})`
+    msg += `\n\n👤 *Passageiros:* ${passageiros}`
+    if (telefones) msg += `\n📞 *Telefones:* ${telefones}`
+    msg += `\n\n📍 *Origem:* ${c.origem}`
+    msg += `\n📍 *Destino:* ${c.destino}`
+    if (c.numero_voo) msg += `\n✈️ *Voo:* ${c.numero_voo}`
+    if (motorista) {
+      msg += `\n\n🚗 *Motorista:* ${motorista.nome}`
+      if (motorista.veiculo) msg += `\n🚙 *Carro:* ${motorista.veiculo}${motorista.cor ? ` - ${motorista.cor}` : ''}`
+      if (motorista.placa) msg += `\n🔢 *Placa:* ${motorista.placa}`
+      if (motorista.telefone) msg += `\n📞 *Tel motorista:* ${motorista.telefone}`
+    }
+    if (c.retorno_data) {
+      const retData = `${c.retorno_data.slice(8,10)}/${c.retorno_data.slice(5,7)}/${c.retorno_data.slice(0,4)}`
+      msg += `\n\n🔄 *Retorno:* ${retData}${c.retorno_horario ? ` às ${c.retorno_horario.slice(0,5)}` : ''}`
+      if (c.retorno_origem) msg += `\n📍 ${c.retorno_origem} → ${c.retorno_destino}`
+    }
+    if (c.observacoes) msg += `\n\n📝 *Obs:* ${c.observacoes}`
+    if (empresaNome) msg += `\n\n*${empresaNome.toUpperCase()}*`
+    return msg
+  }
+
   function enviarWhatsAppConfirmacao(c: Corrida) {
     const tel = (c.cliente_telefone || '').replace(/\D/g, '')
     if (!tel) return
     const telFmt = tel.startsWith('55') ? tel : `55${tel}`
     const data = `${c.data_hora.slice(8,10)}/${c.data_hora.slice(5,7)}/${c.data_hora.slice(0,4)}`
     const hora = c.data_hora.slice(11,16)
-    let msg = `Olá ${c.cliente_nome}, tudo bem?\nConfirmamos seu transfer:\n\n📅 *Data/Hora:* ${data} às ${hora}\n📍 *Origem:* ${c.origem}\n📍 *Destino:* ${c.destino}`
+    const dia = diaSemana(c.data_hora)
+    let msg = `Olá ${c.cliente_nome}, tudo bem!\n\nConfirmamos o seu transfer:\n\n📅 *Data/Hora:* ${data} às ${hora} (${dia})\n📍 *Origem:* ${c.origem}\n📍 *Destino:* ${c.destino}`
     if (c.numero_voo) msg += `\n✈️ *Voo:* ${c.numero_voo}`
     if (c.retorno_data) {
       const retData = `${c.retorno_data.slice(8,10)}/${c.retorno_data.slice(5,7)}/${c.retorno_data.slice(0,4)}`
       msg += `\n\n🔄 *Retorno:* ${retData}${c.retorno_horario ? ` às ${c.retorno_horario.slice(0,5)}` : ''}`
       if (c.retorno_origem) msg += `\n📍 ${c.retorno_origem} → ${c.retorno_destino}`
     }
+    if (c.observacoes) msg += `\n\n📝 *Obs:* ${c.observacoes}`
     msg += `\n\nEm breve informaremos o motorista responsável. Qualquer dúvida estamos à disposição!`
+    if (empresaNome) msg += `\n\n*${empresaNome.toUpperCase()}*`
+    window.open(`https://wa.me/${telFmt}?text=${encodeURIComponent(msg)}`, '_blank')
+  }
+
+  function enviarWhatsAppClienteComMotorista(c: Corrida, motoristaId: string) {
+    const tel = (c.cliente_telefone || '').replace(/\D/g, '')
+    if (!tel) { alert('Cliente não tem telefone cadastrado.'); return }
+    const telFmt = tel.startsWith('55') ? tel : `55${tel}`
+    const msg = montarMsgDetalhada(c, motoristaId)
     window.open(`https://wa.me/${telFmt}?text=${encodeURIComponent(msg)}`, '_blank')
   }
 
@@ -576,19 +635,7 @@ export default function AgendamentosPage() {
     const tel = motorista.telefone?.replace(/\D/g, '')
     if (!tel) { alert(`Motorista ${motorista.nome} não tem telefone cadastrado.`); return }
     const telFmt = tel.startsWith('55') ? tel : `55${tel}`
-    const data = `${c.data_hora.slice(8,10)}/${c.data_hora.slice(5,7)}/${c.data_hora.slice(0,4)}`
-    const hora = c.data_hora.slice(11,16)
-    let msg = `Olá ${motorista.nome}, tudo bem?\nSegue sua corrida:\n\n📅 *Data/Hora:* ${data} às ${hora}\n👤 *Cliente:* ${c.cliente_nome}`
-    if (c.cliente_telefone) msg += `\n📞 *Tel cliente:* ${c.cliente_telefone}`
-    msg += `\n📍 *Origem:* ${c.origem}\n📍 *Destino:* ${c.destino}`
-    if (c.numero_voo) msg += `\n✈️ *Voo:* ${c.numero_voo}`
-    if (c.nome_passageiro2) msg += `\n👥 *2º Passageiro:* ${c.nome_passageiro2}`
-    if (c.retorno_data) {
-      const retData = `${c.retorno_data.slice(8,10)}/${c.retorno_data.slice(5,7)}/${c.retorno_data.slice(0,4)}`
-      msg += `\n\n🔄 *Retorno:* ${retData}${c.retorno_horario ? ` às ${c.retorno_horario.slice(0,5)}` : ''}`
-      if (c.retorno_origem) msg += `\n📍 ${c.retorno_origem} → ${c.retorno_destino}`
-    }
-    if (c.observacoes) msg += `\n\n📝 *Obs:* ${c.observacoes}`
+    const msg = montarMsgDetalhada(c, motoristaId)
     window.open(`https://wa.me/${telFmt}?text=${encodeURIComponent(msg)}`, '_blank')
   }
 
@@ -1356,7 +1403,14 @@ export default function AgendamentosPage() {
                   disabled={!motoristaFicha}
                   className="w-full py-4 rounded-2xl text-white text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-40"
                   style={{ background: '#25D366' }}>
-                  💬 Enviar corrida ao motorista via WhatsApp
+                  💬 Enviar ficha ao motorista
+                </button>
+                <button
+                  onClick={() => enviarWhatsAppClienteComMotorista(corridaFicha, motoristaFicha)}
+                  disabled={!motoristaFicha}
+                  className="w-full py-3.5 rounded-2xl text-white text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-40"
+                  style={{ background: '#128C7E' }}>
+                  💬 Enviar ficha ao cliente
                 </button>
                 <button
                   onClick={() => marcarEmAndamento(corridaFicha, motoristaFicha)}
