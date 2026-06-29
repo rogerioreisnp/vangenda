@@ -135,7 +135,7 @@ export default function TransferSlugPage({ params }: { params: { slug: string } 
       empresa_id: empresa.id,
       cliente_nome: form.nome.trim(),
       cliente_telefone: form.telefone.trim(),
-      data_hora: `${form.data}T${form.horario}:00`,
+      data_hora: `${form.data}T${form.horario}:00-03:00`,
       origem: form.origem.trim(),
       destino: form.destino.trim(),
       numero_voo: form.numero_voo.trim() || null,
