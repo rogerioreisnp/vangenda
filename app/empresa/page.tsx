@@ -248,10 +248,18 @@ export default function EmpresaPage() {
   }
 
   async function salvarValor(sol: SolicitacaoTransfer, valorStr: string) {
-    const num = parseFloat(valorStr.replace(',', '.'))
-    if (isNaN(num) || num < 0) return
+    const num = parseFloat(valorStr.trim().replace(',', '.'))
+    if (isNaN(num) || num < 0) {
+      alert('Valor inválido. Use apenas números, ex: 150 ou 150,00')
+      return
+    }
     setEnviandoFicha(true)
-    await supabase.from('solicitacoes_transfer').update({ valor: num }).eq('id', sol.id)
+    const { error } = await supabase.from('solicitacoes_transfer').update({ valor: num }).eq('id', sol.id)
+    if (error) {
+      alert('Erro ao salvar valor: ' + error.message)
+      setEnviandoFicha(false)
+      return
+    }
     setSolicitacoes(prev => prev.map(s => s.id === sol.id ? { ...s, valor: num } : s))
     setFichaAberta(prev => prev ? { ...prev, valor: num } : prev)
     setEditandoValor(false)
