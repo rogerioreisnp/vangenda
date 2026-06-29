@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: `${empresa_nome || 'Rotagenda'} <confirmacoes@rotagenda.app>`,
+        from: `${empresa_nome || 'Rotagenda'} <onboarding@resend.dev>`,
         to: [email],
         subject: `Confirmação de Reserva${numero_reserva ? ` #${numero_reserva}` : ''} — ${empresa_nome || 'Rotagenda'}`,
         html,
