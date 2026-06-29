@@ -17,6 +17,7 @@ type MotoristaOpcao = {
   id: string
   nome: string
   user_id: string | null
+  telefone: string | null
 }
 
 type Corrida = {
@@ -334,7 +335,7 @@ export default function AgendamentosPage() {
         .order('created_at'),
       supabase
         .from('motoristas_empresa')
-        .select('id, nome, user_id')
+        .select('id, nome, user_id, telefone')
         .eq('empresa_id', gestor.empresa_id)
         .eq('status', 'ativo')
         .order('nome'),
@@ -552,14 +553,45 @@ export default function AgendamentosPage() {
     setModalFichaAberto(true)
   }
 
-  function enviarWhatsAppConfirmacao(c: Corrida) {
+  function enviarWhatsAppConfirmacao(c: Corrida, motoristaId: string) {
     const tel = (c.cliente_telefone || '').replace(/\D/g, '')
     if (!tel) return
     const telFmt = tel.startsWith('55') ? tel : `55${tel}`
     const data = `${c.data_hora.slice(8,10)}/${c.data_hora.slice(5,7)}/${c.data_hora.slice(0,4)}`
     const hora = c.data_hora.slice(11,16)
-    const msg = encodeURIComponent(`Olá ${c.cliente_nome}, sua solicitação de transfer de ${c.origem} para ${c.destino} no dia ${data} às ${hora} foi confirmada! Qualquer dúvida estamos à disposição.`)
-    window.open(`https://wa.me/${telFmt}?text=${msg}`, '_blank')
+    const motorista = motoristasOpcoes.find(m => m.id === motoristaId)
+    let msg = `Olá ${c.cliente_nome}, tudo bem?\nSegue a confirmação do seu transfer:\n\n📅 *Data/Hora:* ${data} às ${hora}\n📍 *Origem:* ${c.origem}\n📍 *Destino:* ${c.destino}`
+    if (c.numero_voo) msg += `\n✈️ *Voo:* ${c.numero_voo}`
+    if (c.retorno_data) {
+      const retData = `${c.retorno_data.slice(8,10)}/${c.retorno_data.slice(5,7)}/${c.retorno_data.slice(0,4)}`
+      msg += `\n\n🔄 *Retorno:* ${retData}${c.retorno_horario ? ` às ${c.retorno_horario.slice(0,5)}` : ''}`
+      if (c.retorno_origem) msg += `\n📍 ${c.retorno_origem} → ${c.retorno_destino}`
+    }
+    if (motorista) msg += `\n\n🚗 *Motorista:* ${motorista.nome}`
+    msg += `\n\nQualquer dúvida estamos à disposição!`
+    window.open(`https://wa.me/${telFmt}?text=${encodeURIComponent(msg)}`, '_blank')
+  }
+
+  function enviarWhatsAppMotorista(c: Corrida, motoristaId: string) {
+    const motorista = motoristasOpcoes.find(m => m.id === motoristaId)
+    if (!motorista) return
+    const tel = motorista.telefone?.replace(/\D/g, '')
+    if (!tel) { alert(`Motorista ${motorista.nome} não tem telefone cadastrado.`); return }
+    const telFmt = tel.startsWith('55') ? tel : `55${tel}`
+    const data = `${c.data_hora.slice(8,10)}/${c.data_hora.slice(5,7)}/${c.data_hora.slice(0,4)}`
+    const hora = c.data_hora.slice(11,16)
+    let msg = `Olá ${motorista.nome}, tudo bem?\nSegue sua corrida:\n\n📅 *Data/Hora:* ${data} às ${hora}\n👤 *Cliente:* ${c.cliente_nome}`
+    if (c.cliente_telefone) msg += `\n📞 *Tel cliente:* ${c.cliente_telefone}`
+    msg += `\n📍 *Origem:* ${c.origem}\n📍 *Destino:* ${c.destino}`
+    if (c.numero_voo) msg += `\n✈️ *Voo:* ${c.numero_voo}`
+    if (c.nome_passageiro2) msg += `\n👥 *2º Passageiro:* ${c.nome_passageiro2}`
+    if (c.retorno_data) {
+      const retData = `${c.retorno_data.slice(8,10)}/${c.retorno_data.slice(5,7)}/${c.retorno_data.slice(0,4)}`
+      msg += `\n\n🔄 *Retorno:* ${retData}${c.retorno_horario ? ` às ${c.retorno_horario.slice(0,5)}` : ''}`
+      if (c.retorno_origem) msg += `\n📍 ${c.retorno_origem} → ${c.retorno_destino}`
+    }
+    if (c.observacoes) msg += `\n\n📝 *Obs:* ${c.observacoes}`
+    window.open(`https://wa.me/${telFmt}?text=${encodeURIComponent(msg)}`, '_blank')
   }
 
   async function marcarConfirmada(c: Corrida, motoristaId: string) {
@@ -1285,17 +1317,25 @@ export default function AgendamentosPage() {
             {corridaFicha.status === 'pendente' && (
               <div className="flex flex-col gap-2 mt-2">
                 <button
-                  onClick={() => enviarWhatsAppConfirmacao(corridaFicha)}
-                  className="w-full py-4 rounded-2xl text-white text-sm font-bold flex items-center justify-center gap-2"
+                  onClick={() => enviarWhatsAppConfirmacao(corridaFicha, motoristaFicha)}
+                  disabled={!motoristaFicha}
+                  className="w-full py-4 rounded-2xl text-white text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-40"
                   style={{ background: '#25D366' }}>
-                  💬 Enviar confirmação via WhatsApp
+                  💬 Confirmar com cliente via WhatsApp
+                </button>
+                <button
+                  onClick={() => enviarWhatsAppMotorista(corridaFicha, motoristaFicha)}
+                  disabled={!motoristaFicha}
+                  className="w-full py-3.5 rounded-2xl text-sm font-bold border disabled:opacity-40"
+                  style={{ background: '#E8F5E9', color: '#1B5E20', borderColor: '#A5D6A7' }}>
+                  💬 Enviar corrida ao motorista via WhatsApp
                 </button>
                 <button
                   onClick={() => marcarConfirmada(corridaFicha, motoristaFicha)}
                   disabled={confirmandoFicha || !motoristaFicha}
                   className="w-full py-3.5 rounded-2xl text-sm font-bold border disabled:opacity-40"
                   style={{ background: '#E1F5EE', color: '#085041', borderColor: '#9FE1CB' }}>
-                  {confirmandoFicha ? 'Salvando...' : !motoristaFicha ? 'Selecione um motorista primeiro' : '✓ Confirmar — Em andamento'}
+                  {confirmandoFicha ? 'Salvando...' : !motoristaFicha ? 'Selecione um motorista primeiro' : '✓ Marcar como Em andamento'}
                 </button>
                 <button
                   onClick={() => recusarFicha(corridaFicha)}
@@ -1310,6 +1350,19 @@ export default function AgendamentosPage() {
             {/* Ações — Em andamento */}
             {corridaFicha.status === 'confirmada' && (
               <div className="flex flex-col gap-2 mt-2">
+                <button
+                  onClick={() => enviarWhatsAppConfirmacao(corridaFicha, motoristaFicha)}
+                  className="w-full py-4 rounded-2xl text-white text-sm font-bold disabled:opacity-40"
+                  style={{ background: '#25D366' }}>
+                  💬 Reenviar confirmação ao cliente
+                </button>
+                <button
+                  onClick={() => enviarWhatsAppMotorista(corridaFicha, motoristaFicha)}
+                  disabled={!motoristaFicha}
+                  className="w-full py-3.5 rounded-2xl text-sm font-bold border disabled:opacity-40"
+                  style={{ background: '#E8F5E9', color: '#1B5E20', borderColor: '#A5D6A7' }}>
+                  💬 Reenviar corrida ao motorista
+                </button>
                 <button
                   onClick={() => marcarConcluida(corridaFicha)}
                   disabled={confirmandoFicha}
