@@ -24,15 +24,8 @@ type FormMotorista = {
   cor: string
 }
 
-const LIMITES_PLANO: Record<string, number> = {
-  starter: 3,
-  pro: 8,
-  fleet: Infinity,
-}
-
 export default function MotoristasPage() {
   const [empresaId, setEmpresaId] = useState<string | null>(null)
-  const [plano, setPlano] = useState<string>('starter')
   const [motoristas, setMotoristas] = useState<Motorista[]>([])
   const [loading, setLoading] = useState(true)
   const [modalAberto, setModalAberto] = useState(false)
@@ -58,14 +51,13 @@ export default function MotoristasPage() {
 
     const { data: empresa } = await supabase
       .from('empresas')
-      .select('id, plano')
+      .select('id')
       .eq('id', gestor.empresa_id)
       .single()
 
     if (!empresa) return
 
     setEmpresaId(empresa.id)
-    setPlano(empresa.plano)
 
     const { data: mots } = await supabase
       .from('motoristas_empresa')
@@ -211,8 +203,6 @@ export default function MotoristasPage() {
 
   const motAtivos = motoristas.filter(m => m.status === 'ativo')
   const motInativos = motoristas.filter(m => m.status === 'inativo')
-  const limite = LIMITES_PLANO[plano] ?? 3
-  const atingiuLimite = motAtivos.length >= limite
 
   return (
     <div>
@@ -221,26 +211,19 @@ export default function MotoristasPage() {
         <div>
           <p style={{ color: '#E1F5EE' }} className="text-base font-semibold">Motoristas</p>
           <p style={{ color: '#5DCAA5' }} className="text-xs mt-0.5">
-            {motAtivos.length}{limite !== Infinity ? `/${limite}` : ''} ativo{motAtivos.length !== 1 ? 's' : ''}
+            {motAtivos.length} ativo{motAtivos.length !== 1 ? 's' : ''}
           </p>
         </div>
       </div>
 
       <div className="px-4 py-4 flex flex-col gap-3">
 
-        {atingiuLimite ? (
-          <div className="rounded-xl px-4 py-3 text-sm border"
-            style={{ background: '#FAEEDA', borderColor: '#FAC775', color: '#854F0B' }}>
-            ⚠️ Limite do plano atingido. Faça upgrade para adicionar mais motoristas.
-          </div>
-        ) : (
-          <button
-            onClick={abrirAdicionar}
-            className="w-full py-3 rounded-xl text-sm font-semibold"
-            style={{ background: '#1D9E75', color: '#fff' }}>
-            + Adicionar motorista
-          </button>
-        )}
+        <button
+          onClick={abrirAdicionar}
+          className="w-full py-3 rounded-xl text-sm font-semibold"
+          style={{ background: '#1D9E75', color: '#fff' }}>
+          + Adicionar motorista
+        </button>
 
         {motAtivos.length === 0 ? (
           <div className="bg-white rounded-2xl p-6 border border-gray-100 text-center">
@@ -306,10 +289,9 @@ export default function MotoristasPage() {
                       )}
                     </div>
                     <button
-                      onClick={() => !atingiuLimite && ativar(m.id)}
-                      disabled={atingiuLimite}
-                      title={atingiuLimite ? 'Limite do plano atingido' : 'Reativar motorista'}
-                      className="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+                      onClick={() => ativar(m.id)}
+                      title="Reativar motorista"
+                      className="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium"
                       style={{ background: '#E1F5EE', color: '#0F6E56' }}>
                       Reativar
                     </button>
