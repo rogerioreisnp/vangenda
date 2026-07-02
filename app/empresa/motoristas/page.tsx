@@ -185,6 +185,22 @@ export default function MotoristasPage() {
     carregarDados()
   }
 
+  async function excluir(m: Motorista) {
+    const ok = confirm(
+      `Excluir "${m.nome}" da lista de motoristas?\n\n` +
+      `• O cadastro dele será removido da sua empresa.\n` +
+      `• O histórico de corridas e o financeiro serão preservados.\n\n` +
+      `Esta ação não pode ser desfeita.`
+    )
+    if (!ok) return
+    const { error } = await supabase
+      .from('motoristas_empresa')
+      .delete()
+      .eq('id', m.id)
+    if (error) { alert('Erro ao excluir: ' + error.message); return }
+    carregarDados()
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -288,13 +304,22 @@ export default function MotoristasPage() {
                         </p>
                       )}
                     </div>
-                    <button
-                      onClick={() => ativar(m.id)}
-                      title="Reativar motorista"
-                      className="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium"
-                      style={{ background: '#E1F5EE', color: '#0F6E56' }}>
-                      Reativar
-                    </button>
+                    <div className="flex gap-2 flex-shrink-0">
+                      <button
+                        onClick={() => ativar(m.id)}
+                        title="Reativar motorista"
+                        className="px-3 py-1.5 rounded-lg text-xs font-medium"
+                        style={{ background: '#E1F5EE', color: '#0F6E56' }}>
+                        Reativar
+                      </button>
+                      <button
+                        onClick={() => excluir(m)}
+                        title="Excluir motorista"
+                        className="px-3 py-1.5 rounded-lg text-xs font-medium"
+                        style={{ background: '#FCEBEB', color: '#A32D2D' }}>
+                        🗑️ Excluir
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
