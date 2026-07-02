@@ -5,6 +5,7 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOf
 import { ptBR } from 'date-fns/locale'
 import Link from 'next/link'
 import ModalNovaEncomenda from '@/components/ModalNovaEncomenda'
+import ModalNovoFretamento from '@/components/ModalNovoFretamento'
 
 type Agendamento = {
   id: string
@@ -40,6 +41,23 @@ type Encomenda = {
   horario_entrega?: string
 }
 
+type Fretamento = {
+  id: string
+  cliente_nome: string
+  telefone?: string | null
+  origem: string
+  destino: string
+  data_saida: string
+  horario_saida?: string | null
+  horario_retorno_estimado?: string | null
+  quantidade_pessoas?: number | null
+  valor: number
+  observacao?: string | null
+  status_pagamento: string
+  forma_pagamento?: string | null
+  status: string
+}
+
 export default function AgendaPage() {
   console.log('AGENDA CARREGADA v2')
   const hoje = new Date()
@@ -49,6 +67,8 @@ export default function AgendaPage() {
   const [loading, setLoading] = useState(true)
   const [mostrarForm, setMostrarForm] = useState(false)
   const [modalEncomenda, setModalEncomenda] = useState(false)
+  const [modalFretamento, setModalFretamento] = useState(false)
+  const [fretamentosDoDia, setFretamentosDoDia] = useState<Fretamento[]>([])
   const [modalPDF, setModalPDF] = useState(false)
   const [rotas, setRotas] = useState<any[]>([])
   const [agendamentoDetalhe, setAgendamentoDetalhe] = useState<Agendamento | null>(null)
@@ -64,7 +84,7 @@ export default function AgendaPage() {
 
   useEffect(() => { detectarEmpresa().then(() => setEmpresaReady(true)) }, [])
   useEffect(() => { if (empresaReady) carregarMes() }, [empresaReady, mesAtual, rotaSelecionada])
-  useEffect(() => { carregarEncomendasDoDia(diaSelecionado) }, [diaSelecionado])
+  useEffect(() => { carregarEncomendasDoDia(diaSelecionado); carregarFretamentosDoDia(diaSelecionado) }, [diaSelecionado])
 
   async function carregarMes() {
     setLoading(true)
@@ -163,6 +183,18 @@ export default function AgendaPage() {
       .eq('data_entrega', format(data, 'yyyy-MM-dd'))
       .order('criado_em', { ascending: true })
     setEncomendasDoDia(encs || [])
+  }
+
+  async function carregarFretamentosDoDia(data: Date) {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    const { data: frets } = await supabase
+      .from('fretamentos')
+      .select('id, cliente_nome, telefone, origem, destino, data_saida, horario_saida, horario_retorno_estimado, quantidade_pessoas, valor, observacao, status_pagamento, forma_pagamento, status')
+      .eq('motorista_id', user.id)
+      .eq('data_saida', format(data, 'yyyy-MM-dd'))
+      .order('horario_saida', { ascending: true, nullsFirst: true })
+    setFretamentosDoDia((frets as Fretamento[]) || [])
   }
 
   async function detectarEmpresa() {
@@ -344,7 +376,7 @@ export default function AgendaPage() {
 
         {loading ? (
           <p className="text-center text-gray-400 text-sm py-6">Carregando...</p>
-        ) : agsDoDia.length === 0 && encomendasDoDia.length === 0 ? (
+        ) : agsDoDia.length === 0 && encomendasDoDia.length === 0 && fretamentosDoDia.length === 0 ? (
           <div className="text-center py-8">
             <p className="text-3xl mb-2">📭</p>
             <p className="text-gray-400 text-sm">Nenhum passageiro neste dia</p>
@@ -359,6 +391,9 @@ export default function AgendaPage() {
             )}
             {encomendasDoDia.length > 0 && (
               <BlocoEncomendas encomendas={encomendasDoDia} onConcluir={concluirEncomenda} />
+            )}
+            {fretamentosDoDia.length > 0 && (
+              <BlocoFretamentos fretamentos={fretamentosDoDia} onAtualizar={() => carregarFretamentosDoDia(diaSelecionado)} />
             )}
           </>
         )}
@@ -395,6 +430,11 @@ export default function AgendaPage() {
           style={{ background: '#FAEEDA', color: '#854F0B' }}>
           📦 Agendar encomenda neste dia
         </button>
+        <button onClick={() => setModalFretamento(true)}
+          className="w-full py-3 rounded-xl text-sm font-semibold mt-2 flex items-center justify-center gap-2"
+          style={{ background: '#FEF3C7', color: '#92400E' }}>
+          🚌 Agendar fretamento neste dia
+        </button>
         <div className="h-20" />
       </div>
 
@@ -424,6 +464,14 @@ export default function AgendaPage() {
           dataSelecionada={diaSelecionado}
           onFechar={() => setModalEncomenda(false)}
           onSalvo={() => { setModalEncomenda(false); carregarEncomendasDoDia(diaSelecionado) }}
+        />
+      )}
+
+      {modalFretamento && (
+        <ModalNovoFretamento
+          dataSelecionada={diaSelecionado}
+          onFechar={() => setModalFretamento(false)}
+          onSalvo={() => { setModalFretamento(false); carregarFretamentosDoDia(diaSelecionado) }}
         />
       )}
 
@@ -1505,6 +1553,105 @@ function BlocoEncomendas({ encomendas, onConcluir }: {
                 <p className="text-sm text-gray-400">R$ {e.valor.toFixed(0)}</p>
                 <span className="text-[10px] px-2 py-0.5 rounded-md font-medium"
                   style={{ background: '#E1F5EE', color: '#0F6E56' }}>✓ Concluída</span>
+              </div>
+            </div>
+          ))}
+        </>
+      )}
+    </div>
+  )
+}
+
+function BlocoFretamentos({ fretamentos, onAtualizar }: {
+  fretamentos: Fretamento[]
+  onAtualizar: () => void
+}) {
+  const formaLabel: Record<string, string> = { dinheiro: 'Dinheiro', pix: 'Pix', cartao: 'Cartão' }
+
+  async function marcarPago(f: Fretamento) {
+    if (!confirm(`Marcar fretamento "${f.cliente_nome}" como pago?`)) return
+    await supabase.from('fretamentos').update({ status_pagamento: 'pago' }).eq('id', f.id)
+    await supabase.from('movimentacoes').delete().eq('referencia_id', f.id).eq('categoria', 'fretamento')
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    await supabase.from('receitas').insert({
+      motorista_id: user.id,
+      valor: f.valor,
+      descricao: `Fretamento ${f.origem} → ${f.destino}` + (f.observacao ? ': ' + f.observacao : ''),
+      categoria: 'fretamento',
+      data_receita: f.data_saida,
+    })
+    onAtualizar()
+  }
+
+  async function apagar(f: Fretamento) {
+    if (!confirm(`Apagar o fretamento de "${f.cliente_nome}"?`)) return
+    await supabase.from('movimentacoes').delete().eq('referencia_id', f.id).eq('categoria', 'fretamento')
+    await supabase.from('fretamentos').delete().eq('id', f.id)
+    onAtualizar()
+  }
+
+  const pendentes = fretamentos.filter(f => f.status_pagamento !== 'pago')
+  const pagos = fretamentos.filter(f => f.status_pagamento === 'pago')
+
+  return (
+    <div className="mb-4">
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Fretamentos</span>
+        <span className="text-[10px] px-2 py-0.5 rounded-md font-medium"
+          style={{ background: '#FEF3C7', color: '#92400E' }}>
+          🚌 {fretamentos.length}
+        </span>
+      </div>
+
+      {pendentes.map(f => (
+        <div key={f.id} className="bg-white border border-gray-100 rounded-xl p-3 mb-2 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-base"
+            style={{ background: '#FEF3C7' }}>🚌</div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-gray-800 truncate">{f.cliente_nome}</p>
+            <p className="text-xs text-gray-500 truncate">{f.origem} → {f.destino}</p>
+            <p className="text-xs text-gray-400">
+              {f.horario_saida ? 'saída ' + f.horario_saida.slice(0, 5) + 'h · ' : ''}
+              {f.quantidade_pessoas ? f.quantidade_pessoas + ' pessoas · ' : ''}
+              {f.status_pagamento === 'pago' && f.forma_pagamento ? (formaLabel[f.forma_pagamento] || f.forma_pagamento) : 'A receber'}
+            </p>
+            {f.observacao && <p className="text-xs text-gray-400 mt-0.5 truncate">{f.observacao}</p>}
+          </div>
+          <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+            <p className="text-sm font-bold" style={{ color: '#92400E' }}>R$ {f.valor.toFixed(0)}</p>
+            <div className="flex gap-1">
+              <button onClick={() => marcarPago(f)}
+                className="text-xs px-2 py-1 rounded-lg font-semibold"
+                style={{ background: '#E1F5EE', color: '#0F6E56' }}>
+                ✓ Pago
+              </button>
+              <button onClick={() => apagar(f)}
+                className="text-xs px-2 py-1 rounded-lg font-semibold"
+                style={{ background: '#FCEBEB', color: '#A32D2D' }}>
+                ✕
+              </button>
+            </div>
+          </div>
+        </div>
+      ))}
+
+      {pagos.length > 0 && (
+        <>
+          <p className="text-xs font-medium text-gray-400 mt-3 mb-2 uppercase tracking-wide">Recebidos</p>
+          {pagos.map(f => (
+            <div key={f.id} className="border border-gray-100 rounded-xl p-3 mb-2 flex items-center gap-3"
+              style={{ background: '#f7f7f7', opacity: 0.7 }}>
+              <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-base"
+                style={{ background: '#e5e5e5' }}>🚌</div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-500 truncate">{f.cliente_nome}</p>
+                <p className="text-xs text-gray-400 truncate">{f.origem} → {f.destino}</p>
+              </div>
+              <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                <p className="text-sm text-gray-400">R$ {f.valor.toFixed(0)}</p>
+                <span className="text-[10px] px-2 py-0.5 rounded-md font-medium"
+                  style={{ background: '#E1F5EE', color: '#0F6E56' }}>✓ Recebido</span>
               </div>
             </div>
           ))}
