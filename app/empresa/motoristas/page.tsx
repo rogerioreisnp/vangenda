@@ -314,7 +314,7 @@ export default function MotoristasPage() {
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
+          <div className="flex-1 overflow-y-auto px-4 pt-4 pb-28 flex flex-col gap-3">
             <Campo label="Nome *">
               <input value={form.nome} onChange={e => setForm(f => ({ ...f, nome: e.target.value }))}
                 placeholder="Nome completo" className="campo-input" />
