@@ -85,7 +85,12 @@ export default function AgendaPage() {
 
   useEffect(() => { detectarEmpresa().then(() => setEmpresaReady(true)) }, [])
   useEffect(() => { if (empresaReady) carregarMes() }, [empresaReady, mesAtual, rotaSelecionada])
-  useEffect(() => { carregarEncomendasDoDia(diaSelecionado); carregarFretamentosDoDia(diaSelecionado) }, [diaSelecionado])
+  useEffect(() => {
+    if (empresaCtx === undefined) return // ainda carregando o ctx
+    carregarEncomendasDoDia(diaSelecionado)
+    carregarFretamentosDoDia(diaSelecionado)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [diaSelecionado, empresaCtx?.gestorUserId])
 
   async function carregarMes() {
     setLoading(true)
@@ -177,10 +182,12 @@ export default function AgendaPage() {
   async function carregarEncomendasDoDia(data: Date) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
+    // Se motorista de empresa, ve as encomendas do gestor (empresa) - pra poder entregar
+    const filtroMotorista = empresaCtx?.gestorUserId || user.id
     const { data: encs } = await supabase
       .from('encomendas')
       .select('id, nome, telefone, valor, observacao, pago, valor_pago, forma_pagamento, data_entrega, horario_entrega')
-      .eq('motorista_id', user.id)
+      .eq('motorista_id', filtroMotorista)
       .eq('data_entrega', format(data, 'yyyy-MM-dd'))
       .order('criado_em', { ascending: true })
     setEncomendasDoDia(encs || [])
@@ -189,10 +196,12 @@ export default function AgendaPage() {
   async function carregarFretamentosDoDia(data: Date) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
+    // Se motorista de empresa, ve os fretamentos do gestor (empresa) - pra poder operar
+    const filtroMotorista = empresaCtx?.gestorUserId || user.id
     const { data: frets } = await supabase
       .from('fretamentos')
       .select('id, cliente_nome, telefone, origem, destino, data_saida, horario_saida, horario_retorno_estimado, quantidade_pessoas, valor, observacao, status_pagamento, forma_pagamento, status')
-      .eq('motorista_id', user.id)
+      .eq('motorista_id', filtroMotorista)
       .eq('data_saida', format(data, 'yyyy-MM-dd'))
       .order('horario_saida', { ascending: true, nullsFirst: true })
     setFretamentosDoDia((frets as Fretamento[]) || [])
