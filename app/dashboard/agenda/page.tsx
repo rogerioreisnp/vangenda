@@ -83,7 +83,13 @@ export default function AgendaPage() {
   const [empresaReady, setEmpresaReady] = useState(false)
   const [rotaSelecionada, setRotaSelecionada] = useState('')
 
-  useEffect(() => { detectarEmpresa().then(() => setEmpresaReady(true)) }, [])
+  useEffect(() => {
+    // Sempre seta empresaReady, mesmo se detectarEmpresa falhar (ex: RLS negando alguma tabela)
+    // Isso garante que carregarMes() rode e o motorista veja seus passageiros
+    detectarEmpresa()
+      .catch(err => console.error('[detectarEmpresa] falhou, seguindo como individual:', err))
+      .finally(() => setEmpresaReady(true))
+  }, [])
   useEffect(() => { if (empresaReady) carregarMes() }, [empresaReady, mesAtual, rotaSelecionada])
   useEffect(() => {
     if (empresaCtx === undefined) return // ainda carregando o ctx
