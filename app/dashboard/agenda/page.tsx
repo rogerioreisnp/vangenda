@@ -165,22 +165,41 @@ export default function AgendaPage() {
       return
     }
 
-    const [{ data }, { data: rts }, { data: mot }] = await Promise.all([
-      supabase.from('agendamentos').select('*').eq('motorista_id', user.id)
-        .gte('data_viagem', inicio).lte('data_viagem', fim).neq('status', 'cancelado'),
-      supabase.from('rotas').select('*').eq('motorista_id', user.id),
-      supabase.from('motoristas').select('dias_trabalho, nome').eq('id', user.id).single(),
-    ])
+    // Cada query independente — se uma falhar, as outras continuam
+    let agendamentosData: any[] = []
+    let rotasData: any[] = []
+    let motoristaData: any = null
 
-    if (data) setAgendamentos([...data].sort((a, b) => {
+    try {
+      const { data, error } = await supabase.from('agendamentos').select('*')
+        .eq('motorista_id', user.id)
+        .gte('data_viagem', inicio).lte('data_viagem', fim).neq('status', 'cancelado')
+      if (error) console.error('[carregarMes] agendamentos:', error)
+      agendamentosData = data || []
+    } catch (e) { console.error('[carregarMes] agendamentos exception:', e) }
+
+    try {
+      const { data, error } = await supabase.from('rotas').select('*').eq('motorista_id', user.id)
+      if (error) console.error('[carregarMes] rotas:', error)
+      rotasData = data || []
+    } catch (e) { console.error('[carregarMes] rotas exception:', e) }
+
+    try {
+      const { data, error } = await supabase.from('motoristas')
+        .select('dias_trabalho, nome').eq('id', user.id).maybeSingle()
+      if (error) console.error('[carregarMes] motoristas:', error)
+      motoristaData = data
+    } catch (e) { console.error('[carregarMes] motoristas exception:', e) }
+
+    setAgendamentos([...agendamentosData].sort((a, b) => {
       if (a.ordem != null && b.ordem != null) return a.ordem - b.ordem
       if (a.ordem != null) return -1
       if (b.ordem != null) return 1
       return 0
     }))
-    if (rts) setRotas(rts)
-    if (mot?.dias_trabalho) setDiasTrabalho(mot.dias_trabalho)
-    if (mot?.nome) setNomeMotorista(mot.nome)
+    setRotas(rotasData)
+    if (motoristaData?.dias_trabalho) setDiasTrabalho(motoristaData.dias_trabalho)
+    if (motoristaData?.nome) setNomeMotorista(motoristaData.nome)
 
     setLoading(false)
   }
