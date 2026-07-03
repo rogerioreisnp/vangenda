@@ -75,7 +75,7 @@ export default function AgendaPage() {
   const [diasTrabalho, setDiasTrabalho] = useState<number[]>([])
   const [nomeMotorista, setNomeMotorista] = useState('')
   const [encomendasDoDia, setEncomendasDoDia] = useState<Encomenda[]>([])
-  const [empresaCtx, setEmpresaCtx] = useState<{ empresaId: string; motEmpresaId?: string } | null | undefined>(undefined)
+  const [empresaCtx, setEmpresaCtx] = useState<{ empresaId: string; motEmpresaId?: string; gestorUserId?: string } | null | undefined>(undefined)
   const [rotasEmpresa, setRotasEmpresa] = useState<{ id: string; nome: string | null; origem: string | null; destino: string | null; horario_ida: string | null; horario_volta: string | null }[]>([])
   const [isGestor, setIsGestor] = useState(false)
   const [gestorUserIds, setGestorUserIds] = useState<string[]>([])
@@ -230,7 +230,18 @@ export default function AgendaPage() {
       .eq('user_id', user.id)
       .maybeSingle()
     if (motEmp) {
-      setEmpresaCtx({ empresaId: motEmp.empresa_id, motEmpresaId: motEmp.id })
+      // Busca o gestor da empresa pra redirecionar receitas/agendamentos pro dono
+      const { data: gestorDaEmp } = await supabase
+        .from('gestores')
+        .select('user_id')
+        .eq('empresa_id', motEmp.empresa_id)
+        .limit(1)
+        .maybeSingle()
+      setEmpresaCtx({
+        empresaId: motEmp.empresa_id,
+        motEmpresaId: motEmp.id,
+        gestorUserId: gestorDaEmp?.user_id || undefined,
+      })
       const { data: rts } = await supabase
         .from('rotas_empresa')
         .select('id, nome, origem, destino, ativa, horario_ida, horario_volta')
@@ -1027,7 +1038,7 @@ function DetalhePassageiro({ p, onVoltar, onAtualizar, horarioIda, horarioVolta 
 
 function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSalvo }: {
   data: Date, rotas: any[],
-  empresaCtx: { empresaId: string; motEmpresaId?: string } | null,
+  empresaCtx: { empresaId: string; motEmpresaId?: string; gestorUserId?: string } | null,
   rotasEmpresa: { id: string; nome: string | null; origem: string | null; destino: string | null; horario_ida?: string | null; horario_volta?: string | null }[],
   onFechar: () => void, onSalvo: () => void
 }) {
