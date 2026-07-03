@@ -90,7 +90,7 @@ export default function AgendaPage() {
     carregarEncomendasDoDia(diaSelecionado)
     carregarFretamentosDoDia(diaSelecionado)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [diaSelecionado, empresaCtx?.gestorUserId])
+  }, [diaSelecionado, empresaCtx])
 
   async function carregarMes() {
     setLoading(true)
