@@ -6,7 +6,6 @@ import { ptBR } from 'date-fns/locale'
 import Link from 'next/link'
 import ModalNovaEncomenda from '@/components/ModalNovaEncomenda'
 import ModalNovoFretamento from '@/components/ModalNovoFretamento'
-import { getMotoristaIdSalvar } from '@/lib/motorista-salvar'
 
 type Agendamento = {
   id: string
@@ -76,27 +75,16 @@ export default function AgendaPage() {
   const [diasTrabalho, setDiasTrabalho] = useState<number[]>([])
   const [nomeMotorista, setNomeMotorista] = useState('')
   const [encomendasDoDia, setEncomendasDoDia] = useState<Encomenda[]>([])
-  const [empresaCtx, setEmpresaCtx] = useState<{ empresaId: string; motEmpresaId?: string; gestorUserId?: string } | null | undefined>(undefined)
+  const [empresaCtx, setEmpresaCtx] = useState<{ empresaId: string; motEmpresaId?: string } | null | undefined>(undefined)
   const [rotasEmpresa, setRotasEmpresa] = useState<{ id: string; nome: string | null; origem: string | null; destino: string | null; horario_ida: string | null; horario_volta: string | null }[]>([])
   const [isGestor, setIsGestor] = useState(false)
   const [gestorUserIds, setGestorUserIds] = useState<string[]>([])
   const [empresaReady, setEmpresaReady] = useState(false)
   const [rotaSelecionada, setRotaSelecionada] = useState('')
 
-  useEffect(() => {
-    // Sempre seta empresaReady, mesmo se detectarEmpresa falhar (ex: RLS negando alguma tabela)
-    // Isso garante que carregarMes() rode e o motorista veja seus passageiros
-    detectarEmpresa()
-      .catch(err => console.error('[detectarEmpresa] falhou, seguindo como individual:', err))
-      .finally(() => setEmpresaReady(true))
-  }, [])
+  useEffect(() => { detectarEmpresa().then(() => setEmpresaReady(true)) }, [])
   useEffect(() => { if (empresaReady) carregarMes() }, [empresaReady, mesAtual, rotaSelecionada])
-  useEffect(() => {
-    if (empresaCtx === undefined) return // ainda carregando o ctx
-    carregarEncomendasDoDia(diaSelecionado)
-    carregarFretamentosDoDia(diaSelecionado)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [diaSelecionado, empresaCtx])
+  useEffect(() => { carregarEncomendasDoDia(diaSelecionado); carregarFretamentosDoDia(diaSelecionado) }, [diaSelecionado])
 
   async function carregarMes() {
     setLoading(true)
@@ -165,41 +153,22 @@ export default function AgendaPage() {
       return
     }
 
-    // Cada query independente — se uma falhar, as outras continuam
-    let agendamentosData: any[] = []
-    let rotasData: any[] = []
-    let motoristaData: any = null
+    const [{ data }, { data: rts }, { data: mot }] = await Promise.all([
+      supabase.from('agendamentos').select('*').eq('motorista_id', user.id)
+        .gte('data_viagem', inicio).lte('data_viagem', fim).neq('status', 'cancelado'),
+      supabase.from('rotas').select('*').eq('motorista_id', user.id),
+      supabase.from('motoristas').select('dias_trabalho, nome').eq('id', user.id).single(),
+    ])
 
-    try {
-      const { data, error } = await supabase.from('agendamentos').select('*')
-        .eq('motorista_id', user.id)
-        .gte('data_viagem', inicio).lte('data_viagem', fim).neq('status', 'cancelado')
-      if (error) console.error('[carregarMes] agendamentos:', error)
-      agendamentosData = data || []
-    } catch (e) { console.error('[carregarMes] agendamentos exception:', e) }
-
-    try {
-      const { data, error } = await supabase.from('rotas').select('*').eq('motorista_id', user.id)
-      if (error) console.error('[carregarMes] rotas:', error)
-      rotasData = data || []
-    } catch (e) { console.error('[carregarMes] rotas exception:', e) }
-
-    try {
-      const { data, error } = await supabase.from('motoristas')
-        .select('dias_trabalho, nome').eq('id', user.id).maybeSingle()
-      if (error) console.error('[carregarMes] motoristas:', error)
-      motoristaData = data
-    } catch (e) { console.error('[carregarMes] motoristas exception:', e) }
-
-    setAgendamentos([...agendamentosData].sort((a, b) => {
+    if (data) setAgendamentos([...data].sort((a, b) => {
       if (a.ordem != null && b.ordem != null) return a.ordem - b.ordem
       if (a.ordem != null) return -1
       if (b.ordem != null) return 1
       return 0
     }))
-    setRotas(rotasData)
-    if (motoristaData?.dias_trabalho) setDiasTrabalho(motoristaData.dias_trabalho)
-    if (motoristaData?.nome) setNomeMotorista(motoristaData.nome)
+    if (rts) setRotas(rts)
+    if (mot?.dias_trabalho) setDiasTrabalho(mot.dias_trabalho)
+    if (mot?.nome) setNomeMotorista(mot.nome)
 
     setLoading(false)
   }
@@ -207,12 +176,10 @@ export default function AgendaPage() {
   async function carregarEncomendasDoDia(data: Date) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-    // Se motorista de empresa, ve as encomendas do gestor (empresa) - pra poder entregar
-    const filtroMotorista = empresaCtx?.gestorUserId || user.id
     const { data: encs } = await supabase
       .from('encomendas')
       .select('id, nome, telefone, valor, observacao, pago, valor_pago, forma_pagamento, data_entrega, horario_entrega')
-      .eq('motorista_id', filtroMotorista)
+      .eq('motorista_id', user.id)
       .eq('data_entrega', format(data, 'yyyy-MM-dd'))
       .order('criado_em', { ascending: true })
     setEncomendasDoDia(encs || [])
@@ -221,12 +188,10 @@ export default function AgendaPage() {
   async function carregarFretamentosDoDia(data: Date) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-    // Se motorista de empresa, ve os fretamentos do gestor (empresa) - pra poder operar
-    const filtroMotorista = empresaCtx?.gestorUserId || user.id
     const { data: frets } = await supabase
       .from('fretamentos')
       .select('id, cliente_nome, telefone, origem, destino, data_saida, horario_saida, horario_retorno_estimado, quantidade_pessoas, valor, observacao, status_pagamento, forma_pagamento, status')
-      .eq('motorista_id', filtroMotorista)
+      .eq('motorista_id', user.id)
       .eq('data_saida', format(data, 'yyyy-MM-dd'))
       .order('horario_saida', { ascending: true, nullsFirst: true })
     setFretamentosDoDia((frets as Fretamento[]) || [])
@@ -265,18 +230,7 @@ export default function AgendaPage() {
       .eq('user_id', user.id)
       .maybeSingle()
     if (motEmp) {
-      // Busca o gestor da empresa pra redirecionar receitas/agendamentos pro dono
-      const { data: gestorDaEmp } = await supabase
-        .from('gestores')
-        .select('user_id')
-        .eq('empresa_id', motEmp.empresa_id)
-        .limit(1)
-        .maybeSingle()
-      setEmpresaCtx({
-        empresaId: motEmp.empresa_id,
-        motEmpresaId: motEmp.id,
-        gestorUserId: gestorDaEmp?.user_id || undefined,
-      })
+      setEmpresaCtx({ empresaId: motEmp.empresa_id, motEmpresaId: motEmp.id })
       const { data: rts } = await supabase
         .from('rotas_empresa')
         .select('id, nome, origem, destino, ativa, horario_ida, horario_volta')
@@ -1073,7 +1027,7 @@ function DetalhePassageiro({ p, onVoltar, onAtualizar, horarioIda, horarioVolta 
 
 function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSalvo }: {
   data: Date, rotas: any[],
-  empresaCtx: { empresaId: string; motEmpresaId?: string; gestorUserId?: string } | null,
+  empresaCtx: { empresaId: string; motEmpresaId?: string } | null,
   rotasEmpresa: { id: string; nome: string | null; origem: string | null; destino: string | null; horario_ida?: string | null; horario_volta?: string | null }[],
   onFechar: () => void, onSalvo: () => void
 }) {
@@ -1287,11 +1241,9 @@ function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSa
     setSaving(true)
     setErroSalvar('')
     const { data: { user } } = await supabase.auth.getUser()
-    // Se motorista da empresa, agendamento vai pro gestor (dono) - receita da empresa
-    const motoristaIdSalvar = (empresaCtx?.gestorUserId) || user!.id
     const registros = Array.from({ length: form.quantidade }, (_, i) => ({
       rota_id: empresaCtx ? null : (form.rota_id || null),
-      motorista_id: motoristaIdSalvar,
+      motorista_id: user!.id,
       nome_passageiro: form.quantidade > 1 ? `${form.nome_passageiro} (${i + 1}/${form.quantidade})` : form.nome_passageiro,
       telefone_passageiro: form.telefone_passageiro || null,
       parada_origem: form.parada_origem,
@@ -1623,7 +1575,7 @@ function BlocoFretamentos({ fretamentos, onAtualizar }: {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
     await supabase.from('receitas').insert({
-      motorista_id: await getMotoristaIdSalvar(user.id),
+      motorista_id: user.id,
       valor: f.valor,
       descricao: `Fretamento ${f.origem} → ${f.destino}` + (f.observacao ? ': ' + f.observacao : ''),
       categoria: 'fretamento',

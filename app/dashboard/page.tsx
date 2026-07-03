@@ -24,7 +24,7 @@ export default function DashboardPage() {
 
   const [isGestor, setIsGestor] = useState(false)
   // undefined = checando, null = motorista avulso, object = motorista de empresa
-  const [empresaCtx, setEmpresaCtx] = useState<{ empresaId: string; motEmpresaId?: string; gestorUserId?: string } | null | undefined>(undefined)
+  const [empresaCtx, setEmpresaCtx] = useState<{ empresaId: string; motEmpresaId?: string } | null | undefined>(undefined)
   const [rotasEmpresa, setRotasEmpresa] = useState<{ id: string; nome: string | null; origem: string | null; destino: string | null }[]>([])
   const [rotaSelecionada, setRotaSelecionada] = useState('')
 
@@ -67,18 +67,7 @@ export default function DashboardPage() {
       .maybeSingle()
 
     if (motEmp) {
-      // Busca o gestor da empresa (dono) pra redirecionar receitas/agendamentos pra ele
-      const { data: gestorDaEmp } = await supabase
-        .from('gestores')
-        .select('user_id')
-        .eq('empresa_id', motEmp.empresa_id)
-        .limit(1)
-        .maybeSingle()
-      setEmpresaCtx({
-        empresaId: motEmp.empresa_id,
-        motEmpresaId: motEmp.id,
-        gestorUserId: gestorDaEmp?.user_id || undefined,
-      })
+      setEmpresaCtx({ empresaId: motEmp.empresa_id, motEmpresaId: motEmp.id })
       // Busca todas as rotas da empresa sem filtrar ativa no servidor:
       // rotas transfer têm ativa = null (ou false como default do ALTER TABLE),
       // e o .or() com is.null tem comportamento inconsistente entre versões do PostgREST.
