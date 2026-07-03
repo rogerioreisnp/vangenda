@@ -6,6 +6,7 @@ import { ptBR } from 'date-fns/locale'
 import Link from 'next/link'
 import ModalNovaEncomenda from '@/components/ModalNovaEncomenda'
 import ModalNovoFretamento from '@/components/ModalNovoFretamento'
+import { getMotoristaIdSalvar } from '@/lib/motorista-salvar'
 
 type Agendamento = {
   id: string
@@ -1252,9 +1253,11 @@ function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSa
     setSaving(true)
     setErroSalvar('')
     const { data: { user } } = await supabase.auth.getUser()
+    // Se motorista da empresa, agendamento vai pro gestor (dono) - receita da empresa
+    const motoristaIdSalvar = (empresaCtx?.gestorUserId) || user!.id
     const registros = Array.from({ length: form.quantidade }, (_, i) => ({
       rota_id: empresaCtx ? null : (form.rota_id || null),
-      motorista_id: user!.id,
+      motorista_id: motoristaIdSalvar,
       nome_passageiro: form.quantidade > 1 ? `${form.nome_passageiro} (${i + 1}/${form.quantidade})` : form.nome_passageiro,
       telefone_passageiro: form.telefone_passageiro || null,
       parada_origem: form.parada_origem,
@@ -1586,7 +1589,7 @@ function BlocoFretamentos({ fretamentos, onAtualizar }: {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
     await supabase.from('receitas').insert({
-      motorista_id: user.id,
+      motorista_id: await getMotoristaIdSalvar(user.id),
       valor: f.valor,
       descricao: `Fretamento ${f.origem} → ${f.destino}` + (f.observacao ? ': ' + f.observacao : ''),
       categoria: 'fretamento',

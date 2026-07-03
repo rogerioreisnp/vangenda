@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { format } from 'date-fns'
 import { supabase } from '@/lib/supabase'
+import { getMotoristaIdSalvar } from '@/lib/motorista-salvar'
 
 export default function ModalNovoFretamento({ onFechar, onSalvo, dataSelecionada }: {
   onFechar: () => void
@@ -53,7 +54,7 @@ export default function ModalNovoFretamento({ onFechar, onSalvo, dataSelecionada
     const qtd = form.quantidade_pessoas ? parseInt(form.quantidade_pessoas) : null
 
     const { data: novoFret, error } = await supabase.from('fretamentos').insert({
-      motorista_id: user.id,
+      motorista_id: await getMotoristaIdSalvar(user.id),
       cliente_nome: form.cliente_nome.trim(),
       telefone: form.telefone.trim() || null,
       origem: form.origem.trim(),
@@ -78,7 +79,7 @@ export default function ModalNovoFretamento({ onFechar, onSalvo, dataSelecionada
 
     if (form.status_pagamento === 'a_receber' && novoFret) {
       await supabase.from('movimentacoes').insert({
-        motorista_id: user.id,
+        motorista_id: await getMotoristaIdSalvar(user.id),
         cliente_nome: form.cliente_nome.trim(),
         tipo: 'divida',
         valor,

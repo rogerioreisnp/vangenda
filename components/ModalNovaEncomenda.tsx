@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { format } from 'date-fns'
 import { supabase } from '@/lib/supabase'
+import { getMotoristaIdSalvar } from '@/lib/motorista-salvar'
 
 export default function ModalNovaEncomenda({ onFechar, onSalvo, nomeInicial, telefoneInicial, dataSelecionada }: {
   onFechar: () => void
@@ -57,7 +58,7 @@ export default function ModalNovaEncomenda({ onFechar, onSalvo, nomeInicial, tel
     const horarioEntrega = form.horario_entrega || null
 
     const { data: novaEnc, error } = await supabase.from('encomendas').insert({
-      motorista_id: user.id,
+      motorista_id: await getMotoristaIdSalvar(user.id),
       nome: form.nome.trim(),
       telefone: form.telefone.trim() || null,
       valor,
@@ -80,7 +81,7 @@ export default function ModalNovaEncomenda({ onFechar, onSalvo, nomeInicial, tel
 
     if (form.status === 'fiado' && novaEnc) {
       await supabase.from('movimentacoes').insert({
-        motorista_id: user.id,
+        motorista_id: await getMotoristaIdSalvar(user.id),
         cliente_nome: form.nome.trim(),
         tipo: 'divida',
         valor,

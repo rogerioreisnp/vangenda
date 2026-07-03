@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { getMotoristaIdSalvar } from '@/lib/motorista-salvar'
 
 // ─── TIPOS ───────────────────────────────────────────────────────────────────
 
@@ -111,7 +112,7 @@ function ListaClientes({
     if (!user) return
 
     const { error } = await supabase.from('movimentacoes').insert({
-      motorista_id: user.id,
+      motorista_id: await getMotoristaIdSalvar(user.id),
       cliente_nome: form.nome.trim(),
       tipo: 'divida',
       valor,
@@ -314,7 +315,7 @@ function ExtratoCliente({
     if (!user) return
 
     const { error } = await supabase.from('movimentacoes').insert({
-      motorista_id: user.id,
+      motorista_id: await getMotoristaIdSalvar(user.id),
       cliente_nome: clienteNome,
       tipo: 'divida',
       valor,
@@ -340,7 +341,7 @@ function ExtratoCliente({
 
     const [{ error: e1 }, { error: e2 }] = await Promise.all([
       supabase.from('movimentacoes').insert({
-        motorista_id: user.id,
+        motorista_id: await getMotoristaIdSalvar(user.id),
         cliente_nome: clienteNome,
         tipo: 'pagamento',
         valor,
@@ -348,7 +349,7 @@ function ExtratoCliente({
         categoria,
       }),
       supabase.from('receitas').insert({
-        motorista_id: user.id,
+        motorista_id: await getMotoristaIdSalvar(user.id),
         descricao: `${categoria === 'fiado' ? 'Recebimento fiado' : 'Recebimento encomenda'} — ${clienteNome}`,
         categoria: categoria === 'fiado' ? 'passagens_avulsas' : 'entrega',
         valor,
