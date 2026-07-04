@@ -1242,8 +1242,11 @@ function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSa
     setErroSalvar('')
     const { data: { user } } = await supabase.auth.getUser()
     const registros = Array.from({ length: form.quantidade }, (_, i) => ({
-      rota_id: empresaCtx ? null : (form.rota_id || null),
+      // BUG FIX: pra empresa, salvava sempre rota_id=null -> agendamento nao aparecia
+      // no filtro por rota. Agora usa rotaEmpresaId selecionado no form.
+      rota_id: empresaCtx ? (rotaEmpresaId || null) : (form.rota_id || null),
       motorista_id: user!.id,
+      registrado_por: user!.id,
       nome_passageiro: form.quantidade > 1 ? `${form.nome_passageiro} (${i + 1}/${form.quantidade})` : form.nome_passageiro,
       telefone_passageiro: form.telefone_passageiro || null,
       parada_origem: form.parada_origem,
