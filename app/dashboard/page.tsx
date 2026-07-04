@@ -24,7 +24,8 @@ export default function DashboardPage() {
 
   const [isGestor, setIsGestor] = useState(false)
   // undefined = checando, null = motorista avulso, object = motorista de empresa
-  const [empresaCtx, setEmpresaCtx] = useState<{ empresaId: string; motEmpresaId?: string } | null | undefined>(undefined)
+  // gestorUserId = user.id do dono da empresa (só populado quando é motorista funcionário)
+  const [empresaCtx, setEmpresaCtx] = useState<{ empresaId: string; motEmpresaId?: string; gestorUserId?: string } | null | undefined>(undefined)
   const [rotasEmpresa, setRotasEmpresa] = useState<{ id: string; nome: string | null; origem: string | null; destino: string | null }[]>([])
   const [rotaSelecionada, setRotaSelecionada] = useState('')
 
@@ -66,8 +67,23 @@ export default function DashboardPage() {
       .eq('user_id', user.id)
       .maybeSingle()
 
+    // gestorId sera usado pelas queries agregadas quando motorista funcionario
+    // (senao, cai no user.id do proprio motorista individual)
+    let gestorIdParaQuery = user.id
+
     if (motEmp) {
-      setEmpresaCtx({ empresaId: motEmp.empresa_id, motEmpresaId: motEmp.id })
+      // Busca o user_id do gestor (dono) pra redirecionar queries agregadas
+      // Se falhar (RLS, rede), continua com user.id do funcionario -> mostra zerado, mas nao trava
+      const { data: gestorRow } = await supabase
+        .from('gestores')
+        .select('user_id')
+        .eq('empresa_id', motEmp.empresa_id)
+        .limit(1)
+        .maybeSingle()
+      const gestorUid = gestorRow?.user_id || undefined
+      if (gestorUid) gestorIdParaQuery = gestorUid
+
+      setEmpresaCtx({ empresaId: motEmp.empresa_id, motEmpresaId: motEmp.id, gestorUserId: gestorUid })
       // Busca todas as rotas da empresa sem filtrar ativa no servidor:
       // rotas transfer têm ativa = null (ou false como default do ALTER TABLE),
       // e o .or() com is.null tem comportamento inconsistente entre versões do PostgREST.
@@ -85,6 +101,8 @@ export default function DashboardPage() {
     const inicioMes = format(startOfMonth(hoje), 'yyyy-MM-dd')
     const fimMes = format(endOfMonth(hoje), 'yyyy-MM-dd')
 
+    // Motorista individual: gestorIdParaQuery === user.id (comportamento antigo, sem mudanca)
+    // Motorista funcionario: gestorIdParaQuery = user.id do gestor -> ve os dados agregados do dono
     const [
       { data: mot },
       { data: rot },
@@ -97,12 +115,12 @@ export default function DashboardPage() {
     ] = await Promise.all([
       supabase.from('motoristas').select('nome').eq('id', user.id).single(),
       supabase.from('rotas').select('capacidade').eq('motorista_id', user.id).limit(1).single(),
-      supabase.from('agendamentos').select('valor').eq('motorista_id', user.id).eq('data_viagem', hojeStr).neq('status', 'cancelado'),
-      supabase.from('agendamentos').select('id').eq('motorista_id', user.id).eq('data_viagem', amanhaStr).neq('status', 'cancelado'),
-      supabase.from('receitas').select('valor').eq('motorista_id', user.id).gte('data_receita', inicioMes).lte('data_receita', fimMes),
-      supabase.from('despesas').select('valor').eq('motorista_id', user.id).gte('data_despesa', inicioMes).lte('data_despesa', fimMes),
-      supabase.from('agendamentos').select('valor').eq('motorista_id', user.id).neq('status', 'cancelado').gte('data_viagem', inicioMes).lte('data_viagem', fimMes),
-      supabase.from('agendamentos').select('valor, fiado_valor_pago, fiado_data_combinada').eq('motorista_id', user.id).eq('forma_pagamento', 'fiado').neq('fiado_pago', true).neq('status', 'cancelado'),
+      supabase.from('agendamentos').select('valor').eq('motorista_id', gestorIdParaQuery).eq('data_viagem', hojeStr).neq('status', 'cancelado'),
+      supabase.from('agendamentos').select('id').eq('motorista_id', gestorIdParaQuery).eq('data_viagem', amanhaStr).neq('status', 'cancelado'),
+      supabase.from('receitas').select('valor').eq('motorista_id', gestorIdParaQuery).gte('data_receita', inicioMes).lte('data_receita', fimMes),
+      supabase.from('despesas').select('valor').eq('motorista_id', gestorIdParaQuery).gte('data_despesa', inicioMes).lte('data_despesa', fimMes),
+      supabase.from('agendamentos').select('valor').eq('motorista_id', gestorIdParaQuery).neq('status', 'cancelado').gte('data_viagem', inicioMes).lte('data_viagem', fimMes),
+      supabase.from('agendamentos').select('valor, fiado_valor_pago, fiado_data_combinada').eq('motorista_id', gestorIdParaQuery).eq('forma_pagamento', 'fiado').neq('fiado_pago', true).neq('status', 'cancelado'),
     ])
 
     if (mot) setMotorista(mot)
@@ -116,7 +134,7 @@ export default function DashboardPage() {
     setTemAmanha((agsAmanha?.length || 0) > 0)
 
     const { data: encAbertos } = await supabase
-      .from('encomendas').select('id').eq('motorista_id', user.id).neq('pago', true)
+      .from('encomendas').select('id').eq('motorista_id', gestorIdParaQuery).neq('pago', true)
     setEncomendasPendentes(encAbertos?.length || 0)
 
     const totalRecs = (recs?.reduce((s, r) => s + (r.valor || 0), 0) || 0)
@@ -273,7 +291,8 @@ export default function DashboardPage() {
           </Link>
         )}
 
-        {/* Card Mês */}
+        {/* Card Mês — escondido pra motorista funcionário (análise financeira é do dono) */}
+        {!empresaCtx?.motEmpresaId && (
         <Link href="/dashboard/financeiro"
           className="rounded-2xl p-4 block active:opacity-75"
           style={{ background: '#0F6E56', boxShadow: '0 2px 8px rgba(15,110,86,0.25)' }}>
@@ -305,9 +324,10 @@ export default function DashboardPage() {
             </div>
           </div>
         </Link>
+        )}
 
-        {/* Card Fiado — só aparece se houver em aberto */}
-        {fiados && (
+        {/* Card Fiado — só aparece se houver em aberto E não for motorista funcionário */}
+        {fiados && !empresaCtx?.motEmpresaId && (
           <Link href="/dashboard/financeiro"
             className="rounded-2xl p-4 block active:opacity-75"
             style={{ background: '#FFF5F5', border: '1px solid #FDE8E8', boxShadow: '0 1px 4px rgba(163,45,45,0.08)' }}>
