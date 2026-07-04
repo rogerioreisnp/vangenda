@@ -15,6 +15,8 @@ type Despesa = {
   valor: number
   data_despesa: string
   quilometragem?: number
+  motorista_id?: string
+  registrado_por?: string | null
 }
 
 type Receita = {
@@ -23,6 +25,8 @@ type Receita = {
   categoria: string
   valor: number
   data_receita: string
+  motorista_id?: string
+  registrado_por?: string | null
 }
 
 type AgendamentoReceita = {
@@ -110,6 +114,9 @@ function FinanceiroContent() {
   const [receitasEncomendas, setReceitasEncomendas] = useState<EncomendaReceita[]>([])
   const [despesas, setDespesas] = useState<Despesa[]>([])
   const [loading, setLoading] = useState(true)
+  // Mapa user_id -> nome (motoristas_empresa / gestores / motoristas)
+  // Usado pra mostrar "anotado por Fulano" quando registrado_por !== motorista_id
+  const [nomesPorUserId, setNomesPorUserId] = useState<Record<string, string>>({})
   const [modal, setModal] = useState<null | 'receita' | 'despesa'>(modalInicial)
   const [editandoReceita, setEditandoReceita] = useState<Receita | null>(null)
   const [editandoDespesa, setEditandoDespesa] = useState<Despesa | null>(null)
@@ -129,20 +136,59 @@ function FinanceiroContent() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
+    // Se motorista funcionario, redireciona SELECTs pro gestor. Individual/gestor:
+    // gestorIdParaQuery === user.id, comportamento inalterado.
+    let gestorIdParaQuery = user.id
+    const { data: motEmp } = await supabase
+      .from('motoristas_empresa')
+      .select('empresa_id')
+      .eq('user_id', user.id)
+      .maybeSingle()
+    if (motEmp) {
+      const { data: gRow } = await supabase
+        .from('gestores')
+        .select('user_id')
+        .eq('empresa_id', motEmp.empresa_id)
+        .limit(1)
+        .maybeSingle()
+      if (gRow?.user_id) gestorIdParaQuery = gRow.user_id
+    }
+
     const { inicio, fim } = getPeriodo()
 
     const [{ data: recs }, { data: desps }, { data: agends }, { data: encs }] = await Promise.all([
-      supabase.from('receitas').select('*').eq('motorista_id', user.id)
+      supabase.from('receitas').select('*').eq('motorista_id', gestorIdParaQuery)
         .gte('data_receita', inicio).lte('data_receita', fim).order('data_receita', { ascending: false }),
-      supabase.from('despesas').select('*').eq('motorista_id', user.id)
+      supabase.from('despesas').select('*').eq('motorista_id', gestorIdParaQuery)
         .gte('data_despesa', inicio).lte('data_despesa', fim).order('data_despesa', { ascending: false }),
       supabase.from('agendamentos').select('valor, data_viagem, nome_passageiro, parada_origem, parada_destino')
-        .eq('motorista_id', user.id).neq('status', 'cancelado')
+        .eq('motorista_id', gestorIdParaQuery).neq('status', 'cancelado')
         .gte('data_viagem', inicio).lte('data_viagem', fim)
         .or('forma_pagamento.neq.fiado,forma_pagamento.is.null,fiado_pago.eq.true'),
       supabase.from('encomendas').select('id, nome, valor, data_pago, criado_em, forma_pagamento')
-        .eq('motorista_id', user.id).eq('pago', true),
+        .eq('motorista_id', gestorIdParaQuery).eq('pago', true),
     ])
+
+    // Coleta user_ids unicos que anotaram algo (registrado_por) — pra mostrar
+    // "anotado por Fulano" so quando quem anotou != dono dos dados
+    const userIdsAnotadores = new Set<string>()
+    ;(recs || []).forEach((r: any) => r.registrado_por && userIdsAnotadores.add(r.registrado_por))
+    ;(desps || []).forEach((d: any) => d.registrado_por && userIdsAnotadores.add(d.registrado_por))
+    if (userIdsAnotadores.size > 0) {
+      const ids = Array.from(userIdsAnotadores)
+      const [{ data: mEmp }, { data: gests }, { data: mots }] = await Promise.all([
+        supabase.from('motoristas_empresa').select('user_id, nome').in('user_id', ids),
+        supabase.from('gestores').select('user_id, nome').in('user_id', ids),
+        supabase.from('motoristas').select('id, nome').in('id', ids),
+      ])
+      const mapa: Record<string, string> = {}
+      ;(mEmp || []).forEach((r: any) => { if (r.user_id && r.nome) mapa[r.user_id] = r.nome })
+      ;(gests || []).forEach((r: any) => { if (r.user_id && r.nome && !mapa[r.user_id]) mapa[r.user_id] = r.nome })
+      ;(mots || []).forEach((r: any) => { if (r.id && r.nome && !mapa[r.id]) mapa[r.id] = r.nome })
+      setNomesPorUserId(mapa)
+    } else {
+      setNomesPorUserId({})
+    }
 
     if (recs) setReceitasManuais(recs)
     if (desps) setDespesas(desps)
@@ -351,12 +397,20 @@ function FinanceiroContent() {
                   <div className="bg-white rounded-2xl overflow-hidden border border-gray-100">
                     {receitasManuais.map((r) => {
                       const cat = categoriasReceita.find(c => c.value === r.categoria)
+                      const anotadoPor = r.registrado_por && r.motorista_id && r.registrado_por !== r.motorista_id
+                        ? nomesPorUserId[r.registrado_por]
+                        : null
                       return (
                         <div key={r.id} className="flex items-center px-4 py-3 border-b border-gray-50 last:border-0 gap-2">
                           <span className="text-xl mr-1">{cat?.emoji || '💵'}</span>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-gray-800 truncate">{cat?.label || r.descricao}</p>
                             <p className="text-xs text-gray-400">{r.descricao} · {format(new Date(r.data_receita + 'T00:00:00'), "dd/MM/yyyy")}</p>
+                            {anotadoPor && (
+                              <p className="text-[10px] mt-0.5" style={{ color: '#0F6E56' }}>
+                                👤 anotado por <b>{anotadoPor}</b>
+                              </p>
+                            )}
                           </div>
                           <span className="text-sm font-semibold shrink-0" style={{ color: '#0F6E56' }}>+ R$ {r.valor.toFixed(2).replace('.', ',')}</span>
                           <button
@@ -436,6 +490,9 @@ function FinanceiroContent() {
                   <div className="bg-white rounded-2xl overflow-hidden border border-gray-100">
                     {despesas.map((d) => {
                       const cat = categoriasDespesa.find(c => c.value === d.categoria)
+                      const anotadoPor = d.registrado_por && d.motorista_id && d.registrado_por !== d.motorista_id
+                        ? nomesPorUserId[d.registrado_por]
+                        : null
                       return (
                         <div key={d.id} className="flex items-center px-4 py-3 border-b border-gray-50 last:border-0 gap-2">
                           <span className="text-xl mr-1">{cat?.emoji}</span>
@@ -445,6 +502,11 @@ function FinanceiroContent() {
                               {format(new Date(d.data_despesa + 'T00:00:00'), "dd/MM/yyyy")}
                               {d.quilometragem ? <span className="ml-1 text-gray-300">· {d.quilometragem.toLocaleString('pt-BR')} km</span> : null}
                             </p>
+                            {anotadoPor && (
+                              <p className="text-[10px] mt-0.5" style={{ color: '#0F6E56' }}>
+                                👤 anotado por <b>{anotadoPor}</b>
+                              </p>
+                            )}
                           </div>
                           <span className="text-sm font-semibold shrink-0" style={{ color: '#A32D2D' }}>- R$ {d.valor.toFixed(2).replace('.', ',')}</span>
                           <button
