@@ -373,7 +373,7 @@ export default function EmpresaPage() {
 
         {/* Alertas */}
         {corridasSemMotorista > 0 ? (
-          <Link href="/empresa/agendamentos"
+          <Link href="/empresa/agendamentos/fretamentos"
             className="rounded-xl px-4 py-3 flex items-center gap-3 active:opacity-80"
             style={{ background: '#FAEEDA', border: '1px solid #FAC775' }}>
             <span className="text-xl flex-shrink-0">⚠️</span>
@@ -399,7 +399,7 @@ export default function EmpresaPage() {
         <div>
           <div className="flex items-center justify-between mb-2">
             <p className="text-sm font-semibold text-gray-700">Próximas corridas</p>
-            <Link href="/empresa/agendamentos?todos=1"
+            <Link href="/empresa/agendamentos/fretamentos?todos=1"
               className="text-xs font-medium" style={{ color: '#0F6E56' }}>
               Ver todas →
             </Link>
@@ -410,7 +410,7 @@ export default function EmpresaPage() {
               <p className="text-3xl mb-2">📅</p>
               <p className="text-sm font-medium text-gray-700">Nenhuma corrida agendada</p>
               <p className="text-xs text-gray-400 mt-1 mb-3">Que tal agendar a primeira?</p>
-              <Link href="/empresa/agendamentos"
+              <Link href="/empresa/agendamentos/fretamentos"
                 className="inline-block px-5 py-2 rounded-xl text-xs font-semibold"
                 style={{ background: '#1D9E75', color: '#fff' }}>
                 + Nova corrida
@@ -424,7 +424,7 @@ export default function EmpresaPage() {
                   const cor = STATUS_COR[c.status] ?? STATUS_COR.confirmada
                   const motoristaNome = (c.motoristas_empresa as any)?.nome ?? null
                   return (
-                    <Link key={c.id} href={`/empresa/agendamentos?ficha=${c.id}`}
+                    <Link key={c.id} href={`/empresa/agendamentos/fretamentos?ficha=${c.id}`}
                       className="block bg-white rounded-2xl px-4 py-3 border border-gray-100"
                       style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.04)', borderColor: c.status === 'pendente' ? '#FCD34D' : undefined }}>
                       <div className="flex items-start justify-between gap-2">
@@ -610,7 +610,7 @@ export default function EmpresaPage() {
           <p className="text-sm font-semibold text-gray-700 mb-2">Atalhos rápidos</p>
           <div className="grid grid-cols-2 gap-2">
             {[
-              { emoji: '📋', label: 'Nova corrida', href: '/empresa/agendamentos?nova=1' },
+              { emoji: '📋', label: 'Nova corrida', href: '/empresa/agendamentos/fretamentos?nova=1' },
               { emoji: '💰', label: 'Financeiro', href: '/empresa/financeiro' },
               { emoji: '🚗', label: 'Motoristas', href: '/empresa/motoristas' },
               { emoji: '🛣️', label: 'Operar rota', href: '/dashboard/agenda' },
@@ -1040,7 +1040,7 @@ function DashboardRotaFixa({
               </Link>
             )}
             {naoConfirmados > 0 && (
-              <Link href="/empresa/agendamentos"
+              <Link href="/empresa/agendamentos/fretamentos"
                 className="rounded-xl px-4 py-3 flex items-center gap-3 active:opacity-80"
                 style={{ background: '#FAEEDA', border: '1px solid #FAC775' }}>
                 <span className="text-lg flex-shrink-0">⚠️</span>

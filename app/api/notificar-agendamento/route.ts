@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
         contents: {
           pt: `${nome} solicitou: ${origem} → ${destino}`
         },
-        url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://vangenda.vercel.app'}/empresa/agendamentos`,
+        url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://vangenda.vercel.app'}/empresa/agendamentos/fretamentos`,
       }),
     })
     const data = await response.json()
