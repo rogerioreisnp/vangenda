@@ -55,6 +55,7 @@ export default function ModalNovoFretamento({ onFechar, onSalvo, dataSelecionada
 
     const { data: novoFret, error } = await supabase.from('fretamentos').insert({
       motorista_id: await getMotoristaIdSalvar(user.id),
+      registrado_por: user.id,
       cliente_nome: form.cliente_nome.trim(),
       telefone: form.telefone.trim() || null,
       origem: form.origem.trim(),
@@ -80,6 +81,7 @@ export default function ModalNovoFretamento({ onFechar, onSalvo, dataSelecionada
     if (form.status_pagamento === 'a_receber' && novoFret) {
       await supabase.from('movimentacoes').insert({
         motorista_id: await getMotoristaIdSalvar(user.id),
+        registrado_por: user.id,
         cliente_nome: form.cliente_nome.trim(),
         tipo: 'divida',
         valor,

@@ -59,6 +59,7 @@ export default function ModalNovaEncomenda({ onFechar, onSalvo, nomeInicial, tel
 
     const { data: novaEnc, error } = await supabase.from('encomendas').insert({
       motorista_id: await getMotoristaIdSalvar(user.id),
+      registrado_por: user.id,
       nome: form.nome.trim(),
       telefone: form.telefone.trim() || null,
       valor,
@@ -82,6 +83,7 @@ export default function ModalNovaEncomenda({ onFechar, onSalvo, nomeInicial, tel
     if (form.status === 'fiado' && novaEnc) {
       await supabase.from('movimentacoes').insert({
         motorista_id: await getMotoristaIdSalvar(user.id),
+        registrado_por: user.id,
         cliente_nome: form.nome.trim(),
         tipo: 'divida',
         valor,

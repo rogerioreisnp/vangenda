@@ -113,6 +113,7 @@ function ListaClientes({
 
     const { error } = await supabase.from('movimentacoes').insert({
       motorista_id: await getMotoristaIdSalvar(user.id),
+      registrado_por: user.id,
       cliente_nome: form.nome.trim(),
       tipo: 'divida',
       valor,
@@ -316,6 +317,7 @@ function ExtratoCliente({
 
     const { error } = await supabase.from('movimentacoes').insert({
       motorista_id: await getMotoristaIdSalvar(user.id),
+      registrado_por: user.id,
       cliente_nome: clienteNome,
       tipo: 'divida',
       valor,
@@ -342,6 +344,7 @@ function ExtratoCliente({
     const [{ error: e1 }, { error: e2 }] = await Promise.all([
       supabase.from('movimentacoes').insert({
         motorista_id: await getMotoristaIdSalvar(user.id),
+        registrado_por: user.id,
         cliente_nome: clienteNome,
         tipo: 'pagamento',
         valor,
@@ -350,6 +353,7 @@ function ExtratoCliente({
       }),
       supabase.from('receitas').insert({
         motorista_id: await getMotoristaIdSalvar(user.id),
+        registrado_por: user.id,
         descricao: `${categoria === 'fiado' ? 'Recebimento fiado' : 'Recebimento encomenda'} — ${clienteNome}`,
         categoria: categoria === 'fiado' ? 'passagens_avulsas' : 'entrega',
         valor,

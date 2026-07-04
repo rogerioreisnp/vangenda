@@ -1104,6 +1104,7 @@ function ModalNovoFiado({ onFechar, onSalvo }: { onFechar: () => void; onSalvo: 
 
     const { data: novoAg, error } = await supabase.from('agendamentos').insert({
       motorista_id: await getMotoristaIdSalvar(user.id),
+      registrado_por: user.id,
       rota_id: rota?.id ?? null,
       nome_passageiro: form.nome.trim(),
       telefone_passageiro: form.telefone.trim() || null,
@@ -1122,6 +1123,7 @@ function ModalNovoFiado({ onFechar, onSalvo }: { onFechar: () => void; onSalvo: 
     if (novoAg) {
       await supabase.from('movimentacoes').insert({
         motorista_id: await getMotoristaIdSalvar(user.id),
+        registrado_por: user.id,
         cliente_nome: form.nome.trim(),
         tipo: 'divida',
         valor: parseFloat(form.valor),
@@ -1213,6 +1215,7 @@ function ModalAdicionarDivida({ nome, onFechar, onSalvo }: {
 
     const { data: novoAg, error } = await supabase.from('agendamentos').insert({
       motorista_id: await getMotoristaIdSalvar(user.id),
+      registrado_por: user.id,
       rota_id: rota?.id ?? null,
       nome_passageiro: nome,
       parada_origem: form.descricao.trim(),
@@ -1229,6 +1232,7 @@ function ModalAdicionarDivida({ nome, onFechar, onSalvo }: {
     if (novoAg) {
       await supabase.from('movimentacoes').insert({
         motorista_id: await getMotoristaIdSalvar(user.id),
+        registrado_por: user.id,
         cliente_nome: nome,
         tipo: 'divida',
         valor: valorNum,
@@ -1313,6 +1317,7 @@ function ModalDarBaixa({ viagem, onFechar, onSalvo }: {
     if (user) {
       await supabase.from('movimentacoes').insert({
         motorista_id: await getMotoristaIdSalvar(user.id),
+        registrado_por: user.id,
         cliente_nome: viagem.nome_passageiro,
         tipo: 'pagamento',
         valor: parseFloat(vr.toFixed(2)),
@@ -1451,6 +1456,7 @@ function ModalDarBaixaCliente({ cliente, onFechar, onSalvo }: {
     if (user) {
       await supabase.from('movimentacoes').insert({
         motorista_id: await getMotoristaIdSalvar(user.id),
+        registrado_por: user.id,
         cliente_nome: cliente.nome,
         tipo: 'pagamento',
         valor: parseFloat(vr.toFixed(2)),
@@ -2293,6 +2299,7 @@ function ModalDarBaixaClienteEncomenda({ cliente, onFechar, onSalvo }: {
     if (user) {
       await supabase.from('movimentacoes').insert({
         motorista_id: await getMotoristaIdSalvar(user.id),
+        registrado_por: user.id,
         cliente_nome: cliente.nome,
         tipo: 'pagamento',
         valor: parseFloat(vr.toFixed(2)),
@@ -2409,6 +2416,7 @@ function FormReceita({
     const cat = categoriasReceita.find(c => c.value === form.categoria)
     const payload = {
       motorista_id: await getMotoristaIdSalvar(user.id),
+      registrado_por: user.id,
       categoria: form.categoria,
       descricao: form.descricao || cat?.label || '',
       valor: parseFloat(form.valor),
@@ -2528,6 +2536,7 @@ function FormDespesa({
 
     const payload = {
       motorista_id: await getMotoristaIdSalvar(user.id),
+      registrado_por: user.id,
       descricao: form.descricao,
       categoria: form.categoria,
       valor: parseFloat(form.valor),
