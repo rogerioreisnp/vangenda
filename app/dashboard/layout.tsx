@@ -5,10 +5,10 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import OneSignalInit from '@/components/OneSignalInit'
 
-const navItems = [
+const NAV_ITEMS_TODOS = [
   { href: '/dashboard', label: 'Início', emoji: '⌂' },
   { href: '/dashboard/agenda', label: 'Agenda', emoji: '📅' },
-  { href: '/dashboard/financeiro', label: 'Finanças', emoji: '💰' },
+  { href: '/dashboard/financeiro', label: 'Finanças', emoji: '💰', ocultarFuncionario: true },
   { href: '/dashboard/configuracoes', label: 'Config.', emoji: '⚙' },
 ]
 
@@ -62,10 +62,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [diasRestantes, setDiasRestantes] = useState(0)
   const [motoristaId, setMotoristaId] = useState<string | null>(null)
   const [isEmpresaUser, setIsEmpresaUser] = useState(false)
+  // isFuncionario = motorista de empresa (funcionario). Gestor e individual = false.
+  const [isFuncionario, setIsFuncionario] = useState(false)
 
   useEffect(() => {
     verificarAcesso()
   }, [router])
+
+  // Funcionario nao pode acessar /dashboard/financeiro - redirecionar pra home
+  useEffect(() => {
+    if (isFuncionario && pathname === '/dashboard/financeiro') {
+      router.replace('/dashboard')
+    }
+  }, [isFuncionario, pathname, router])
 
   // Realtime só se aplica a motoristas individuais
   useEffect(() => {
@@ -230,6 +239,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (motoristaEmpresa) {
       console.log('[acesso] usuário é motorista de empresa', motoristaEmpresa.empresa_id)
       setIsEmpresaUser(true)
+      setIsFuncionario(true)
       const { data: empresa } = await supabase
         .from('empresas')
         .select('status, trial_fim')
@@ -303,19 +313,25 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </main>
 
       <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 safe-area-bottom z-50">
-        <div className="grid grid-cols-4 max-w-lg mx-auto">
-          {navItems.map((item) => {
-            const ativo = pathname === item.href
-            return (
-              <Link key={item.href} href={item.href}
-                className="flex flex-col items-center py-2 pb-3 gap-0.5 transition-colors"
-                style={{ color: ativo ? '#0F6E56' : '#aaa' }}>
-                <span className="text-xl leading-none">{item.emoji}</span>
-                <span className="text-[10px] font-medium">{item.label}</span>
-              </Link>
-            )
-          })}
-        </div>
+        {(() => {
+          const navItens = NAV_ITEMS_TODOS.filter(it => !(isFuncionario && it.ocultarFuncionario))
+          const gridCols = navItens.length === 3 ? 'grid-cols-3' : 'grid-cols-4'
+          return (
+            <div className={`grid ${gridCols} max-w-lg mx-auto`}>
+              {navItens.map((item) => {
+                const ativo = pathname === item.href
+                return (
+                  <Link key={item.href} href={item.href}
+                    className="flex flex-col items-center py-2 pb-3 gap-0.5 transition-colors"
+                    style={{ color: ativo ? '#0F6E56' : '#aaa' }}>
+                    <span className="text-xl leading-none">{item.emoji}</span>
+                    <span className="text-[10px] font-medium">{item.label}</span>
+                  </Link>
+                )
+              })}
+            </div>
+          )
+        })()}
       </nav>
     </div>
   )
