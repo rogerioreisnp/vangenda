@@ -75,7 +75,9 @@ export default function AgendaPage() {
   const [diasTrabalho, setDiasTrabalho] = useState<number[]>([])
   const [nomeMotorista, setNomeMotorista] = useState('')
   const [encomendasDoDia, setEncomendasDoDia] = useState<Encomenda[]>([])
-  const [empresaCtx, setEmpresaCtx] = useState<{ empresaId: string; motEmpresaId?: string } | null | undefined>(undefined)
+  // gestorUserId = user.id do dono da empresa. Populado quando eh motorista
+  // funcionario, pra redirecionar SELECTs e INSERTs. Individual/gestor nao usa.
+  const [empresaCtx, setEmpresaCtx] = useState<{ empresaId: string; motEmpresaId?: string; gestorUserId?: string } | null | undefined>(undefined)
   const [rotasEmpresa, setRotasEmpresa] = useState<{ id: string; nome: string | null; origem: string | null; destino: string | null; horario_ida: string | null; horario_volta: string | null }[]>([])
   const [isGestor, setIsGestor] = useState(false)
   const [gestorUserIds, setGestorUserIds] = useState<string[]>([])
@@ -153,9 +155,18 @@ export default function AgendaPage() {
       return
     }
 
+    // Motorista funcionario: agendamentos que ele salvou vao com motorista_id
+    // = gestor (Etapa A). Precisa buscar pelo gestor pra ver o que anotou.
+    // Filtrar por rota selecionada tambem (senao ve de todas as rotas juntas).
+    const idParaBuscar = empresaCtx?.gestorUserId ?? user.id
+    let ags = supabase.from('agendamentos').select('*')
+      .eq('motorista_id', idParaBuscar)
+      .gte('data_viagem', inicio).lte('data_viagem', fim).neq('status', 'cancelado')
+    if (empresaCtx?.motEmpresaId && rotaSelecionada) {
+      ags = ags.eq('rota_id', rotaSelecionada)
+    }
     const [{ data }, { data: rts }, { data: mot }] = await Promise.all([
-      supabase.from('agendamentos').select('*').eq('motorista_id', user.id)
-        .gte('data_viagem', inicio).lte('data_viagem', fim).neq('status', 'cancelado'),
+      ags,
       supabase.from('rotas').select('*').eq('motorista_id', user.id),
       supabase.from('motoristas').select('dias_trabalho, nome').eq('id', user.id).single(),
     ])
@@ -176,10 +187,11 @@ export default function AgendaPage() {
   async function carregarEncomendasDoDia(data: Date) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
+    const idParaBuscar = empresaCtx?.gestorUserId ?? user.id
     const { data: encs } = await supabase
       .from('encomendas')
       .select('id, nome, telefone, valor, observacao, pago, valor_pago, forma_pagamento, data_entrega, horario_entrega')
-      .eq('motorista_id', user.id)
+      .eq('motorista_id', idParaBuscar)
       .eq('data_entrega', format(data, 'yyyy-MM-dd'))
       .order('criado_em', { ascending: true })
     setEncomendasDoDia(encs || [])
@@ -188,10 +200,11 @@ export default function AgendaPage() {
   async function carregarFretamentosDoDia(data: Date) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
+    const idParaBuscar = empresaCtx?.gestorUserId ?? user.id
     const { data: frets } = await supabase
       .from('fretamentos')
       .select('id, cliente_nome, telefone, origem, destino, data_saida, horario_saida, horario_retorno_estimado, quantidade_pessoas, valor, observacao, status_pagamento, forma_pagamento, status')
-      .eq('motorista_id', user.id)
+      .eq('motorista_id', idParaBuscar)
       .eq('data_saida', format(data, 'yyyy-MM-dd'))
       .order('horario_saida', { ascending: true, nullsFirst: true })
     setFretamentosDoDia((frets as Fretamento[]) || [])
@@ -230,7 +243,17 @@ export default function AgendaPage() {
       .eq('user_id', user.id)
       .maybeSingle()
     if (motEmp) {
-      setEmpresaCtx({ empresaId: motEmp.empresa_id, motEmpresaId: motEmp.id })
+      // Busca gestor da empresa - fallback seguro se falhar (continua vendo zero,
+      // mas nao trava). Necessario pra redirecionar SELECTs/INSERTs pro dono,
+      // ja que a Etapa A padronizou motorista_id = gestor em novos registros.
+      const { data: gRow } = await supabase
+        .from('gestores')
+        .select('user_id')
+        .eq('empresa_id', motEmp.empresa_id)
+        .limit(1)
+        .maybeSingle()
+      const gestorUid = gRow?.user_id || undefined
+      setEmpresaCtx({ empresaId: motEmp.empresa_id, motEmpresaId: motEmp.id, gestorUserId: gestorUid })
       const { data: rts } = await supabase
         .from('rotas_empresa')
         .select('id, nome, origem, destino, ativa, horario_ida, horario_volta')
@@ -1032,7 +1055,7 @@ function DetalhePassageiro({ p, onVoltar, onAtualizar, horarioIda, horarioVolta 
 
 function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSalvo }: {
   data: Date, rotas: any[],
-  empresaCtx: { empresaId: string; motEmpresaId?: string } | null,
+  empresaCtx: { empresaId: string; motEmpresaId?: string; gestorUserId?: string } | null,
   rotasEmpresa: { id: string; nome: string | null; origem: string | null; destino: string | null; horario_ida?: string | null; horario_volta?: string | null }[],
   onFechar: () => void, onSalvo: () => void
 }) {
@@ -1246,11 +1269,13 @@ function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSa
     setSaving(true)
     setErroSalvar('')
     const { data: { user } } = await supabase.auth.getUser()
+    // Motorista funcionario: motorista_id vai pro gestor (dono da empresa)
+    // pra tudo aparecer no painel dele + na visao do proprio funcionario
+    // (que agora tbm consulta pelo gestorUserId). Gestor/individual: user.id.
+    const motoristaIdSalvar = empresaCtx?.gestorUserId ?? user!.id
     const registros = Array.from({ length: form.quantidade }, (_, i) => ({
-      // BUG FIX: pra empresa, salvava sempre rota_id=null -> agendamento nao aparecia
-      // no filtro por rota. Agora usa rotaEmpresaId selecionado no form.
       rota_id: empresaCtx ? (rotaEmpresaId || null) : (form.rota_id || null),
-      motorista_id: user!.id,
+      motorista_id: motoristaIdSalvar,
       registrado_por: user!.id,
       nome_passageiro: form.quantidade > 1 ? `${form.nome_passageiro} (${i + 1}/${form.quantidade})` : form.nome_passageiro,
       telefone_passageiro: form.telefone_passageiro || null,
