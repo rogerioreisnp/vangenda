@@ -430,11 +430,16 @@ export default function AgendaPage() {
           style={{ background: '#FAEEDA', color: '#854F0B' }}>
           📦 Agendar encomenda neste dia
         </button>
-        <button onClick={() => setModalFretamento(true)}
-          className="w-full py-3 rounded-xl text-sm font-semibold mt-2 flex items-center justify-center gap-2"
-          style={{ background: '#FEF3C7', color: '#92400E' }}>
-          🚌 Agendar fretamento neste dia
-        </button>
+        {/* Botao de fretamento so aparece pra motorista individual.
+            Empresa/gestor tem hub proprio em /empresa/agendamentos com card
+            de fretamento separado (UX limpa - cada tela um proposito). */}
+        {!empresaCtx && (
+          <button onClick={() => setModalFretamento(true)}
+            className="w-full py-3 rounded-xl text-sm font-semibold mt-2 flex items-center justify-center gap-2"
+            style={{ background: '#FEF3C7', color: '#92400E' }}>
+            🚌 Agendar fretamento neste dia
+          </button>
+        )}
         <div className="h-20" />
       </div>
 
