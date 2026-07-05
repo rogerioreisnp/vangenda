@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import ModalListaPassageirosPDF from '@/components/ModalListaPassageirosPDF'
 
 type RotaOpcao = {
   id: string
@@ -272,6 +273,7 @@ export default function AgendamentosPage() {
   const [filtroStatus, setFiltroStatus] = useState('')
   const [modalFichaAberto, setModalFichaAberto] = useState(false)
   const [corridaFicha, setCorridaFicha] = useState<Corrida | null>(null)
+  const [modalPDFAberto, setModalPDFAberto] = useState(false)
   const [confirmandoFicha, setConfirmandoFicha] = useState(false)
   const [enviandoEmail, setEnviandoEmail] = useState(false)
   const [motoristaFicha, setMotoristaFicha] = useState('')
@@ -1299,9 +1301,33 @@ export default function AgendamentosPage() {
                 </div>
               )
             })}
+            {tipoOperacao === 'rota_fixa' && agendamentosFiltrados.length > 0 && (
+              <button
+                onClick={() => setModalPDFAberto(true)}
+                className="w-full py-3 rounded-xl text-sm font-semibold mt-3 flex items-center justify-center gap-2"
+                style={{ background: '#E6F1FB', color: '#185FA5' }}>
+                📋 Gerar lista de passageiros (PDF)
+              </button>
+            )}
           </div>
         )}
       </div>
+
+      {modalPDFAberto && (() => {
+        const primeiraRota = rotasOpcoes[0]
+        const primeiroMot = motoristasOpcoes[0]
+        return (
+          <ModalListaPassageirosPDF
+            diaSelecionado={new Date(filtroData + 'T00:00:00')}
+            passageiros={agendamentosFiltrados.map(ag => ({ id: ag.id, nome: ag.nome_passageiro }))}
+            nomeMotoristaSugerido={primeiroMot?.nome || ''}
+            origemSugerida={primeiraRota?.origem || ''}
+            destinoSugerido={primeiraRota?.destino || ''}
+            tituloEvento="ROTA FIXA"
+            onFechar={() => setModalPDFAberto(false)}
+          />
+        )
+      })()}
 
       {/* Modal ficha de solicitação pendente (transfer) */}
       {modalFichaAberto && corridaFicha && (
