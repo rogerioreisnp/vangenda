@@ -51,6 +51,13 @@ type Corrida = {
   retorno_origem: string | null
   retorno_destino: string | null
   numero_reserva: number | null
+  quantidade_bagagem: number | null
+  passageiros_adicionais: Array<{
+    nome: string; telefone: string
+    rua: string | null; numero: string | null; bairro: string | null; municipio: string | null; cep: string | null; referencia: string | null
+    rua_desembarque: string | null; numero_desembarque: string | null; bairro_desembarque: string | null
+    municipio_desembarque: string | null; cep_desembarque: string | null; referencia_desembarque: string | null
+  }> | null
 }
 
 type CorridaAgrupada =
@@ -353,7 +360,7 @@ export default function AgendamentosPage() {
         .order('nome'),
       supabase
         .from('corridas_empresa')
-        .select('id, rota_id, origem, destino, data_hora, created_at, cliente_nome, cliente_telefone, email_solicitante, valor, status, motorista_id, tipo_servico, forma_pagamento, status_pagamento, valor_recebido, observacoes, motoristas_empresa(nome), numero_voo, nome_passageiro2, telefone_passageiro2, retorno_data, retorno_horario, retorno_origem, retorno_destino, numero_reserva')
+        .select('id, rota_id, origem, destino, data_hora, created_at, cliente_nome, cliente_telefone, email_solicitante, valor, status, motorista_id, tipo_servico, forma_pagamento, status_pagamento, valor_recebido, observacoes, motoristas_empresa(nome), numero_voo, nome_passageiro2, telefone_passageiro2, retorno_data, retorno_horario, retorno_origem, retorno_destino, numero_reserva, quantidade_bagagem, passageiros_adicionais')
         .eq('empresa_id', gestor.empresa_id)
         .order('data_hora', { ascending: false })
         .limit(300),
@@ -588,6 +595,10 @@ export default function AgendamentosPage() {
     if (c.nome_passageiro2) passageiros += `, ${c.nome_passageiro2}`
     let telefones = c.cliente_telefone || ''
     if (c.telefone_passageiro2) telefones += telefones ? `, ${c.telefone_passageiro2}` : c.telefone_passageiro2
+    for (const p of c.passageiros_adicionais || []) {
+      if (p.nome) passageiros += `, ${p.nome}`
+      if (p.telefone) telefones += telefones ? `, ${p.telefone}` : p.telefone
+    }
 
     let msg = `Olá, tudo bem?\n\nSegue a confirmação do Transfer: ${num}`
     msg += `\n📅 *Data/Hora:* ${data} às ${hora} (${dia})`
@@ -1398,6 +1409,39 @@ export default function AgendamentosPage() {
                 {corridaFicha.telefone_passageiro2 && (
                   <p className="text-sm text-gray-600">📞 {corridaFicha.telefone_passageiro2}</p>
                 )}
+              </div>
+            )}
+
+            {/* Mais passageiros (lista repetível, cada um com sua ficha) */}
+            {(corridaFicha.passageiros_adicionais || []).map((p, idx) => (
+              <div key={idx} className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-2">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Passageiro {idx + (corridaFicha.nome_passageiro2 ? 3 : 2)}</p>
+                <p className="text-sm font-semibold text-gray-800">👤 {p.nome}</p>
+                {p.telefone && <p className="text-sm text-gray-600">📞 {p.telefone}</p>}
+                {(p.rua || p.numero || p.bairro || p.municipio || p.cep || p.referencia) && (
+                  <div className="mt-1">
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">📍 Embarque</p>
+                    <p className="text-sm text-gray-700">{[p.rua, p.numero].filter(Boolean).join(', ')}</p>
+                    <p className="text-sm text-gray-700">{[p.bairro, p.municipio].filter(Boolean).join(' - ')}</p>
+                    {p.cep && <p className="text-xs text-gray-400">CEP: {p.cep}</p>}
+                    {p.referencia && <p className="text-xs text-gray-500">📌 {p.referencia}</p>}
+                  </div>
+                )}
+                {(p.rua_desembarque || p.numero_desembarque || p.bairro_desembarque || p.municipio_desembarque || p.cep_desembarque || p.referencia_desembarque) && (
+                  <div className="mt-1">
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">🏁 Desembarque</p>
+                    <p className="text-sm text-gray-700">{[p.rua_desembarque, p.numero_desembarque].filter(Boolean).join(', ')}</p>
+                    <p className="text-sm text-gray-700">{[p.bairro_desembarque, p.municipio_desembarque].filter(Boolean).join(' - ')}</p>
+                    {p.cep_desembarque && <p className="text-xs text-gray-400">CEP: {p.cep_desembarque}</p>}
+                    {p.referencia_desembarque && <p className="text-xs text-gray-500">📌 {p.referencia_desembarque}</p>}
+                  </div>
+                )}
+              </div>
+            ))}
+
+            {!!corridaFicha.quantidade_bagagem && (
+              <div className="bg-white rounded-2xl p-4 border border-gray-100">
+                <p className="text-sm text-gray-700">🧳 {corridaFicha.quantidade_bagagem} {corridaFicha.quantidade_bagagem === 1 ? 'mala/volume' : 'malas/volumes'}</p>
               </div>
             )}
 
