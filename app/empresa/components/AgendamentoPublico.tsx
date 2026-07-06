@@ -95,7 +95,6 @@ export default function AgendamentoPublico({
     cep_desembarque: '',
     referencia_desembarque: '',
     quantidade_bagagem: 0,
-    quantidade_passageiros: 1,
   })
   const [rotaSelecionada, setRotaSelecionada] = useState<Rota | null>(null)
   const [rotaManual, setRotaManual] = useState(false)
@@ -356,7 +355,6 @@ export default function AgendamentoPublico({
         cep_desembarque: form.cep_desembarque.trim() || null,
         referencia_desembarque: form.referencia_desembarque.trim() || null,
         quantidade_bagagem: form.quantidade_bagagem || 0,
-        quantidade_passageiros: form.quantidade_passageiros || 1,
       })
 
       if (error) {
@@ -422,7 +420,6 @@ export default function AgendamentoPublico({
       cep_desembarque: form.cep_desembarque.trim() || null,
       referencia_desembarque: form.referencia_desembarque.trim() || null,
       quantidade_bagagem: form.quantidade_bagagem || 0,
-      quantidade_passageiros: form.quantidade_passageiros || 1,
     })
 
     if (error) {
@@ -463,7 +460,7 @@ export default function AgendamentoPublico({
 
   function resetForm() {
     setEtapa('form')
-    setForm({ rota_id: '', data: '', horario: '', nome: '', telefone: '', email: '', observacoes: '', rua: '', numero: '', bairro: '', municipio: '', cep: '', referencia: '', rua_desembarque: '', numero_desembarque: '', bairro_desembarque: '', municipio_desembarque: '', cep_desembarque: '', referencia_desembarque: '', quantidade_bagagem: 0, quantidade_passageiros: 1 })
+    setForm({ rota_id: '', data: '', horario: '', nome: '', telefone: '', email: '', observacoes: '', rua: '', numero: '', bairro: '', municipio: '', cep: '', referencia: '', rua_desembarque: '', numero_desembarque: '', bairro_desembarque: '', municipio_desembarque: '', cep_desembarque: '', referencia_desembarque: '', quantidade_bagagem: 0 })
     setRotaSelecionada(null)
     setRotaManual(false)
     setOrigemManual('')
@@ -849,27 +846,6 @@ export default function AgendamentoPublico({
                   rows={3}
                   style={{ resize: 'none' }}
                 />
-              </Campo>
-            </div>
-
-            <div className="bg-white rounded-2xl p-4 border border-gray-100">
-              <Campo label="Quantidade de passageiros">
-                <div className="flex items-center gap-3">
-                  <button type="button" onClick={() => setForm(f => ({ ...f, quantidade_passageiros: Math.max(1, f.quantidade_passageiros - 1) }))}
-                    className="w-10 h-10 rounded-xl text-xl font-bold border border-gray-200 flex items-center justify-center"
-                    style={{ background: '#f0f0ec', color: '#0F6E56' }}>
-                    −
-                  </button>
-                  <div className="flex-1 text-center">
-                    <span className="text-2xl font-bold text-gray-800">👥 {form.quantidade_passageiros}</span>
-                    <p className="text-xs text-gray-400">{form.quantidade_passageiros === 1 ? 'passageiro' : 'passageiros'}</p>
-                  </div>
-                  <button type="button" onClick={() => setForm(f => ({ ...f, quantidade_passageiros: f.quantidade_passageiros + 1 }))}
-                    className="w-10 h-10 rounded-xl text-xl font-bold border border-gray-200 flex items-center justify-center"
-                    style={{ background: '#0F6E56', color: '#fff' }}>
-                    +
-                  </button>
-                </div>
               </Campo>
             </div>
 
