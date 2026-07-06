@@ -27,7 +27,7 @@ export default function AgendamentosHub() {
       if (gestor?.empresas) {
         const empresa: any = Array.isArray(gestor.empresas) ? gestor.empresas[0] : gestor.empresas
         setEmpresaNome(empresa?.nome || '')
-        if (empresa?.tipo_operacao !== 'rota_fixa') {
+        if (empresa?.tipo_operacao === 'transfer' || empresa?.tipo_operacao === 'turismo') {
           router.replace('/empresa/agendamentos/fretamentos')
           return
         }
