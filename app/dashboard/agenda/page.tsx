@@ -1263,7 +1263,8 @@ function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSa
   const capacidade = rotaAtual?.capacidade || 15
   const vagasDisponiveis = Math.max(0, capacidade - vagasOcupadas)
 
-  const podeSalvar = !saving && !!form.nome_passageiro && !!form.parada_origem && !!form.parada_destino && !!form.valor && form.quantidade > 0
+  const excedeCapacidade = !empresaCtx && !!form.rota_id && form.quantidade > vagasDisponiveis
+  const podeSalvar = !saving && !!form.nome_passageiro && !!form.parada_origem && !!form.parada_destino && !!form.valor && form.quantidade > 0 && !excedeCapacidade
 
   function fechar() {
     localStorage.removeItem('vangenda_form_agendamento')
@@ -1421,17 +1422,18 @@ function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSa
               <span className="text-2xl font-bold text-gray-800">{form.quantidade}</span>
               <p className="text-xs text-gray-400">{form.quantidade === 1 ? 'passageiro' : 'passageiros'}</p>
             </div>
-            <button onClick={() => setForm(f => ({ ...f, quantidade: Math.min(vagasDisponiveis || 99, f.quantidade + 1) }))}
-              className="w-10 h-10 rounded-xl text-xl font-bold border border-gray-200 flex items-center justify-center"
+            <button onClick={() => setForm(f => ({ ...f, quantidade: empresaCtx || !form.rota_id ? f.quantidade + 1 : Math.min(vagasDisponiveis, f.quantidade + 1) }))}
+              disabled={!empresaCtx && !!form.rota_id && form.quantidade >= vagasDisponiveis}
+              className="w-10 h-10 rounded-xl text-xl font-bold border border-gray-200 flex items-center justify-center disabled:opacity-40"
               style={{ background: '#0F6E56', color: '#fff' }}>
               +
             </button>
           </div>
-          {vagasDisponiveis > 0 && (
+          {!empresaCtx && !!form.rota_id && vagasDisponiveis > 0 && (
             <p className="text-xs text-gray-400 mt-1 text-center">{vagasDisponiveis} vaga{vagasDisponiveis !== 1 ? 's' : ''} disponível{vagasDisponiveis !== 1 ? 'is' : ''}</p>
           )}
-          {vagasDisponiveis === 0 && vagasOcupadas > 0 && !empresaCtx && (
-            <p className="text-xs text-amber-500 mt-1 text-center">Turno completo ({vagasOcupadas}/{capacidade}) · você pode adicionar mesmo assim</p>
+          {!empresaCtx && !!form.rota_id && vagasDisponiveis === 0 && (
+            <p className="text-xs text-red-500 mt-1 text-center">Turno completo ({vagasOcupadas}/{capacidade}) — nenhuma vaga disponível</p>
           )}
         </Campo>
 
