@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 
@@ -10,10 +10,23 @@ export default function LoginPage() {
   const router = useRouter()
   const [modo, setModo] = useState<'login' | 'cadastro' | 'recuperar'>('login')
   const [loading, setLoading] = useState(false)
+  const [verificandoSessao, setVerificandoSessao] = useState(true)
   const [erro, setErro] = useState('')
   const [sucesso, setSucesso] = useState('')
   const [form, setForm] = useState({ nome: '', telefone: '', email: '', senha: '', confirmarSenha: '' })
   const [erros, setErros] = useState<Record<string, string>>({})
+
+  // Se já existe sessão válida salva (login persiste por padrão no Supabase),
+  // pula a tela de login e manda direto pro painel correto — evita o usuário
+  // ter que digitar e-mail/senha de novo toda vez que abre o app/PWA.
+  useEffect(() => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!session) { setVerificandoSessao(false); return }
+      const { data: gestor } = await supabase
+        .from('gestores').select('id').eq('user_id', session.user.id).maybeSingle()
+      router.replace(gestor ? '/empresa' : '/dashboard')
+    })
+  }, [])
 
   const validarCadastro = () => {
     const novosErros: Record<string, string> = {}
@@ -108,6 +121,10 @@ export default function LoginPage() {
     setErro('')
     setSucesso('')
     setErros({})
+  }
+
+  if (verificandoSessao) {
+    return <div className="min-h-dvh" style={{ background: '#f0f0ec' }} />
   }
 
   return (
