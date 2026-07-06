@@ -102,11 +102,6 @@ export default function AgendamentoPublico({
   const [destinoManual, setDestinoManual] = useState('')
   const [numeroVoo, setNumeroVoo] = useState('')
   const [formaPagamento, setFormaPagamento] = useState('pix')
-  const [showPassageiro2, setShowPassageiro2] = useState(false)
-  const [nomePassageiro2, setNomePassageiro2] = useState('')
-  const [telefonePassageiro2, setTelefonePassageiro2] = useState('')
-  const [origemPassageiro2, setOrigemPassageiro2] = useState('')
-  const [destinoPassageiro2, setDestinoPassageiro2] = useState('')
   type PassageiroExtra = {
     nome: string; telefone: string
     rua: string; numero: string; bairro: string; municipio: string; cep: string; referencia: string
@@ -345,8 +340,8 @@ export default function AgendamentoPublico({
         numero_voo: numeroVoo.trim() || null,
         forma_pagamento: formaPagamento || 'a_definir',
         observacoes: form.observacoes.trim() || null,
-        nome_passageiro2: showPassageiro2 && nomePassageiro2.trim() ? nomePassageiro2.trim() : null,
-        telefone_passageiro2: showPassageiro2 && telefonePassageiro2.trim() ? telefonePassageiro2.trim() : null,
+        nome_passageiro2: null,
+        telefone_passageiro2: null,
         retorno_data: showRetorno && retornoData ? retornoData : null,
         retorno_horario: showRetorno && retornoHorario ? retornoHorario : null,
         retorno_origem: showRetorno && retornoOrigem.trim() ? retornoOrigem.trim() : null,
@@ -490,11 +485,6 @@ export default function AgendamentoPublico({
     setDestinoManual('')
     setNumeroVoo('')
     setFormaPagamento('pix')
-    setShowPassageiro2(false)
-    setNomePassageiro2('')
-    setTelefonePassageiro2('')
-    setOrigemPassageiro2('')
-    setDestinoPassageiro2('')
     setPassageirosExtras([])
     setEnderecosSugeridos([])
     setShowRetorno(false)
@@ -628,46 +618,11 @@ export default function AgendamentoPublico({
               </div>
             )}
 
-            {/* Passageiro adicional (só transfer) */}
-            {empresa.tipo_operacao !== 'rota_fixa' && (
-              <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-3">
-                <button type="button" onClick={() => setShowPassageiro2(v => !v)}
-                  className="flex items-center justify-between w-full">
-                  <span className="text-sm font-semibold text-gray-700">👥 Passageiro adicional</span>
-                  <span className="text-sm font-semibold" style={{ color: cor }}>
-                    {showPassageiro2 ? '− Remover' : '+ Adicionar'}
-                  </span>
-                </button>
-                {showPassageiro2 && (
-                  <>
-                    <Campo label="Nome do 2º passageiro">
-                      <input value={nomePassageiro2} onChange={e => setNomePassageiro2(e.target.value)}
-                        placeholder="Nome completo" className="campo-input" />
-                    </Campo>
-                    <Campo label="Telefone do 2º passageiro">
-                      <input value={telefonePassageiro2} onChange={e => setTelefonePassageiro2(e.target.value)}
-                        placeholder="(XX) XXXXX-XXXX" type="tel" className="campo-input" />
-                    </Campo>
-                    <Campo label="Origem do 2º passageiro">
-                      <input value={origemPassageiro2} onChange={e => setOrigemPassageiro2(e.target.value)}
-                        placeholder="Ex: Aeroporto, Hotel, Endereço..."
-                        className="campo-input" list="sugestoes-enderecos" />
-                    </Campo>
-                    <Campo label="Destino do 2º passageiro">
-                      <input value={destinoPassageiro2} onChange={e => setDestinoPassageiro2(e.target.value)}
-                        placeholder="Ex: Hotel, Aeroporto, Endereço..."
-                        className="campo-input" list="sugestoes-enderecos" />
-                    </Campo>
-                  </>
-                )}
-              </div>
-            )}
-
-            {/* Mais passageiros (só transfer) — repetível, cada um com sua ficha */}
+            {/* Passageiro adicional (só transfer) — repetível, cada um com sua ficha */}
             {empresa.tipo_operacao !== 'rota_fixa' && (
               <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-3">
                 <div className="flex items-center justify-between w-full">
-                  <span className="text-sm font-semibold text-gray-700">👥 Mais passageiros</span>
+                  <span className="text-sm font-semibold text-gray-700">👥 Passageiro adicional</span>
                   <button type="button"
                     onClick={() => setPassageirosExtras(prev => [...prev, { ...PASSAGEIRO_EXTRA_VAZIO }])}
                     className="text-sm font-semibold" style={{ color: cor }}>
