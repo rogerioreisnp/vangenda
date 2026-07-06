@@ -238,9 +238,9 @@ export default function TransferSlugPage({ params }: { params: { slug: string } 
               </Campo>
             </div>
 
-            {/* Detalhes da viagem */}
-            <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-3">
-              <p className="text-sm font-semibold text-gray-700">Sua viagem</p>
+            {/* Detalhes da viagem (Ida) */}
+            <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: '#E6F1FB' }}>
+              <p className="text-sm font-semibold" style={{ color: '#0C447C' }}>✈️ Ida</p>
 
               {/* Seletor de rota — aparece se a empresa tem rotas cadastradas */}
               {rotas.length > 0 && (
@@ -370,16 +370,38 @@ export default function TransferSlugPage({ params }: { params: { slug: string } 
             </div>
 
             {/* Retorno */}
-            <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-3">
-              <button onClick={() => setShowRetorno(v => !v)}
+            <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: showRetorno ? '#EEEDFE' : '#fff', border: showRetorno ? 'none' : '1px solid #f3f4f6' }}>
+              <button onClick={() => setShowRetorno(v => {
+                const novo = !v
+                if (novo) {
+                  setForm(f => ({
+                    ...f,
+                    retorno_origem: f.retorno_origem || f.destino,
+                    retorno_destino: f.retorno_destino || f.origem,
+                    retorno_data: f.retorno_data || f.data,
+                  }))
+                }
+                return novo
+              })}
                 className="flex items-center justify-between w-full">
-                <span className="text-sm font-semibold text-gray-700">🔄 Quer agendar seu retorno?</span>
+                <span className="text-sm font-semibold" style={{ color: showRetorno ? '#3C3489' : '#374151' }}>
+                  {showRetorno ? '🔁 Volta' : '🔄 Quer agendar seu retorno?'}
+                </span>
                 <span className="text-sm font-semibold" style={{ color: cor }}>
                   {showRetorno ? '− Remover' : '+ Sim, quero'}
                 </span>
               </button>
               {showRetorno && (
                 <>
+                  <div className="flex justify-end -mt-2">
+                    <button
+                      onClick={() => setForm(f => ({ ...f, retorno_origem: f.destino, retorno_destino: f.origem }))}
+                      type="button"
+                      className="text-xs px-2 py-1 rounded-lg"
+                      style={{ border: '1px solid #AFA9EC', color: '#3C3489' }}>
+                      ↺ Inverter ida
+                    </button>
+                  </div>
                   <div className="grid grid-cols-2 gap-2">
                     <Campo label="Data do retorno">
                       <input type="date" value={form.retorno_data}
