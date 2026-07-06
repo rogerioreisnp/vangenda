@@ -11,7 +11,7 @@ export default function AgendamentosHub() {
   const [empresaNome, setEmpresaNome] = useState('')
   const [contadores, setContadores] = useState<Contadores>({ passageirosHoje: 0, corridasAgendadas: 0 })
   const [loading, setLoading] = useState(true)
-  const [redirecionando, setRedirecionando] = useState(false)
+  const [podeExibirHub, setPodeExibirHub] = useState(false)
 
   useEffect(() => {
     (async () => {
@@ -28,11 +28,11 @@ export default function AgendamentosHub() {
         const empresa: any = Array.isArray(gestor.empresas) ? gestor.empresas[0] : gestor.empresas
         setEmpresaNome(empresa?.nome || '')
         if (empresa?.tipo_operacao !== 'rota_fixa') {
-          setRedirecionando(true)
           router.replace('/empresa/agendamentos/fretamentos')
           return
         }
       }
+      setPodeExibirHub(true)
       if (!gestor?.empresa_id) { setLoading(false); return }
 
       const hoje = new Date().toISOString().slice(0, 10)
@@ -56,7 +56,7 @@ export default function AgendamentosHub() {
     })()
   }, [])
 
-  if (redirecionando) {
+  if (!podeExibirHub) {
     return <div className="min-h-dvh" style={{ background: '#f0f0ec' }} />
   }
 
