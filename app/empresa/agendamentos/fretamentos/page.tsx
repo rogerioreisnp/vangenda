@@ -93,7 +93,12 @@ type FormCorrida = {
   data: string
   horario: string
   ida_volta: boolean
+  origem_volta: string
+  destino_volta: string
+  data_retorno: string
   horario_retorno: string
+  preco_volta: string
+  observacoes_volta: string
   motorista_id: string
   cliente_nome: string
   cliente_telefone: string
@@ -113,7 +118,12 @@ const FORM_VAZIO: FormCorrida = {
   data: '',
   horario: '',
   ida_volta: false,
+  origem_volta: '',
+  destino_volta: '',
+  data_retorno: '',
   horario_retorno: '',
+  preco_volta: '',
+  observacoes_volta: '',
   motorista_id: '',
   cliente_nome: '',
   cliente_telefone: '',
@@ -411,7 +421,12 @@ export default function AgendamentosPage() {
       data: c.data_hora.slice(0, 10),
       horario: c.data_hora.slice(11, 16),
       ida_volta: false,
+      origem_volta: '',
+      destino_volta: '',
+      data_retorno: '',
       horario_retorno: '',
+      preco_volta: '',
+      observacoes_volta: '',
       motorista_id: c.motorista_id || '',
       cliente_nome: c.cliente_nome,
       cliente_telefone: c.cliente_telefone || '',
@@ -448,12 +463,20 @@ export default function AgendamentosPage() {
   }
 
   async function salvar() {
-    if (!form.cliente_nome.trim()) { setErro('Nome do contratante é obrigatório'); return }
+    if (!form.cliente_nome.trim()) { setErro('Nome do solicitante é obrigatório'); return }
     if (!form.origem.trim() || !form.destino.trim()) { setErro('Origem e destino são obrigatórios'); return }
     if (!form.data) { setErro('Data é obrigatória'); return }
     if (!form.horario) { setErro('Horário de saída é obrigatório'); return }
     const preco = parseFloat(form.preco)
     if (isNaN(preco) || preco < 0) { setErro('Preço inválido'); return }
+    if (!corridaEditando && form.ida_volta) {
+      if (!form.horario_retorno) { setErro('Horário de retorno é obrigatório'); return }
+      if (!(form.origem_volta || form.destino).trim() || !(form.destino_volta || form.origem).trim()) {
+        setErro('Origem e destino do retorno são obrigatórios'); return
+      }
+      const dataRetorno = form.data_retorno || form.data
+      if (dataRetorno < form.data) { setErro('A data de retorno não pode ser antes da data de ida'); return }
+    }
     if (!empresaId) return
 
     setSalvando(true)
@@ -519,11 +542,14 @@ export default function AgendamentosPage() {
       ]
 
       if (form.ida_volta && form.horario_retorno) {
+        const precoVolta = parseFloat(form.preco_volta)
         registros.push({
           ...base,
-          data_hora: `${form.data}T${form.horario_retorno}:00`,
-          origem: form.destino.trim(),
-          destino: form.origem.trim(),
+          data_hora: `${form.data_retorno || form.data}T${form.horario_retorno}:00`,
+          origem: (form.origem_volta || form.destino).trim(),
+          destino: (form.destino_volta || form.origem).trim(),
+          valor: !isNaN(precoVolta) && form.preco_volta.trim() !== '' ? precoVolta : preco,
+          observacoes: form.observacoes_volta.trim() || null,
         } as any)
       }
 
@@ -1624,45 +1650,49 @@ export default function AgendamentosPage() {
               </Campo>
             )}
 
-            <Campo label="Origem *">
-              <input
-                value={form.origem}
-                onChange={e => setForm(f => ({ ...f, origem: e.target.value }))}
-                readOnly={camposRotaBloqueados}
-                placeholder="Ex: Aeroporto Internacional"
-                className="campo-input"
-                style={{
-                  background: camposRotaBloqueados ? '#f9fafb' : '#fff',
-                  color: camposRotaBloqueados ? '#6B7280' : '#222',
-                }}
-              />
-            </Campo>
+            <div className="rounded-xl px-3 py-3" style={{ background: '#E6F1FB' }}>
+              <p className="text-xs font-semibold mb-2" style={{ color: '#0C447C' }}>✈️ Ida</p>
 
-            <Campo label="Destino *">
-              <input
-                value={form.destino}
-                onChange={e => setForm(f => ({ ...f, destino: e.target.value }))}
-                readOnly={camposRotaBloqueados}
-                placeholder="Ex: Hotel Tropical"
-                className="campo-input"
-                style={{
-                  background: camposRotaBloqueados ? '#f9fafb' : '#fff',
-                  color: camposRotaBloqueados ? '#6B7280' : '#222',
-                }}
-              />
-            </Campo>
+              <Campo label="Origem *">
+                <input
+                  value={form.origem}
+                  onChange={e => setForm(f => ({ ...f, origem: e.target.value }))}
+                  readOnly={camposRotaBloqueados}
+                  placeholder="Ex: Aeroporto Internacional"
+                  className="campo-input"
+                  style={{
+                    background: camposRotaBloqueados ? '#f9fafb' : '#fff',
+                    color: camposRotaBloqueados ? '#6B7280' : '#222',
+                  }}
+                />
+              </Campo>
 
-            <div className="grid grid-cols-2 gap-2">
-              <Campo label="Data *">
-                <input type="date" value={form.data}
-                  onChange={e => setForm(f => ({ ...f, data: e.target.value }))}
-                  className="campo-input" />
+              <Campo label="Destino *">
+                <input
+                  value={form.destino}
+                  onChange={e => setForm(f => ({ ...f, destino: e.target.value }))}
+                  readOnly={camposRotaBloqueados}
+                  placeholder="Ex: Hotel Tropical"
+                  className="campo-input"
+                  style={{
+                    background: camposRotaBloqueados ? '#f9fafb' : '#fff',
+                    color: camposRotaBloqueados ? '#6B7280' : '#222',
+                  }}
+                />
               </Campo>
-              <Campo label="Horário de saída *">
-                <input type="time" value={form.horario}
-                  onChange={e => setForm(f => ({ ...f, horario: e.target.value }))}
-                  className="campo-input" />
-              </Campo>
+
+              <div className="grid grid-cols-2 gap-2">
+                <Campo label="Data *">
+                  <input type="date" value={form.data}
+                    onChange={e => setForm(f => ({ ...f, data: e.target.value }))}
+                    className="campo-input" />
+                </Campo>
+                <Campo label="Horário de saída *">
+                  <input type="time" value={form.horario}
+                    onChange={e => setForm(f => ({ ...f, horario: e.target.value }))}
+                    className="campo-input" />
+                </Campo>
+              </div>
             </div>
 
             {!corridaEditando && (
@@ -1673,7 +1703,15 @@ export default function AgendamentosPage() {
                   <p className="text-xs text-gray-400 mt-0.5">Cria dois agendamentos automaticamente</p>
                 </div>
                 <button
-                  onClick={() => setForm(f => ({ ...f, ida_volta: !f.ida_volta, horario_retorno: '' }))}
+                  onClick={() => setForm(f => ({
+                    ...f,
+                    ida_volta: !f.ida_volta,
+                    horario_retorno: '',
+                    origem_volta: !f.ida_volta ? f.destino : '',
+                    destino_volta: !f.ida_volta ? f.origem : '',
+                    data_retorno: !f.ida_volta ? f.data : '',
+                    preco_volta: !f.ida_volta ? f.preco : '',
+                  }))}
                   className="relative w-11 h-6 rounded-full transition-colors flex-shrink-0"
                   style={{ background: form.ida_volta ? '#1D9E75' : '#e5e7eb' }}>
                   <div className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all"
@@ -1683,11 +1721,47 @@ export default function AgendamentosPage() {
             )}
 
             {!corridaEditando && form.ida_volta && (
-              <Campo label="Horário de retorno">
-                <input type="time" value={form.horario_retorno}
-                  onChange={e => setForm(f => ({ ...f, horario_retorno: e.target.value }))}
-                  className="campo-input" />
-              </Campo>
+              <div className="rounded-xl px-3 py-3" style={{ background: '#EEEDFE' }}>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-semibold" style={{ color: '#3C3489' }}>🔁 Volta</p>
+                  <button
+                    onClick={() => setForm(f => ({
+                      ...f,
+                      origem_volta: f.destino,
+                      destino_volta: f.origem,
+                    }))}
+                    type="button"
+                    className="text-xs px-2 py-1 rounded-lg"
+                    style={{ border: '1px solid #AFA9EC', color: '#3C3489' }}>
+                    ↺ Inverter ida
+                  </button>
+                </div>
+
+                <Campo label="Origem do retorno *">
+                  <input value={form.origem_volta}
+                    onChange={e => setForm(f => ({ ...f, origem_volta: e.target.value }))}
+                    placeholder="Ex: Hotel Tropical" className="campo-input" />
+                </Campo>
+
+                <Campo label="Destino do retorno *">
+                  <input value={form.destino_volta}
+                    onChange={e => setForm(f => ({ ...f, destino_volta: e.target.value }))}
+                    placeholder="Ex: Aeroporto Internacional" className="campo-input" />
+                </Campo>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <Campo label="Data de retorno *">
+                    <input type="date" value={form.data_retorno}
+                      onChange={e => setForm(f => ({ ...f, data_retorno: e.target.value }))}
+                      className="campo-input" />
+                  </Campo>
+                  <Campo label="Horário de retorno *">
+                    <input type="time" value={form.horario_retorno}
+                      onChange={e => setForm(f => ({ ...f, horario_retorno: e.target.value }))}
+                      className="campo-input" />
+                  </Campo>
+                </div>
+              </div>
             )}
 
             <Campo label="Motorista">
@@ -1701,13 +1775,13 @@ export default function AgendamentosPage() {
               </select>
             </Campo>
 
-            <Campo label="Nome do contratante *">
+            <Campo label="Nome do solicitante *">
               <input value={form.cliente_nome}
                 onChange={e => setForm(f => ({ ...f, cliente_nome: e.target.value }))}
                 placeholder="Nome completo" className="campo-input" />
             </Campo>
 
-            <Campo label="Telefone do contratante">
+            <Campo label="Telefone do solicitante">
               <input value={form.cliente_telefone}
                 onChange={e => setForm(f => ({ ...f, cliente_telefone: e.target.value }))}
                 placeholder="(XX) XXXXX-XXXX" className="campo-input" />
@@ -1749,13 +1823,28 @@ export default function AgendamentosPage() {
               </Campo>
             )}
 
-            <Campo label="Preço (R$) *">
-              <input type="number" step="0.01" min={0} value={form.preco}
-                onChange={e => setForm(f => ({ ...f, preco: e.target.value }))}
-                placeholder="0,00" className="campo-input" />
-            </Campo>
+            {!corridaEditando && form.ida_volta ? (
+              <div className="grid grid-cols-2 gap-2">
+                <Campo label="Valor ida (R$) *">
+                  <input type="number" step="0.01" min={0} value={form.preco}
+                    onChange={e => setForm(f => ({ ...f, preco: e.target.value }))}
+                    placeholder="0,00" className="campo-input" />
+                </Campo>
+                <Campo label="Valor volta (R$)">
+                  <input type="number" step="0.01" min={0} value={form.preco_volta}
+                    onChange={e => setForm(f => ({ ...f, preco_volta: e.target.value }))}
+                    placeholder="0,00" className="campo-input" />
+                </Campo>
+              </div>
+            ) : (
+              <Campo label="Preço (R$) *">
+                <input type="number" step="0.01" min={0} value={form.preco}
+                  onChange={e => setForm(f => ({ ...f, preco: e.target.value }))}
+                  placeholder="0,00" className="campo-input" />
+              </Campo>
+            )}
 
-            <Campo label="Observações">
+            <Campo label={form.ida_volta && !corridaEditando ? 'Observações da ida' : 'Observações'}>
               <textarea value={form.observacoes}
                 onChange={e => setForm(f => ({ ...f, observacoes: e.target.value }))}
                 placeholder="Informações adicionais, ponto de encontro, etc."
@@ -1763,6 +1852,17 @@ export default function AgendamentosPage() {
                 rows={3}
                 style={{ resize: 'none' }} />
             </Campo>
+
+            {!corridaEditando && form.ida_volta && (
+              <Campo label="Observações da volta">
+                <textarea value={form.observacoes_volta}
+                  onChange={e => setForm(f => ({ ...f, observacoes_volta: e.target.value }))}
+                  placeholder="Informações adicionais, ponto de encontro, etc."
+                  className="campo-input"
+                  rows={3}
+                  style={{ resize: 'none' }} />
+              </Campo>
+            )}
 
             {erro && (
               <div className="rounded-xl px-4 py-3 text-sm border"
