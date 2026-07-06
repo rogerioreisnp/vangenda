@@ -80,6 +80,20 @@ export default function AgendamentoPublico({
     telefone: '',
     email: '',
     observacoes: '',
+    // Endereço detalhado embarque
+    rua: '',
+    numero: '',
+    bairro: '',
+    municipio: '',
+    cep: '',
+    referencia: '',
+    // Endereço detalhado desembarque
+    rua_desembarque: '',
+    numero_desembarque: '',
+    bairro_desembarque: '',
+    municipio_desembarque: '',
+    cep_desembarque: '',
+    referencia_desembarque: '',
   })
   const [rotaSelecionada, setRotaSelecionada] = useState<Rota | null>(null)
   const [rotaManual, setRotaManual] = useState(false)
@@ -327,6 +341,18 @@ export default function AgendamentoPublico({
         valor: 0,
         status: 'pendente',
         motorista_id: null,
+        rua: form.rua.trim() || null,
+        numero: form.numero.trim() || null,
+        bairro: form.bairro.trim() || null,
+        municipio: form.municipio.trim() || null,
+        cep: form.cep.trim() || null,
+        referencia: form.referencia.trim() || null,
+        rua_desembarque: form.rua_desembarque.trim() || null,
+        numero_desembarque: form.numero_desembarque.trim() || null,
+        bairro_desembarque: form.bairro_desembarque.trim() || null,
+        municipio_desembarque: form.municipio_desembarque.trim() || null,
+        cep_desembarque: form.cep_desembarque.trim() || null,
+        referencia_desembarque: form.referencia_desembarque.trim() || null,
       })
 
       if (error) {
@@ -379,6 +405,18 @@ export default function AgendamentoPublico({
       tipo_servico: 'rota_fixa',
       forma_pagamento: 'a_definir',
       observacoes: form.observacoes.trim() || null,
+      rua: form.rua.trim() || null,
+      numero: form.numero.trim() || null,
+      bairro: form.bairro.trim() || null,
+      municipio: form.municipio.trim() || null,
+      cep: form.cep.trim() || null,
+      referencia: form.referencia.trim() || null,
+      rua_desembarque: form.rua_desembarque.trim() || null,
+      numero_desembarque: form.numero_desembarque.trim() || null,
+      bairro_desembarque: form.bairro_desembarque.trim() || null,
+      municipio_desembarque: form.municipio_desembarque.trim() || null,
+      cep_desembarque: form.cep_desembarque.trim() || null,
+      referencia_desembarque: form.referencia_desembarque.trim() || null,
     })
 
     if (error) {
@@ -419,7 +457,7 @@ export default function AgendamentoPublico({
 
   function resetForm() {
     setEtapa('form')
-    setForm({ rota_id: '', data: '', horario: '', nome: '', telefone: '', email: '', observacoes: '' })
+    setForm({ rota_id: '', data: '', horario: '', nome: '', telefone: '', email: '', observacoes: '', rua: '', numero: '', bairro: '', municipio: '', cep: '', referencia: '', rua_desembarque: '', numero_desembarque: '', bairro_desembarque: '', municipio_desembarque: '', cep_desembarque: '', referencia_desembarque: '' })
     setRotaSelecionada(null)
     setRotaManual(false)
     setOrigemManual('')
@@ -805,6 +843,71 @@ export default function AgendamentoPublico({
                   rows={3}
                   style={{ resize: 'none' }}
                 />
+              </Campo>
+            </div>
+
+            {/* Endereço detalhado embarque + desembarque (opcional) */}
+            <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-3">
+              <p className="text-sm font-semibold text-gray-700">📍 Endereço de embarque <span className="text-xs font-normal text-gray-400">(opcional)</span></p>
+              <div style={{ display: 'grid', gridTemplateColumns: '70% 30%', gap: '8px' }}>
+                <Campo label="Rua / Logradouro">
+                  <input value={form.rua} onChange={e => setForm(f => ({ ...f, rua: e.target.value }))}
+                    placeholder="Ex: Rua das Flores" className="campo-input" />
+                </Campo>
+                <Campo label="Número">
+                  <input value={form.numero} onChange={e => setForm(f => ({ ...f, numero: e.target.value }))}
+                    placeholder="123" className="campo-input" />
+                </Campo>
+              </div>
+              <Campo label="Bairro">
+                <input value={form.bairro} onChange={e => setForm(f => ({ ...f, bairro: e.target.value }))}
+                  placeholder="Ex: Centro" className="campo-input" />
+              </Campo>
+              <div className="grid grid-cols-2 gap-2">
+                <Campo label="Município">
+                  <input value={form.municipio} onChange={e => setForm(f => ({ ...f, municipio: e.target.value }))}
+                    placeholder="Ex: São Paulo" className="campo-input" />
+                </Campo>
+                <Campo label="CEP">
+                  <input value={form.cep} onChange={e => setForm(f => ({ ...f, cep: e.target.value }))}
+                    placeholder="00000-000" className="campo-input" />
+                </Campo>
+              </div>
+              <Campo label="Ponto de referência">
+                <input value={form.referencia} onChange={e => setForm(f => ({ ...f, referencia: e.target.value }))}
+                  placeholder="Ex: Próximo ao mercado Boa Ideia" className="campo-input" />
+              </Campo>
+            </div>
+
+            <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-3">
+              <p className="text-sm font-semibold text-gray-700">🏁 Endereço de desembarque <span className="text-xs font-normal text-gray-400">(opcional)</span></p>
+              <div style={{ display: 'grid', gridTemplateColumns: '70% 30%', gap: '8px' }}>
+                <Campo label="Rua / Logradouro">
+                  <input value={form.rua_desembarque} onChange={e => setForm(f => ({ ...f, rua_desembarque: e.target.value }))}
+                    placeholder="Ex: Rua das Palmeiras" className="campo-input" />
+                </Campo>
+                <Campo label="Número">
+                  <input value={form.numero_desembarque} onChange={e => setForm(f => ({ ...f, numero_desembarque: e.target.value }))}
+                    placeholder="456" className="campo-input" />
+                </Campo>
+              </div>
+              <Campo label="Bairro">
+                <input value={form.bairro_desembarque} onChange={e => setForm(f => ({ ...f, bairro_desembarque: e.target.value }))}
+                  placeholder="Ex: Vila Nova" className="campo-input" />
+              </Campo>
+              <div className="grid grid-cols-2 gap-2">
+                <Campo label="Município">
+                  <input value={form.municipio_desembarque} onChange={e => setForm(f => ({ ...f, municipio_desembarque: e.target.value }))}
+                    placeholder="Ex: São Paulo" className="campo-input" />
+                </Campo>
+                <Campo label="CEP">
+                  <input value={form.cep_desembarque} onChange={e => setForm(f => ({ ...f, cep_desembarque: e.target.value }))}
+                    placeholder="00000-000" className="campo-input" />
+                </Campo>
+              </div>
+              <Campo label="Ponto de referência">
+                <input value={form.referencia_desembarque} onChange={e => setForm(f => ({ ...f, referencia_desembarque: e.target.value }))}
+                  placeholder="Ex: Em frente à padaria" className="campo-input" />
               </Campo>
             </div>
 

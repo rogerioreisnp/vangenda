@@ -1084,6 +1084,12 @@ function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSa
     municipio: '',
     cep: '',
     referencia: '',
+    rua_desembarque: '',
+    numero_desembarque: '',
+    bairro_desembarque: '',
+    municipio_desembarque: '',
+    cep_desembarque: '',
+    referencia_desembarque: '',
   })
   const [valorAuto, setValorAuto] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
@@ -1292,6 +1298,12 @@ function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSa
       municipio: form.municipio || null,
       cep: form.cep || null,
       referencia: form.referencia || null,
+      rua_desembarque: form.rua_desembarque || null,
+      numero_desembarque: form.numero_desembarque || null,
+      bairro_desembarque: form.bairro_desembarque || null,
+      municipio_desembarque: form.municipio_desembarque || null,
+      cep_desembarque: form.cep_desembarque || null,
+      referencia_desembarque: form.referencia_desembarque || null,
     }))
     const { error } = await supabase.from('agendamentos').insert(registros)
     setSaving(false)
@@ -1499,6 +1511,40 @@ function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSa
         <Campo label="Ponto de referência">
           <input value={form.referencia} onChange={e => setForm(f => ({ ...f, referencia: e.target.value }))}
             placeholder="Ex: Próximo ao mercado Boa Ideia" className="campo-input" />
+        </Campo>
+
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mt-4">🏁 Endereço de desembarque</p>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '70% 30%', gap: '8px' }}>
+          <Campo label="Rua / Logradouro">
+            <input value={form.rua_desembarque} onChange={e => setForm(f => ({ ...f, rua_desembarque: e.target.value }))}
+              placeholder="Ex: Av. Brasil" className="campo-input" />
+          </Campo>
+          <Campo label="Número">
+            <input value={form.numero_desembarque} onChange={e => setForm(f => ({ ...f, numero_desembarque: e.target.value }))}
+              placeholder="456" className="campo-input" />
+          </Campo>
+        </div>
+
+        <Campo label="Bairro">
+          <input value={form.bairro_desembarque} onChange={e => setForm(f => ({ ...f, bairro_desembarque: e.target.value }))}
+            placeholder="Ex: Copacabana" className="campo-input" />
+        </Campo>
+
+        <div className="grid grid-cols-2 gap-2">
+          <Campo label="Município">
+            <input value={form.municipio_desembarque} onChange={e => setForm(f => ({ ...f, municipio_desembarque: e.target.value }))}
+              placeholder="Ex: Rio de Janeiro" className="campo-input" />
+          </Campo>
+          <Campo label="CEP (opcional)">
+            <input value={form.cep_desembarque} onChange={e => setForm(f => ({ ...f, cep_desembarque: e.target.value }))}
+              placeholder="00000-000" className="campo-input" />
+          </Campo>
+        </div>
+
+        <Campo label="Ponto de referência">
+          <input value={form.referencia_desembarque} onChange={e => setForm(f => ({ ...f, referencia_desembarque: e.target.value }))}
+            placeholder="Ex: Em frente à padaria" className="campo-input" />
         </Campo>
       </div>
 

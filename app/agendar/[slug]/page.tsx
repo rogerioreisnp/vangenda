@@ -66,6 +66,12 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
     municipio: '',
     cep: '',
     referencia: '',
+    rua_desembarque: '',
+    numero_desembarque: '',
+    bairro_desembarque: '',
+    municipio_desembarque: '',
+    cep_desembarque: '',
+    referencia_desembarque: '',
   })
   const [valorUnitario, setValorUnitario] = useState<number | null>(null)
   const [salvando, setSalvando] = useState(false)
@@ -275,6 +281,12 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
       municipio: form.municipio || null,
       cep: form.cep || null,
       referencia: form.referencia || null,
+      rua_desembarque: form.rua_desembarque || null,
+      numero_desembarque: form.numero_desembarque || null,
+      bairro_desembarque: form.bairro_desembarque || null,
+      municipio_desembarque: form.municipio_desembarque || null,
+      cep_desembarque: form.cep_desembarque || null,
+      referencia_desembarque: form.referencia_desembarque || null,
     }))
 
     const { data, error } = await supabase
@@ -619,6 +631,38 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
               </Campo>
             </div>
 
+            <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-3">
+              <p className="text-sm font-semibold text-gray-700">🏁 Endereço de desembarque <span className="text-xs font-normal text-gray-400">(opcional)</span></p>
+              <div style={{ display: 'grid', gridTemplateColumns: '70% 30%', gap: '8px' }}>
+                <Campo label="Rua / Logradouro">
+                  <input value={form.rua_desembarque} onChange={e => setForm(f => ({ ...f, rua_desembarque: e.target.value }))}
+                    placeholder="Ex: Rua das Palmeiras" className="campo-input" />
+                </Campo>
+                <Campo label="Número">
+                  <input value={form.numero_desembarque} onChange={e => setForm(f => ({ ...f, numero_desembarque: e.target.value }))}
+                    placeholder="456" className="campo-input" />
+                </Campo>
+              </div>
+              <Campo label="Bairro">
+                <input value={form.bairro_desembarque} onChange={e => setForm(f => ({ ...f, bairro_desembarque: e.target.value }))}
+                  placeholder="Ex: Vila Nova" className="campo-input" />
+              </Campo>
+              <div className="grid grid-cols-2 gap-2">
+                <Campo label="Município">
+                  <input value={form.municipio_desembarque} onChange={e => setForm(f => ({ ...f, municipio_desembarque: e.target.value }))}
+                    placeholder="Ex: São Paulo" className="campo-input" />
+                </Campo>
+                <Campo label="CEP">
+                  <input value={form.cep_desembarque} onChange={e => setForm(f => ({ ...f, cep_desembarque: e.target.value }))}
+                    placeholder="00000-000" className="campo-input" />
+                </Campo>
+              </div>
+              <Campo label="Ponto de referência">
+                <input value={form.referencia_desembarque} onChange={e => setForm(f => ({ ...f, referencia_desembarque: e.target.value }))}
+                  placeholder="Ex: Em frente à padaria" className="campo-input" />
+              </Campo>
+            </div>
+
             {erroMsg && (
               <div style={{ background: '#FCEBEB', borderColor: '#F5BCBC' }}
                 className="border rounded-xl px-4 py-3">
@@ -824,7 +868,7 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
 
             <button onClick={() => {
               setEtapa('form')
-              setForm({ nome: '', telefone: '', origem: '', destino: '', data: format(new Date(), 'yyyy-MM-dd'), turno: 'ida', quantidade: 1, forma_pagamento: 'dinheiro', rua: '', numero: '', bairro: '', municipio: '', cep: '', referencia: '' })
+              setForm({ nome: '', telefone: '', origem: '', destino: '', data: format(new Date(), 'yyyy-MM-dd'), turno: 'ida', quantidade: 1, forma_pagamento: 'dinheiro', rua: '', numero: '', bairro: '', municipio: '', cep: '', referencia: '', rua_desembarque: '', numero_desembarque: '', bairro_desembarque: '', municipio_desembarque: '', cep_desembarque: '', referencia_desembarque: '' })
               setValorUnitario(null)
               setErroMsg(null)
             }} className="w-full py-3 rounded-2xl text-sm font-medium border border-gray-200 bg-white text-gray-600">
