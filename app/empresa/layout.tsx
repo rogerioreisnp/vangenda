@@ -206,20 +206,23 @@ export default function EmpresaLayout({ children }: { children: React.ReactNode 
       <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 safe-area-bottom z-50">
         <div className="grid grid-cols-6 max-w-lg mx-auto">
           {navItems.map((item) => {
-            // Item "Agendamentos" fica ativo tanto na raiz quanto nas sub-rotas
-            // (fretamentos). Outros itens usam comparacao exata.
-            const ativo = item.href === '/empresa/agendamentos'
-              ? pathname.startsWith('/empresa/agendamentos')
-              : pathname === item.href
-            return (
-              <Link key={item.href} href={item.href}
-                className="flex flex-col items-center py-2 pb-3 gap-0.5 transition-colors"
-                style={{ color: ativo ? '#0F6E56' : '#aaa' }}>
-                <span className="text-lg leading-none">{item.emoji}</span>
-                <span className="text-[9px] font-medium">{item.label}</span>
-              </Link>
-            )
-          })}
+  const href = item.href === '/empresa/agendamentos' && tipoOperacao !== 'rota_fixa'
+    ? '/empresa/agendamentos/fretamentos'
+    : item.href
+  const ativo = item.href === '/empresa/agendamentos'
+    ? pathname.startsWith('/empresa/agendamentos')
+    : pathname === item.href
+  return (
+    <Link key={item.href} href={href}
+      className="flex flex-col items-center py-2 pb-3 gap-0.5 transition-colors"
+      style={{ color: ativo ? '#0F6E56' : '#aaa' }}>
+      <span className="text-lg leading-none">{item.emoji}</span>
+      <span className="text-[9px] font-medium">
+        {item.href === '/empresa/agendamentos' && tipoOperacao !== 'rota_fixa' ? 'Corridas' : item.label}
+      </span>
+    </Link>
+  )
+})}
         </div>
       </nav>
     </div>
