@@ -362,6 +362,7 @@ export default function ConfiguracoesPage() {
         pix_chave: motorista.pix_chave,
         pagamento_obrigatorio: motorista.pagamento_obrigatorio,
         telefone: motorista.telefone?.trim() || null,
+        mensagem_confirmacao: motorista.mensagem_confirmacao?.trim() || null,
       }
       if (diasTrabalhoExiste.current) {
         motUpdate.dias_trabalho = motorista.dias_trabalho ?? [1, 2, 3, 4, 5]
@@ -597,6 +598,22 @@ export default function ConfiguracoesPage() {
           </Campo>
           <p className="text-xs text-gray-400 mt-2">
             Usado para os passageiros enviarem comprovante de agendamento.
+          </p>
+        </Secao>
+
+        <Secao titulo="💬 Mensagem de confirmação (WhatsApp)">
+          <Campo label="Mensagem enviada ao passageiro">
+            <textarea
+              value={motorista?.mensagem_confirmacao ?? ''}
+              onChange={e => setMotorista((m: any) => ({ ...m, mensagem_confirmacao: e.target.value }))}
+              placeholder={'Olá {nome}! 👋\n\nConfirmando sua viagem:\n📍 {origem} → {destino}\n📅 {data} - {turno}\n💰 R$ {valor}\n\nTudo certo? ✅'}
+              rows={6}
+              className="campo-input"
+              style={{ resize: 'vertical' }}
+            />
+          </Campo>
+          <p className="text-xs text-gray-400 mt-2 leading-relaxed">
+            Deixe em branco para usar a mensagem padrão. Use as variáveis: <b>{'{nome}'}</b>, <b>{'{origem}'}</b>, <b>{'{destino}'}</b>, <b>{'{data}'}</b>, <b>{'{turno}'}</b>, <b>{'{valor}'}</b>.
           </p>
         </Secao>
 

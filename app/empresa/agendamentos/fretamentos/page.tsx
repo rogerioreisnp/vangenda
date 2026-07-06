@@ -242,6 +242,7 @@ export default function AgendamentosPage() {
   const searchParams = useSearchParams()
   const [empresaId, setEmpresaId] = useState<string | null>(null)
   const [empresaNome, setEmpresaNome] = useState<string>('')
+  const [mensagemConfirmacaoTransfer, setMensagemConfirmacaoTransfer] = useState<string | null>(null)
   const [rotasOpcoes, setRotasOpcoes] = useState<RotaOpcao[]>([])
   const [motoristasOpcoes, setMotoristasOpcoes] = useState<MotoristaOpcao[]>([])
   const [tipoOperacao, setTipoOperacao] = useState<string>('transfer')
@@ -336,7 +337,7 @@ export default function AgendamentosPage() {
     const [{ data: empresa }, { data: rts }, { data: mots }, { data: corrds }] = await Promise.all([
       supabase
         .from('empresas')
-        .select('tipo_operacao, nome')
+        .select('tipo_operacao, nome, mensagem_confirmacao_transfer')
         .eq('id', gestor.empresa_id)
         .single(),
       supabase
@@ -361,6 +362,7 @@ export default function AgendamentosPage() {
     if (empresa) {
       setTipoOperacao(empresa.tipo_operacao || 'transfer')
       setEmpresaNome((empresa as any).nome || '')
+      setMensagemConfirmacaoTransfer((empresa as any).mensagem_confirmacao_transfer || null)
     }
     if (rts) setRotasOpcoes(rts)
     if (mots) setMotoristasOpcoes(mots)
@@ -648,7 +650,15 @@ export default function AgendamentosPage() {
     const data = `${c.data_hora.slice(8,10)}/${c.data_hora.slice(5,7)}/${c.data_hora.slice(0,4)}`
     const hora = c.data_hora.slice(11,16)
     const dia = diaSemana(c.data_hora)
-    let msg = `Olá ${c.cliente_nome}, tudo bem!\n\nConfirmamos o seu transfer:\n\n📅 *Data/Hora:* ${data} às ${hora} (${dia})\n📍 *Origem:* ${c.origem}\n📍 *Destino:* ${c.destino}`
+    const template = mensagemConfirmacaoTransfer
+      || 'Olá {nome}, tudo bem!\n\nConfirmamos o seu transfer:\n\n📅 *Data/Hora:* {data} às {hora} ({dia})\n📍 *Origem:* {origem}\n📍 *Destino:* {destino}'
+    let msg = template
+      .replaceAll('{nome}', c.cliente_nome)
+      .replaceAll('{data}', data)
+      .replaceAll('{hora}', hora)
+      .replaceAll('{dia}', dia)
+      .replaceAll('{origem}', c.origem)
+      .replaceAll('{destino}', c.destino)
     if (c.numero_voo) msg += `\n✈️ *Voo:* ${c.numero_voo}`
     if (c.retorno_data) {
       const retData = `${c.retorno_data.slice(8,10)}/${c.retorno_data.slice(5,7)}/${c.retorno_data.slice(0,4)}`

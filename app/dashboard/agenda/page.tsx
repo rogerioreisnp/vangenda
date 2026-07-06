@@ -703,13 +703,49 @@ function DetalhePassageiro({ p, onVoltar, onAtualizar, horarioIda, horarioVolta 
   const temEndereco = p.rua || p.numero || p.bairro || p.municipio || p.cep || p.referencia
   const temEnderecoDesembarque = p.rua_desembarque || p.numero_desembarque || p.bairro_desembarque || p.municipio_desembarque || p.cep_desembarque || p.referencia_desembarque
   const [statusLocal, setStatusLocal] = useState(p.status)
+  const [mensagemTemplate, setMensagemTemplate] = useState<string | null>(null)
+
+  // Busca a mensagem personalizada de quem é dono deste agendamento (empresa,
+  // se o gestor/funcionário estiver logado; motorista individual caso
+  // contrário) assim que a tela abre — pré-carregada pra não atrasar o
+  // window.open() no clique (senão o navegador bloqueia como pop-up).
+  useEffect(() => {
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const { data: gestorRow } = await supabase
+        .from('gestores').select('empresa_id').eq('user_id', user.id).maybeSingle()
+      let empresaId = gestorRow?.empresa_id
+      if (!empresaId) {
+        const { data: motEmp } = await supabase
+          .from('motoristas_empresa').select('empresa_id').eq('user_id', user.id).maybeSingle()
+        empresaId = motEmp?.empresa_id
+      }
+      if (empresaId) {
+        const { data: emp } = await supabase.from('empresas').select('mensagem_confirmacao').eq('id', empresaId).maybeSingle()
+        setMensagemTemplate(emp?.mensagem_confirmacao || null)
+      } else {
+        const { data: mot } = await supabase.from('motoristas').select('mensagem_confirmacao').eq('id', user.id).maybeSingle()
+        setMensagemTemplate(mot?.mensagem_confirmacao || null)
+      }
+    })()
+  }, [])
 
   function abrirWhatsApp() {
     if (!p.telefone_passageiro) return
     const tel = p.telefone_passageiro.replace(/\D/g, '')
     const dataMsg = format(new Date(p.data_viagem + 'T00:00:00'), 'dd/MM', { locale: ptBR })
+    const valorFmt = p.valor.toFixed(2).replace('.', ',')
+    const template = mensagemTemplate
+      || 'Olá {nome}! 👋\n\nConfirmando sua viagem:\n📍 {origem} → {destino}\n📅 {data} - {turno}\n💰 R$ {valor}\n\nTudo certo? ✅'
     const msg = encodeURIComponent(
-      `Olá ${p.nome_passageiro}! 👋\n\nConfirmando sua viagem:\n📍 ${p.parada_origem} → ${p.parada_destino}\n📅 ${dataMsg} - ${turnoLabel}\n💰 R$ ${p.valor.toFixed(2).replace('.', ',')}\n\nTudo certo? ✅`
+      template
+        .replaceAll('{nome}', p.nome_passageiro)
+        .replaceAll('{origem}', p.parada_origem)
+        .replaceAll('{destino}', p.parada_destino)
+        .replaceAll('{data}', dataMsg)
+        .replaceAll('{turno}', turnoLabel)
+        .replaceAll('{valor}', valorFmt)
     )
     window.open(`https://wa.me/55${tel}?text=${msg}`, '_blank')
   }

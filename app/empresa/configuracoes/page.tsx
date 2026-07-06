@@ -25,6 +25,8 @@ type Empresa = {
   trial_fim: string | null
   slug: string | null
   transfer_numero_inicio: number | null
+  mensagem_confirmacao: string | null
+  mensagem_confirmacao_transfer: string | null
 }
 
 const PLANO_LABEL: Record<string, string> = { starter: 'Starter', pro: 'Pro', fleet: 'Fleet' }
@@ -53,7 +55,7 @@ export default function ConfiguracoesEmpresaPage() {
 
     const { data: emp } = await supabase
       .from('empresas')
-      .select('id, nome, telefone, tipo_operacao, plano, status, cnpj, email_comercial, cidade, estado, qtd_veiculos, descricao, chave_pix, tipo_chave_pix, instagram, whatsapp_comercial, cor_destaque, logo_url, trial_fim, slug, transfer_numero_inicio')
+      .select('id, nome, telefone, tipo_operacao, plano, status, cnpj, email_comercial, cidade, estado, qtd_veiculos, descricao, chave_pix, tipo_chave_pix, instagram, whatsapp_comercial, cor_destaque, logo_url, trial_fim, slug, transfer_numero_inicio, mensagem_confirmacao, mensagem_confirmacao_transfer')
       .eq('id', gestor.empresa_id)
       .single()
 
@@ -90,6 +92,8 @@ export default function ConfiguracoesEmpresaPage() {
         logo_url: empresa.logo_url?.trim() || null,
         slug: empresa.slug?.trim() || null,
         transfer_numero_inicio: empresa.transfer_numero_inicio || 1,
+        mensagem_confirmacao: empresa.mensagem_confirmacao?.trim() || null,
+        mensagem_confirmacao_transfer: empresa.mensagem_confirmacao_transfer?.trim() || null,
       })
       .eq('id', empresa.id)
 
@@ -358,6 +362,38 @@ export default function ConfiguracoesEmpresaPage() {
                 </p>
               </Campo>
             )}
+          </div>
+        </Secao>
+
+        <Secao titulo="💬 Mensagens de confirmação (WhatsApp)">
+          <div className="flex flex-col gap-4">
+            <Campo label="Agendamento de passageiros (rota fixa)">
+              <textarea
+                value={empresa?.mensagem_confirmacao ?? ''}
+                onChange={e => setEmpresa(emp => emp ? { ...emp, mensagem_confirmacao: e.target.value } : emp)}
+                placeholder={'Olá {nome}! 👋\n\nConfirmando sua viagem:\n📍 {origem} → {destino}\n📅 {data} - {turno}\n💰 R$ {valor}\n\nTudo certo? ✅'}
+                rows={6}
+                className="campo-input"
+                style={{ resize: 'vertical' }}
+              />
+              <p className="text-xs mt-2 leading-relaxed" style={{ color: '#6B7280' }}>
+                ℹ️ Deixe em branco para usar a mensagem padrão. Variáveis: <b>{'{nome}'}</b>, <b>{'{origem}'}</b>, <b>{'{destino}'}</b>, <b>{'{data}'}</b>, <b>{'{turno}'}</b>, <b>{'{valor}'}</b>.
+              </p>
+            </Campo>
+
+            <Campo label="Fretamentos / Transfer">
+              <textarea
+                value={empresa?.mensagem_confirmacao_transfer ?? ''}
+                onChange={e => setEmpresa(emp => emp ? { ...emp, mensagem_confirmacao_transfer: e.target.value } : emp)}
+                placeholder={'Olá {nome}, tudo bem!\n\nConfirmamos o seu transfer:\n\n📅 Data/Hora: {data} às {hora} ({dia})\n📍 Origem: {origem}\n📍 Destino: {destino}'}
+                rows={6}
+                className="campo-input"
+                style={{ resize: 'vertical' }}
+              />
+              <p className="text-xs mt-2 leading-relaxed" style={{ color: '#6B7280' }}>
+                ℹ️ Deixe em branco para usar a mensagem padrão. Variáveis: <b>{'{nome}'}</b>, <b>{'{data}'}</b>, <b>{'{hora}'}</b>, <b>{'{dia}'}</b>, <b>{'{origem}'}</b>, <b>{'{destino}'}</b>. Informações de voo, retorno e observações são adicionadas automaticamente quando existirem.
+              </p>
+            </Campo>
           </div>
         </Secao>
 
