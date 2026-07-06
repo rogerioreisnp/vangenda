@@ -51,6 +51,8 @@ type Corrida = {
   retorno_origem: string | null
   retorno_destino: string | null
   numero_reserva: number | null
+  quantidade_passageiros: number | null
+  quantidade_bagagem: number | null
 }
 
 type CorridaAgrupada =
@@ -353,7 +355,7 @@ export default function AgendamentosPage() {
         .order('nome'),
       supabase
         .from('corridas_empresa')
-        .select('id, rota_id, origem, destino, data_hora, created_at, cliente_nome, cliente_telefone, email_solicitante, valor, status, motorista_id, tipo_servico, forma_pagamento, status_pagamento, valor_recebido, observacoes, motoristas_empresa(nome), numero_voo, nome_passageiro2, telefone_passageiro2, retorno_data, retorno_horario, retorno_origem, retorno_destino, numero_reserva')
+        .select('id, rota_id, origem, destino, data_hora, created_at, cliente_nome, cliente_telefone, email_solicitante, valor, status, motorista_id, tipo_servico, forma_pagamento, status_pagamento, valor_recebido, observacoes, motoristas_empresa(nome), numero_voo, nome_passageiro2, telefone_passageiro2, retorno_data, retorno_horario, retorno_origem, retorno_destino, numero_reserva, quantidade_passageiros, quantidade_bagagem')
         .eq('empresa_id', gestor.empresa_id)
         .order('data_hora', { ascending: false })
         .limit(300),
@@ -1364,6 +1366,12 @@ export default function AgendamentosPage() {
               </p>
               {corridaFicha.numero_voo && (
                 <p className="text-sm text-gray-600">✈️ Voo: {corridaFicha.numero_voo}</p>
+              )}
+              {!!corridaFicha.quantidade_passageiros && corridaFicha.quantidade_passageiros > 1 && (
+                <p className="text-sm text-gray-600">👥 {corridaFicha.quantidade_passageiros} passageiros</p>
+              )}
+              {!!corridaFicha.quantidade_bagagem && (
+                <p className="text-sm text-gray-600">🧳 {corridaFicha.quantidade_bagagem} {corridaFicha.quantidade_bagagem === 1 ? 'mala/volume' : 'malas/volumes'}</p>
               )}
               {corridaFicha.forma_pagamento && corridaFicha.forma_pagamento !== 'a_definir' && (
                 <p className="text-sm text-gray-600">💳 Pagamento: {{
