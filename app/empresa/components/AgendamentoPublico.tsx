@@ -725,8 +725,13 @@ export default function AgendamentoPublico({
             )}
 
             {/* Detalhes da viagem */}
-            <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-3">
-              <p className="text-sm font-semibold text-gray-700">Sua viagem</p>
+            <div className="rounded-2xl p-4 flex flex-col gap-3"
+              style={empresa.tipo_operacao !== 'rota_fixa'
+                ? { background: '#E6F1FB' }
+                : { background: '#fff', border: '1px solid #f3f4f6' }}>
+              <p className="text-sm font-semibold" style={{ color: empresa.tipo_operacao !== 'rota_fixa' ? '#0C447C' : '#374151' }}>
+                {empresa.tipo_operacao !== 'rota_fixa' ? '✈️ Ida' : 'Sua viagem'}
+              </p>
 
               <Campo label="Rota *">
                 {rotas.length === 0 ? (
@@ -1022,16 +1027,42 @@ export default function AgendamentoPublico({
 
             {/* Retorno (só transfer) */}
             {empresa.tipo_operacao !== 'rota_fixa' && (
-              <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-3">
-                <button type="button" onClick={() => setShowRetorno(v => !v)}
+              <div className="rounded-2xl p-4 flex flex-col gap-3"
+                style={showRetorno ? { background: '#EEEDFE' } : { background: '#fff', border: '1px solid #f3f4f6' }}>
+                <button type="button" onClick={() => setShowRetorno(v => {
+                  const novo = !v
+                  if (novo) {
+                    const origemIda = rotaManual ? origemManual : (rotaSelecionada?.origem || '')
+                    const destinoIda = rotaManual ? destinoManual : (rotaSelecionada?.destino || '')
+                    setRetornoOrigem(prev => prev || destinoIda)
+                    setRetornoDestino(prev => prev || origemIda)
+                    setRetornoData(prev => prev || form.data)
+                  }
+                  return novo
+                })}
                   className="flex items-center justify-between w-full">
-                  <span className="text-sm font-semibold text-gray-700">🔄 Quer agendar seu retorno?</span>
+                  <span className="text-sm font-semibold" style={{ color: showRetorno ? '#3C3489' : '#374151' }}>
+                    {showRetorno ? '🔁 Volta' : '🔄 Quer agendar seu retorno?'}
+                  </span>
                   <span className="text-sm font-semibold" style={{ color: cor }}>
                     {showRetorno ? '− Remover' : '+ Sim, quero'}
                   </span>
                 </button>
                 {showRetorno && (
                   <>
+                    <div className="flex justify-end -mt-2">
+                      <button type="button"
+                        onClick={() => {
+                          const origemIda = rotaManual ? origemManual : (rotaSelecionada?.origem || '')
+                          const destinoIda = rotaManual ? destinoManual : (rotaSelecionada?.destino || '')
+                          setRetornoOrigem(destinoIda)
+                          setRetornoDestino(origemIda)
+                        }}
+                        className="text-xs px-2 py-1 rounded-lg"
+                        style={{ border: '1px solid #AFA9EC', color: '#3C3489' }}>
+                        ↺ Inverter ida
+                      </button>
+                    </div>
                     <div className="grid grid-cols-2 gap-2">
                       <Campo label="Data do retorno">
                         <input type="date" value={retornoData} onChange={e => setRetornoData(e.target.value)}
