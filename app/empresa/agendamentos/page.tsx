@@ -1,14 +1,17 @@
 'use client'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 
 type Contadores = { passageirosHoje: number; corridasAgendadas: number }
 
 export default function AgendamentosHub() {
+  const router = useRouter()
   const [empresaNome, setEmpresaNome] = useState('')
   const [contadores, setContadores] = useState<Contadores>({ passageirosHoje: 0, corridasAgendadas: 0 })
   const [loading, setLoading] = useState(true)
+  const [redirecionando, setRedirecionando] = useState(false)
 
   useEffect(() => {
     (async () => {
@@ -17,13 +20,18 @@ export default function AgendamentosHub() {
 
       const { data: gestor } = await supabase
         .from('gestores')
-        .select('empresa_id, empresas(nome)')
+        .select('empresa_id, empresas(nome, tipo_operacao)')
         .eq('user_id', user.id)
         .maybeSingle()
 
       if (gestor?.empresas) {
         const empresa: any = Array.isArray(gestor.empresas) ? gestor.empresas[0] : gestor.empresas
         setEmpresaNome(empresa?.nome || '')
+        if (empresa?.tipo_operacao !== 'rota_fixa') {
+          setRedirecionando(true)
+          router.replace('/empresa/agendamentos/fretamentos')
+          return
+        }
       }
       if (!gestor?.empresa_id) { setLoading(false); return }
 
@@ -47,6 +55,10 @@ export default function AgendamentosHub() {
       setLoading(false)
     })()
   }, [])
+
+  if (redirecionando) {
+    return <div className="min-h-dvh" style={{ background: '#f0f0ec' }} />
+  }
 
   return (
     <div className="min-h-dvh pb-20" style={{ background: '#f0f0ec' }}>
