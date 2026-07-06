@@ -24,6 +24,13 @@ type Agendamento = {
   municipio?: string
   cep?: string
   referencia?: string
+  rua_desembarque?: string
+  numero_desembarque?: string
+  bairro_desembarque?: string
+  municipio_desembarque?: string
+  cep_desembarque?: string
+  referencia_desembarque?: string
+  quantidade_bagagem?: number | null
   ordem?: number | null
   _source?: 'corrida_empresa'
 }
@@ -664,7 +671,10 @@ function CardPassageiro({ p, onVerDetalhe, onGripTouchStart }: {
         <p className="text-sm font-semibold text-gray-800 truncate">{p.nome_passageiro}</p>
         <p className="text-xs text-gray-400">{p.parada_origem} → {p.parada_destino}</p>
         {p.telefone_passageiro && (
-          <p className="text-xs text-gray-400">{p.telefone_passageiro}</p>
+          <p className="text-xs text-gray-400">{p.telefone_passageiro}{!!p.quantidade_bagagem && ` · 🧳 ${p.quantidade_bagagem}`}</p>
+        )}
+        {!p.telefone_passageiro && !!p.quantidade_bagagem && (
+          <p className="text-xs text-gray-400">🧳 {p.quantidade_bagagem}</p>
         )}
       </div>
       <div className="text-right flex-shrink-0">
@@ -691,6 +701,7 @@ function DetalhePassageiro({ p, onVoltar, onAtualizar, horarioIda, horarioVolta 
     dinheiro: 'Dinheiro', pix: 'Pix', cartao: 'Cartão', pendente: 'A cobrar', fiado: 'Fiado'
   }
   const temEndereco = p.rua || p.numero || p.bairro || p.municipio || p.cep || p.referencia
+  const temEnderecoDesembarque = p.rua_desembarque || p.numero_desembarque || p.bairro_desembarque || p.municipio_desembarque || p.cep_desembarque || p.referencia_desembarque
   const [statusLocal, setStatusLocal] = useState(p.status)
 
   function abrirWhatsApp() {
@@ -705,6 +716,12 @@ function DetalhePassageiro({ p, onVoltar, onAtualizar, horarioIda, horarioVolta 
 
   function abrirMaps() {
     const partes = [p.rua, p.numero, p.bairro, p.municipio, p.cep].filter(Boolean)
+    if (!partes.length) return
+    window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(partes.join(', '))}`, '_blank')
+  }
+
+  function abrirMapsDesembarque() {
+    const partes = [p.rua_desembarque, p.numero_desembarque, p.bairro_desembarque, p.municipio_desembarque, p.cep_desembarque].filter(Boolean)
     if (!partes.length) return
     window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(partes.join(', '))}`, '_blank')
   }
@@ -768,6 +785,13 @@ function DetalhePassageiro({ p, onVoltar, onAtualizar, horarioIda, horarioVolta 
     municipio: p.municipio || '',
     cep: p.cep || '',
     referencia: p.referencia || '',
+    rua_desembarque: p.rua_desembarque || '',
+    numero_desembarque: p.numero_desembarque || '',
+    bairro_desembarque: p.bairro_desembarque || '',
+    municipio_desembarque: p.municipio_desembarque || '',
+    cep_desembarque: p.cep_desembarque || '',
+    referencia_desembarque: p.referencia_desembarque || '',
+    quantidade_bagagem: p.quantidade_bagagem || 0,
   })
   const [salvandoEdit, setSalvandoEdit] = useState(false)
 
@@ -798,6 +822,13 @@ function DetalhePassageiro({ p, onVoltar, onAtualizar, horarioIda, horarioVolta 
         municipio: formEdit.municipio || null,
         cep: formEdit.cep || null,
         referencia: formEdit.referencia || null,
+        rua_desembarque: formEdit.rua_desembarque || null,
+        numero_desembarque: formEdit.numero_desembarque || null,
+        bairro_desembarque: formEdit.bairro_desembarque || null,
+        municipio_desembarque: formEdit.municipio_desembarque || null,
+        cep_desembarque: formEdit.cep_desembarque || null,
+        referencia_desembarque: formEdit.referencia_desembarque || null,
+        quantidade_bagagem: formEdit.quantidade_bagagem || 0,
       }).eq('id', p.id)
     }
     setSalvandoEdit(false)
@@ -870,6 +901,12 @@ function DetalhePassageiro({ p, onVoltar, onAtualizar, horarioIda, horarioVolta 
                 {formaLabel[p.forma_pagamento || ''] || p.forma_pagamento || '—'}
               </span>
             </div>
+            {!!p.quantidade_bagagem && (
+              <div className="flex justify-between">
+                <span className="text-xs text-gray-400">Bagagem</span>
+                <span className="text-sm font-medium text-gray-800">🧳 {p.quantidade_bagagem}</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -889,6 +926,29 @@ function DetalhePassageiro({ p, onVoltar, onAtualizar, horarioIda, horarioVolta 
               )}
             </div>
             <button onClick={abrirMaps}
+              className="w-full py-2.5 rounded-xl text-sm font-medium border border-gray-200 flex items-center justify-center gap-2"
+              style={{ background: '#f0f0ec', color: '#185FA5' }}>
+              📍 Abrir no Google Maps
+            </button>
+          </div>
+        )}
+
+        {/* Endereço de desembarque */}
+        {temEnderecoDesembarque && (
+          <div className="bg-white rounded-2xl p-4 border border-gray-100">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">🏁 Endereço de desembarque</p>
+            <div className="flex flex-col gap-1 mb-3">
+              {(p.rua_desembarque || p.numero_desembarque) && (
+                <p className="text-sm text-gray-800">{[p.rua_desembarque, p.numero_desembarque].filter(Boolean).join(', ')}</p>
+              )}
+              {p.bairro_desembarque && <p className="text-sm text-gray-800">{p.bairro_desembarque}</p>}
+              {p.municipio_desembarque && <p className="text-sm text-gray-800">{p.municipio_desembarque}</p>}
+              {p.cep_desembarque && <p className="text-xs text-gray-400">CEP: {p.cep_desembarque}</p>}
+              {p.referencia_desembarque && (
+                <p className="text-xs text-gray-500 mt-1">📌 {p.referencia_desembarque}</p>
+              )}
+            </div>
+            <button onClick={abrirMapsDesembarque}
               className="w-full py-2.5 rounded-xl text-sm font-medium border border-gray-200 flex items-center justify-center gap-2"
               style={{ background: '#f0f0ec', color: '#185FA5' }}>
               📍 Abrir no Google Maps
@@ -1037,6 +1097,63 @@ function DetalhePassageiro({ p, onVoltar, onAtualizar, horarioIda, horarioVolta 
                 placeholder="Ex: Próximo ao mercado Boa Ideia"
                 className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600 bg-white" />
             </div>
+
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mt-1">🏁 Endereço de desembarque</p>
+            <div style={{ display: 'grid', gridTemplateColumns: '70% 30%', gap: '8px' }}>
+              <div>
+                <p className="text-xs font-medium text-gray-500 mb-1">Rua / Logradouro</p>
+                <input value={formEdit.rua_desembarque} onChange={e => setFormEdit(f => ({ ...f, rua_desembarque: e.target.value }))}
+                  placeholder="Ex: Av. Brasil"
+                  className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600 bg-white" />
+              </div>
+              <div>
+                <p className="text-xs font-medium text-gray-500 mb-1">Número</p>
+                <input value={formEdit.numero_desembarque} onChange={e => setFormEdit(f => ({ ...f, numero_desembarque: e.target.value }))}
+                  className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600 bg-white" />
+              </div>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-gray-500 mb-1">Bairro</p>
+              <input value={formEdit.bairro_desembarque} onChange={e => setFormEdit(f => ({ ...f, bairro_desembarque: e.target.value }))}
+                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600 bg-white" />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <p className="text-xs font-medium text-gray-500 mb-1">Município</p>
+                <input value={formEdit.municipio_desembarque} onChange={e => setFormEdit(f => ({ ...f, municipio_desembarque: e.target.value }))}
+                  className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600 bg-white" />
+              </div>
+              <div>
+                <p className="text-xs font-medium text-gray-500 mb-1">CEP</p>
+                <input value={formEdit.cep_desembarque} onChange={e => setFormEdit(f => ({ ...f, cep_desembarque: e.target.value }))}
+                  className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600 bg-white" />
+              </div>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-gray-500 mb-1">Ponto de referência</p>
+              <input value={formEdit.referencia_desembarque} onChange={e => setFormEdit(f => ({ ...f, referencia_desembarque: e.target.value }))}
+                placeholder="Ex: Em frente à padaria"
+                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600 bg-white" />
+            </div>
+
+            <div>
+              <p className="text-xs font-medium text-gray-500 mb-1">Quantidade de bagagem</p>
+              <div className="flex items-center gap-3">
+                <button onClick={() => setFormEdit(f => ({ ...f, quantidade_bagagem: Math.max(0, f.quantidade_bagagem - 1) }))}
+                  className="w-10 h-10 rounded-xl text-xl font-bold border border-gray-200 flex items-center justify-center"
+                  style={{ background: '#f0f0ec', color: '#0F6E56' }}>
+                  −
+                </button>
+                <div className="flex-1 text-center">
+                  <span className="text-xl font-bold text-gray-800">🧳 {formEdit.quantidade_bagagem}</span>
+                </div>
+                <button onClick={() => setFormEdit(f => ({ ...f, quantidade_bagagem: f.quantidade_bagagem + 1 }))}
+                  className="w-10 h-10 rounded-xl text-xl font-bold border border-gray-200 flex items-center justify-center"
+                  style={{ background: '#0F6E56', color: '#fff' }}>
+                  +
+                </button>
+              </div>
+            </div>
             <div className="h-20" />
           </div>
 
@@ -1078,6 +1195,7 @@ function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSa
     valor: '',
     forma_pagamento: 'dinheiro',
     quantidade: 0,
+    quantidade_bagagem: 0,
     rua: '',
     numero: '',
     bairro: '',
@@ -1305,6 +1423,7 @@ function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSa
       municipio_desembarque: form.municipio_desembarque || null,
       cep_desembarque: form.cep_desembarque || null,
       referencia_desembarque: form.referencia_desembarque || null,
+      quantidade_bagagem: form.quantidade_bagagem || 0,
     }))
     const { error } = await supabase.from('agendamentos').insert(registros)
     setSaving(false)
@@ -1435,6 +1554,25 @@ function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSa
           {!empresaCtx && !!form.rota_id && vagasDisponiveis === 0 && (
             <p className="text-xs text-red-500 mt-1 text-center">Turno completo ({vagasOcupadas}/{capacidade}) — nenhuma vaga disponível</p>
           )}
+        </Campo>
+
+        <Campo label="Quantidade de bagagem">
+          <div className="flex items-center gap-3">
+            <button onClick={() => setForm(f => ({ ...f, quantidade_bagagem: Math.max(0, f.quantidade_bagagem - 1) }))}
+              className="w-10 h-10 rounded-xl text-xl font-bold border border-gray-200 flex items-center justify-center"
+              style={{ background: '#f0f0ec', color: '#0F6E56' }}>
+              −
+            </button>
+            <div className="flex-1 text-center">
+              <span className="text-2xl font-bold text-gray-800">🧳 {form.quantidade_bagagem}</span>
+              <p className="text-xs text-gray-400">{form.quantidade_bagagem === 1 ? 'mala/volume' : 'malas/volumes'}</p>
+            </div>
+            <button onClick={() => setForm(f => ({ ...f, quantidade_bagagem: f.quantidade_bagagem + 1 }))}
+              className="w-10 h-10 rounded-xl text-xl font-bold border border-gray-200 flex items-center justify-center"
+              style={{ background: '#0F6E56', color: '#fff' }}>
+              +
+            </button>
+          </div>
         </Campo>
 
         <div className="grid grid-cols-2 gap-2">

@@ -72,6 +72,7 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
     municipio_desembarque: '',
     cep_desembarque: '',
     referencia_desembarque: '',
+    quantidade_bagagem: 0,
   })
   const [valorUnitario, setValorUnitario] = useState<number | null>(null)
   const [salvando, setSalvando] = useState(false)
@@ -287,6 +288,7 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
       municipio_desembarque: form.municipio_desembarque || null,
       cep_desembarque: form.cep_desembarque || null,
       referencia_desembarque: form.referencia_desembarque || null,
+      quantidade_bagagem: form.quantidade_bagagem || 0,
     }))
 
     const { data, error } = await supabase
@@ -534,6 +536,30 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
                         Máx. {vagasDisponiveis} vagas disponíveis
                       </p>
                     )}
+                  </Campo>
+
+                  {/* ── QUANTIDADE DE BAGAGEM ── */}
+                  <Campo label="Quantidade de bagagem">
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => setForm(f => ({ ...f, quantidade_bagagem: Math.max(0, f.quantidade_bagagem - 1) }))}
+                        className="w-10 h-10 rounded-xl text-xl font-bold border border-gray-200 flex items-center justify-center"
+                        style={{ background: '#f0f0ec', color: '#0F6E56' }}>
+                        −
+                      </button>
+                      <div className="flex-1 text-center">
+                        <span className="text-2xl font-bold text-gray-800">🧳 {form.quantidade_bagagem}</span>
+                        <p className="text-xs text-gray-400">
+                          {form.quantidade_bagagem === 1 ? 'mala/volume' : 'malas/volumes'}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setForm(f => ({ ...f, quantidade_bagagem: f.quantidade_bagagem + 1 }))}
+                        className="w-10 h-10 rounded-xl text-xl font-bold border border-gray-200 flex items-center justify-center"
+                        style={{ background: '#0F6E56', color: '#fff' }}>
+                        +
+                      </button>
+                    </div>
                   </Campo>
 
                   {/* ── VALOR ── */}
@@ -868,7 +894,7 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
 
             <button onClick={() => {
               setEtapa('form')
-              setForm({ nome: '', telefone: '', origem: '', destino: '', data: format(new Date(), 'yyyy-MM-dd'), turno: 'ida', quantidade: 1, forma_pagamento: 'dinheiro', rua: '', numero: '', bairro: '', municipio: '', cep: '', referencia: '', rua_desembarque: '', numero_desembarque: '', bairro_desembarque: '', municipio_desembarque: '', cep_desembarque: '', referencia_desembarque: '' })
+              setForm({ nome: '', telefone: '', origem: '', destino: '', data: format(new Date(), 'yyyy-MM-dd'), turno: 'ida', quantidade: 1, forma_pagamento: 'dinheiro', rua: '', numero: '', bairro: '', municipio: '', cep: '', referencia: '', rua_desembarque: '', numero_desembarque: '', bairro_desembarque: '', municipio_desembarque: '', cep_desembarque: '', referencia_desembarque: '', quantidade_bagagem: 0 })
               setValorUnitario(null)
               setErroMsg(null)
             }} className="w-full py-3 rounded-2xl text-sm font-medium border border-gray-200 bg-white text-gray-600">
