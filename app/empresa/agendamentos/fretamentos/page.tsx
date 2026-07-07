@@ -197,6 +197,12 @@ function tipoMeta(tipo: string | null): TipoMeta {
   return TIPO_META[tipo ?? ''] ?? { badge: tipo ?? 'Serviço', bg: '#F3F4F6', text: '#6B7280', clienteLabel: 'Cliente' }
 }
 
+function podeAbrirFichaTransfer(c: { tipo_servico: string | null; status: string }): boolean {
+  const ehTransfer = c.tipo_servico !== 'fretamento' && c.tipo_servico !== 'excursao' && c.tipo_servico !== 'city_tour'
+  if (ehTransfer) return true
+  return c.status === 'pendente' || c.status === 'confirmada' || c.status === 'em_andamento'
+}
+
 const STATUS_COR_AG: Record<string, { bg: string; text: string; label: string }> = {
   agendado:   { bg: '#EFF6FF', text: '#1D4ED8', label: 'Agendado' },
   confirmado: { bg: '#E1F5EE', text: '#0F6E56', label: 'Confirmado' },
@@ -1136,7 +1142,7 @@ export default function AgendamentosPage() {
                 const nomeMotorista = c.motoristas_empresa?.nome ?? null
                 const tm = tipoMeta(c.tipo_servico)
                 return (
-                  <div key={c.id} className="bg-white rounded-2xl p-4 border border-gray-100" onClick={() => (c.status === 'pendente' || c.status === 'confirmada' || c.status === 'em_andamento') ? abrirFicha(c) : undefined} style={{ cursor: (c.status === 'pendente' || c.status === 'confirmada' || c.status === 'em_andamento') ? 'pointer' : undefined }}>
+                  <div key={c.id} className="bg-white rounded-2xl p-4 border border-gray-100" onClick={() => podeAbrirFichaTransfer(c) ? abrirFicha(c) : undefined} style={{ cursor: podeAbrirFichaTransfer(c) ? 'pointer' : undefined }}>
                     <div className="flex items-start justify-between gap-2 mb-2">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
@@ -1217,7 +1223,7 @@ export default function AgendamentosPage() {
               const tmPar = tipoMeta(ida.tipo_servico)
 
               return (
-                <div key={`${ida.id}-${volta.id}`} className="bg-white rounded-2xl p-4 border border-gray-100" onClick={() => (ida.status === 'pendente' || ida.status === 'confirmada') ? abrirFicha(ida) : undefined} style={{ cursor: (ida.status === 'pendente' || ida.status === 'confirmada') ? 'pointer' : undefined }}>
+                <div key={`${ida.id}-${volta.id}`} className="bg-white rounded-2xl p-4 border border-gray-100" onClick={() => podeAbrirFichaTransfer(ida) ? abrirFicha(ida) : undefined} style={{ cursor: podeAbrirFichaTransfer(ida) ? 'pointer' : undefined }}>
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
@@ -1378,7 +1384,7 @@ export default function AgendamentosPage() {
 
       {/* Modal ficha de solicitação pendente (transfer) */}
       {modalFichaAberto && corridaFicha && (
-        <div className="fixed inset-0 z-50 flex flex-col" style={{ background: '#fff' }}>
+        <div className="fixed inset-0 z-[60] flex flex-col" style={{ background: '#fff' }}>
           <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-4 flex items-center gap-3 flex-shrink-0">
             <button onClick={() => setModalFichaAberto(false)} style={{ color: '#9FE1CB' }} className="text-2xl">‹</button>
             <div className="flex-1">
@@ -1388,41 +1394,43 @@ export default function AgendamentosPage() {
               style={{ background: STATUS_COR[corridaFicha.status]?.bg ?? '#FEF3C7', color: STATUS_COR[corridaFicha.status]?.text ?? '#92400E' }}>
               {STATUS_COR[corridaFicha.status]?.label ?? corridaFicha.status}
             </span>
-            {corridaFicha.tipo_servico !== 'fretamento' && corridaFicha.tipo_servico !== 'excursao' && corridaFicha.tipo_servico !== 'city_tour' && (
-              <>
-                <button
-                  onClick={() => {
-                    const c = corridaFicha
-                    setModalFichaAberto(false)
-                    abrirEditar(c)
-                  }}
-                  title="Editar"
-                  className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-                  style={{ background: 'rgba(255,255,255,0.15)' }}>
-                  <span style={{ fontSize: '15px' }}>✏️</span>
-                </button>
-                <button
-                  onClick={async () => {
-                    const id = corridaFicha.id
-                    if (!confirm('Tem certeza que deseja apagar este agendamento?')) return
-                    await supabase.from('corridas_empresa').delete().eq('id', id)
-                    setCorridas(prev => prev.filter(c => c.id !== id))
-                    setModalFichaAberto(false)
-                  }}
-                  title="Excluir"
-                  className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-                  style={{ background: 'rgba(255,255,255,0.15)' }}>
-                  <span style={{ fontSize: '15px' }}>🗑️</span>
-                </button>
-              </>
-            )}
           </div>
 
           <div className="flex-1 overflow-y-auto px-4 pt-4 pb-24 flex flex-col gap-3">
 
             {/* Viagem */}
             <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-2">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Viagem</p>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Viagem</p>
+                {corridaFicha.tipo_servico !== 'fretamento' && corridaFicha.tipo_servico !== 'excursao' && corridaFicha.tipo_servico !== 'city_tour' && (
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button
+                      onClick={() => {
+                        const c = corridaFicha
+                        setModalFichaAberto(false)
+                        abrirEditar(c)
+                      }}
+                      title="Editar"
+                      className="px-2.5 py-1 rounded-lg text-[10px] font-medium"
+                      style={{ background: '#E1F5EE', color: '#0F6E56' }}>
+                      ✏️
+                    </button>
+                    <button
+                      onClick={async () => {
+                        const id = corridaFicha.id
+                        if (!confirm('Tem certeza que deseja apagar este agendamento?')) return
+                        await supabase.from('corridas_empresa').delete().eq('id', id)
+                        setCorridas(prev => prev.filter(c => c.id !== id))
+                        setModalFichaAberto(false)
+                      }}
+                      title="Excluir"
+                      className="px-2.5 py-1 rounded-lg text-[10px] font-medium"
+                      style={{ background: '#FCEBEB', color: '#A32D2D' }}>
+                      🗑️
+                    </button>
+                  </div>
+                )}
+              </div>
               <p className="text-base font-bold text-gray-800">{corridaFicha.origem} → {corridaFicha.destino}</p>
               <p className="text-sm text-gray-600">
                 📅 {corridaFicha.data_hora.slice(8,10)}/{corridaFicha.data_hora.slice(5,7)}/{corridaFicha.data_hora.slice(0,4)} às {corridaFicha.data_hora.slice(11,16)}
