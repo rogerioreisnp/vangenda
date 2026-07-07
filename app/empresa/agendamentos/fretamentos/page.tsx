@@ -1388,7 +1388,7 @@ export default function AgendamentosPage() {
               style={{ background: STATUS_COR[corridaFicha.status]?.bg ?? '#FEF3C7', color: STATUS_COR[corridaFicha.status]?.text ?? '#92400E' }}>
               {STATUS_COR[corridaFicha.status]?.label ?? corridaFicha.status}
             </span>
-            {corridaFicha.tipo_servico === 'transfer' && (
+            {corridaFicha.tipo_servico !== 'fretamento' && corridaFicha.tipo_servico !== 'excursao' && corridaFicha.tipo_servico !== 'city_tour' && (
               <>
                 <button
                   onClick={() => {
