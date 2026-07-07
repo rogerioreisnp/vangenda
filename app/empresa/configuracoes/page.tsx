@@ -39,6 +39,16 @@ export default function ConfiguracoesEmpresaPage() {
   const [savedMsg, setSavedMsg] = useState(false)
   const [erro, setErro] = useState('')
 
+  const [linkCopiado, setLinkCopiado] = useState(false)
+
+  function copiarLinkPersonalizado() {
+    if (!empresa?.slug) return
+    const link = `${window.location.origin}/agendar/${empresa.slug}`
+    navigator.clipboard.writeText(link)
+    setLinkCopiado(true)
+    setTimeout(() => setLinkCopiado(false), 2000)
+  }
+  
   useEffect(() => { carregarDados() }, [])
 
   async function carregarDados() {
@@ -334,13 +344,23 @@ export default function ConfiguracoesEmpresaPage() {
               <p className="text-xs mt-2 leading-relaxed" style={{ color: '#6B7280' }}>
                 ℹ️ Esse é o endereço exclusivo do seu app. Seus clientes vão usar esse link para agendar corridas diretamente com sua empresa. Use um nome curto e fácil de lembrar. Exemplo: minha-empresa, turismo-express
               </p>
-              {empresa?.slug && (
-                <p className="text-xs mt-1.5" style={{ color: '#6B7280' }}>
-                  Seu link será:{' '}
-                  <span className="font-medium" style={{ color: '#0F6E56' }}>
-                    {window.location.origin}/agendar/{empresa.slug}
-                  </span>
-                </p>
+            {empresa?.slug && (
+                <div className="flex items-center justify-between gap-2 mt-1.5">
+                  <p className="text-xs" style={{ color: '#6B7280' }}>
+                    Seu link será:{' '}
+                    <span className="font-medium" style={{ color: '#0F6E56' }}>
+                      {window.location.origin}/agendar/{empresa.slug}
+                    </span>
+                  </p>
+                  <button
+                    type="button"
+                    onClick={copiarLinkPersonalizado}
+                    className="flex-shrink-0 px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap"
+                    style={{ background: linkCopiado ? '#E1F5EE' : '#0F6E56', color: linkCopiado ? '#0F6E56' : '#fff' }}
+                  >
+                    {linkCopiado ? '✓ Copiado!' : '📋 Copiar'}
+                  </button>
+                </div>
               )}
               {!empresa?.slug && (
                 <p className="text-xs mt-1.5" style={{ color: '#9ca3af' }}>
