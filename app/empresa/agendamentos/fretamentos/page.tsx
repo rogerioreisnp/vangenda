@@ -1388,6 +1388,34 @@ export default function AgendamentosPage() {
               style={{ background: STATUS_COR[corridaFicha.status]?.bg ?? '#FEF3C7', color: STATUS_COR[corridaFicha.status]?.text ?? '#92400E' }}>
               {STATUS_COR[corridaFicha.status]?.label ?? corridaFicha.status}
             </span>
+            {corridaFicha.tipo_servico === 'transfer' && (
+              <>
+                <button
+                  onClick={() => {
+                    const c = corridaFicha
+                    setModalFichaAberto(false)
+                    abrirEditar(c)
+                  }}
+                  title="Editar"
+                  className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                  style={{ background: 'rgba(255,255,255,0.15)' }}>
+                  <span style={{ fontSize: '15px' }}>✏️</span>
+                </button>
+                <button
+                  onClick={async () => {
+                    const id = corridaFicha.id
+                    if (!confirm('Tem certeza que deseja apagar este agendamento?')) return
+                    await supabase.from('corridas_empresa').delete().eq('id', id)
+                    setCorridas(prev => prev.filter(c => c.id !== id))
+                    setModalFichaAberto(false)
+                  }}
+                  title="Excluir"
+                  className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                  style={{ background: 'rgba(255,255,255,0.15)' }}>
+                  <span style={{ fontSize: '15px' }}>🗑️</span>
+                </button>
+              </>
+            )}
           </div>
 
           <div className="flex-1 overflow-y-auto px-4 pt-4 pb-24 flex flex-col gap-3">
