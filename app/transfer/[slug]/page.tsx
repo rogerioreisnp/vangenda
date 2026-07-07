@@ -266,14 +266,16 @@ export default function TransferSlugPage({ params }: { params: { slug: string } 
 
               {/* Valor da rota selecionada */}
               {rotaSelecionada && rotaSelecionada.preco > 0 && (
-                <div className="rounded-xl px-4 py-3 flex items-center justify-between"
-                  style={{ background: '#E1F5EE' }}>
-                  <span className="text-sm font-medium" style={{ color: '#085041' }}>Valor da corrida</span>
-                  <span className="text-xl font-bold" style={{ color: cor }}>
-                    R$ {Number(rotaSelecionada.preco).toFixed(2).replace('.', ',')}
-                  </span>
-                </div>
-              )}
+  <div className="rounded-xl px-4 py-3 flex items-center justify-between"
+    style={{ background: '#E1F5EE' }}>
+    <span className="text-sm font-medium" style={{ color: '#085041' }}>
+      {showRetorno ? 'Valor da corrida (ida e volta)' : 'Valor da corrida'}
+    </span>
+    <span className="text-xl font-bold" style={{ color: cor }}>
+      R$ {Number(rotaSelecionada.preco * (showRetorno ? 2 : 1)).toFixed(2).replace('.', ',')}
+    </span>
+  </div>
+)}
 
               <div className="grid grid-cols-2 gap-2">
                 <Campo label="Data *">
