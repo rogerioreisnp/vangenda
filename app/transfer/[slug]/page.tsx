@@ -148,7 +148,7 @@ export default function TransferSlugPage({ params }: { params: { slug: string } 
       retorno_origem: showRetorno && form.retorno_origem.trim() ? form.retorno_origem.trim() : null,
       retorno_destino: showRetorno && form.retorno_destino.trim() ? form.retorno_destino.trim() : null,
       tipo_servico: 'transfer',
-      valor: 0,
+      valor: rotaSelecionada?.preco || 0,
       status: 'pendente',
     })
 
