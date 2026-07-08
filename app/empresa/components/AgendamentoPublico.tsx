@@ -626,7 +626,7 @@ export default function AgendamentoPublico({
             {/* Passageiro 1 (só transfer) — quem efetivamente viaja, ficha própria e obrigatória */}
             {empresa.tipo_operacao !== 'rota_fixa' && (
               <div className="bg-white rounded-2xl p-4 border-2 flex flex-col gap-3" style={{ borderColor: cor + '55' }}>
-                <p className="text-sm font-semibold text-gray-700">🧍 Passageiro 1 <span className="text-xs font-normal text-gray-400">(quem viaja)</span></p>
+                <p className="text-sm font-semibold text-gray-700">🧍 Dados do Passageiro 1</p>
                 <Campo label="Nome completo *">
                   <input value={passageiro1Nome} onChange={e => setPassageiro1Nome(e.target.value)}
                     placeholder="Nome completo" className="campo-input" />
