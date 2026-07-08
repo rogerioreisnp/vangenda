@@ -80,6 +80,9 @@ const categoriasDespesa = [
   { value: 'combustivel', label: 'Combustível', emoji: '⛽' },
   { value: 'manutencao', label: 'Manutenção', emoji: '🔧' },
   { value: 'pedagio', label: 'Pedágio', emoji: '🛣️' },
+  { value: 'estacionamento', label: 'Estacionamento', emoji: '🅿️' },
+  { value: 'alimentacao', label: 'Alimentação', emoji: '🍽️' },
+  { value: 'hospedagem', label: 'Hospedagem/Hotel', emoji: '🏨' },
   { value: 'pneu', label: 'Pneu', emoji: '🔄' },
   { value: 'outros', label: 'Outros', emoji: '📦' },
 ]

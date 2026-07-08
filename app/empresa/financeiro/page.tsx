@@ -70,7 +70,9 @@ const CATEGORIAS = [
   { valor: 'ipva_licenciamento',label: 'IPVA/Licenciamento',  emoji: '📄' },
   { valor: 'lavagem',           label: 'Lavagem',             emoji: '🚿' },
   { valor: 'pedagio',           label: 'Pedágio',             emoji: '🛂' },
-  { valor: 'refeicao',          label: 'Refeição',            emoji: '🍽️' },
+  { valor: 'estacionamento',    label: 'Estacionamento',      emoji: '🅿️' },
+  { valor: 'alimentacao',       label: 'Alimentação',         emoji: '🍽️' },
+  { valor: 'hospedagem',        label: 'Hospedagem/Hotel',    emoji: '🏨' },
   { valor: 'multa',             label: 'Multa',               emoji: '⚠️' },
   { valor: 'outros',            label: 'Outros',              emoji: '📦' },
 ] as const
@@ -111,11 +113,14 @@ const categoriasReceitaRF = [
 ]
 
 const categoriasDespesaRF = [
-  { value: 'combustivel', label: 'Combustível', emoji: '⛽' },
-  { value: 'manutencao',  label: 'Manutenção',  emoji: '🔧' },
-  { value: 'pedagio',     label: 'Pedágio',     emoji: '🛣️' },
-  { value: 'pneu',        label: 'Pneu',        emoji: '🔄' },
-  { value: 'outros',      label: 'Outros',      emoji: '📦' },
+  { value: 'combustivel',   label: 'Combustível',      emoji: '⛽' },
+  { value: 'manutencao',    label: 'Manutenção',       emoji: '🔧' },
+  { value: 'pedagio',       label: 'Pedágio',          emoji: '🛣️' },
+  { value: 'estacionamento',label: 'Estacionamento',   emoji: '🅿️' },
+  { value: 'alimentacao',   label: 'Alimentação',      emoji: '🍽️' },
+  { value: 'hospedagem',    label: 'Hospedagem/Hotel', emoji: '🏨' },
+  { value: 'pneu',          label: 'Pneu',             emoji: '🔄' },
+  { value: 'outros',        label: 'Outros',           emoji: '📦' },
 ]
 
 export default function FinanceiroPage() {
