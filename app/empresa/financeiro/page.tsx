@@ -254,13 +254,15 @@ export default function FinanceiroPage() {
         .eq('status_pagamento', 'recebido')
         .gte('data_pagamento', inicio)
         .lte('data_pagamento', fim),
-      // A receber: saldo corrente, toda corrida já concluída e ainda não recebida
+      // A receber: saldo corrente, toda corrida já concluída e ainda não recebida.
+      // Mais antigas primeiro — prioriza cobrar quem está devendo há mais tempo.
       supabase
         .from('corridas_empresa')
         .select(selectCorrida)
         .eq('empresa_id', eid)
         .eq('status', 'concluida')
-        .neq('status_pagamento', 'recebido'),
+        .neq('status_pagamento', 'recebido')
+        .order('data_hora', { ascending: true }),
     ])
 
     setCorridas((corr as any) ?? [])
