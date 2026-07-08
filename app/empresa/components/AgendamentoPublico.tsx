@@ -600,219 +600,6 @@ export default function AgendamentoPublico({
               </Campo>
             </div>
 
-            {/* Forma de pagamento (só transfer) */}
-            {empresa.tipo_operacao !== 'rota_fixa' && (
-              <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-3">
-                <p className="text-sm font-semibold text-gray-700">Forma de pagamento</p>
-                <div className="grid grid-cols-3 gap-2">
-                  {([
-                    { value: 'cartao', label: '💳 Cartão' },
-                    { value: 'pix', label: '📱 Pix' },
-                    { value: 'faturado', label: '📄 Faturado' },
-                  ] as const).map(op => (
-                    <button key={op.value} type="button"
-                      onClick={() => setFormaPagamento(op.value)}
-                      className="py-2.5 rounded-xl text-sm font-medium border transition-all"
-                      style={formaPagamento === op.value
-                        ? { background: cor, color: '#fff', borderColor: cor }
-                        : { background: '#fff', color: '#555', borderColor: '#e5e7eb' }}>
-                      {op.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Passageiro 1 (só transfer) — quem efetivamente viaja, ficha própria e obrigatória */}
-            {empresa.tipo_operacao !== 'rota_fixa' && (
-              <div className="bg-white rounded-2xl p-4 border-2 flex flex-col gap-3" style={{ borderColor: cor + '55' }}>
-                <p className="text-sm font-semibold text-gray-700">🧍 Dados do Passageiro 1</p>
-                <Campo label="Nome completo *">
-                  <input value={passageiro1Nome} onChange={e => setPassageiro1Nome(e.target.value)}
-                    placeholder="Nome completo" className="campo-input" />
-                </Campo>
-                <Campo label="Telefone">
-                  <input value={passageiro1Telefone} onChange={e => setPassageiro1Telefone(e.target.value)}
-                    placeholder="(XX) XXXXX-XXXX" type="tel" className="campo-input" />
-                </Campo>
-                <Campo label="Número do voo">
-                  <input value={numeroVoo} onChange={e => setNumeroVoo(e.target.value)}
-                    placeholder="Ex: G3 1234 (opcional)" className="campo-input" />
-                </Campo>
-
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mt-1">📍 Endereço de embarque <span className="normal-case font-normal">(opcional)</span></p>
-                <div style={{ display: 'grid', gridTemplateColumns: '70% 30%', gap: '8px' }}>
-                  <Campo label="Rua / Logradouro">
-                    <input value={form.rua} onChange={e => setForm(f => ({ ...f, rua: e.target.value }))}
-                      placeholder="Ex: Rua das Flores" className="campo-input" />
-                  </Campo>
-                  <Campo label="Número">
-                    <input value={form.numero} onChange={e => setForm(f => ({ ...f, numero: e.target.value }))}
-                      placeholder="123" className="campo-input" />
-                  </Campo>
-                </div>
-                <Campo label="Bairro">
-                  <input value={form.bairro} onChange={e => setForm(f => ({ ...f, bairro: e.target.value }))}
-                    placeholder="Ex: Centro" className="campo-input" />
-                </Campo>
-                <div className="grid grid-cols-2 gap-2">
-                  <Campo label="Município">
-                    <input value={form.municipio} onChange={e => setForm(f => ({ ...f, municipio: e.target.value }))}
-                      placeholder="Ex: São Paulo" className="campo-input" />
-                  </Campo>
-                  <Campo label="CEP">
-                    <input value={form.cep} onChange={e => setForm(f => ({ ...f, cep: e.target.value }))}
-                      placeholder="00000-000" className="campo-input" />
-                  </Campo>
-                </div>
-                <Campo label="Ponto de referência">
-                  <input value={form.referencia} onChange={e => setForm(f => ({ ...f, referencia: e.target.value }))}
-                    placeholder="Ex: Próximo ao mercado Boa Ideia" className="campo-input" />
-                </Campo>
-
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mt-1">🏁 Endereço de desembarque <span className="normal-case font-normal">(opcional)</span></p>
-                <div style={{ display: 'grid', gridTemplateColumns: '70% 30%', gap: '8px' }}>
-                  <Campo label="Rua / Logradouro">
-                    <input value={form.rua_desembarque} onChange={e => setForm(f => ({ ...f, rua_desembarque: e.target.value }))}
-                      placeholder="Ex: Rua das Palmeiras" className="campo-input" />
-                  </Campo>
-                  <Campo label="Número">
-                    <input value={form.numero_desembarque} onChange={e => setForm(f => ({ ...f, numero_desembarque: e.target.value }))}
-                      placeholder="456" className="campo-input" />
-                  </Campo>
-                </div>
-                <Campo label="Bairro">
-                  <input value={form.bairro_desembarque} onChange={e => setForm(f => ({ ...f, bairro_desembarque: e.target.value }))}
-                    placeholder="Ex: Vila Nova" className="campo-input" />
-                </Campo>
-                <div className="grid grid-cols-2 gap-2">
-                  <Campo label="Município">
-                    <input value={form.municipio_desembarque} onChange={e => setForm(f => ({ ...f, municipio_desembarque: e.target.value }))}
-                      placeholder="Ex: São Paulo" className="campo-input" />
-                  </Campo>
-                  <Campo label="CEP">
-                    <input value={form.cep_desembarque} onChange={e => setForm(f => ({ ...f, cep_desembarque: e.target.value }))}
-                      placeholder="00000-000" className="campo-input" />
-                  </Campo>
-                </div>
-                <Campo label="Ponto de referência">
-                  <input value={form.referencia_desembarque} onChange={e => setForm(f => ({ ...f, referencia_desembarque: e.target.value }))}
-                    placeholder="Ex: Em frente à padaria" className="campo-input" />
-                </Campo>
-              </div>
-            )}
-
-            {/* Passageiro adicional (só transfer) — repetível, cada um com sua ficha */}
-            {empresa.tipo_operacao !== 'rota_fixa' && (
-              <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-3">
-                <div className="flex items-center justify-between w-full">
-                  <span className="text-sm font-semibold text-gray-700">👥 Passageiro adicional</span>
-                  <button type="button"
-                    onClick={() => setPassageirosExtras(prev => [...prev, { ...PASSAGEIRO_EXTRA_VAZIO }])}
-                    className="text-sm font-semibold" style={{ color: cor }}>
-                    + Adicionar passageiro
-                  </button>
-                </div>
-                {passageirosExtras.map((p, idx) => (
-                  <div key={idx} className="rounded-xl border border-gray-100 p-3 flex flex-col gap-2" style={{ background: '#f9f9f7' }}>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Passageiro {idx + 2}</span>
-                      <button type="button"
-                        onClick={() => setPassageirosExtras(prev => prev.filter((_, i) => i !== idx))}
-                        className="text-xs font-semibold text-red-500">
-                        − Remover
-                      </button>
-                    </div>
-                    <Campo label="Nome completo">
-                      <input value={p.nome}
-                        onChange={e => setPassageirosExtras(prev => prev.map((pp, i) => i === idx ? { ...pp, nome: e.target.value } : pp))}
-                        placeholder="Nome completo" className="campo-input" />
-                    </Campo>
-                    <Campo label="Telefone">
-                      <input value={p.telefone}
-                        onChange={e => setPassageirosExtras(prev => prev.map((pp, i) => i === idx ? { ...pp, telefone: e.target.value } : pp))}
-                        placeholder="(XX) XXXXX-XXXX" type="tel" className="campo-input" />
-                    </Campo>
-                    <Campo label="Número do voo">
-                      <input value={p.numero_voo}
-                        onChange={e => setPassageirosExtras(prev => prev.map((pp, i) => i === idx ? { ...pp, numero_voo: e.target.value } : pp))}
-                        placeholder="Ex: G3 1234 (opcional)" className="campo-input" />
-                    </Campo>
-                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mt-1">📍 Endereço de embarque</p>
-                    <div style={{ display: 'grid', gridTemplateColumns: '70% 30%', gap: '8px' }}>
-                      <Campo label="Rua / Logradouro">
-                        <input value={p.rua}
-                          onChange={e => setPassageirosExtras(prev => prev.map((pp, i) => i === idx ? { ...pp, rua: e.target.value } : pp))}
-                          placeholder="Ex: Rua das Flores" className="campo-input" />
-                      </Campo>
-                      <Campo label="Número">
-                        <input value={p.numero}
-                          onChange={e => setPassageirosExtras(prev => prev.map((pp, i) => i === idx ? { ...pp, numero: e.target.value } : pp))}
-                          placeholder="123" className="campo-input" />
-                      </Campo>
-                    </div>
-                    <Campo label="Bairro">
-                      <input value={p.bairro}
-                        onChange={e => setPassageirosExtras(prev => prev.map((pp, i) => i === idx ? { ...pp, bairro: e.target.value } : pp))}
-                        placeholder="Ex: Centro" className="campo-input" />
-                    </Campo>
-                    <div className="grid grid-cols-2 gap-2">
-                      <Campo label="Município">
-                        <input value={p.municipio}
-                          onChange={e => setPassageirosExtras(prev => prev.map((pp, i) => i === idx ? { ...pp, municipio: e.target.value } : pp))}
-                          placeholder="Ex: São Paulo" className="campo-input" />
-                      </Campo>
-                      <Campo label="CEP">
-                        <input value={p.cep}
-                          onChange={e => setPassageirosExtras(prev => prev.map((pp, i) => i === idx ? { ...pp, cep: e.target.value } : pp))}
-                          placeholder="00000-000" className="campo-input" />
-                      </Campo>
-                    </div>
-                    <Campo label="Ponto de referência">
-                      <input value={p.referencia}
-                        onChange={e => setPassageirosExtras(prev => prev.map((pp, i) => i === idx ? { ...pp, referencia: e.target.value } : pp))}
-                        placeholder="Ex: Próximo ao mercado Boa Ideia" className="campo-input" />
-                    </Campo>
-                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mt-1">🏁 Endereço de desembarque</p>
-                    <div style={{ display: 'grid', gridTemplateColumns: '70% 30%', gap: '8px' }}>
-                      <Campo label="Rua / Logradouro">
-                        <input value={p.rua_desembarque}
-                          onChange={e => setPassageirosExtras(prev => prev.map((pp, i) => i === idx ? { ...pp, rua_desembarque: e.target.value } : pp))}
-                          placeholder="Ex: Rua das Palmeiras" className="campo-input" />
-                      </Campo>
-                      <Campo label="Número">
-                        <input value={p.numero_desembarque}
-                          onChange={e => setPassageirosExtras(prev => prev.map((pp, i) => i === idx ? { ...pp, numero_desembarque: e.target.value } : pp))}
-                          placeholder="456" className="campo-input" />
-                      </Campo>
-                    </div>
-                    <Campo label="Bairro">
-                      <input value={p.bairro_desembarque}
-                        onChange={e => setPassageirosExtras(prev => prev.map((pp, i) => i === idx ? { ...pp, bairro_desembarque: e.target.value } : pp))}
-                        placeholder="Ex: Vila Nova" className="campo-input" />
-                    </Campo>
-                    <div className="grid grid-cols-2 gap-2">
-                      <Campo label="Município">
-                        <input value={p.municipio_desembarque}
-                          onChange={e => setPassageirosExtras(prev => prev.map((pp, i) => i === idx ? { ...pp, municipio_desembarque: e.target.value } : pp))}
-                          placeholder="Ex: São Paulo" className="campo-input" />
-                      </Campo>
-                      <Campo label="CEP">
-                        <input value={p.cep_desembarque}
-                          onChange={e => setPassageirosExtras(prev => prev.map((pp, i) => i === idx ? { ...pp, cep_desembarque: e.target.value } : pp))}
-                          placeholder="00000-000" className="campo-input" />
-                      </Campo>
-                    </div>
-                    <Campo label="Ponto de referência">
-                      <input value={p.referencia_desembarque}
-                        onChange={e => setPassageirosExtras(prev => prev.map((pp, i) => i === idx ? { ...pp, referencia_desembarque: e.target.value } : pp))}
-                        placeholder="Ex: Em frente à padaria" className="campo-input" />
-                    </Campo>
-                  </div>
-                ))}
-              </div>
-            )}
-
             {/* Detalhes da viagem */}
             <div className="rounded-2xl p-4 flex flex-col gap-3"
               style={empresa.tipo_operacao !== 'rota_fixa'
@@ -1027,6 +814,219 @@ export default function AgendamentoPublico({
                 />
               </Campo>
             </div>
+
+            {/* Forma de pagamento (só transfer) */}
+            {empresa.tipo_operacao !== 'rota_fixa' && (
+              <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-3">
+                <p className="text-sm font-semibold text-gray-700">Forma de pagamento</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {([
+                    { value: 'cartao', label: '💳 Cartão' },
+                    { value: 'pix', label: '📱 Pix' },
+                    { value: 'faturado', label: '📄 Faturado' },
+                  ] as const).map(op => (
+                    <button key={op.value} type="button"
+                      onClick={() => setFormaPagamento(op.value)}
+                      className="py-2.5 rounded-xl text-sm font-medium border transition-all"
+                      style={formaPagamento === op.value
+                        ? { background: cor, color: '#fff', borderColor: cor }
+                        : { background: '#fff', color: '#555', borderColor: '#e5e7eb' }}>
+                      {op.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Passageiro 1 (só transfer) — quem efetivamente viaja, ficha própria e obrigatória */}
+            {empresa.tipo_operacao !== 'rota_fixa' && (
+              <div className="bg-white rounded-2xl p-4 border-2 flex flex-col gap-3" style={{ borderColor: cor + '55' }}>
+                <p className="text-sm font-semibold text-gray-700">🧍 Dados do Passageiro 1</p>
+                <Campo label="Nome completo *">
+                  <input value={passageiro1Nome} onChange={e => setPassageiro1Nome(e.target.value)}
+                    placeholder="Nome completo" className="campo-input" />
+                </Campo>
+                <Campo label="Telefone">
+                  <input value={passageiro1Telefone} onChange={e => setPassageiro1Telefone(e.target.value)}
+                    placeholder="(XX) XXXXX-XXXX" type="tel" className="campo-input" />
+                </Campo>
+                <Campo label="Número do voo">
+                  <input value={numeroVoo} onChange={e => setNumeroVoo(e.target.value)}
+                    placeholder="Ex: G3 1234 (opcional)" className="campo-input" />
+                </Campo>
+
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mt-1">📍 Endereço de embarque <span className="normal-case font-normal">(opcional)</span></p>
+                <div style={{ display: 'grid', gridTemplateColumns: '70% 30%', gap: '8px' }}>
+                  <Campo label="Rua / Logradouro">
+                    <input value={form.rua} onChange={e => setForm(f => ({ ...f, rua: e.target.value }))}
+                      placeholder="Ex: Rua das Flores" className="campo-input" />
+                  </Campo>
+                  <Campo label="Número">
+                    <input value={form.numero} onChange={e => setForm(f => ({ ...f, numero: e.target.value }))}
+                      placeholder="123" className="campo-input" />
+                  </Campo>
+                </div>
+                <Campo label="Bairro">
+                  <input value={form.bairro} onChange={e => setForm(f => ({ ...f, bairro: e.target.value }))}
+                    placeholder="Ex: Centro" className="campo-input" />
+                </Campo>
+                <div className="grid grid-cols-2 gap-2">
+                  <Campo label="Município">
+                    <input value={form.municipio} onChange={e => setForm(f => ({ ...f, municipio: e.target.value }))}
+                      placeholder="Ex: São Paulo" className="campo-input" />
+                  </Campo>
+                  <Campo label="CEP">
+                    <input value={form.cep} onChange={e => setForm(f => ({ ...f, cep: e.target.value }))}
+                      placeholder="00000-000" className="campo-input" />
+                  </Campo>
+                </div>
+                <Campo label="Ponto de referência">
+                  <input value={form.referencia} onChange={e => setForm(f => ({ ...f, referencia: e.target.value }))}
+                    placeholder="Ex: Próximo ao mercado Boa Ideia" className="campo-input" />
+                </Campo>
+
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mt-1">🏁 Endereço de desembarque <span className="normal-case font-normal">(opcional)</span></p>
+                <div style={{ display: 'grid', gridTemplateColumns: '70% 30%', gap: '8px' }}>
+                  <Campo label="Rua / Logradouro">
+                    <input value={form.rua_desembarque} onChange={e => setForm(f => ({ ...f, rua_desembarque: e.target.value }))}
+                      placeholder="Ex: Rua das Palmeiras" className="campo-input" />
+                  </Campo>
+                  <Campo label="Número">
+                    <input value={form.numero_desembarque} onChange={e => setForm(f => ({ ...f, numero_desembarque: e.target.value }))}
+                      placeholder="456" className="campo-input" />
+                  </Campo>
+                </div>
+                <Campo label="Bairro">
+                  <input value={form.bairro_desembarque} onChange={e => setForm(f => ({ ...f, bairro_desembarque: e.target.value }))}
+                    placeholder="Ex: Vila Nova" className="campo-input" />
+                </Campo>
+                <div className="grid grid-cols-2 gap-2">
+                  <Campo label="Município">
+                    <input value={form.municipio_desembarque} onChange={e => setForm(f => ({ ...f, municipio_desembarque: e.target.value }))}
+                      placeholder="Ex: São Paulo" className="campo-input" />
+                  </Campo>
+                  <Campo label="CEP">
+                    <input value={form.cep_desembarque} onChange={e => setForm(f => ({ ...f, cep_desembarque: e.target.value }))}
+                      placeholder="00000-000" className="campo-input" />
+                  </Campo>
+                </div>
+                <Campo label="Ponto de referência">
+                  <input value={form.referencia_desembarque} onChange={e => setForm(f => ({ ...f, referencia_desembarque: e.target.value }))}
+                    placeholder="Ex: Em frente à padaria" className="campo-input" />
+                </Campo>
+              </div>
+            )}
+
+            {/* Passageiro adicional (só transfer) — repetível, cada um com sua ficha */}
+            {empresa.tipo_operacao !== 'rota_fixa' && (
+              <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-3">
+                <div className="flex items-center justify-between w-full">
+                  <span className="text-sm font-semibold text-gray-700">👥 Passageiro adicional</span>
+                  <button type="button"
+                    onClick={() => setPassageirosExtras(prev => [...prev, { ...PASSAGEIRO_EXTRA_VAZIO }])}
+                    className="text-sm font-semibold" style={{ color: cor }}>
+                    + Adicionar passageiro
+                  </button>
+                </div>
+                {passageirosExtras.map((p, idx) => (
+                  <div key={idx} className="rounded-xl border border-gray-100 p-3 flex flex-col gap-2" style={{ background: '#f9f9f7' }}>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Passageiro {idx + 2}</span>
+                      <button type="button"
+                        onClick={() => setPassageirosExtras(prev => prev.filter((_, i) => i !== idx))}
+                        className="text-xs font-semibold text-red-500">
+                        − Remover
+                      </button>
+                    </div>
+                    <Campo label="Nome completo">
+                      <input value={p.nome}
+                        onChange={e => setPassageirosExtras(prev => prev.map((pp, i) => i === idx ? { ...pp, nome: e.target.value } : pp))}
+                        placeholder="Nome completo" className="campo-input" />
+                    </Campo>
+                    <Campo label="Telefone">
+                      <input value={p.telefone}
+                        onChange={e => setPassageirosExtras(prev => prev.map((pp, i) => i === idx ? { ...pp, telefone: e.target.value } : pp))}
+                        placeholder="(XX) XXXXX-XXXX" type="tel" className="campo-input" />
+                    </Campo>
+                    <Campo label="Número do voo">
+                      <input value={p.numero_voo}
+                        onChange={e => setPassageirosExtras(prev => prev.map((pp, i) => i === idx ? { ...pp, numero_voo: e.target.value } : pp))}
+                        placeholder="Ex: G3 1234 (opcional)" className="campo-input" />
+                    </Campo>
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mt-1">📍 Endereço de embarque</p>
+                    <div style={{ display: 'grid', gridTemplateColumns: '70% 30%', gap: '8px' }}>
+                      <Campo label="Rua / Logradouro">
+                        <input value={p.rua}
+                          onChange={e => setPassageirosExtras(prev => prev.map((pp, i) => i === idx ? { ...pp, rua: e.target.value } : pp))}
+                          placeholder="Ex: Rua das Flores" className="campo-input" />
+                      </Campo>
+                      <Campo label="Número">
+                        <input value={p.numero}
+                          onChange={e => setPassageirosExtras(prev => prev.map((pp, i) => i === idx ? { ...pp, numero: e.target.value } : pp))}
+                          placeholder="123" className="campo-input" />
+                      </Campo>
+                    </div>
+                    <Campo label="Bairro">
+                      <input value={p.bairro}
+                        onChange={e => setPassageirosExtras(prev => prev.map((pp, i) => i === idx ? { ...pp, bairro: e.target.value } : pp))}
+                        placeholder="Ex: Centro" className="campo-input" />
+                    </Campo>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Campo label="Município">
+                        <input value={p.municipio}
+                          onChange={e => setPassageirosExtras(prev => prev.map((pp, i) => i === idx ? { ...pp, municipio: e.target.value } : pp))}
+                          placeholder="Ex: São Paulo" className="campo-input" />
+                      </Campo>
+                      <Campo label="CEP">
+                        <input value={p.cep}
+                          onChange={e => setPassageirosExtras(prev => prev.map((pp, i) => i === idx ? { ...pp, cep: e.target.value } : pp))}
+                          placeholder="00000-000" className="campo-input" />
+                      </Campo>
+                    </div>
+                    <Campo label="Ponto de referência">
+                      <input value={p.referencia}
+                        onChange={e => setPassageirosExtras(prev => prev.map((pp, i) => i === idx ? { ...pp, referencia: e.target.value } : pp))}
+                        placeholder="Ex: Próximo ao mercado Boa Ideia" className="campo-input" />
+                    </Campo>
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mt-1">🏁 Endereço de desembarque</p>
+                    <div style={{ display: 'grid', gridTemplateColumns: '70% 30%', gap: '8px' }}>
+                      <Campo label="Rua / Logradouro">
+                        <input value={p.rua_desembarque}
+                          onChange={e => setPassageirosExtras(prev => prev.map((pp, i) => i === idx ? { ...pp, rua_desembarque: e.target.value } : pp))}
+                          placeholder="Ex: Rua das Palmeiras" className="campo-input" />
+                      </Campo>
+                      <Campo label="Número">
+                        <input value={p.numero_desembarque}
+                          onChange={e => setPassageirosExtras(prev => prev.map((pp, i) => i === idx ? { ...pp, numero_desembarque: e.target.value } : pp))}
+                          placeholder="456" className="campo-input" />
+                      </Campo>
+                    </div>
+                    <Campo label="Bairro">
+                      <input value={p.bairro_desembarque}
+                        onChange={e => setPassageirosExtras(prev => prev.map((pp, i) => i === idx ? { ...pp, bairro_desembarque: e.target.value } : pp))}
+                        placeholder="Ex: Vila Nova" className="campo-input" />
+                    </Campo>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Campo label="Município">
+                        <input value={p.municipio_desembarque}
+                          onChange={e => setPassageirosExtras(prev => prev.map((pp, i) => i === idx ? { ...pp, municipio_desembarque: e.target.value } : pp))}
+                          placeholder="Ex: São Paulo" className="campo-input" />
+                      </Campo>
+                      <Campo label="CEP">
+                        <input value={p.cep_desembarque}
+                          onChange={e => setPassageirosExtras(prev => prev.map((pp, i) => i === idx ? { ...pp, cep_desembarque: e.target.value } : pp))}
+                          placeholder="00000-000" className="campo-input" />
+                      </Campo>
+                    </div>
+                    <Campo label="Ponto de referência">
+                      <input value={p.referencia_desembarque}
+                        onChange={e => setPassageirosExtras(prev => prev.map((pp, i) => i === idx ? { ...pp, referencia_desembarque: e.target.value } : pp))}
+                        placeholder="Ex: Em frente à padaria" className="campo-input" />
+                    </Campo>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Endereço detalhado embarque + desembarque (rota fixa) */}
             {empresa.tipo_operacao === 'rota_fixa' && (

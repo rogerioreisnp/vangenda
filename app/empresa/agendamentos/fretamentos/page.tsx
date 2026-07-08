@@ -1903,7 +1903,7 @@ export default function AgendamentosPage() {
             )}
 
             <div className="rounded-xl px-3 py-3" style={{ background: '#E6F1FB' }}>
-              <p className="text-xs font-semibold mb-2" style={{ color: '#0C447C' }}>✈️ Ida</p>
+              <p className="text-xs font-semibold mb-2" style={{ color: '#0C447C' }}>🚗 Ida</p>
 
               <Campo label="Origem *">
                 <input
