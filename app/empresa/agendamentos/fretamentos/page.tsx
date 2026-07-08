@@ -1180,6 +1180,15 @@ export default function AgendamentosPage() {
                 const cor = STATUS_COR[c.status] ?? STATUS_COR.confirmada
                 const nomeMotorista = c.motoristas_empresa?.nome ?? null
                 const tm = tipoMeta(c.tipo_servico)
+                // Detecta ida-e-volta feito pelo LINK PUBLICO — nao gera 2 linhas
+                // separadas (que agruparPares detectaria), so preenche retorno_*
+                // na propria corrida. Precisamos mostrar os 2 trechos e as 2 datas
+                // no card, igual fazemos pro caso do gestor.
+                const temVolta = !!c.retorno_data
+                const dataIda = `${c.data_hora.slice(8, 10)}/${c.data_hora.slice(5, 7)}/${c.data_hora.slice(0, 4)}`
+                const horaIda = c.data_hora.slice(11, 16)
+                const dataVolta = c.retorno_data ? `${c.retorno_data.slice(8, 10)}/${c.retorno_data.slice(5, 7)}/${c.retorno_data.slice(0, 4)}` : null
+                const horaVolta = c.retorno_horario ? c.retorno_horario.slice(0, 5) : null
                 return (
                   <div key={c.id} className="bg-white rounded-2xl p-4 border border-gray-100" onClick={() => podeAbrirFichaTransfer(c) ? abrirFicha(c) : undefined} style={{ cursor: podeAbrirFichaTransfer(c) ? 'pointer' : undefined }}>
                     <div className="flex items-start justify-between gap-2 mb-2">
@@ -1189,13 +1198,36 @@ export default function AgendamentosPage() {
                             style={{ background: tm.bg, color: tm.text }}>
                             {tm.badge}
                           </span>
+                          {temVolta && (
+                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
+                              style={{ background: '#E1F5EE', color: '#0F6E56' }}>
+                              ↔ Ida e volta
+                            </span>
+                          )}
                         </div>
-                        <p className="text-sm font-semibold text-gray-800 truncate">
-                          {c.origem} → {c.destino}
-                        </p>
-                        <p className="text-xs text-gray-400 mt-0.5">
-                          {c.data_hora.slice(8, 10)}/{c.data_hora.slice(5, 7)}/{c.data_hora.slice(0, 4)} às {c.data_hora.slice(11, 16)}
-                        </p>
+                        {temVolta ? (
+                          <>
+                            <p className="text-sm font-semibold text-gray-800 truncate">
+                              ↗ {c.origem} → {c.destino}
+                            </p>
+                            <p className="text-sm font-semibold text-gray-800 truncate">
+                              ↙ {c.retorno_origem || c.destino} → {c.retorno_destino || c.origem}
+                            </p>
+                            <p className="text-xs text-gray-400 mt-0.5">
+                              Ida {dataIda} {horaIda}
+                              {horaVolta && ` · Volta ${dataVolta} ${horaVolta}`}
+                            </p>
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-sm font-semibold text-gray-800 truncate">
+                              {c.origem} → {c.destino}
+                            </p>
+                            <p className="text-xs text-gray-400 mt-0.5">
+                              {dataIda} às {horaIda}
+                            </p>
+                          </>
+                        )}
                       </div>
                       <span className="text-[10px] font-semibold px-2 py-1 rounded-full flex-shrink-0"
                         style={{ background: cor.bg, color: cor.text }}>
@@ -1281,9 +1313,19 @@ export default function AgendamentosPage() {
                       <p className="text-sm font-semibold text-gray-800 truncate">
                         ↙ {volta.origem} → {volta.destino}
                       </p>
-                      <p className="text-xs text-gray-400 mt-0.5">
-                        Ida {ida.data_hora.slice(11, 16)} · Volta {volta.data_hora.slice(11, 16)} · {ida.data_hora.slice(8, 10)}/{ida.data_hora.slice(5, 7)}/{ida.data_hora.slice(0, 4)}
-                      </p>
+                      {(() => {
+                        const dataIda = `${ida.data_hora.slice(8, 10)}/${ida.data_hora.slice(5, 7)}/${ida.data_hora.slice(0, 4)}`
+                        const dataVolta = `${volta.data_hora.slice(8, 10)}/${volta.data_hora.slice(5, 7)}/${volta.data_hora.slice(0, 4)}`
+                        const horaIda = ida.data_hora.slice(11, 16)
+                        const horaVolta = volta.data_hora.slice(11, 16)
+                        return (
+                          <p className="text-xs text-gray-400 mt-0.5">
+                            {dataIda === dataVolta
+                              ? `Ida ${horaIda} · Volta ${horaVolta} · ${dataIda}`
+                              : `Ida ${dataIda} ${horaIda} · Volta ${dataVolta} ${horaVolta}`}
+                          </p>
+                        )
+                      })()}
                     </div>
                     <span className="text-[10px] font-semibold px-2 py-1 rounded-full flex-shrink-0"
                       style={{ background: cor.bg, color: cor.text }}>
