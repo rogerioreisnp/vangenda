@@ -15,6 +15,10 @@ type ProximaCorrida = {
   status: string
   cliente_nome: string
   motoristas_empresa: { nome: string } | null
+  retorno_data: string | null
+  retorno_horario: string | null
+  retorno_origem: string | null
+  retorno_destino: string | null
 }
 
 type ProximaAgrupada =
@@ -223,7 +227,7 @@ export default function EmpresaPage() {
       supabase.from('corridas_empresa').select('id').eq('empresa_id', eid)
         .is('motorista_id', null).eq('status', 'confirmada').gte('data_hora', agoraISO),
       supabase.from('corridas_empresa')
-        .select('id, origem, destino, data_hora, created_at, valor, status, cliente_nome, motoristas_empresa(nome)')
+        .select('id, origem, destino, data_hora, created_at, valor, status, cliente_nome, motoristas_empresa(nome), retorno_data, retorno_horario, retorno_origem, retorno_destino')
         .eq('empresa_id', eid).gte('data_hora', agoraISO)
         .order('data_hora').limit(5),
       supabase.from('despesas_empresa').select('valor').eq('empresa_id', eid).eq('tipo', 'receita')
@@ -444,17 +448,41 @@ export default function EmpresaPage() {
                   const c = grupo.corrida
                   const cor = STATUS_COR[c.status] ?? STATUS_COR.confirmada
                   const motoristaNome = (c.motoristas_empresa as any)?.nome ?? null
+                  // Ida-e-volta feito pelo link público não gera 2 linhas separadas
+                  // (que agruparProximas detectaria) — só preenche retorno_* na
+                  // própria corrida. Mostra os 2 trechos e as 2 datas, igual no
+                  // caso do par criado manualmente pelo gestor.
+                  const temVolta = !!c.retorno_data
+                  const horaIda = c.data_hora.slice(11, 16)
+                  const dataVolta = c.retorno_data ? `${c.retorno_data.slice(8, 10)}/${c.retorno_data.slice(5, 7)}` : null
+                  const horaVolta = c.retorno_horario ? c.retorno_horario.slice(0, 5) : null
                   return (
                     <Link key={c.id} href={`/empresa/agendamentos/fretamentos?ficha=${c.id}`}
                       className="block bg-white rounded-2xl px-4 py-3 border border-gray-100"
                       style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.04)', borderColor: c.status === 'pendente' ? '#FCD34D' : undefined }}>
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-gray-800 truncate">
-                            {c.origem} → {c.destino}
-                          </p>
+                          {temVolta && (
+                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full inline-block mb-0.5"
+                              style={{ background: '#E1F5EE', color: '#0F6E56' }}>
+                              ↔ Ida e volta
+                            </span>
+                          )}
+                          {temVolta ? (
+                            <>
+                              <p className="text-sm font-semibold text-gray-800 truncate">↗ {c.origem} → {c.destino}</p>
+                              <p className="text-sm font-semibold text-gray-800 truncate">↙ {c.retorno_origem || c.destino} → {c.retorno_destino || c.origem}</p>
+                            </>
+                          ) : (
+                            <p className="text-sm font-semibold text-gray-800 truncate">
+                              {c.origem} → {c.destino}
+                            </p>
+                          )}
                           <p className="text-xs text-gray-400 mt-0.5">
-                            {c.data_hora.slice(8, 10)}/{c.data_hora.slice(5, 7)} às {c.data_hora.slice(11, 16)}
+                            {temVolta
+                              ? <>Ida {c.data_hora.slice(8, 10)}/{c.data_hora.slice(5, 7)} {horaIda}{horaVolta && ` · Volta ${dataVolta} ${horaVolta}`}</>
+                              : <>{c.data_hora.slice(8, 10)}/{c.data_hora.slice(5, 7)} às {horaIda}</>
+                            }
                             {motoristaNome
                               ? <> · <span className="text-gray-500">{motoristaNome}</span></>
                               : <> · <span style={{ color: '#A32D2D' }}>Sem motorista</span></>
