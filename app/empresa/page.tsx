@@ -494,9 +494,11 @@ export default function EmpresaPage() {
                             style={{ background: cor.bg, color: cor.text }}>
                             {cor.label}
                           </span>
-                          <p className="text-xs font-bold" style={{ color: '#0F6E56' }}>
-                            R$ {Number(c.valor).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                          </p>
+                          {Number(c.valor) > 0 && (
+                            <p className="text-xs font-bold" style={{ color: '#0F6E56' }}>
+                              R$ {Number(c.valor).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                            </p>
+                          )}
                         </div>
                       </div>
                     </Link>
@@ -534,9 +536,11 @@ export default function EmpresaPage() {
                           style={{ background: cor.bg, color: cor.text }}>
                           {cor.label}
                         </span>
-                        <p className="text-xs font-bold" style={{ color: '#0F6E56' }}>
-                          R$ {valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                        </p>
+                        {valorTotal > 0 && (
+                          <p className="text-xs font-bold" style={{ color: '#0F6E56' }}>
+                            R$ {valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>
