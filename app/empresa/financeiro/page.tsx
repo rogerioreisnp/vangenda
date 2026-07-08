@@ -67,6 +67,7 @@ const CATEGORIAS = [
   { valor: 'ipva_licenciamento',label: 'IPVA/Licenciamento',  emoji: '📄' },
   { valor: 'lavagem',           label: 'Lavagem',             emoji: '🚿' },
   { valor: 'pedagio',           label: 'Pedágio',             emoji: '🛂' },
+  { valor: 'refeicao',          label: 'Refeição',            emoji: '🍽️' },
   { valor: 'multa',             label: 'Multa',               emoji: '⚠️' },
   { valor: 'outros',            label: 'Outros',              emoji: '📦' },
 ] as const
