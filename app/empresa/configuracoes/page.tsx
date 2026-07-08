@@ -410,8 +410,8 @@ export default function ConfiguracoesEmpresaPage() {
                 ℹ️ Esse é o endereço exclusivo do seu app. Seus clientes vão usar esse link para agendar corridas diretamente com sua empresa. Use um nome curto e fácil de lembrar. Exemplo: minha-empresa, turismo-express
               </p>
             {empresa?.slug && (
-                <div className="flex items-center justify-between gap-2 mt-1.5">
-                  <p className="text-xs" style={{ color: '#6B7280' }}>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mt-1.5">
+                  <p className="text-xs break-all" style={{ color: '#6B7280' }}>
                     Seu link será:{' '}
                     <span className="font-medium" style={{ color: '#0F6E56' }}>
                       {window.location.origin}/agendar/{empresa.slug}
@@ -420,7 +420,7 @@ export default function ConfiguracoesEmpresaPage() {
                   <button
                     type="button"
                     onClick={copiarLinkPersonalizado}
-                    className="flex-shrink-0 px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap"
+                    className="flex-shrink-0 self-start sm:self-auto px-2.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap"
                     style={{ background: linkCopiado ? '#E1F5EE' : '#0F6E56', color: linkCopiado ? '#0F6E56' : '#fff' }}
                   >
                     {linkCopiado ? '✓ Copiado!' : '📋 Copiar'}
