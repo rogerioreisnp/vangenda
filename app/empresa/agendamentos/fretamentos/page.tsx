@@ -43,6 +43,8 @@ type Corrida = {
   forma_pagamento: string | null
   status_pagamento: string | null
   valor_recebido: number | null
+  data_pagamento: string | null
+  data_prevista_pagamento: string | null
   observacoes: string | null
   motoristas_empresa: { nome: string } | null
   numero_voo: string | null
@@ -131,6 +133,8 @@ type FormCorrida = {
   forma_pagamento: string
   status_pagamento: string
   valor_recebido: string
+  data_pagamento: string
+  data_prevista_pagamento: string
   preco: string
   observacoes: string
 }
@@ -163,6 +167,8 @@ const FORM_VAZIO: FormCorrida = {
   forma_pagamento: 'a_definir',
   status_pagamento: 'a_receber',
   valor_recebido: '',
+  data_pagamento: '',
+  data_prevista_pagamento: '',
   preco: '',
   observacoes: '',
 }
@@ -409,7 +415,7 @@ export default function AgendamentosPage() {
         .order('nome'),
       supabase
         .from('corridas_empresa')
-        .select('id, rota_id, origem, destino, data_hora, created_at, cliente_nome, cliente_telefone, email_solicitante, passageiro1_nome, passageiro1_telefone, valor, status, motorista_id, tipo_servico, forma_pagamento, status_pagamento, valor_recebido, observacoes, motoristas_empresa(nome), numero_voo, nome_passageiro2, telefone_passageiro2, retorno_data, retorno_horario, retorno_origem, retorno_destino, numero_reserva, quantidade_bagagem, passageiros_adicionais, rua, numero, bairro, municipio, cep, referencia, rua_desembarque, numero_desembarque, bairro_desembarque, municipio_desembarque, cep_desembarque, referencia_desembarque')
+        .select('id, rota_id, origem, destino, data_hora, created_at, cliente_nome, cliente_telefone, email_solicitante, passageiro1_nome, passageiro1_telefone, valor, status, motorista_id, tipo_servico, forma_pagamento, status_pagamento, valor_recebido, data_pagamento, data_prevista_pagamento, observacoes, motoristas_empresa(nome), numero_voo, nome_passageiro2, telefone_passageiro2, retorno_data, retorno_horario, retorno_origem, retorno_destino, numero_reserva, quantidade_bagagem, passageiros_adicionais, rua, numero, bairro, municipio, cep, referencia, rua_desembarque, numero_desembarque, bairro_desembarque, municipio_desembarque, cep_desembarque, referencia_desembarque')
         .eq('empresa_id', gestor.empresa_id)
         .order('data_hora', { ascending: false })
         .limit(300),
@@ -489,6 +495,8 @@ export default function AgendamentosPage() {
       forma_pagamento: c.forma_pagamento || 'a_definir',
       status_pagamento: c.status_pagamento || (c.status === 'concluida' ? 'recebido' : 'a_receber'),
       valor_recebido: c.valor_recebido != null ? String(c.valor_recebido) : '',
+      data_pagamento: c.data_pagamento || '',
+      data_prevista_pagamento: c.data_prevista_pagamento || '',
       preco: String(c.valor),
       observacoes: c.observacoes || '',
     })
@@ -543,6 +551,11 @@ export default function AgendamentosPage() {
       ? (parseFloat(form.valor_recebido) || 0)
       : 0
 
+    const hojeStr = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` })()
+    const dataPagamento = form.status_pagamento === 'recebido'
+      ? (form.data_pagamento || hojeStr)
+      : null
+
     const camposComuns = {
       motorista_id: form.motorista_id || null,
       rota_id: form.rota_id && form.rota_id !== 'manual' ? form.rota_id : null,
@@ -581,6 +594,8 @@ export default function AgendamentosPage() {
       forma_pagamento: form.forma_pagamento,
       status_pagamento: form.status_pagamento,
       valor_recebido: valorRecebido,
+      data_pagamento: dataPagamento,
+      data_prevista_pagamento: form.data_prevista_pagamento || null,
       observacoes: form.observacoes.trim() || null,
     }
 
@@ -1606,6 +1621,16 @@ export default function AgendamentosPage() {
                   R$ {Number(corridaFicha.valor).toFixed(2).replace('.', ',')}
                 </p>
               )}
+              {corridaFicha.status_pagamento === 'recebido' && corridaFicha.data_pagamento && (
+                <p className="text-xs mt-1" style={{ color: '#0F6E56' }}>
+                  ✅ Recebido em {corridaFicha.data_pagamento.slice(8,10)}/{corridaFicha.data_pagamento.slice(5,7)}/{corridaFicha.data_pagamento.slice(0,4)}
+                </p>
+              )}
+              {corridaFicha.status_pagamento !== 'recebido' && corridaFicha.data_prevista_pagamento && (
+                <p className="text-xs mt-1 text-gray-500">
+                  🕐 Previsão de recebimento: {corridaFicha.data_prevista_pagamento.slice(8,10)}/{corridaFicha.data_prevista_pagamento.slice(5,7)}/{corridaFicha.data_prevista_pagamento.slice(0,4)}
+                </p>
+              )}
             </div>
 
             {/* Volta (quando o agendamento foi feito como ida-e-volta) */}
@@ -2244,12 +2269,28 @@ export default function AgendamentosPage() {
                 <option value="pix">Pix</option>
                 <option value="dinheiro">Dinheiro</option>
                 <option value="cartao">Cartão</option>
+                <option value="faturado">Faturado</option>
               </select>
             </Campo>
 
+            {form.forma_pagamento === 'faturado' && (
+              <Campo label="Previsão de recebimento (opcional)">
+                <input type="date" value={form.data_prevista_pagamento}
+                  onChange={e => setForm(f => ({ ...f, data_prevista_pagamento: e.target.value }))}
+                  className="campo-input" />
+              </Campo>
+            )}
+
             <Campo label="Status do pagamento">
               <select value={form.status_pagamento}
-                onChange={e => setForm(f => ({ ...f, status_pagamento: e.target.value, valor_recebido: '' }))}
+                onChange={e => setForm(f => ({
+                  ...f,
+                  status_pagamento: e.target.value,
+                  valor_recebido: '',
+                  data_pagamento: e.target.value === 'recebido' && !f.data_pagamento
+                    ? (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` })()
+                    : f.data_pagamento,
+                }))}
                 className="campo-input">
                 <option value="a_receber">A receber</option>
                 <option value="parcial">Recebido parcialmente</option>
@@ -2263,6 +2304,14 @@ export default function AgendamentosPage() {
                   value={form.valor_recebido}
                   onChange={e => setForm(f => ({ ...f, valor_recebido: e.target.value }))}
                   placeholder="0,00" className="campo-input" />
+              </Campo>
+            )}
+
+            {form.status_pagamento === 'recebido' && (
+              <Campo label="Data do recebimento">
+                <input type="date" value={form.data_pagamento}
+                  onChange={e => setForm(f => ({ ...f, data_pagamento: e.target.value }))}
+                  className="campo-input" />
               </Campo>
             )}
 

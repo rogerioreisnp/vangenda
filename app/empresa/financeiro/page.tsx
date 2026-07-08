@@ -18,6 +18,8 @@ type CorridaFin = {
   cliente_nome: string
   motorista_id: string | null
   valor_recebido: number | null
+  status_pagamento: string | null
+  data_pagamento: string | null
   motoristas_empresa: { nome: string; veiculo: string | null; placa: string | null } | null
 }
 
@@ -137,6 +139,8 @@ export default function FinanceiroPage() {
   const [periodo, setPeriodo]       = useState<Periodo>('mes_atual')
   const [aba, setAba]               = useState<Aba>('resumo')
   const [corridas, setCorridas]     = useState<CorridaFin[]>([])
+  const [corridasRecebidasPeriodo, setCorridasRecebidasPeriodo] = useState<CorridaFin[]>([])
+  const [corridasAReceberTotal, setCorridasAReceberTotal] = useState<CorridaFin[]>([])
   const [despesas, setDespesas]     = useState<Despesa[]>([])
   const [receitasManuais, setReceitasManuais] = useState<Despesa[]>([])
   const [veiculoExpandido, setVeiculoExpandido] = useState<string | null>(null)
@@ -199,18 +203,32 @@ export default function FinanceiroPage() {
   async function carregar(eid: string) {
     setLoading(true)
 
+    const agoraISO = new Date().toISOString()
+    const hojeStr = format(new Date(), 'yyyy-MM-dd')
+
+    // Corridas confirmadas cuja viagem já passou viram "concluída". Pix/dinheiro/
+    // cartão já são pagos na hora, então já entram como recebidas. Faturado/a
+    // definir ficam concluídas mas continuam "a receber" até confirmação manual.
+    await supabase.from('corridas_empresa')
+      .update({ status: 'concluida', status_pagamento: 'recebido', data_pagamento: hojeStr })
+      .eq('empresa_id', eid)
+      .eq('status', 'confirmada')
+      .in('forma_pagamento', ['pix', 'dinheiro', 'cartao'])
+      .lt('data_hora', agoraISO)
     await supabase.from('corridas_empresa')
       .update({ status: 'concluida' })
       .eq('empresa_id', eid)
       .eq('status', 'confirmada')
-      .lt('data_hora', new Date().toISOString())
+      .lt('data_hora', agoraISO)
 
     const { inicio, fim } = intervalo()
+    const selectCorrida = 'id, origem, destino, data_hora, valor, status, cliente_nome, motorista_id, valor_recebido, status_pagamento, data_pagamento, motoristas_empresa(nome, veiculo, placa)'
 
-    const [{ data: corr }, { data: desp }] = await Promise.all([
+    const [{ data: corr }, { data: desp }, { data: recebidas }, { data: aReceber }] = await Promise.all([
+      // Corridas concluídas no período (atividade/operação, não é a conta de receita)
       supabase
         .from('corridas_empresa')
-        .select('id, origem, destino, data_hora, valor, status, cliente_nome, motorista_id, valor_recebido, motoristas_empresa(nome, veiculo, placa)')
+        .select(selectCorrida)
         .eq('empresa_id', eid)
         .gte('data_hora', `${inicio}T00:00:00`)
         .lte('data_hora', `${fim}T23:59:59`)
@@ -222,9 +240,27 @@ export default function FinanceiroPage() {
         .gte('data', inicio)
         .lte('data', fim)
         .order('data', { ascending: false }),
+      // Receita do período: só o que foi de fato recebido nesse período (data do
+      // recebimento, não da viagem) — faturado só entra aqui quando confirmado pago.
+      supabase
+        .from('corridas_empresa')
+        .select(selectCorrida)
+        .eq('empresa_id', eid)
+        .eq('status_pagamento', 'recebido')
+        .gte('data_pagamento', inicio)
+        .lte('data_pagamento', fim),
+      // A receber: saldo corrente, toda corrida já concluída e ainda não recebida
+      supabase
+        .from('corridas_empresa')
+        .select(selectCorrida)
+        .eq('empresa_id', eid)
+        .eq('status', 'concluida')
+        .neq('status_pagamento', 'recebido'),
     ])
 
     setCorridas((corr as any) ?? [])
+    setCorridasRecebidasPeriodo((recebidas as any) ?? [])
+    setCorridasAReceberTotal((aReceber as any) ?? [])
     const todosLancamentos = (desp as Despesa[]) ?? []
     setDespesas(todosLancamentos.filter(d => d.tipo !== 'receita'))
     setReceitasManuais(todosLancamentos.filter(d => d.tipo === 'receita'))
@@ -300,12 +336,15 @@ export default function FinanceiroPage() {
   }
 
   /* ── Cálculos ── */
+  // Corridas concluídas no período: só pra mostrar atividade (quantas rodaram),
+  // não é usada pra receita — a receita depende de quando foi RECEBIDA, não da viagem.
   const corridasConcluidas = corridas.filter(c => c.status === 'concluida')
-  const corridasAReceber   = corridas.filter(c => c.status === 'confirmada')
-  const totalRecCorridas = corridasConcluidas.reduce((s, c) => s + Number(c.valor), 0)
+  const corridasAReceber   = corridasAReceberTotal
+  const totalRecCorridas = corridasRecebidasPeriodo.reduce((s, c) => s + Number(c.valor), 0)
   const totalRecManual   = receitasManuais.reduce((s, r) => s + Number(r.valor), 0)
   const totalRec      = totalRecCorridas + totalRecManual
-  const totalAReceber = corridasAReceber.reduce((s, c) => s + Number(c.valor) - Number(c.valor_recebido || 0), 0)
+  const totalValorConcluidas = corridasConcluidas.reduce((s, c) => s + Number(c.valor), 0)
+  const totalAReceber = corridasAReceber.reduce((s, c) => s + (Number(c.valor) - Number(c.valor_recebido || 0)), 0)
   const totalDesp     = despesas.reduce((s, d) => s + Number(d.valor), 0)
   const lucro         = totalRec - totalDesp
   const motMap        = Object.fromEntries(motoristas.map(m => [m.id, m]))
@@ -314,7 +353,7 @@ export default function FinanceiroPage() {
   type VItem = { key: string; nome: string; veiculo: string; receita: number; despesa: number; qtd: number }
   const vMap = new Map<string, VItem>()
 
-  corridasConcluidas.forEach(c => {
+  corridasRecebidasPeriodo.forEach(c => {
     const key  = c.motorista_id ?? '__sem__'
     const mot  = c.motoristas_empresa as any
     const nome = mot?.nome ?? 'Sem motorista'
@@ -431,7 +470,7 @@ export default function FinanceiroPage() {
               <div className="bg-white rounded-2xl p-4 border border-gray-100">
                 <p className="text-xs text-gray-400 mb-2">📊 Ticket médio</p>
                 <p className="text-xl font-bold" style={{ color: '#185FA5' }}>
-                  {corridasConcluidas.length > 0 ? fmt(totalRecCorridas / corridasConcluidas.length) : 'R$ 0'}
+                  {corridasConcluidas.length > 0 ? fmt(totalValorConcluidas / corridasConcluidas.length) : 'R$ 0'}
                 </p>
               </div>
 
@@ -465,23 +504,23 @@ export default function FinanceiroPage() {
               + Adicionar receita
             </button>
 
-            {/* Realizadas (corridas concluídas) */}
+            {/* Recebidas no período (o que efetivamente virou dinheiro) */}
             <div>
               <div className="flex justify-between items-center mb-2">
                 <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#0F6E56' }}>
-                  ✅ Corridas concluídas · {corridasConcluidas.length}
+                  ✅ Recebidas no período · {corridasRecebidasPeriodo.length}
                 </p>
-                {corridasConcluidas.length > 0 && (
+                {corridasRecebidasPeriodo.length > 0 && (
                   <p className="text-sm font-bold" style={{ color: '#0F6E56' }}>{fmt(totalRecCorridas)}</p>
                 )}
               </div>
-              {corridasConcluidas.length === 0 ? (
+              {corridasRecebidasPeriodo.length === 0 ? (
                 <div className="text-center py-6">
-                  <p className="text-sm text-gray-400">Nenhuma corrida concluída no período</p>
+                  <p className="text-sm text-gray-400">Nenhuma corrida recebida no período</p>
                 </div>
               ) : (
                 <div className="flex flex-col gap-2">
-                  {corridasConcluidas.map(c => {
+                  {corridasRecebidasPeriodo.map(c => {
                     const mot = c.motoristas_empresa as any
                     return (
                       <div key={c.id} className="bg-white rounded-2xl p-3 border border-gray-100">
@@ -502,7 +541,7 @@ export default function FinanceiroPage() {
               )}
             </div>
 
-            {/* A receber */}
+            {/* A receber (saldo corrente — corridas já concluídas, ainda não recebidas) */}
             <div>
               <div className="flex justify-between items-center mb-2">
                 <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#1D4ED8' }}>
@@ -514,7 +553,7 @@ export default function FinanceiroPage() {
               </div>
               {corridasAReceber.length === 0 ? (
                 <div className="text-center py-6">
-                  <p className="text-sm text-gray-400">Nenhuma corrida agendada no período</p>
+                  <p className="text-sm text-gray-400">Nenhuma corrida concluída pendente de recebimento</p>
                 </div>
               ) : (
                 <div className="flex flex-col gap-2">
@@ -704,7 +743,7 @@ export default function FinanceiroPage() {
                   const lv = v.receita - v.despesa
                   const expandido = veiculoExpandido === v.key
                   // Lançamentos deste veículo especificamente, pro drill-down
-                  const corridasDoVeiculo = corridasConcluidas.filter(c => (c.motorista_id ?? '__sem__') === v.key)
+                  const corridasDoVeiculo = corridasRecebidasPeriodo.filter(c => (c.motorista_id ?? '__sem__') === v.key)
                   const receitasManuaisDoVeiculo = receitasManuais.filter(r => (r.motorista_id ?? '__sem__') === v.key)
                   const despesasDoVeiculo = despesas.filter(d => (d.motorista_id ?? '__sem__') === v.key)
                   return (

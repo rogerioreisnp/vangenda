@@ -169,14 +169,27 @@ export default function EmpresaPage() {
     setEmpresaId(eid)
     setTipoOperacao(empresa?.tipo_operacao || 'transfer')
 
+    const agoraDate = new Date()
+    const agoraISOStr = agoraDate.toISOString()
+
+    // Corridas confirmadas cuja viagem já passou viram "concluída". Se a forma
+    // de pagamento é recebida na hora (pix/dinheiro/cartão), já marca como
+    // recebida também. Faturado/a definir ficam "concluída" mas continuam
+    // como "a receber" até o gestor confirmar o recebimento manualmente.
+    await supabase.from('corridas_empresa')
+      .update({ status: 'concluida', status_pagamento: 'recebido', data_pagamento: format(agoraDate, 'yyyy-MM-dd') })
+      .eq('empresa_id', eid)
+      .eq('status', 'confirmada')
+      .in('forma_pagamento', ['pix', 'dinheiro', 'cartao'])
+      .lt('data_hora', agoraISOStr)
     await supabase.from('corridas_empresa')
       .update({ status: 'concluida' })
       .eq('empresa_id', eid)
       .eq('status', 'confirmada')
-      .lt('data_hora', new Date().toISOString())
+      .lt('data_hora', agoraISOStr)
 
-    const agora = new Date()
-    const agoraISO = agora.toISOString()
+    const agora = agoraDate
+    const agoraISO = agoraISOStr
     const hoje = format(agora, 'yyyy-MM-dd')
     const inicioMes = format(startOfMonth(agora), 'yyyy-MM-dd')
     const fimMes = format(endOfMonth(agora), 'yyyy-MM-dd')
@@ -184,22 +197,27 @@ export default function EmpresaPage() {
       { data: cHoje },
       { data: mAtivos },
       { data: recMes },
-      { data: aReceberMesData },
+      { data: aReceberData },
       { data: cConf },
       { data: cSemMot },
       { data: prox },
+      { data: recManualMes },
     ] = await Promise.all([
       supabase.from('corridas_empresa').select('id, created_at, cliente_nome, origem, destino').eq('empresa_id', eid)
         .gte('data_hora', `${hoje}T00:00:00`).lte('data_hora', `${hoje}T23:59:59`)
         .neq('status', 'cancelada'),
       supabase.from('motoristas_empresa').select('id, nome, telefone, veiculo, placa, cor')
         .eq('empresa_id', eid).eq('status', 'ativo').order('nome'),
+      // Receita do mês: só o que já foi de fato recebido, na data do recebimento
+      // (não na data da viagem) — faturado só entra aqui quando confirmado como pago.
       supabase.from('corridas_empresa').select('valor').eq('empresa_id', eid)
+        .eq('status_pagamento', 'recebido')
+        .gte('data_pagamento', inicioMes).lte('data_pagamento', fimMes),
+      // A receber: toda corrida já concluída (viagem realizada) que ainda não foi
+      // marcada como recebida — sem travar em mês, é um saldo corrente.
+      supabase.from('corridas_empresa').select('valor, valor_recebido').eq('empresa_id', eid)
         .eq('status', 'concluida')
-        .gte('data_hora', `${inicioMes}T00:00:00`).lte('data_hora', `${fimMes}T23:59:59`),
-      supabase.from('corridas_empresa').select('valor').eq('empresa_id', eid)
-        .eq('status', 'confirmada')
-        .gte('data_hora', `${inicioMes}T00:00:00`).lte('data_hora', `${fimMes}T23:59:59`),
+        .neq('status_pagamento', 'recebido'),
       supabase.from('corridas_empresa').select('id, created_at, cliente_nome, origem, destino, data_hora').eq('empresa_id', eid)
         .eq('status', 'confirmada').gte('data_hora', agoraISO),
       supabase.from('corridas_empresa').select('id').eq('empresa_id', eid)
@@ -208,12 +226,15 @@ export default function EmpresaPage() {
         .select('id, origem, destino, data_hora, created_at, valor, status, cliente_nome, motoristas_empresa(nome)')
         .eq('empresa_id', eid).gte('data_hora', agoraISO)
         .order('data_hora').limit(5),
+      supabase.from('despesas_empresa').select('valor').eq('empresa_id', eid).eq('tipo', 'receita')
+        .gte('data', inicioMes).lte('data', fimMes),
     ])
 
     setCorridasHoje(contarContratos(cHoje ?? []))
     setMotoristasAtivos(mAtivos?.length ?? 0)
-    setReceitaMes(recMes?.reduce((s, c) => s + (Number(c.valor) || 0), 0) ?? 0)
-    setAReceberMes(aReceberMesData?.reduce((s, c) => s + (Number(c.valor) || 0), 0) ?? 0)
+    const totalRecManualMes = recManualMes?.reduce((s, r) => s + (Number(r.valor) || 0), 0) ?? 0
+    setReceitaMes((recMes?.reduce((s, c) => s + (Number(c.valor) || 0), 0) ?? 0) + totalRecManualMes)
+    setAReceberMes(aReceberData?.reduce((s, c) => s + (Number(c.valor) - Number(c.valor_recebido || 0)), 0) ?? 0)
     setCorridasConfirmadas(contarContratos(cConf ?? []))
     setCorridasSemMotorista(cSemMot?.length ?? 0)
     setProximas((prox as any) ?? [])
