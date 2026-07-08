@@ -5,7 +5,7 @@ import { format, startOfMonth, endOfMonth, subDays, startOfDay, endOfDay, addMon
 import { ptBR } from 'date-fns/locale'
 import Link from 'next/link'
 
-type Periodo = 'mes_atual' | 'ultimos_7' | 'ultimos_30'
+type Periodo = 'mes_atual' | 'ultimos_7' | 'ultimos_30' | 'personalizado'
 type Aba = 'resumo' | 'receitas' | 'despesas' | 'veiculo'
 
 type CorridaFin = {
@@ -137,6 +137,8 @@ export default function FinanceiroPage() {
   const [empresaId, setEmpresaId]   = useState<string | null>(null)
   const [tipoOperacao, setTipoOperacao] = useState<string | null>(null)
   const [periodo, setPeriodo]       = useState<Periodo>('mes_atual')
+  const [dataInicioPersonalizada, setDataInicioPersonalizada] = useState(format(new Date(), 'yyyy-MM-dd'))
+  const [dataFimPersonalizada, setDataFimPersonalizada]       = useState(format(new Date(), 'yyyy-MM-dd'))
   const [aba, setAba]               = useState<Aba>('resumo')
   const [corridas, setCorridas]     = useState<CorridaFin[]>([])
   const [corridasRecebidasPeriodo, setCorridasRecebidasPeriodo] = useState<CorridaFin[]>([])
@@ -155,7 +157,7 @@ export default function FinanceiroPage() {
   useEffect(() => { inicializar() }, [])
   useEffect(() => {
     if (empresaId && tipoOperacao && tipoOperacao !== 'rota_fixa') carregar(empresaId)
-  }, [empresaId, periodo, tipoOperacao])
+  }, [empresaId, periodo, tipoOperacao, dataInicioPersonalizada, dataFimPersonalizada])
 
   async function inicializar() {
     const { data: { session } } = await supabase.auth.getSession()
@@ -187,6 +189,9 @@ export default function FinanceiroPage() {
 
   function intervalo(): { inicio: string; fim: string } {
     const hoje = new Date()
+    if (periodo === 'personalizado') {
+      return { inicio: dataInicioPersonalizada, fim: dataFimPersonalizada }
+    }
     if (periodo === 'mes_atual') {
       return {
         inicio: format(startOfMonth(hoje), 'yyyy-MM-dd'),
@@ -389,7 +394,11 @@ export default function FinanceiroPage() {
 
   const periodoLabel = periodo === 'mes_atual'
     ? format(new Date(), 'MMMM yyyy', { locale: ptBR })
-    : periodo === 'ultimos_7' ? 'Últimos 7 dias' : 'Últimos 30 dias'
+    : periodo === 'ultimos_7' ? 'Últimos 7 dias'
+    : periodo === 'ultimos_30' ? 'Últimos 30 dias'
+    : dataInicioPersonalizada === dataFimPersonalizada
+      ? dataInicioPersonalizada.split('-').reverse().join('/')
+      : `${dataInicioPersonalizada.split('-').reverse().join('/')} até ${dataFimPersonalizada.split('-').reverse().join('/')}`
 
   const fmt = (v: number) =>
     `R$ ${Math.abs(v).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
@@ -419,17 +428,38 @@ export default function FinanceiroPage() {
         </div>
 
         {/* Filtro de período */}
-        <div className="flex gap-2 mb-3">
-          {(['mes_atual', 'ultimos_7', 'ultimos_30'] as Periodo[]).map(p => (
+        <div className="flex gap-2 mb-3 flex-wrap">
+          {(['mes_atual', 'ultimos_7', 'ultimos_30', 'personalizado'] as Periodo[]).map(p => (
             <button key={p} onClick={() => setPeriodo(p)}
               className="px-3 py-1.5 rounded-lg text-[11px] font-semibold"
               style={periodo === p
                 ? { background: '#E1F5EE', color: '#085041' }
                 : { background: '#085041', color: '#9FE1CB' }}>
-              {p === 'mes_atual' ? 'Este mês' : p === 'ultimos_7' ? '7 dias' : '30 dias'}
+              {p === 'mes_atual' ? 'Este mês' : p === 'ultimos_7' ? '7 dias' : p === 'ultimos_30' ? '30 dias' : '📅 Personalizado'}
             </button>
           ))}
         </div>
+
+        {/* Período personalizado — De / Até, tipo Google/Facebook Ads */}
+        {periodo === 'personalizado' && (
+          <div className="bg-white rounded-xl flex flex-wrap items-center gap-2 px-3 py-2 mb-3">
+            <span className="text-xs font-semibold text-gray-500">De</span>
+            <input type="date" value={dataInicioPersonalizada}
+              onChange={e => {
+                setDataInicioPersonalizada(e.target.value)
+                if (e.target.value > dataFimPersonalizada) setDataFimPersonalizada(e.target.value)
+              }}
+              className="px-2 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-700 outline-none" />
+            <span className="text-gray-400 text-sm">até</span>
+            <input type="date" value={dataFimPersonalizada} min={dataInicioPersonalizada}
+              onChange={e => setDataFimPersonalizada(e.target.value)}
+              className="px-2 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-700 outline-none" />
+            <button onClick={() => { const h = format(new Date(), 'yyyy-MM-dd'); setDataInicioPersonalizada(h); setDataFimPersonalizada(h) }}
+              className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500">
+              Hoje
+            </button>
+          </div>
+        )}
 
         {/* Abas */}
         <div className="flex">
