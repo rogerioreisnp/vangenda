@@ -297,6 +297,7 @@ export default function AgendamentosPage() {
   const [filtroStatus, setFiltroStatus] = useState('')
   const [modalFichaAberto, setModalFichaAberto] = useState(false)
   const [corridaFicha, setCorridaFicha] = useState<Corrida | null>(null)
+  const [voltaDaFicha, setVoltaDaFicha] = useState<Corrida | null>(null)
   const [modalPDFAberto, setModalPDFAberto] = useState(false)
   const [confirmandoFicha, setConfirmandoFicha] = useState(false)
   const [enviandoEmail, setEnviandoEmail] = useState(false)
@@ -417,6 +418,10 @@ export default function AgendamentosPage() {
 
   function abrirEditar(c: Corrida, voltaId?: string) {
     const rotaExiste = c.rota_id != null && rotasOpcoes.some(r => r.id === c.rota_id)
+    // Se existe corrida de volta, busca ela no state pra pre-preencher os
+    // campos origem_volta/destino_volta/data_retorno/horario_retorno/preco_volta.
+    // Assim o gestor consegue EDITAR os dados da volta na mesma tela.
+    const volta = voltaId ? corridas.find(x => x.id === voltaId) : null
     setCorridaEditando(c)
     setVoltaIdEditando(voltaId ?? null)
     setForm({
@@ -426,13 +431,13 @@ export default function AgendamentosPage() {
       destino: c.destino,
       data: c.data_hora.slice(0, 10),
       horario: c.data_hora.slice(11, 16),
-      ida_volta: false,
-      origem_volta: '',
-      destino_volta: '',
-      data_retorno: '',
-      horario_retorno: '',
-      preco_volta: '',
-      observacoes_volta: '',
+      ida_volta: !!volta,
+      origem_volta: volta?.origem || '',
+      destino_volta: volta?.destino || '',
+      data_retorno: volta?.data_hora.slice(0, 10) || '',
+      horario_retorno: volta?.data_hora.slice(11, 16) || '',
+      preco_volta: volta ? String(volta.valor) : '',
+      observacoes_volta: volta?.observacoes || '',
       motorista_id: c.motorista_id || '',
       cliente_nome: c.cliente_nome,
       cliente_telefone: c.cliente_telefone || '',
@@ -523,15 +528,30 @@ export default function AgendamentosPage() {
       }
 
       // Se editando um par, atualiza os campos compartilhados na corrida de volta
+      // + os campos especificos da volta (origem, destino, data, hora, valor,
+      // observacoes) quando o usuario editar eles no formulario.
       if (voltaIdEditando) {
+        const precoVoltaNum = parseFloat(form.preco_volta)
+        const updateVolta: Record<string, unknown> = {
+          motorista_id: camposComuns.motorista_id,
+          cliente_nome: camposComuns.cliente_nome,
+          cliente_telefone: camposComuns.cliente_telefone,
+          forma_pagamento: camposComuns.forma_pagamento,
+        }
+        // Se o usuario alterou os dados da volta no form, propaga na volta
+        if (form.origem_volta.trim()) updateVolta.origem = form.origem_volta.trim()
+        if (form.destino_volta.trim()) updateVolta.destino = form.destino_volta.trim()
+        if (form.data_retorno && form.horario_retorno) {
+          updateVolta.data_hora = `${form.data_retorno}T${form.horario_retorno}:00`
+        }
+        if (!isNaN(precoVoltaNum) && form.preco_volta.trim() !== '') {
+          updateVolta.valor = precoVoltaNum
+        }
+        updateVolta.observacoes = form.observacoes_volta.trim() || null
+
         const { error: erroVolta } = await supabase
           .from('corridas_empresa')
-          .update({
-            motorista_id: camposComuns.motorista_id,
-            cliente_nome: camposComuns.cliente_nome,
-            cliente_telefone: camposComuns.cliente_telefone,
-            forma_pagamento: camposComuns.forma_pagamento,
-          })
+          .update(updateVolta)
           .eq('id', voltaIdEditando)
 
         if (erroVolta) {
@@ -605,8 +625,27 @@ export default function AgendamentosPage() {
   }
 
   function abrirFicha(c: Corrida) {
-    setCorridaFicha(c)
-    setMotoristaFicha(c.motorista_id ?? '')
+    // Detecta se essa corrida faz parte de um par ida-volta (mesmo cliente,
+    // created_at com menos de 30s de diferenca — mesma regra do agruparPares).
+    // Se sim, guarda a outra ponta em voltaDaFicha pra exibir na ficha.
+    const par = corridas.find(other =>
+      other.id !== c.id &&
+      other.cliente_nome === c.cliente_nome &&
+      Math.abs(new Date(other.created_at).getTime() - new Date(c.created_at).getTime()) < 30000
+    ) ?? null
+
+    // A ficha sempre exibe a IDA como principal e a VOLTA embaixo, mesmo se o
+    // gestor clicou na volta na lista.
+    let idaAtual: Corrida = c
+    let voltaAtual: Corrida | null = par
+    if (par && par.data_hora < c.data_hora) {
+      idaAtual = par
+      voltaAtual = c
+    }
+
+    setCorridaFicha(idaAtual)
+    setVoltaDaFicha(voltaAtual)
+    setMotoristaFicha(idaAtual.motorista_id ?? '')
     setModalFichaAberto(true)
   }
 
@@ -1407,8 +1446,9 @@ export default function AgendamentosPage() {
                     <button
                       onClick={() => {
                         const c = corridaFicha
+                        const voltaId = voltaDaFicha?.id
                         setModalFichaAberto(false)
-                        abrirEditar(c)
+                        abrirEditar(c, voltaId)
                       }}
                       title="Editar"
                       className="px-2.5 py-1 rounded-lg text-[10px] font-medium"
@@ -1450,6 +1490,31 @@ export default function AgendamentosPage() {
                 </p>
               )}
             </div>
+
+            {/* Volta (quando o agendamento foi feito como ida-e-volta) */}
+            {voltaDaFicha && (
+              <div className="rounded-2xl p-4 border" style={{ background: '#EEEDFE', borderColor: '#AFA9EC' }}>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#3C3489' }}>🔁 Volta</p>
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                    style={{ background: STATUS_COR[voltaDaFicha.status]?.bg ?? '#FEF3C7', color: STATUS_COR[voltaDaFicha.status]?.text ?? '#92400E' }}>
+                    {STATUS_COR[voltaDaFicha.status]?.label ?? voltaDaFicha.status}
+                  </span>
+                </div>
+                <p className="text-sm font-bold text-gray-800">{voltaDaFicha.origem} → {voltaDaFicha.destino}</p>
+                <p className="text-sm text-gray-600 mt-1">
+                  📅 {voltaDaFicha.data_hora.slice(8,10)}/{voltaDaFicha.data_hora.slice(5,7)}/{voltaDaFicha.data_hora.slice(0,4)} às {voltaDaFicha.data_hora.slice(11,16)}
+                </p>
+                {Number(voltaDaFicha.valor) > 0 && (
+                  <p className="text-sm font-semibold mt-1" style={{ color: '#3C3489' }}>
+                    R$ {Number(voltaDaFicha.valor).toFixed(2).replace('.', ',')}
+                  </p>
+                )}
+                {voltaDaFicha.observacoes && (
+                  <p className="text-xs text-gray-500 mt-2">📝 {voltaDaFicha.observacoes}</p>
+                )}
+              </div>
+            )}
 
             {/* Cliente */}
             <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-2">
