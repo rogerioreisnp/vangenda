@@ -1724,9 +1724,8 @@ export default function AgendamentosPage() {
                     className="campo-input" />
                 </Campo>
                 <Campo label="Horário de saída *">
-                  <input type="time" value={form.horario}
-                    onChange={e => setForm(f => ({ ...f, horario: e.target.value }))}
-                    className="campo-input" />
+                  <SelectHorario value={form.horario}
+                    onChange={v => setForm(f => ({ ...f, horario: v }))} />
                 </Campo>
               </div>
             </div>
@@ -1792,9 +1791,8 @@ export default function AgendamentosPage() {
                       className="campo-input" />
                   </Campo>
                   <Campo label="Horário de retorno *">
-                    <input type="time" value={form.horario_retorno}
-                      onChange={e => setForm(f => ({ ...f, horario_retorno: e.target.value }))}
-                      className="campo-input" />
+                    <SelectHorario value={form.horario_retorno}
+                      onChange={v => setForm(f => ({ ...f, horario_retorno: v }))} />
                   </Campo>
                 </div>
               </div>
@@ -2193,6 +2191,35 @@ function Campo({ label, children }: { label: string; children: React.ReactNode }
     <div>
       <p className="text-xs font-medium text-gray-500 mb-1">{label}</p>
       {children}
+    </div>
+  )
+}
+
+// Substitui <input type="time"> pra evitar picker nativo travado em
+// certos celulares (cliente reportou "nao seleciona o horario" no mobile).
+// Dois dropdowns simples sempre funcionam. Formato interno mantido: "HH:MM".
+function SelectHorario({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [h = '', m = ''] = (value || '').split(':')
+  const horas = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'))
+  const minutos = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, '0'))
+  function set(novaH: string, novoM: string) {
+    if (novaH && novoM) onChange(`${novaH}:${novoM}`)
+    else if (!novaH && !novoM) onChange('')
+    else onChange(`${novaH || '00'}:${novoM || '00'}`)
+  }
+  return (
+    <div className="flex items-center gap-1">
+      <select value={h} onChange={e => set(e.target.value, m)}
+        className="campo-input" style={{ flex: 1 }}>
+        <option value="">Hora</option>
+        {horas.map(x => <option key={x} value={x}>{x}</option>)}
+      </select>
+      <span className="text-gray-400 font-bold">:</span>
+      <select value={m} onChange={e => set(h, e.target.value)}
+        className="campo-input" style={{ flex: 1 }}>
+        <option value="">Min</option>
+        {minutos.map(x => <option key={x} value={x}>{x}</option>)}
+      </select>
     </div>
   )
 }
