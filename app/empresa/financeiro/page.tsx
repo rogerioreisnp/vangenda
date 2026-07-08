@@ -31,6 +31,7 @@ type Despesa = {
   km_odometro: number | null
   data: string
   tipo: 'receita' | 'despesa'
+  forma_pagamento: string | null
 }
 
 type Motorista = {
@@ -49,6 +50,7 @@ type FormDespesa = {
   km_odometro: string
   data: string
   motorista_id: string
+  forma_pagamento: string
 }
 
 const FORM_VAZIO: FormDespesa = {
@@ -60,6 +62,7 @@ const FORM_VAZIO: FormDespesa = {
   km_odometro: '',
   data: '',
   motorista_id: '',
+  forma_pagamento: 'pix',
 }
 
 const CATEGORIAS = [
@@ -81,6 +84,8 @@ const CATEGORIAS = [
 type CatValor = typeof CATEGORIAS[number]['valor']
 const catMap = Object.fromEntries(CATEGORIAS.map(c => [c.valor, c])) as Record<string, { valor: string; label: string; emoji: string }>
 
+const FORMA_PAGAMENTO_LABEL: Record<string, string> = { pix: '📱 Pix', cartao: '💳 Cartão', dinheiro: '💵 Dinheiro' }
+
 const CATEGORIAS_RECEITA = [
   { valor: 'corrida_extra', label: 'Corrida extra (fora do app)', emoji: '🚗' },
   { valor: 'gorjeta',       label: 'Gorjeta',                     emoji: '💵' },
@@ -100,6 +105,7 @@ type LancamentoEmpresa = {
   data: string | null
   created_at: string
   quilometragem: number | null
+  forma_pagamento: string | null
 }
 
 type FiltroRF = 'hoje' | '7dias' | '30dias' | 'mes'
@@ -211,7 +217,7 @@ export default function FinanceiroPage() {
         .order('data_hora', { ascending: false }),
       supabase
         .from('despesas_empresa')
-        .select('id, motorista_id, veiculo, categoria, descricao, valor, km_odometro, data, tipo')
+        .select('id, motorista_id, veiculo, categoria, descricao, valor, km_odometro, data, tipo, forma_pagamento')
         .eq('empresa_id', eid)
         .gte('data', inicio)
         .lte('data', fim)
@@ -248,6 +254,7 @@ export default function FinanceiroPage() {
       km_odometro:  d.km_odometro != null ? String(d.km_odometro) : '',
       data:         d.data,
       motorista_id: d.motorista_id ?? '',
+      forma_pagamento: d.forma_pagamento ?? 'pix',
     })
     setErro('')
     setModalAberto(true)
@@ -273,6 +280,7 @@ export default function FinanceiroPage() {
       km_odometro:  form.km_odometro ? parseInt(form.km_odometro) : null,
       data:         form.data,
       motorista_id: form.motorista_id || null,
+      forma_pagamento: form.tipo === 'despesa' ? form.forma_pagamento : null,
     }
 
     const { error } = editando
@@ -642,6 +650,11 @@ export default function FinanceiroPage() {
                               📏 {d.km_odometro.toLocaleString('pt-BR')} km
                             </p>
                           )}
+                          {d.forma_pagamento && (
+                            <p className="text-xs text-gray-400">
+                              {FORMA_PAGAMENTO_LABEL[d.forma_pagamento] ?? d.forma_pagamento}
+                            </p>
+                          )}
                         </div>
                         <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
                           <p className="text-sm font-bold" style={{ color: '#A32D2D' }}>
@@ -833,6 +846,18 @@ export default function FinanceiroPage() {
                 className="campo-input" />
             </Campo>
 
+            {form.tipo === 'despesa' && (
+              <Campo label="Como foi pago">
+                <select value={form.forma_pagamento}
+                  onChange={e => setForm(f => ({ ...f, forma_pagamento: e.target.value }))}
+                  className="campo-input">
+                  <option value="pix">Pix</option>
+                  <option value="cartao">Cartão</option>
+                  <option value="dinheiro">Dinheiro</option>
+                </select>
+              </Campo>
+            )}
+
             <Campo label="Motorista (opcional)">
               <select value={form.motorista_id}
                 onChange={e => {
@@ -929,7 +954,7 @@ function FinanceiroRotaFixa({ empresaId }: { empresaId: string }) {
     console.log('[RF] empresaId usado na query:', empresaId, '| período:', inicio, '→', fim)
     const { data, error } = await supabase
       .from('cobrancas_empresa')
-      .select('id, tipo, categoria, observacao, valor, data, created_at, quilometragem')
+      .select('id, tipo, categoria, observacao, valor, data, created_at, quilometragem, forma_pagamento')
       .eq('empresa_id', empresaId)
       .in('tipo', ['receita', 'despesa'])
       .order('created_at', { ascending: false })
@@ -1082,6 +1107,7 @@ function FinanceiroRotaFixa({ empresaId }: { empresaId: string }) {
                           <p className="text-xs text-gray-400">
                             {format(new Date((d.data ?? d.created_at.slice(0, 10)) + 'T00:00:00'), 'dd/MM/yyyy')}
                             {d.quilometragem != null ? ` · ${d.quilometragem.toLocaleString('pt-BR')} km` : ''}
+                            {d.forma_pagamento ? ` · ${FORMA_PAGAMENTO_LABEL[d.forma_pagamento] ?? d.forma_pagamento}` : ''}
                           </p>
                         </div>
                         <span className="text-sm font-semibold shrink-0" style={{ color: '#A32D2D' }}>
@@ -1144,6 +1170,7 @@ function FormLancamentoEmpresa({
     valor:         lancamento?.valor != null ? String(lancamento.valor) : '',
     data:          lancamento?.data ?? format(new Date(), 'yyyy-MM-dd'),
     quilometragem: lancamento?.quilometragem != null ? String(lancamento.quilometragem) : '',
+    forma_pagamento: lancamento?.forma_pagamento ?? 'pix',
   })
   const [saving, setSaving] = useState(false)
   const [erro, setErro]     = useState('')
@@ -1167,6 +1194,7 @@ function FormLancamentoEmpresa({
       quilometragem: tipo === 'despesa' && CATS_COM_KM.includes(form.categoria) && form.quilometragem
         ? parseInt(form.quilometragem)
         : null,
+      forma_pagamento: tipo === 'despesa' ? form.forma_pagamento : null,
     }
 
     let error
@@ -1226,6 +1254,19 @@ function FormLancamentoEmpresa({
               onChange={e => setForm(f => ({ ...f, quilometragem: e.target.value }))}
               type="number" min={0} placeholder="Ex: 125000"
               className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none bg-white focus:border-green-600" />
+          </div>
+        )}
+
+        {tipo === 'despesa' && (
+          <div>
+            <p className="text-xs font-medium text-gray-500 mb-1">Como foi pago</p>
+            <select value={form.forma_pagamento}
+              onChange={e => setForm(f => ({ ...f, forma_pagamento: e.target.value }))}
+              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none bg-white focus:border-green-600">
+              <option value="pix">Pix</option>
+              <option value="cartao">Cartão</option>
+              <option value="dinheiro">Dinheiro</option>
+            </select>
           </div>
         )}
 

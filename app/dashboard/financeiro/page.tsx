@@ -17,6 +17,7 @@ type Despesa = {
   quilometragem?: number
   motorista_id?: string
   registrado_por?: string | null
+  forma_pagamento?: string | null
 }
 
 type Receita = {
@@ -505,6 +506,7 @@ function FinanceiroContent() {
                             <p className="text-xs text-gray-400">
                               {format(new Date(d.data_despesa + 'T00:00:00'), "dd/MM/yyyy")}
                               {d.quilometragem ? <span className="ml-1 text-gray-300">· {d.quilometragem.toLocaleString('pt-BR')} km</span> : null}
+                              {d.forma_pagamento ? <span className="ml-1 text-gray-300">· {{ pix: '📱 Pix', cartao: '💳 Cartão', dinheiro: '💵 Dinheiro' }[d.forma_pagamento] || d.forma_pagamento}</span> : null}
                             </p>
                             {anotadoPor && (
                               <p className="text-[10px] mt-0.5" style={{ color: '#0F6E56' }}>
@@ -2589,6 +2591,7 @@ function FormDespesa({
     valor: despesa?.valor?.toString() ?? '',
     data_despesa: despesa?.data_despesa ?? format(new Date(), 'yyyy-MM-dd'),
     quilometragem: despesa?.quilometragem?.toString() ?? '',
+    forma_pagamento: despesa?.forma_pagamento ?? 'pix',
   })
   const [saving, setSaving] = useState(false)
   const [erro, setErro] = useState('')
@@ -2609,6 +2612,7 @@ function FormDespesa({
       data_despesa: form.data_despesa,
       quilometragem: (categoriasComKm.includes(form.categoria) && form.quilometragem)
         ? parseInt(form.quilometragem) : null,
+      forma_pagamento: form.forma_pagamento,
     }
 
     let error
@@ -2678,6 +2682,17 @@ function FormDespesa({
               className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none bg-white focus:border-green-600" />
           </div>
         )}
+
+        <div>
+          <p className="text-xs font-medium text-gray-500 mb-1">Como foi pago</p>
+          <select value={form.forma_pagamento}
+            onChange={e => setForm(prev => ({ ...prev, forma_pagamento: e.target.value }))}
+            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none bg-white focus:border-green-600">
+            <option value="pix">Pix</option>
+            <option value="cartao">Cartão</option>
+            <option value="dinheiro">Dinheiro</option>
+          </select>
+        </div>
 
         {erro && <p className="text-xs text-red-500 bg-red-50 px-3 py-2 rounded-xl">{erro}</p>}
       </div>
