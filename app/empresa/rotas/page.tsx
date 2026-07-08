@@ -144,7 +144,7 @@ export default function RotasPage() {
       origem: r.origem,
       destino: r.destino,
       distancia_km: r.distancia_km != null ? String(r.distancia_km) : '',
-      preco: String(r.preco),
+      preco: r.preco ? String(r.preco) : '',
       motorista_id: r.motorista_id || '',
       veiculo_placa: r.veiculo_placa || '',
     })
@@ -157,8 +157,11 @@ export default function RotasPage() {
       setErro('Origem e destino são obrigatórios')
       return
     }
-    const preco = parseFloat(form.preco)
-    if (isNaN(preco) || preco < 0) {
+    // Preco e opcional: muitos gestores negociam valor por cliente, nao por
+    // rota, e nesse caso o preco nao deve aparecer pro cliente no link
+    // publico. Deixando em branco, salva 0 e a exibicao do valor fica oculta.
+    const precoNum = form.preco.trim() ? parseFloat(form.preco) : 0
+    if (isNaN(precoNum) || precoNum < 0) {
       setErro('Preço inválido')
       return
     }
@@ -170,7 +173,7 @@ export default function RotasPage() {
       origem: form.origem.trim(),
       destino: form.destino.trim(),
       distancia_km: form.distancia_km.trim() ? parseInt(form.distancia_km) || null : null,
-      preco,
+      preco: precoNum,
       motorista_id: form.motorista_id || null,
       veiculo_placa: form.veiculo_placa.trim() || null,
     }
@@ -776,10 +779,13 @@ export default function RotasPage() {
                 onChange={e => setForm(f => ({ ...f, distancia_km: e.target.value }))}
                 placeholder="Ex: 25" className="campo-input" min={0} />
             </Campo>
-            <Campo label="Preço (R$) *">
+            <Campo label="Preço (R$) — opcional">
               <input type="number" step="0.01" value={form.preco}
                 onChange={e => setForm(f => ({ ...f, preco: e.target.value }))}
-                placeholder="Ex: 150.00" className="campo-input" min={0} />
+                placeholder="Deixe em branco se o valor variar por cliente" className="campo-input" min={0} />
+              <p className="text-xs mt-1.5" style={{ color: '#6B7280' }}>
+                ℹ️ Se você negocia o valor caso a caso, deixe em branco — assim o preço não aparece pro cliente no link público.
+              </p>
             </Campo>
 
             <Campo label="Motorista responsável">

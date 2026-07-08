@@ -625,7 +625,7 @@ export default function AgendamentoPublico({
                       <option key={r.id} value={r.id}>
                         {empresa.tipo_operacao === 'rota_fixa'
                           ? (r.nome || 'Sem nome')
-                          : `${r.nome || `${r.origem} → ${r.destino}`} — R$ ${Number(r.preco).toFixed(2).replace('.', ',')}`}
+                          : `${r.nome || `${r.origem} → ${r.destino}`}${Number(r.preco) > 0 ? ` — R$ ${Number(r.preco).toFixed(2).replace('.', ',')}` : ''}`}
                       </option>
                     ))}
                     {empresa.tipo_operacao !== 'rota_fixa' && (
@@ -695,7 +695,7 @@ export default function AgendamentoPublico({
                 </>
               )}
 
-              {rotaSelecionada && empresa.tipo_operacao !== 'rota_fixa' && (
+              {rotaSelecionada && empresa.tipo_operacao !== 'rota_fixa' && Number(rotaSelecionada.preco) > 0 && (
                 <div className="rounded-xl px-4 py-3" style={{ background: '#f0f0ec' }}>
                   <div className="flex justify-between items-center">
                     <span className="text-sm font-medium text-gray-600">Valor da corrida</span>
