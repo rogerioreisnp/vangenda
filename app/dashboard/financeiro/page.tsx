@@ -83,6 +83,7 @@ const categoriasDespesa = [
   { value: 'estacionamento', label: 'Estacionamento', emoji: '🅿️' },
   { value: 'alimentacao', label: 'Alimentação', emoji: '🍽️' },
   { value: 'hospedagem', label: 'Hospedagem/Hotel', emoji: '🏨' },
+  { value: 'financiamento', label: 'Financiamento/Parcela', emoji: '🚙' },
   { value: 'pneu', label: 'Pneu', emoji: '🔄' },
   { value: 'outros', label: 'Outros', emoji: '📦' },
 ]

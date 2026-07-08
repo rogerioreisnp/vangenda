@@ -73,6 +73,7 @@ const CATEGORIAS = [
   { valor: 'estacionamento',    label: 'Estacionamento',      emoji: '🅿️' },
   { valor: 'alimentacao',       label: 'Alimentação',         emoji: '🍽️' },
   { valor: 'hospedagem',        label: 'Hospedagem/Hotel',    emoji: '🏨' },
+  { valor: 'financiamento',     label: 'Financiamento/Parcela', emoji: '🚙' },
   { valor: 'multa',             label: 'Multa',               emoji: '⚠️' },
   { valor: 'outros',            label: 'Outros',              emoji: '📦' },
 ] as const
@@ -119,6 +120,7 @@ const categoriasDespesaRF = [
   { value: 'estacionamento',label: 'Estacionamento',   emoji: '🅿️' },
   { value: 'alimentacao',   label: 'Alimentação',      emoji: '🍽️' },
   { value: 'hospedagem',    label: 'Hospedagem/Hotel', emoji: '🏨' },
+  { value: 'financiamento', label: 'Financiamento/Parcela', emoji: '🚙' },
   { value: 'pneu',          label: 'Pneu',             emoji: '🔄' },
   { value: 'outros',        label: 'Outros',           emoji: '📦' },
 ]
