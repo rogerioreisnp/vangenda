@@ -1276,7 +1276,10 @@ export default function AgendamentosPage() {
                         </span>
                       </div>
                       <p className="text-sm font-semibold text-gray-800 truncate">
-                        {ida.origem} → {ida.destino}
+                        ↗ {ida.origem} → {ida.destino}
+                      </p>
+                      <p className="text-sm font-semibold text-gray-800 truncate">
+                        ↙ {volta.origem} → {volta.destino}
                       </p>
                       <p className="text-xs text-gray-400 mt-0.5">
                         Ida {ida.data_hora.slice(11, 16)} · Volta {volta.data_hora.slice(11, 16)} · {ida.data_hora.slice(8, 10)}/{ida.data_hora.slice(5, 7)}/{ida.data_hora.slice(0, 4)}
