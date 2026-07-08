@@ -36,6 +36,8 @@ export default function ConfiguracoesEmpresaPage() {
   const [empresa, setEmpresa] = useState<Empresa | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [uploadingLogo, setUploadingLogo] = useState(false)
+  const [logoErro, setLogoErro] = useState('')
   const [savedMsg, setSavedMsg] = useState(false)
   const [erro, setErro] = useState('')
 
@@ -71,6 +73,40 @@ export default function ConfiguracoesEmpresaPage() {
 
     if (emp) setEmpresa(emp)
     setLoading(false)
+  }
+
+  async function uploadLogo(file: File | null) {
+    if (!file || !empresa) return
+    setLogoErro('')
+    // Validacao rapida: tamanho ate 3MB, tipo imagem comum
+    if (file.size > 3 * 1024 * 1024) {
+      setLogoErro('Imagem grande demais. Máximo 3 MB.')
+      return
+    }
+    if (!['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'].includes(file.type)) {
+      setLogoErro('Formato não suportado. Use PNG, JPG, WEBP ou SVG.')
+      return
+    }
+    setUploadingLogo(true)
+    try {
+      // Nome unico por empresa (timestamp evita cache do CDN quando trocar).
+      // Ficam varios arquivos historicos no bucket, mas são poucos KB — se
+      // no futuro incomodar, dá pra limpar via cron.
+      const ext = file.name.split('.').pop()?.toLowerCase() || 'png'
+      const path = `${empresa.id}/${Date.now()}.${ext}`
+      const { error: errUp } = await supabase.storage
+        .from('logos-empresas')
+        .upload(path, file, { contentType: file.type, upsert: false })
+      if (errUp) throw errUp
+      const { data } = supabase.storage.from('logos-empresas').getPublicUrl(path)
+      const url = data.publicUrl
+      setEmpresa(emp => emp ? { ...emp, logo_url: url } : emp)
+    } catch (err: any) {
+      console.error('[uploadLogo]', err)
+      setLogoErro('Erro ao enviar a imagem. Tente novamente.')
+    } finally {
+      setUploadingLogo(false)
+    }
   }
 
   async function salvar() {
@@ -318,21 +354,50 @@ export default function ConfiguracoesEmpresaPage() {
                 </span>
               </div>
             </Campo>
-            <Campo label="Logo da empresa (URL)">
-              <input
-                value={empresa?.logo_url || ''}
-                onChange={e => setEmpresa(emp => emp ? { ...emp, logo_url: e.target.value } : emp)}
-                placeholder="Cole o link da sua logo"
-                className="campo-input"
-              />
+            <Campo label="Logo da empresa">
               {empresa?.logo_url && (
                 <img
                   src={empresa.logo_url}
                   alt="Logo"
-                  className="mt-2 h-12 object-contain rounded"
+                  className="mb-2 h-16 object-contain rounded border border-gray-200 bg-white p-1"
                   onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
                 />
               )}
+              <div className="flex flex-col gap-2">
+                <label className="w-full py-2.5 px-3 rounded-xl border-2 border-dashed cursor-pointer text-sm text-center font-medium transition-colors"
+                  style={{
+                    borderColor: uploadingLogo ? '#9FE1CB' : '#e5e7eb',
+                    color: uploadingLogo ? '#0F6E56' : '#374151',
+                    background: uploadingLogo ? '#F0FDF8' : '#fff',
+                  }}>
+                  {uploadingLogo ? '⏳ Enviando...' : '📷 Escolher imagem do celular'}
+                  <input
+                    type="file"
+                    accept="image/png, image/jpeg, image/webp, image/svg+xml"
+                    className="hidden"
+                    disabled={uploadingLogo}
+                    onChange={e => uploadLogo(e.target.files?.[0] || null)}
+                  />
+                </label>
+                {logoErro && (
+                  <p className="text-xs text-red-600">{logoErro}</p>
+                )}
+                {empresa?.logo_url && (
+                  <button type="button" onClick={() => setEmpresa(emp => emp ? { ...emp, logo_url: null } : emp)}
+                    className="text-xs text-red-500 self-start">
+                    🗑️ Remover logo
+                  </button>
+                )}
+              </div>
+              <details className="mt-3">
+                <summary className="text-xs text-gray-400 cursor-pointer">Já tem um link da logo? Colar manualmente</summary>
+                <input
+                  value={empresa?.logo_url || ''}
+                  onChange={e => setEmpresa(emp => emp ? { ...emp, logo_url: e.target.value } : emp)}
+                  placeholder="https://..."
+                  className="campo-input mt-2"
+                />
+              </details>
             </Campo>
             <Campo label="Link personalizado">
               <input
