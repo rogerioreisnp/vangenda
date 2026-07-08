@@ -30,6 +30,7 @@ type Despesa = {
   valor: number
   km_odometro: number | null
   data: string
+  tipo: 'receita' | 'despesa'
 }
 
 type Motorista = {
@@ -40,6 +41,7 @@ type Motorista = {
 }
 
 type FormDespesa = {
+  tipo: 'receita' | 'despesa'
   categoria: string
   descricao: string
   valor: string
@@ -50,6 +52,7 @@ type FormDespesa = {
 }
 
 const FORM_VAZIO: FormDespesa = {
+  tipo: 'despesa',
   categoria: 'combustivel',
   descricao: '',
   valor: '',
@@ -74,6 +77,14 @@ const CATEGORIAS = [
 
 type CatValor = typeof CATEGORIAS[number]['valor']
 const catMap = Object.fromEntries(CATEGORIAS.map(c => [c.valor, c])) as Record<string, { valor: string; label: string; emoji: string }>
+
+const CATEGORIAS_RECEITA = [
+  { valor: 'corrida_extra', label: 'Corrida extra (fora do app)', emoji: '🚗' },
+  { valor: 'gorjeta',       label: 'Gorjeta',                     emoji: '💵' },
+  { valor: 'diaria',        label: 'Diária/pacote fechado',       emoji: '📦' },
+  { valor: 'outros',        label: 'Outros',                      emoji: '➕' },
+] as const
+const catReceitaMap = Object.fromEntries(CATEGORIAS_RECEITA.map(c => [c.valor, c])) as Record<string, { valor: string; label: string; emoji: string }>
 
 // ─── Tipos e constantes para financeiro rota_fixa ────────────────────────────
 
@@ -114,6 +125,8 @@ export default function FinanceiroPage() {
   const [aba, setAba]               = useState<Aba>('resumo')
   const [corridas, setCorridas]     = useState<CorridaFin[]>([])
   const [despesas, setDespesas]     = useState<Despesa[]>([])
+  const [receitasManuais, setReceitasManuais] = useState<Despesa[]>([])
+  const [veiculoExpandido, setVeiculoExpandido] = useState<string | null>(null)
   const [motoristas, setMotoristas] = useState<Motorista[]>([])
   const [loading, setLoading]       = useState(true)
   const [modalAberto, setModalAberto] = useState(false)
@@ -191,7 +204,7 @@ export default function FinanceiroPage() {
         .order('data_hora', { ascending: false }),
       supabase
         .from('despesas_empresa')
-        .select('id, motorista_id, veiculo, categoria, descricao, valor, km_odometro, data')
+        .select('id, motorista_id, veiculo, categoria, descricao, valor, km_odometro, data, tipo')
         .eq('empresa_id', eid)
         .gte('data', inicio)
         .lte('data', fim)
@@ -199,13 +212,20 @@ export default function FinanceiroPage() {
     ])
 
     setCorridas((corr as any) ?? [])
-    setDespesas(desp ?? [])
+    const todosLancamentos = (desp as Despesa[]) ?? []
+    setDespesas(todosLancamentos.filter(d => d.tipo !== 'receita'))
+    setReceitasManuais(todosLancamentos.filter(d => d.tipo === 'receita'))
     setLoading(false)
   }
 
-  function abrirNova() {
+  function abrirNova(tipo: 'receita' | 'despesa' = 'despesa') {
     setEditando(null)
-    setForm({ ...FORM_VAZIO, data: format(new Date(), 'yyyy-MM-dd') })
+    setForm({
+      ...FORM_VAZIO,
+      tipo,
+      categoria: tipo === 'receita' ? CATEGORIAS_RECEITA[0].valor : 'combustivel',
+      data: format(new Date(), 'yyyy-MM-dd'),
+    })
     setErro('')
     setModalAberto(true)
   }
@@ -213,6 +233,7 @@ export default function FinanceiroPage() {
   function abrirEditar(d: Despesa) {
     setEditando(d)
     setForm({
+      tipo:         d.tipo,
       categoria:    d.categoria,
       descricao:    d.descricao,
       valor:        String(d.valor),
@@ -237,6 +258,7 @@ export default function FinanceiroPage() {
 
     const payload = {
       empresa_id:   empresaId,
+      tipo:         form.tipo,
       categoria:    form.categoria,
       descricao:    form.descricao.trim(),
       valor,
@@ -257,7 +279,7 @@ export default function FinanceiroPage() {
   }
 
   async function excluir(id: string) {
-    if (!confirm('Excluir esta despesa?')) return
+    if (!confirm('Excluir este lançamento?')) return
     await supabase.from('despesas_empresa').delete().eq('id', id)
     if (empresaId) carregar(empresaId)
   }
@@ -265,7 +287,9 @@ export default function FinanceiroPage() {
   /* ── Cálculos ── */
   const corridasConcluidas = corridas.filter(c => c.status === 'concluida')
   const corridasAReceber   = corridas.filter(c => c.status === 'confirmada')
-  const totalRec      = corridasConcluidas.reduce((s, c) => s + Number(c.valor), 0)
+  const totalRecCorridas = corridasConcluidas.reduce((s, c) => s + Number(c.valor), 0)
+  const totalRecManual   = receitasManuais.reduce((s, r) => s + Number(r.valor), 0)
+  const totalRec      = totalRecCorridas + totalRecManual
   const totalAReceber = corridasAReceber.reduce((s, c) => s + Number(c.valor) - Number(c.valor_recebido || 0), 0)
   const totalDesp     = despesas.reduce((s, d) => s + Number(d.valor), 0)
   const lucro         = totalRec - totalDesp
@@ -284,6 +308,16 @@ export default function FinanceiroPage() {
     const item = vMap.get(key)!
     item.receita += Number(c.valor)
     item.qtd++
+  })
+
+  receitasManuais.forEach(r => {
+    const key = r.motorista_id ?? '__sem__'
+    if (!vMap.has(key)) {
+      const m   = r.motorista_id ? motMap[r.motorista_id] : undefined
+      const veic = [m?.veiculo, m?.placa].filter(Boolean).join(' · ') || r.veiculo || 'Sem veículo'
+      vMap.set(key, { key, nome: m?.nome ?? 'Sem motorista', veiculo: veic, receita: 0, despesa: 0, qtd: 0 })
+    }
+    vMap.get(key)!.receita += Number(r.valor)
   })
 
   despesas.forEach(d => {
@@ -382,7 +416,7 @@ export default function FinanceiroPage() {
               <div className="bg-white rounded-2xl p-4 border border-gray-100">
                 <p className="text-xs text-gray-400 mb-2">📊 Ticket médio</p>
                 <p className="text-xl font-bold" style={{ color: '#185FA5' }}>
-                  {corridasConcluidas.length > 0 ? fmt(totalRec / corridasConcluidas.length) : 'R$ 0'}
+                  {corridasConcluidas.length > 0 ? fmt(totalRecCorridas / corridasConcluidas.length) : 'R$ 0'}
                 </p>
               </div>
 
@@ -410,14 +444,20 @@ export default function FinanceiroPage() {
         ) : aba === 'receitas' ? (
           /* ── Receitas ── */
           <div className="flex flex-col gap-4">
-            {/* Realizadas */}
+            <button onClick={() => abrirNova('receita')}
+              className="w-full py-3 rounded-xl text-sm font-semibold"
+              style={{ background: '#1D9E75', color: '#fff' }}>
+              + Adicionar receita
+            </button>
+
+            {/* Realizadas (corridas concluídas) */}
             <div>
               <div className="flex justify-between items-center mb-2">
                 <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#0F6E56' }}>
-                  ✅ Realizadas · {corridasConcluidas.length}
+                  ✅ Corridas concluídas · {corridasConcluidas.length}
                 </p>
                 {corridasConcluidas.length > 0 && (
-                  <p className="text-sm font-bold" style={{ color: '#0F6E56' }}>{fmt(totalRec)}</p>
+                  <p className="text-sm font-bold" style={{ color: '#0F6E56' }}>{fmt(totalRecCorridas)}</p>
                 )}
               </div>
               {corridasConcluidas.length === 0 ? (
@@ -483,6 +523,68 @@ export default function FinanceiroPage() {
                 </div>
               )}
             </div>
+
+            {/* Receitas manuais (fora do fluxo automático de corridas) */}
+            <div>
+              <div className="flex justify-between items-center mb-2">
+                <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#0F6E56' }}>
+                  ➕ Lançadas manualmente · {receitasManuais.length}
+                </p>
+                {receitasManuais.length > 0 && (
+                  <p className="text-sm font-bold" style={{ color: '#0F6E56' }}>{fmt(totalRecManual)}</p>
+                )}
+              </div>
+              {receitasManuais.length === 0 ? (
+                <div className="text-center py-6">
+                  <p className="text-sm text-gray-400">Nenhuma receita lançada manualmente no período</p>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {receitasManuais.map(r => {
+                    const cat = catReceitaMap[r.categoria] ?? { label: r.categoria, emoji: '➕' }
+                    const m = r.motorista_id ? motMap[r.motorista_id] : undefined
+                    return (
+                      <div key={r.id} className="bg-white rounded-2xl p-3 border border-gray-100">
+                        <div className="flex items-start gap-3">
+                          <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm flex-shrink-0"
+                            style={{ background: '#E1F5EE' }}>
+                            {cat.emoji}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-gray-800 truncate">{r.descricao}</p>
+                            <p className="text-xs text-gray-400">
+                              {cat.label} · {r.data.slice(8, 10)}/{r.data.slice(5, 7)}
+                            </p>
+                            {(m || r.veiculo) && (
+                              <p className="text-xs text-gray-400">
+                                🚗 {[m?.nome, r.veiculo].filter(Boolean).join(' · ')}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                            <p className="text-sm font-bold" style={{ color: '#0F6E56' }}>
+                              {fmt(Number(r.valor))}
+                            </p>
+                            <div className="flex gap-1">
+                              <button onClick={() => abrirEditar(r)}
+                                className="px-2 py-1 rounded-lg text-[10px] font-medium"
+                                style={{ background: '#E1F5EE', color: '#0F6E56' }}>
+                                ✏️
+                              </button>
+                              <button onClick={() => excluir(r.id)}
+                                className="px-2 py-1 rounded-lg text-[10px] font-medium"
+                                style={{ background: '#FCEBEB', color: '#A32D2D' }}>
+                                🗑️
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
           </div>
 
         ) : aba === 'despesas' ? (
@@ -496,7 +598,7 @@ export default function FinanceiroPage() {
                 <p className="text-sm font-bold" style={{ color: '#A32D2D' }}>{fmt(totalDesp)}</p>
               )}
             </div>
-            <button onClick={abrirNova}
+            <button onClick={() => abrirNova('despesa')}
               className="w-full py-3 rounded-xl text-sm font-semibold mb-3"
               style={{ background: '#1D9E75', color: '#fff' }}>
               + Adicionar despesa
@@ -580,34 +682,96 @@ export default function FinanceiroPage() {
               <div className="flex flex-col gap-3">
                 {veiculos.map(v => {
                   const lv = v.receita - v.despesa
+                  const expandido = veiculoExpandido === v.key
+                  // Lançamentos deste veículo especificamente, pro drill-down
+                  const corridasDoVeiculo = corridasConcluidas.filter(c => (c.motorista_id ?? '__sem__') === v.key)
+                  const receitasManuaisDoVeiculo = receitasManuais.filter(r => (r.motorista_id ?? '__sem__') === v.key)
+                  const despesasDoVeiculo = despesas.filter(d => (d.motorista_id ?? '__sem__') === v.key)
                   return (
-                    <div key={v.key} className="bg-white rounded-2xl p-4 border border-gray-100">
-                      <div className="flex items-start justify-between gap-2 mb-3">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-gray-800">{v.nome}</p>
-                          <p className="text-xs text-gray-400">{v.veiculo}</p>
+                    <div key={v.key} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+                      <button type="button" onClick={() => setVeiculoExpandido(expandido ? null : v.key)}
+                        className="w-full text-left p-4">
+                        <div className="flex items-start justify-between gap-2 mb-3">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-gray-800">{v.nome}</p>
+                            <p className="text-xs text-gray-400">{v.veiculo}</p>
+                          </div>
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <span className="text-[11px] font-bold px-2 py-1 rounded-lg"
+                              style={lv >= 0
+                                ? { background: '#E1F5EE', color: '#0F6E56' }
+                                : { background: '#FCEBEB', color: '#A32D2D' }}>
+                              {lv >= 0 ? '+' : '-'}{fmt(lv)}
+                            </span>
+                            <span className="text-gray-300 text-sm">{expandido ? '▲' : '▼'}</span>
+                          </div>
                         </div>
-                        <span className="text-[11px] font-bold px-2 py-1 rounded-lg flex-shrink-0"
-                          style={lv >= 0
-                            ? { background: '#E1F5EE', color: '#0F6E56' }
-                            : { background: '#FCEBEB', color: '#A32D2D' }}>
-                          {lv >= 0 ? '+' : '-'}{fmt(lv)}
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-3 gap-2 pt-2 border-t border-gray-50">
-                        <div className="text-center">
-                          <p className="text-[10px] text-gray-400 mb-0.5">Receita</p>
-                          <p className="text-sm font-bold" style={{ color: '#0F6E56' }}>{fmt(v.receita)}</p>
+                        <div className="grid grid-cols-3 gap-2 pt-2 border-t border-gray-50">
+                          <div className="text-center">
+                            <p className="text-[10px] text-gray-400 mb-0.5">Receita</p>
+                            <p className="text-sm font-bold" style={{ color: '#0F6E56' }}>{fmt(v.receita)}</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-[10px] text-gray-400 mb-0.5">Despesas</p>
+                            <p className="text-sm font-bold" style={{ color: '#A32D2D' }}>{fmt(v.despesa)}</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-[10px] text-gray-400 mb-0.5">Corridas</p>
+                            <p className="text-sm font-bold text-gray-700">{v.qtd}</p>
+                          </div>
                         </div>
-                        <div className="text-center">
-                          <p className="text-[10px] text-gray-400 mb-0.5">Despesas</p>
-                          <p className="text-sm font-bold" style={{ color: '#A32D2D' }}>{fmt(v.despesa)}</p>
+                      </button>
+
+                      {expandido && (
+                        <div className="px-4 pb-4 flex flex-col gap-3" style={{ borderTop: '1px solid #f5f5f5' }}>
+                          {/* Receitas do veículo */}
+                          <div className="pt-3">
+                            <p className="text-[10px] font-semibold uppercase tracking-wide mb-1.5" style={{ color: '#0F6E56' }}>
+                              💰 Receitas
+                            </p>
+                            {corridasDoVeiculo.length === 0 && receitasManuaisDoVeiculo.length === 0 ? (
+                              <p className="text-xs text-gray-400">Nenhuma receita no período</p>
+                            ) : (
+                              <div className="flex flex-col gap-1.5">
+                                {corridasDoVeiculo.map(c => (
+                                  <div key={c.id} className="flex items-center justify-between gap-2 text-xs">
+                                    <span className="text-gray-600 truncate">{c.origem} → {c.destino} · {c.data_hora.slice(8,10)}/{c.data_hora.slice(5,7)}</span>
+                                    <span className="font-semibold flex-shrink-0" style={{ color: '#0F6E56' }}>{fmt(Number(c.valor))}</span>
+                                  </div>
+                                ))}
+                                {receitasManuaisDoVeiculo.map(r => (
+                                  <div key={r.id} className="flex items-center justify-between gap-2 text-xs">
+                                    <span className="text-gray-600 truncate">➕ {r.descricao} · {r.data.slice(8,10)}/{r.data.slice(5,7)}</span>
+                                    <span className="font-semibold flex-shrink-0" style={{ color: '#0F6E56' }}>{fmt(Number(r.valor))}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Despesas do veículo */}
+                          <div>
+                            <p className="text-[10px] font-semibold uppercase tracking-wide mb-1.5" style={{ color: '#A32D2D' }}>
+                              🧾 Despesas
+                            </p>
+                            {despesasDoVeiculo.length === 0 ? (
+                              <p className="text-xs text-gray-400">Nenhuma despesa no período</p>
+                            ) : (
+                              <div className="flex flex-col gap-1.5">
+                                {despesasDoVeiculo.map(d => {
+                                  const cat = catMap[d.categoria] ?? { label: d.categoria, emoji: '📦' }
+                                  return (
+                                    <div key={d.id} className="flex items-center justify-between gap-2 text-xs">
+                                      <span className="text-gray-600 truncate">{cat.emoji} {d.descricao} · {d.data.slice(8,10)}/{d.data.slice(5,7)}</span>
+                                      <span className="font-semibold flex-shrink-0" style={{ color: '#A32D2D' }}>{fmt(Number(d.valor))}</span>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        <div className="text-center">
-                          <p className="text-[10px] text-gray-400 mb-0.5">Corridas</p>
-                          <p className="text-sm font-bold text-gray-700">{v.qtd}</p>
-                        </div>
-                      </div>
+                      )}
                     </div>
                   )
                 })}
@@ -624,7 +788,9 @@ export default function FinanceiroPage() {
           <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-4 flex items-center gap-3 flex-shrink-0">
             <button onClick={() => setModalAberto(false)} style={{ color: '#9FE1CB' }} className="text-2xl">‹</button>
             <p style={{ color: '#E1F5EE' }} className="text-sm font-semibold">
-              {editando ? 'Editar despesa' : 'Nova despesa'}
+              {editando
+                ? (form.tipo === 'receita' ? 'Editar receita' : 'Editar despesa')
+                : (form.tipo === 'receita' ? 'Nova receita' : 'Nova despesa')}
             </p>
           </div>
 
@@ -633,7 +799,7 @@ export default function FinanceiroPage() {
               <select value={form.categoria}
                 onChange={e => setForm(f => ({ ...f, categoria: e.target.value }))}
                 className="campo-input">
-                {CATEGORIAS.map(c => (
+                {(form.tipo === 'receita' ? CATEGORIAS_RECEITA : CATEGORIAS).map(c => (
                   <option key={c.valor} value={c.valor}>{c.emoji} {c.label}</option>
                 ))}
               </select>
@@ -642,7 +808,7 @@ export default function FinanceiroPage() {
             <Campo label="Descrição *">
               <input value={form.descricao}
                 onChange={e => setForm(f => ({ ...f, descricao: e.target.value }))}
-                placeholder="Ex: Abastecimento — posto BR km 45"
+                placeholder={form.tipo === 'receita' ? 'Ex: Corrida combinada direto com o cliente' : 'Ex: Abastecimento — posto BR km 45'}
                 className="campo-input" />
             </Campo>
 
@@ -708,7 +874,11 @@ export default function FinanceiroPage() {
             <button onClick={salvar} disabled={salvando}
               className="w-full py-3.5 rounded-xl text-white text-sm font-semibold disabled:opacity-40"
               style={{ background: '#1D9E75' }}>
-              {salvando ? 'Salvando...' : editando ? 'Salvar alterações' : '✓ Registrar despesa'}
+              {salvando
+                ? 'Salvando...'
+                : editando
+                  ? 'Salvar alterações'
+                  : (form.tipo === 'receita' ? '✓ Registrar receita' : '✓ Registrar despesa')}
             </button>
           </div>
 
