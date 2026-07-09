@@ -230,6 +230,7 @@ const TIPO_META: Record<string, TipoMeta> = {
   excursao:   { badge: '🗺️ Excursão',   bg: '#EDE9FE', text: '#5B21B6', clienteLabel: 'Responsável' },
   transfer:   { badge: '🚗 Transfer',   bg: '#EFF6FF', text: '#1D4ED8', clienteLabel: 'Responsável' },
   city_tour:  { badge: '🏙️ City Tour',  bg: '#F0FDF4', text: '#166534', clienteLabel: 'Cliente'     },
+  diaria:     { badge: '📆 Diária',     bg: '#FFEDD5', text: '#9A3412', clienteLabel: 'Cliente'     },
 }
 function tipoMeta(tipo: string | null): TipoMeta {
   return TIPO_META[tipo ?? ''] ?? { badge: tipo ?? 'Serviço', bg: '#F3F4F6', text: '#6B7280', clienteLabel: 'Cliente' }
@@ -1908,6 +1909,7 @@ export default function AgendamentosPage() {
                   <>
                     <option value="transfer">Transfer</option>
                     <option value="city_tour">City Tour</option>
+                    <option value="diaria">Diária</option>
                   </>
                 )}
               </select>
