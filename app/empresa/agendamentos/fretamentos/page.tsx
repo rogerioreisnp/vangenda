@@ -73,6 +73,7 @@ type CorridaAgrupada =
 
 type AgendamentoRF = {
   id: string
+  rota_id: string | null
   motorista_id: string
   nome_passageiro: string
   telefone_passageiro: string | null
@@ -436,7 +437,7 @@ export default function AgendamentosPage() {
       if (userIds.length > 0) {
         const { data: ags } = await supabase
           .from('agendamentos')
-          .select('id, motorista_id, nome_passageiro, telefone_passageiro, parada_origem, parada_destino, turno, valor, status, data_viagem, forma_pagamento, observacoes, rua, numero, bairro, municipio, cep, referencia')
+          .select('id, rota_id, motorista_id, nome_passageiro, telefone_passageiro, parada_origem, parada_destino, turno, valor, status, data_viagem, forma_pagamento, observacoes, rua, numero, bairro, municipio, cep, referencia')
           .in('motorista_id', userIds)
           .order('data_viagem', { ascending: false })
           .limit(300)
@@ -1090,6 +1091,10 @@ export default function AgendamentosPage() {
   })()
   const agendamentosFiltrados = (() => {
     let list = verTodos ? agendamentosRF : agendamentosRF.filter(ag => ag.data_viagem === filtroData)
+    // Filtro de rota: quando o gestor escolhe uma rota especifica, so aparecem
+    // os passageiros vinculados a ela. "Todas as rotas" (filtroRotaId vazio)
+    // mostra tudo.
+    if (filtroRotaId) list = list.filter(ag => ag.rota_id === filtroRotaId)
     return list
   })()
   const corridasAgrupadas = agruparPares(corridasFiltradas)
