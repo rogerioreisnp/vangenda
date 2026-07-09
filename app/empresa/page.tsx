@@ -480,7 +480,7 @@ export default function EmpresaPage() {
                           )}
                           <p className="text-xs text-gray-400 mt-0.5">
                             {temVolta
-                              ? <>Ida {c.data_hora.slice(8, 10)}/{c.data_hora.slice(5, 7)} {horaIda}{horaVolta && ` · Volta ${dataVolta} ${horaVolta}`}</>
+                              ? <>Ida {c.data_hora.slice(8, 10)}/{c.data_hora.slice(5, 7)} {horaIda}{dataVolta && ` · Volta ${dataVolta}${horaVolta ? ` ${horaVolta}` : ''}`}</>
                               : <>{c.data_hora.slice(8, 10)}/{c.data_hora.slice(5, 7)} às {horaIda}</>
                             }
                             {motoristaNome

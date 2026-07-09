@@ -1303,7 +1303,7 @@ export default function AgendamentosPage() {
                             </p>
                             <p className="text-xs text-gray-400 mt-0.5">
                               Ida {dataIda} {horaIda}
-                              {horaVolta && ` · Volta ${dataVolta} ${horaVolta}`}
+                              {dataVolta && ` · Volta ${dataVolta}${horaVolta ? ` ${horaVolta}` : ''}`}
                             </p>
                           </>
                         ) : (
