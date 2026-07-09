@@ -457,10 +457,14 @@ export default function AgendamentosPage() {
 
   function abrirEditar(c: Corrida, voltaId?: string) {
     const rotaExiste = c.rota_id != null && rotasOpcoes.some(r => r.id === c.rota_id)
-    // Se existe corrida de volta, busca ela no state pra pre-preencher os
-    // campos origem_volta/destino_volta/data_retorno/horario_retorno/preco_volta.
-    // Assim o gestor consegue EDITAR os dados da volta na mesma tela.
+    // Duas formas de ida-e-volta existirem:
+    // 1. PAR — duas linhas separadas em corridas_empresa (agrupadas por
+    //    cliente_nome + created_at proximo). voltaId aponta pra outra linha.
+    // 2. LINK PUBLICO — uma unica linha com retorno_data/retorno_horario/
+    //    retorno_origem/retorno_destino preenchidos.
+    // Em ambos os casos, o gestor precisa poder editar os dados da volta.
     const volta = voltaId ? corridas.find(x => x.id === voltaId) : null
+    const temRetornoLinkPublico = !volta && !!c.retorno_data
     setCorridaEditando(c)
     setVoltaIdEditando(voltaId ?? null)
     setForm({
@@ -470,11 +474,11 @@ export default function AgendamentosPage() {
       destino: c.destino,
       data: c.data_hora.slice(0, 10),
       horario: c.data_hora.slice(11, 16),
-      ida_volta: !!volta,
-      origem_volta: volta?.origem || '',
-      destino_volta: volta?.destino || '',
-      data_retorno: volta?.data_hora.slice(0, 10) || '',
-      horario_retorno: volta?.data_hora.slice(11, 16) || '',
+      ida_volta: !!volta || temRetornoLinkPublico,
+      origem_volta: volta?.origem || c.retorno_origem || '',
+      destino_volta: volta?.destino || c.retorno_destino || '',
+      data_retorno: volta?.data_hora.slice(0, 10) || c.retorno_data || '',
+      horario_retorno: volta?.data_hora.slice(11, 16) || (c.retorno_horario ? c.retorno_horario.slice(0, 5) : ''),
       preco_volta: volta ? String(volta.valor) : '',
       observacoes_volta: volta?.observacoes || '',
       motorista_id: c.motorista_id || '',
@@ -601,9 +605,23 @@ export default function AgendamentosPage() {
     }
 
     if (corridaEditando) {
+      const updateFields: Record<string, unknown> = {
+        ...camposComuns,
+        data_hora: `${form.data}T${form.horario}:00`,
+      }
+      // Se e edicao de corrida do link publico com ida-volta (uma so linha
+      // com retorno_*), atualiza os campos retorno_* na mesma corrida.
+      // Distinguimos do PAR pelo voltaIdEditando: se e null e ida_volta e true,
+      // e link publico.
+      if (!voltaIdEditando && form.ida_volta) {
+        updateFields.retorno_data = form.data_retorno || null
+        updateFields.retorno_horario = form.horario_retorno || null
+        updateFields.retorno_origem = form.origem_volta.trim() || null
+        updateFields.retorno_destino = form.destino_volta.trim() || null
+      }
       const { error } = await supabase
         .from('corridas_empresa')
-        .update({ ...camposComuns, data_hora: `${form.data}T${form.horario}:00` })
+        .update(updateFields)
         .eq('id', corridaEditando.id)
 
       if (error) {
@@ -1998,7 +2016,13 @@ export default function AgendamentosPage() {
               </div>
             )}
 
-            {!corridaEditando && form.ida_volta && (
+            {/* Bloco Volta — aparece em 3 casos:
+                1. Criando nova corrida com ida-volta marcada
+                2. Editando corrida do link publico (retorno_data na mesma linha)
+                Nao aparece quando editando um PAR (voltaIdEditando != null), porque
+                nesse caso a volta e outra linha completa e ha logica separada de
+                atualizacao com origem_volta/destino_volta/etc. */}
+            {!voltaIdEditando && form.ida_volta && (
               <div className="rounded-xl px-3 py-3" style={{ background: '#EEEDFE' }}>
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-xs font-semibold" style={{ color: '#3C3489' }}>🔁 Volta</p>
