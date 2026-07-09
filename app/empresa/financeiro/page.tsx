@@ -1001,10 +1001,31 @@ export default function FinanceiroPage() {
 
 // ─── FINANCEIRO ROTA FIXA ────────────────────────────────────────────────────
 
+type ReceitaAgendamento = {
+  id: string
+  valor: number
+  data_viagem: string
+  nome_passageiro: string | null
+  parada_origem: string | null
+  parada_destino: string | null
+  forma_pagamento: string | null
+}
+
+type ReceitaEncomenda = {
+  id: string
+  nome: string | null
+  valor: number
+  data_pago: string | null
+  criado_em: string
+  forma_pagamento: string | null
+}
+
 function FinanceiroRotaFixa({ empresaId }: { empresaId: string }) {
   const [filtro, setFiltro] = useState<FiltroRF>('mes')
   const [mes, setMes] = useState(new Date())
   const [lancamentos, setLancamentos] = useState<LancamentoEmpresa[]>([])
+  const [receitasAgendamentos, setReceitasAgendamentos] = useState<ReceitaAgendamento[]>([])
+  const [receitasEncomendas, setReceitasEncomendas] = useState<ReceitaEncomenda[]>([])
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState<null | 'receita' | 'despesa'>(null)
   const [editando, setEditando] = useState<LancamentoEmpresa | null>(null)
@@ -1022,16 +1043,49 @@ function FinanceiroRotaFixa({ empresaId }: { empresaId: string }) {
   async function carregar() {
     setLoading(true)
     const { inicio, fim } = getPeriodo()
-    console.log('[RF] empresaId usado na query:', empresaId, '| período:', inicio, '→', fim)
-    const { data, error } = await supabase
-      .from('cobrancas_empresa')
-      .select('id, tipo, categoria, observacao, valor, data, created_at, quilometragem, forma_pagamento')
+
+    // Pega os user_ids dos motoristas da empresa — precisamos deles pra buscar
+    // agendamentos/encomendas, ja que essas tabelas guardam motorista_id = user_id
+    // do funcionario, nao empresa_id. Nao filtramos por status pra nao perder
+    // historico de motorista que foi desativado depois.
+    const { data: mots } = await supabase
+      .from('motoristas_empresa')
+      .select('user_id')
       .eq('empresa_id', empresaId)
-      .in('tipo', ['receita', 'despesa'])
-      .order('created_at', { ascending: false })
-    if (error) console.error('[RF] Erro na query:', error.message)
-    console.log('[RF] Registros retornados:', data?.length ?? 0, data)
-    const todos = (data as LancamentoEmpresa[]) ?? []
+    const userIds = (mots ?? []).map(m => m.user_id).filter(Boolean) as string[]
+
+    const [{ data: cobrancas, error: errCobr }, { data: agends }, { data: encs }] = await Promise.all([
+      supabase
+        .from('cobrancas_empresa')
+        .select('id, tipo, categoria, observacao, valor, data, created_at, quilometragem, forma_pagamento')
+        .eq('empresa_id', empresaId)
+        .in('tipo', ['receita', 'despesa'])
+        .order('created_at', { ascending: false }),
+      // Receitas automaticas: viagens realizadas pelos motoristas da empresa.
+      // Mesmo filtro do individual: exclui cancelado e nao conta fiado ainda-nao-pago.
+      userIds.length > 0
+        ? supabase
+            .from('agendamentos')
+            .select('id, valor, data_viagem, nome_passageiro, parada_origem, parada_destino, forma_pagamento')
+            .in('motorista_id', userIds)
+            .neq('status', 'cancelado')
+            .gte('data_viagem', inicio)
+            .lte('data_viagem', fim)
+            .or('forma_pagamento.neq.fiado,forma_pagamento.is.null,fiado_pago.eq.true')
+        : Promise.resolve({ data: [] as ReceitaAgendamento[] }),
+      // Encomendas pagas dos motoristas (mesmo padrao do individual)
+      userIds.length > 0
+        ? supabase
+            .from('encomendas')
+            .select('id, nome, valor, data_pago, criado_em, forma_pagamento')
+            .in('motorista_id', userIds)
+            .eq('pago', true)
+        : Promise.resolve({ data: [] as ReceitaEncomenda[] }),
+    ])
+
+    if (errCobr) console.error('[RF] Erro na query cobrancas:', errCobr.message)
+
+    const todos = (cobrancas as LancamentoEmpresa[]) ?? []
     const filtrados = todos
       .filter(r => {
         const dataEfetiva = r.data ?? r.created_at.slice(0, 10)
@@ -1043,6 +1097,13 @@ function FinanceiroRotaFixa({ empresaId }: { empresaId: string }) {
         return db.localeCompare(da)
       })
     setLancamentos(filtrados)
+    setReceitasAgendamentos((agends as ReceitaAgendamento[]) ?? [])
+    // Encomendas: filtro por data_pago (fallback criado_em) — igual o individual
+    const encsFiltradas = ((encs as ReceitaEncomenda[]) ?? []).filter(e => {
+      const d = e.data_pago ?? e.criado_em.slice(0, 10)
+      return d >= inicio && d <= fim
+    })
+    setReceitasEncomendas(encsFiltradas)
     setLoading(false)
   }
 
@@ -1052,9 +1113,12 @@ function FinanceiroRotaFixa({ empresaId }: { empresaId: string }) {
     carregar()
   }
 
-  const receitas = lancamentos.filter(l => l.tipo === 'receita')
+  const receitasManuais = lancamentos.filter(l => l.tipo === 'receita')
   const despesas = lancamentos.filter(l => l.tipo === 'despesa')
-  const totalReceitas = receitas.reduce((s, r) => s + Number(r.valor), 0)
+  const totalReceitasManuais = receitasManuais.reduce((s, r) => s + Number(r.valor), 0)
+  const totalReceitasAgendamentos = receitasAgendamentos.reduce((s, r) => s + Number(r.valor), 0)
+  const totalReceitasEncomendas = receitasEncomendas.reduce((s, e) => s + Number(e.valor), 0)
+  const totalReceitas = totalReceitasManuais + totalReceitasAgendamentos + totalReceitasEncomendas
   const totalDespesas = despesas.reduce((s, d) => s + Number(d.valor), 0)
   const lucro = totalReceitas - totalDespesas
 
@@ -1130,13 +1194,79 @@ function FinanceiroRotaFixa({ empresaId }: { empresaId: string }) {
           <p className="text-center text-gray-400 text-sm py-10">Carregando...</p>
         ) : (
           <>
+            {/* Viagens realizadas (agendamentos dos motoristas da empresa) */}
+            {receitasAgendamentos.length > 0 && (
+              <div className="mb-5">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">🚗 Viagens realizadas</p>
+                  <p className="text-xs font-semibold" style={{ color: '#0F6E56' }}>+ R$ {totalReceitasAgendamentos.toFixed(2).replace('.', ',')}</p>
+                </div>
+                <div className="bg-white rounded-2xl overflow-hidden border border-gray-100">
+                  {receitasAgendamentos.slice(0, 20).map(a => (
+                    <div key={a.id} className="flex items-center px-4 py-3 border-b border-gray-50 last:border-0 gap-2">
+                      <span className="text-xl mr-1">🚗</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-800 truncate">{a.nome_passageiro || 'Passageiro'}</p>
+                        {(a.parada_origem || a.parada_destino) && (
+                          <p className="text-xs text-gray-400 truncate">{a.parada_origem} → {a.parada_destino}</p>
+                        )}
+                        <p className="text-xs text-gray-400">{format(new Date(a.data_viagem + 'T00:00:00'), 'dd/MM/yyyy')}</p>
+                      </div>
+                      <span className="text-sm font-semibold shrink-0" style={{ color: '#0F6E56' }}>
+                        + R$ {Number(a.valor).toFixed(2).replace('.', ',')}
+                      </span>
+                    </div>
+                  ))}
+                  {receitasAgendamentos.length > 20 && (
+                    <p className="text-center text-xs text-gray-400 py-2">+ {receitasAgendamentos.length - 20} viagens</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Encomendas pagas dos motoristas da empresa */}
+            {receitasEncomendas.length > 0 && (
+              <div className="mb-5">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">📦 Encomendas pagas</p>
+                  <p className="text-xs font-semibold" style={{ color: '#0F6E56' }}>+ R$ {totalReceitasEncomendas.toFixed(2).replace('.', ',')}</p>
+                </div>
+                <div className="bg-white rounded-2xl overflow-hidden border border-gray-100">
+                  {receitasEncomendas.slice(0, 20).map(e => {
+                    const data = e.data_pago ?? e.criado_em.slice(0, 10)
+                    return (
+                      <div key={e.id} className="flex items-center px-4 py-3 border-b border-gray-50 last:border-0 gap-2">
+                        <span className="text-xl mr-1">📦</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-800 truncate">{e.nome || 'Encomenda'}</p>
+                          <p className="text-xs text-gray-400">{format(new Date(data + 'T00:00:00'), 'dd/MM/yyyy')}</p>
+                        </div>
+                        <span className="text-sm font-semibold shrink-0" style={{ color: '#0F6E56' }}>
+                          + R$ {Number(e.valor).toFixed(2).replace('.', ',')}
+                        </span>
+                      </div>
+                    )
+                  })}
+                  {receitasEncomendas.length > 20 && (
+                    <p className="text-center text-xs text-gray-400 py-2">+ {receitasEncomendas.length - 20} encomendas</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Receitas lançadas manualmente */}
             <div className="mb-5">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Receitas</p>
-              {receitas.length === 0 ? (
-                <div className="text-center py-4 text-gray-400 text-sm bg-white rounded-2xl border border-gray-100">Nenhuma receita lançada</div>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">➕ Lançadas manualmente</p>
+                {receitasManuais.length > 0 && (
+                  <p className="text-xs font-semibold" style={{ color: '#0F6E56' }}>+ R$ {totalReceitasManuais.toFixed(2).replace('.', ',')}</p>
+                )}
+              </div>
+              {receitasManuais.length === 0 ? (
+                <div className="text-center py-4 text-gray-400 text-sm bg-white rounded-2xl border border-gray-100">Nenhuma receita lançada manualmente</div>
               ) : (
                 <div className="bg-white rounded-2xl overflow-hidden border border-gray-100">
-                  {receitas.map(r => {
+                  {receitasManuais.map(r => {
                     const cat = categoriasReceitaRF.find(c => c.value === r.categoria)
                     return (
                       <div key={r.id} className="flex items-center px-4 py-3 border-b border-gray-50 last:border-0 gap-2">
