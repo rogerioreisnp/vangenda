@@ -524,7 +524,17 @@ export default function EmpresaPage() {
                           </span>
                         </div>
                         <p className="text-xs text-gray-400 mt-0.5">
-                          {ida.data_hora.slice(8, 10)}/{ida.data_hora.slice(5, 7)} · Ida {ida.data_hora.slice(11, 16)} · Volta {volta.data_hora.slice(11, 16)}
+                          {(() => {
+                            const dataIda = `${ida.data_hora.slice(8, 10)}/${ida.data_hora.slice(5, 7)}`
+                            const dataVolta = `${volta.data_hora.slice(8, 10)}/${volta.data_hora.slice(5, 7)}`
+                            const horaIda = ida.data_hora.slice(11, 16)
+                            const horaVolta = volta.data_hora.slice(11, 16)
+                            // Se ida e volta sao no mesmo dia, formato compacto.
+                            // Se sao em dias diferentes (ex: viagem de madrugada), mostra as 2 datas.
+                            return dataIda === dataVolta
+                              ? `${dataIda} · Ida ${horaIda} · Volta ${horaVolta}`
+                              : `Ida ${dataIda} ${horaIda} · Volta ${dataVolta} ${horaVolta}`
+                          })()}
                           {motoristaNome
                             ? <> · <span className="text-gray-500">{motoristaNome}</span></>
                             : <> · <span style={{ color: '#A32D2D' }}>Sem motorista</span></>
