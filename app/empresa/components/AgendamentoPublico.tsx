@@ -180,6 +180,21 @@ export default function AgendamentoPublico({
     } catch {}
   }
 
+  // Concatena um endereço estruturado em texto legível para gravar em
+  // origem/destino (o painel do gestor exibe esse texto direto). Ignora
+  // campos vazios pra evitar vírgulas soltas.
+  function concatEndereco(e: { rua: string; numero: string; bairro: string; municipio: string; referencia?: string }): string {
+    const rua = e.rua.trim()
+    const num = e.numero.trim()
+    const bairro = e.bairro.trim()
+    const mun = e.municipio.trim()
+    const ref = (e.referencia || '').trim()
+    const ruaNum = [rua, num].filter(Boolean).join(', ')
+    const cidade = [bairro, mun].filter(Boolean).join(' — ')
+    const linhas = [ruaNum, cidade].filter(Boolean).join(' · ')
+    return ref ? `${linhas} (${ref})` : linhas
+  }
+
   async function salvarEndereco(endereco: string) {
     if (!endereco.trim()) return
     try {
@@ -297,8 +312,6 @@ export default function AgendamentoPublico({
     if (!form.nome.trim()) { setErro('Seu nome é obrigatório'); return }
     if (!form.telefone.trim()) { setErro('Seu telefone é obrigatório'); return }
     if (!form.rota_id) { setErro('Selecione uma rota'); return }
-    if (rotaManual && !origemManual.trim()) { setErro('Informe a origem da viagem'); return }
-    if (rotaManual && !destinoManual.trim()) { setErro('Informe o destino da viagem'); return }
     if (!form.data) { setErro('Data é obrigatória'); return }
     if (empresa.tipo_operacao === 'rota_fixa' && !isDiaOperacao) {
       setErro(`Esta rota não opera neste dia. Dias disponíveis: ${diasTexto}.`); return
@@ -309,6 +322,12 @@ export default function AgendamentoPublico({
     }
     if (empresa.tipo_operacao === 'rota_fixa' && valorTrechoRF === null) {
       setErro('Trecho não disponível para esta rota'); return
+    }
+    // Transfer: o endereço do Passageiro 1 vira origem/destino da corrida
+    if (empresa.tipo_operacao !== 'rota_fixa') {
+      if (!passageiro1Nome.trim()) { setErro('Informe o nome do Passageiro 1'); return }
+      if (!form.rua.trim() && !form.bairro.trim()) { setErro('Informe o endereço de embarque do Passageiro 1 (rua ou bairro)'); return }
+      if (!form.rua_desembarque.trim() && !form.bairro_desembarque.trim()) { setErro('Informe o endereço de desembarque do Passageiro 1 (rua ou bairro)'); return }
     }
     if (!rotaManual && !rotaSelecionada) return
 
@@ -329,8 +348,22 @@ export default function AgendamentoPublico({
     setSalvando(true)
     setErro('')
 
-    const origemSave = empresa.tipo_operacao === 'rota_fixa' ? embarque : (rotaManual ? origemManual.trim() : rotaSelecionada!.origem ?? '')
-    const destinoSave = empresa.tipo_operacao === 'rota_fixa' ? desembarque : (rotaManual ? destinoManual.trim() : rotaSelecionada!.destino ?? '')
+    // Transfer: origem/destino da corrida vêm do endereço estruturado do
+    // Passageiro 1 (cada passageiro pode ter seu próprio endereço, mas o
+    // painel do gestor exibe uma linha só — usa o do primeiro passageiro).
+    // Rota_fixa mantém embarque/desembarque de parada.
+    const p1Embarque = concatEndereco(form)
+    const p1Desembarque = concatEndereco({ rua: form.rua_desembarque, numero: form.numero_desembarque, bairro: form.bairro_desembarque, municipio: form.municipio_desembarque, referencia: form.referencia_desembarque })
+    const origemSave = empresa.tipo_operacao === 'rota_fixa'
+      ? embarque
+      : p1Embarque || (rotaSelecionada?.origem ?? '')
+    const destinoSave = empresa.tipo_operacao === 'rota_fixa'
+      ? desembarque
+      : p1Desembarque || (rotaSelecionada?.destino ?? '')
+    // Volta: inverte automaticamente (embarque vira desembarque). Cliente
+    // pode ajustar via campos texto se precisar de local diferente.
+    const retornoOrigemSave = showRetorno ? (retornoOrigem.trim() || p1Desembarque) : ''
+    const retornoDestinoSave = showRetorno ? (retornoDestino.trim() || p1Embarque) : ''
 
     // ── Caminho transfer/fretamento: salva em corridas_empresa como pendente ──
     if (empresa.tipo_operacao !== 'rota_fixa') {
@@ -351,8 +384,8 @@ export default function AgendamentoPublico({
         telefone_passageiro2: null,
         retorno_data: showRetorno && retornoData ? retornoData : null,
         retorno_horario: showRetorno && retornoHorario ? retornoHorario : null,
-        retorno_origem: showRetorno && retornoOrigem.trim() ? retornoOrigem.trim() : null,
-        retorno_destino: showRetorno && retornoDestino.trim() ? retornoDestino.trim() : null,
+        retorno_origem: retornoOrigemSave || null,
+        retorno_destino: retornoDestinoSave || null,
         tipo_servico: empresa.tipo_operacao,
         valor: 0,
         status: 'pendente',
@@ -635,24 +668,6 @@ export default function AgendamentoPublico({
                 )}
               </Campo>
 
-              {rotaManual && (
-                <>
-                  <Campo label="Origem *">
-                    <input value={origemManual}
-                      onChange={e => setOrigemManual(e.target.value)}
-                      placeholder="Ex: Aeroporto, Hotel, Endereço..."
-                      className="campo-input"
-                      list="sugestoes-enderecos" />
-                  </Campo>
-                  <Campo label="Destino *">
-                    <input value={destinoManual}
-                      onChange={e => setDestinoManual(e.target.value)}
-                      placeholder="Ex: Hotel, Aeroporto, Endereço..."
-                      className="campo-input"
-                      list="sugestoes-enderecos" />
-                  </Campo>
-                </>
-              )}
 
               {rotaSelecionada && empresa.tipo_operacao === 'rota_fixa' && (
                 <>
@@ -1118,19 +1133,14 @@ export default function AgendamentoPublico({
               </Campo>
             </div>
 
-            {/* Retorno (só transfer) */}
+            {/* Retorno (só transfer) — usa os endereços dos passageiros
+                invertidos automaticamente (embarque vira desembarque). */}
             {empresa.tipo_operacao !== 'rota_fixa' && (
               <div className="rounded-2xl p-4 flex flex-col gap-3"
                 style={showRetorno ? { background: '#EEEDFE' } : { background: '#fff', border: '1px solid #f3f4f6' }}>
                 <button type="button" onClick={() => setShowRetorno(v => {
                   const novo = !v
-                  if (novo) {
-                    const origemIda = rotaManual ? origemManual : (rotaSelecionada?.origem || '')
-                    const destinoIda = rotaManual ? destinoManual : (rotaSelecionada?.destino || '')
-                    setRetornoOrigem(prev => prev || destinoIda)
-                    setRetornoDestino(prev => prev || origemIda)
-                    setRetornoData(prev => prev || form.data)
-                  }
+                  if (novo) setRetornoData(prev => prev || form.data)
                   return novo
                 })}
                   className="flex items-center justify-between w-full">
@@ -1143,19 +1153,6 @@ export default function AgendamentoPublico({
                 </button>
                 {showRetorno && (
                   <>
-                    <div className="flex justify-end -mt-2">
-                      <button type="button"
-                        onClick={() => {
-                          const origemIda = rotaManual ? origemManual : (rotaSelecionada?.origem || '')
-                          const destinoIda = rotaManual ? destinoManual : (rotaSelecionada?.destino || '')
-                          setRetornoOrigem(destinoIda)
-                          setRetornoDestino(origemIda)
-                        }}
-                        className="text-xs px-2 py-1 rounded-lg"
-                        style={{ border: '1px solid #AFA9EC', color: '#3C3489' }}>
-                        ↺ Inverter ida
-                      </button>
-                    </div>
                     <div className="grid grid-cols-2 gap-2">
                       <Campo label="Data do retorno">
                         <input type="date" value={retornoData} onChange={e => setRetornoData(e.target.value)}
@@ -1166,14 +1163,10 @@ export default function AgendamentoPublico({
                           className="campo-input" />
                       </Campo>
                     </div>
-                    <Campo label="Origem do retorno">
-                      <input value={retornoOrigem} onChange={e => setRetornoOrigem(e.target.value)}
-                        placeholder="Ex: Hotel, Endereço..." className="campo-input" list="sugestoes-enderecos" />
-                    </Campo>
-                    <Campo label="Destino do retorno">
-                      <input value={retornoDestino} onChange={e => setRetornoDestino(e.target.value)}
-                        placeholder="Ex: Aeroporto, Endereço..." className="campo-input" list="sugestoes-enderecos" />
-                    </Campo>
+                    <p className="text-xs" style={{ color: '#3C3489' }}>
+                      ↺ Na volta os passageiros são pegos no local de desembarque e
+                      deixados no local de embarque de cada um (inverso da ida).
+                    </p>
                   </>
                 )}
               </div>
@@ -1288,8 +1281,12 @@ export default function AgendamentoPublico({
               const tel = (empresa.whatsapp_comercial || empresa.telefone || '').replace(/\D/g, '')
               if (!tel) return null
               const telFormatado = tel.startsWith('55') ? tel : `55${tel}`
-              const origem = empresa.tipo_operacao === 'rota_fixa' ? embarque : (rotaManual ? origemManual : rotaSelecionada?.origem ?? '')
-              const destino = empresa.tipo_operacao === 'rota_fixa' ? desembarque : (rotaManual ? destinoManual : rotaSelecionada?.destino ?? '')
+              const origem = empresa.tipo_operacao === 'rota_fixa'
+                ? embarque
+                : (concatEndereco(form) || rotaSelecionada?.origem || '')
+              const destino = empresa.tipo_operacao === 'rota_fixa'
+                ? desembarque
+                : (concatEndereco({ rua: form.rua_desembarque, numero: form.numero_desembarque, bairro: form.bairro_desembarque, municipio: form.municipio_desembarque, referencia: form.referencia_desembarque }) || rotaSelecionada?.destino || '')
               const dataFmt = form.data ? `${form.data.slice(8, 10)}/${form.data.slice(5, 7)}/${form.data.slice(0, 4)}` : ''
               const horarioFmt = empresa.tipo_operacao === 'rota_fixa' ? ` (${labelTurno} ${horaExibicao}h)` : ` às ${form.horario}`
               const msg = encodeURIComponent(
@@ -1342,7 +1339,9 @@ export default function AgendamentoPublico({
                   <div className="flex flex-col gap-1.5">
                     <p className="text-sm text-gray-700">👤 {form.nome}</p>
                     <p className="text-sm text-gray-700">
-                      📍 {empresa.tipo_operacao === 'rota_fixa' ? `${embarque} → ${desembarque}` : rotaManual ? `${origemManual} → ${destinoManual}` : `${rotaSelecionada!.origem} → ${rotaSelecionada!.destino}`}
+                      📍 {empresa.tipo_operacao === 'rota_fixa'
+                        ? `${embarque} → ${desembarque}`
+                        : `${concatEndereco(form) || rotaSelecionada?.origem || ''} → ${concatEndereco({ rua: form.rua_desembarque, numero: form.numero_desembarque, bairro: form.bairro_desembarque, municipio: form.municipio_desembarque, referencia: form.referencia_desembarque }) || rotaSelecionada?.destino || ''}`}
                     </p>
                     {empresa.tipo_operacao === 'rota_fixa' ? (
                       <p className="text-sm text-gray-700">
@@ -1365,8 +1364,12 @@ export default function AgendamentoPublico({
               const tel = (empresa.whatsapp_comercial || empresa.telefone || '').replace(/\D/g, '')
               if (!tel) return null
               const telFormatado = tel.startsWith('55') ? tel : `55${tel}`
-              const origem = empresa.tipo_operacao === 'rota_fixa' ? embarque : (rotaManual ? origemManual : rotaSelecionada?.origem ?? '')
-              const destino = empresa.tipo_operacao === 'rota_fixa' ? desembarque : (rotaManual ? destinoManual : rotaSelecionada?.destino ?? '')
+              const origem = empresa.tipo_operacao === 'rota_fixa'
+                ? embarque
+                : (concatEndereco(form) || rotaSelecionada?.origem || '')
+              const destino = empresa.tipo_operacao === 'rota_fixa'
+                ? desembarque
+                : (concatEndereco({ rua: form.rua_desembarque, numero: form.numero_desembarque, bairro: form.bairro_desembarque, municipio: form.municipio_desembarque, referencia: form.referencia_desembarque }) || rotaSelecionada?.destino || '')
               const dataFmt = form.data ? `${form.data.slice(8, 10)}/${form.data.slice(5, 7)}/${form.data.slice(0, 4)}` : ''
               const horarioFmt = empresa.tipo_operacao === 'rota_fixa' ? ` (${labelTurno} ${horaExibicao}h)` : ` às ${form.horario}`
               const msg = encodeURIComponent(
