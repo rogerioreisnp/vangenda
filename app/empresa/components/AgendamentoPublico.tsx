@@ -1194,11 +1194,17 @@ export default function AgendamentoPublico({
 
             <button
               onClick={confirmar}
-              disabled={salvando}
+              disabled={salvando || (empresa.tipo_operacao === 'rota_fixa' && vagasDisponiveis === 0)}
               className="w-full py-4 rounded-2xl text-white text-base font-bold disabled:opacity-40"
               style={{ background: cor }}
             >
-              {salvando ? 'Enviando...' : empresa.tipo_operacao !== 'rota_fixa' ? '✓ Enviar solicitação' : '✓ Confirmar agendamento'}
+              {salvando
+                ? 'Enviando...'
+                : empresa.tipo_operacao === 'rota_fixa' && vagasDisponiveis === 0
+                ? '🚫 Sem vagas neste horário'
+                : empresa.tipo_operacao !== 'rota_fixa'
+                ? '✓ Enviar solicitação'
+                : '✓ Confirmar agendamento'}
             </button>
 
             <p className="text-center text-xs text-gray-400">
