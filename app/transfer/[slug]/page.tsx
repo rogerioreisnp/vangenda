@@ -79,6 +79,38 @@ export default function TransferSlugPage({ params }: { params: { slug: string } 
     } catch {}
   }, [])
 
+  // Encerra qualquer sessão de motorista/gestor ativa neste dispositivo.
+  // A página de transfer é pública — sessões aqui causam o bug onde o cliente
+  // vê o painel de gestão ao instalar o app.
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) supabase.auth.signOut()
+    })
+  }, [])
+
+  // Injeta o manifest dinâmico da empresa (start_url/scope específicos deste
+  // link) para o navegador oferecer instalação do PWA. iOS Safari ignora
+  // blob URLs — precisamos apontar para a rota /api.
+  useEffect(() => {
+    if (!empresa) return
+    const manifestUrl = `/api/transfer/${params.slug}/manifest.json`
+    const oldLink = document.querySelector('link[rel="manifest"]')
+    if (oldLink) oldLink.remove()
+    const link = document.createElement('link')
+    link.rel = 'manifest'
+    link.href = manifestUrl
+    link.id = 'dynamic-manifest'
+    document.head.appendChild(link)
+    let themeColor = document.querySelector('meta[name="theme-color"]')
+    if (!themeColor) {
+      themeColor = document.createElement('meta')
+      themeColor.setAttribute('name', 'theme-color')
+      document.head.appendChild(themeColor)
+    }
+    themeColor.setAttribute('content', empresa.cor_destaque || '#1D9E75')
+    document.title = `${empresa.nome} - Transfer`
+  }, [empresa, params.slug])
+
   async function carregarEmpresa() {
     const { data: emp } = await supabase
       .from('empresas')
@@ -164,6 +196,18 @@ export default function TransferSlugPage({ params }: { params: { slug: string } 
       localStorage.setItem('transfer_nome', form.nome.trim())
       localStorage.setItem('transfer_telefone', form.telefone.trim())
     } catch {}
+
+    // Notifica o gestor da empresa via OneSignal (fire-and-forget)
+    fetch('/api/notificar-agendamento', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        empresa_id: empresa.id,
+        nome_cliente: form.nome.trim(),
+        origem: form.origem.trim(),
+        destino: form.destino.trim(),
+      }),
+    }).catch(e => console.error('Erro ao enviar notificação:', e))
 
     setEtapa('sucesso')
   }
