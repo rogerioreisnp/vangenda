@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { format, startOfMonth, endOfMonth, subDays, addDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { supabase } from '@/lib/supabase'
+import NotificacoesStatus from '@/components/NotificacoesStatus'
 
 type ProximaCorrida = {
   id: string
@@ -377,6 +378,9 @@ export default function EmpresaPage() {
         {!loading && motoristasAtivos === 0 && corridasHoje === 0 && (
           <BannerBoasVindas />
         )}
+
+        {/* Status de notificações — só aparece quando não está tudo ok, evita ruído */}
+        {empresaId && <NotificacoesStatus empresaId={empresaId} />}
 
         {/* Métricas */}
         <div className="grid grid-cols-2 gap-3">
