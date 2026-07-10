@@ -422,7 +422,13 @@ export default function AgendamentosPage() {
       .eq('status', 'em_andamento')
       .lt('data_hora', new Date().toISOString())
 
-    const [{ data: empresa }, { data: rts }, { data: mots }, { data: corrds }] = await Promise.all([
+    // Ordenação das corridas: próximas primeiro (asc, do hoje pra frente),
+    // depois passadas recentes (desc). O gestor vê o que precisa fazer HOJE
+    // em cima, sem rolar até o fim da lista.
+    const agoraISO = new Date().toISOString()
+    const colsCorridas = 'id, rota_id, origem, destino, data_hora, created_at, cliente_nome, cliente_telefone, email_solicitante, passageiro1_nome, passageiro1_telefone, valor, status, motorista_id, tipo_servico, forma_pagamento, status_pagamento, valor_recebido, data_pagamento, data_prevista_pagamento, observacoes, motoristas_empresa(nome), numero_voo, nome_passageiro2, telefone_passageiro2, retorno_data, retorno_horario, retorno_origem, retorno_destino, numero_reserva, quantidade_bagagem, passageiros_adicionais, rua, numero, bairro, municipio, cep, referencia, rua_desembarque, numero_desembarque, bairro_desembarque, municipio_desembarque, cep_desembarque, referencia_desembarque'
+
+    const [{ data: empresa }, { data: rts }, { data: mots }, { data: futuras }, { data: passadas }] = await Promise.all([
       supabase
         .from('empresas')
         .select('tipo_operacao, nome, mensagem_confirmacao_transfer')
@@ -441,11 +447,20 @@ export default function AgendamentosPage() {
         .order('nome'),
       supabase
         .from('corridas_empresa')
-        .select('id, rota_id, origem, destino, data_hora, created_at, cliente_nome, cliente_telefone, email_solicitante, passageiro1_nome, passageiro1_telefone, valor, status, motorista_id, tipo_servico, forma_pagamento, status_pagamento, valor_recebido, data_pagamento, data_prevista_pagamento, observacoes, motoristas_empresa(nome), numero_voo, nome_passageiro2, telefone_passageiro2, retorno_data, retorno_horario, retorno_origem, retorno_destino, numero_reserva, quantidade_bagagem, passageiros_adicionais, rua, numero, bairro, municipio, cep, referencia, rua_desembarque, numero_desembarque, bairro_desembarque, municipio_desembarque, cep_desembarque, referencia_desembarque')
+        .select(colsCorridas)
         .eq('empresa_id', gestor.empresa_id)
+        .gte('data_hora', agoraISO)
+        .order('data_hora', { ascending: true })
+        .limit(250),
+      supabase
+        .from('corridas_empresa')
+        .select(colsCorridas)
+        .eq('empresa_id', gestor.empresa_id)
+        .lt('data_hora', agoraISO)
         .order('data_hora', { ascending: false })
-        .limit(300),
+        .limit(150),
     ])
+    const corrds = [...(futuras || []), ...(passadas || [])]
 
     if (empresa) {
       setTipoOperacao(empresa.tipo_operacao || 'transfer')

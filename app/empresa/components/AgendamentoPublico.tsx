@@ -345,11 +345,16 @@ export default function AgendamentoPublico({
     if (empresa.tipo_operacao === 'rota_fixa' && valorTrechoRF === null) {
       setErro('Trecho não disponível para esta rota'); return
     }
-    // Transfer: o endereço do Passageiro 1 vira origem/destino da corrida
+    // Transfer: o endereço do Passageiro 1 vira origem/destino da corrida.
+    // Aceita qualquer campo preenchido (rua, bairro, município ou referência) —
+    // locais conhecidos como "Aeroporto do Rio" ou "Hotel Copacabana Palace"
+    // podem ir só na Rua ou só na Referência, sem exigir endereço completo.
     if (empresa.tipo_operacao !== 'rota_fixa') {
       if (!passageiro1Nome.trim()) { setErro('Informe o nome do Passageiro 1'); return }
-      if (!form.rua.trim() && !form.bairro.trim()) { setErro('Informe o endereço de embarque do Passageiro 1 (rua ou bairro)'); return }
-      if (!form.rua_desembarque.trim() && !form.bairro_desembarque.trim()) { setErro('Informe o endereço de desembarque do Passageiro 1 (rua ou bairro)'); return }
+      const embarquePreenchido = (form.rua + form.bairro + form.municipio + form.referencia + form.cep).trim()
+      const desembarquePreenchido = (form.rua_desembarque + form.bairro_desembarque + form.municipio_desembarque + form.referencia_desembarque + form.cep_desembarque).trim()
+      if (!embarquePreenchido) { setErro('Informe o endereço de embarque do Passageiro 1 (pode ser o nome do local, ex: "Aeroporto")'); return }
+      if (!desembarquePreenchido) { setErro('Informe o endereço de desembarque do Passageiro 1 (pode ser o nome do local, ex: "Hotel Copacabana")'); return }
     }
     if (!rotaManual && !rotaSelecionada) return
 
@@ -921,7 +926,8 @@ export default function AgendamentoPublico({
                     placeholder="Ex: G3 1234 (opcional)" className="campo-input" />
                 </Campo>
 
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mt-1">📍 Endereço de embarque <span className="normal-case font-normal">(opcional)</span></p>
+<p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mt-1">📍 Endereço de embarque</p>
+                <p className="text-xs text-gray-500 -mt-1">Pode ser o nome do local (ex: "Aeroporto de Boa Vista") — não precisa preencher todos os campos.</p>
                 <div style={{ display: 'grid', gridTemplateColumns: '70% 30%', gap: '8px' }}>
                   <Campo label="Rua / Logradouro">
                     <input value={form.rua} onChange={e => setForm(f => ({ ...f, rua: e.target.value }))}
@@ -951,7 +957,8 @@ export default function AgendamentoPublico({
                     placeholder="Ex: Próximo ao mercado Boa Ideia" className="campo-input" />
                 </Campo>
 
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mt-1">🏁 Endereço de desembarque <span className="normal-case font-normal">(opcional)</span></p>
+<p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mt-1">🏁 Endereço de desembarque</p>
+                <p className="text-xs text-gray-500 -mt-1">Pode ser o nome do local (ex: "Hotel Copacabana Palace") — não precisa preencher todos os campos.</p>
                 <div style={{ display: 'grid', gridTemplateColumns: '70% 30%', gap: '8px' }}>
                   <Campo label="Rua / Logradouro">
                     <input value={form.rua_desembarque} onChange={e => setForm(f => ({ ...f, rua_desembarque: e.target.value }))}
