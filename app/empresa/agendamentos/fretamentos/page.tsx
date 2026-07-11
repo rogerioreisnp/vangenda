@@ -1826,7 +1826,6 @@ export default function AgendamentosPage() {
                     ) : (
                       <p className="text-base font-bold text-gray-800">{corridaFicha.origem} → {corridaFicha.destino}</p>
                     )}
-                    <p className="text-[10px] text-gray-400">Tipo: {ts ?? '(não definido)'} · Trajetos no banco: {trajetosArr.length}</p>
                     <p className="text-sm text-gray-600">
                       {ehDispose ? '▶️ Início: ' : '📅 '}
                       {corridaFicha.data_hora.slice(8,10)}/{corridaFicha.data_hora.slice(5,7)}/{corridaFicha.data_hora.slice(0,4)} às {corridaFicha.data_hora.slice(11,16)}
