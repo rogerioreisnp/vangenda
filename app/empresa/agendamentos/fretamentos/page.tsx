@@ -1780,7 +1780,10 @@ export default function AgendamentosPage() {
                 })()}
               </div>
               {corridaFicha.tipo_servico === 'diaria' || corridaFicha.tipo_servico === 'city_tour' ? (
-                <p className="text-base font-bold text-gray-800">📍 {corridaFicha.origem}</p>
+                <p className="text-base font-bold text-gray-800">
+                  📍 {corridaFicha.origem}
+                  {corridaFicha.destino ? ` → ${corridaFicha.destino}` : ''}
+                </p>
               ) : (
                 <p className="text-base font-bold text-gray-800">{corridaFicha.origem} → {corridaFicha.destino}</p>
               )}
@@ -2143,21 +2146,19 @@ export default function AgendamentosPage() {
                 />
               </Campo>
 
-              {form.tipo_servico !== 'diaria' && form.tipo_servico !== 'city_tour' && (
-                <Campo label="Destino *">
-                  <input
-                    value={form.destino}
-                    onChange={e => setForm(f => ({ ...f, destino: e.target.value }))}
-                    readOnly={camposRotaBloqueados}
-                    placeholder="Ex: Hotel Tropical"
-                    className="campo-input"
-                    style={{
-                      background: camposRotaBloqueados ? '#f9fafb' : '#fff',
-                      color: camposRotaBloqueados ? '#6B7280' : '#222',
-                    }}
-                  />
-                </Campo>
-              )}
+              <Campo label={form.tipo_servico === 'diaria' || form.tipo_servico === 'city_tour' ? 'Destino principal (opcional)' : 'Destino *'}>
+                <input
+                  value={form.destino}
+                  onChange={e => setForm(f => ({ ...f, destino: e.target.value }))}
+                  readOnly={camposRotaBloqueados}
+                  placeholder={form.tipo_servico === 'diaria' || form.tipo_servico === 'city_tour' ? 'Ex: Petrópolis, Campo do Grêmio (deixe vazio se ainda não sabe)' : 'Ex: Hotel Tropical'}
+                  className="campo-input"
+                  style={{
+                    background: camposRotaBloqueados ? '#f9fafb' : '#fff',
+                    color: camposRotaBloqueados ? '#6B7280' : '#222',
+                  }}
+                />
+              </Campo>
 
               <div className="grid grid-cols-2 gap-2">
                 <Campo label={form.tipo_servico === 'diaria' || form.tipo_servico === 'city_tour' ? 'Data de início *' : 'Data *'}>
