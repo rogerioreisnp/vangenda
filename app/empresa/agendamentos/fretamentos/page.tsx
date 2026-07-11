@@ -61,6 +61,8 @@ type Corrida = {
   retorno_horario: string | null
   retorno_origem: string | null
   retorno_destino: string | null
+  data_hora_termino: string | null
+  trajetos: string[] | null
   numero_reserva: number | null
   quantidade_bagagem: number | null
   passageiros_adicionais: Array<{
@@ -150,6 +152,10 @@ type FormCorrida = {
   municipio_retorno_embarque: string; cep_retorno_embarque: string; referencia_retorno_embarque: string
   rua_retorno_desembarque: string; numero_retorno_desembarque: string; bairro_retorno_desembarque: string
   municipio_retorno_desembarque: string; cep_retorno_desembarque: string; referencia_retorno_desembarque: string
+  // Diária / City Tour: término estimado e trajetos percorridos
+  data_termino: string
+  horario_termino: string
+  trajetos: string[]
   passageiros_adicionais: PassageiroExtraCorrida[]
   forma_pagamento: string
   status_pagamento: string
@@ -188,6 +194,7 @@ const FORM_VAZIO: FormCorrida = {
   municipio_retorno_embarque: '', cep_retorno_embarque: '', referencia_retorno_embarque: '',
   rua_retorno_desembarque: '', numero_retorno_desembarque: '', bairro_retorno_desembarque: '',
   municipio_retorno_desembarque: '', cep_retorno_desembarque: '', referencia_retorno_desembarque: '',
+  data_termino: '', horario_termino: '', trajetos: [],
   passageiros_adicionais: [],
   forma_pagamento: 'a_definir',
   status_pagamento: 'a_receber',
@@ -262,8 +269,10 @@ function tipoMeta(tipo: string | null): TipoMeta {
 }
 
 function podeAbrirFichaTransfer(c: { tipo_servico: string | null; status: string }): boolean {
-  const ehTransfer = c.tipo_servico !== 'fretamento' && c.tipo_servico !== 'excursao' && c.tipo_servico !== 'city_tour'
-  if (ehTransfer) return true
+  // Transfer, diária e city tour usam a mesma ficha (todos abrem).
+  // Fretamento e excursão tem outra estrutura.
+  const ehTransferOuDispose = c.tipo_servico !== 'fretamento' && c.tipo_servico !== 'excursao'
+  if (ehTransferOuDispose) return true
   return c.status === 'pendente' || c.status === 'confirmada' || c.status === 'em_andamento'
 }
 
@@ -541,6 +550,9 @@ export default function AgendamentosPage() {
       municipio_retorno_embarque: c.municipio_retorno_embarque || '', cep_retorno_embarque: c.cep_retorno_embarque || '', referencia_retorno_embarque: c.referencia_retorno_embarque || '',
       rua_retorno_desembarque: c.rua_retorno_desembarque || '', numero_retorno_desembarque: c.numero_retorno_desembarque || '', bairro_retorno_desembarque: c.bairro_retorno_desembarque || '',
       municipio_retorno_desembarque: c.municipio_retorno_desembarque || '', cep_retorno_desembarque: c.cep_retorno_desembarque || '', referencia_retorno_desembarque: c.referencia_retorno_desembarque || '',
+      data_termino: c.data_hora_termino ? c.data_hora_termino.slice(0, 10) : '',
+      horario_termino: c.data_hora_termino ? c.data_hora_termino.slice(11, 16) : '',
+      trajetos: Array.isArray(c.trajetos) ? c.trajetos : [],
       passageiros_adicionais: (c.passageiros_adicionais || []).map(p => ({
         nome: p.nome || '', telefone: p.telefone || '', numero_voo: '',
         rua: p.rua || '', numero: p.numero || '', bairro: p.bairro || '', municipio: p.municipio || '', cep: p.cep || '', referencia: p.referencia || '',
@@ -586,7 +598,16 @@ export default function AgendamentosPage() {
 
   async function salvar() {
     if (!form.cliente_nome.trim()) { setErro('Nome do solicitante é obrigatório'); return }
-    if (!form.origem.trim() || !form.destino.trim()) { setErro('Origem e destino são obrigatórios'); return }
+    const ehDispose = form.tipo_servico === 'diaria' || form.tipo_servico === 'city_tour'
+    if (ehDispose) {
+      if (!form.origem.trim()) { setErro('Local de início é obrigatório'); return }
+      // Se preencheu um dos campos de término, exige o outro
+      if ((form.data_termino && !form.horario_termino) || (!form.data_termino && form.horario_termino)) {
+        setErro('Preencha data e hora de término, ou deixe os dois em branco'); return
+      }
+    } else {
+      if (!form.origem.trim() || !form.destino.trim()) { setErro('Origem e destino são obrigatórios'); return }
+    }
     if (!form.data) { setErro('Data é obrigatória'); return }
     if (!form.horario) { setErro('Horário de saída é obrigatório'); return }
     const preco = parseFloat(form.preco)
@@ -675,6 +696,13 @@ export default function AgendamentosPage() {
         : null,
       valor: preco,
       tipo_servico: form.tipo_servico,
+      // Diária/City Tour: término estimado + trajetos. Outros tipos gravam null.
+      data_hora_termino: (form.tipo_servico === 'diaria' || form.tipo_servico === 'city_tour') && form.data_termino && form.horario_termino
+        ? `${form.data_termino}T${form.horario_termino}:00`
+        : null,
+      trajetos: (form.tipo_servico === 'diaria' || form.tipo_servico === 'city_tour') && form.trajetos.some(t => t.trim())
+        ? form.trajetos.map(t => t.trim()).filter(Boolean)
+        : null,
       forma_pagamento: form.forma_pagamento,
       status_pagamento: form.status_pagamento,
       valor_recebido: valorRecebido,
@@ -1687,7 +1715,7 @@ export default function AgendamentosPage() {
             <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-2">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Viagem</p>
-                {corridaFicha.tipo_servico !== 'fretamento' && corridaFicha.tipo_servico !== 'excursao' && corridaFicha.tipo_servico !== 'city_tour' && (() => {
+                {corridaFicha.tipo_servico !== 'fretamento' && corridaFicha.tipo_servico !== 'excursao' && (() => {
                   const idsAcao = voltaDaFicha ? [corridaFicha.id, voltaDaFicha.id] : [corridaFicha.id]
                   const statusFicha = corridaFicha.status
                   const eCancelada = statusFicha === 'cancelada' || (voltaDaFicha && voltaDaFicha.status === 'cancelada')
@@ -1751,10 +1779,30 @@ export default function AgendamentosPage() {
                   )
                 })()}
               </div>
-              <p className="text-base font-bold text-gray-800">{corridaFicha.origem} → {corridaFicha.destino}</p>
+              {corridaFicha.tipo_servico === 'diaria' || corridaFicha.tipo_servico === 'city_tour' ? (
+                <p className="text-base font-bold text-gray-800">📍 {corridaFicha.origem}</p>
+              ) : (
+                <p className="text-base font-bold text-gray-800">{corridaFicha.origem} → {corridaFicha.destino}</p>
+              )}
               <p className="text-sm text-gray-600">
-                📅 {corridaFicha.data_hora.slice(8,10)}/{corridaFicha.data_hora.slice(5,7)}/{corridaFicha.data_hora.slice(0,4)} às {corridaFicha.data_hora.slice(11,16)}
+                {corridaFicha.tipo_servico === 'diaria' || corridaFicha.tipo_servico === 'city_tour' ? '▶️ Início: ' : '📅 '}
+                {corridaFicha.data_hora.slice(8,10)}/{corridaFicha.data_hora.slice(5,7)}/{corridaFicha.data_hora.slice(0,4)} às {corridaFicha.data_hora.slice(11,16)}
               </p>
+              {corridaFicha.data_hora_termino && (corridaFicha.tipo_servico === 'diaria' || corridaFicha.tipo_servico === 'city_tour') && (
+                <p className="text-sm text-gray-600">
+                  ⏹️ Término: {corridaFicha.data_hora_termino.slice(8,10)}/{corridaFicha.data_hora_termino.slice(5,7)}/{corridaFicha.data_hora_termino.slice(0,4)} às {corridaFicha.data_hora_termino.slice(11,16)}
+                </p>
+              )}
+              {Array.isArray(corridaFicha.trajetos) && corridaFicha.trajetos.length > 0 && (
+                <div className="rounded-xl p-3 mt-1" style={{ background: '#F0FDF4', border: '1px solid #BBF7D0' }}>
+                  <p className="text-xs font-semibold mb-1" style={{ color: '#166534' }}>🗺️ Trajetos ({corridaFicha.trajetos.length})</p>
+                  <ol className="text-sm text-gray-700 flex flex-col gap-0.5" style={{ paddingLeft: '18px', listStyleType: 'decimal' }}>
+                    {corridaFicha.trajetos.map((t, i) => (
+                      <li key={i}>{t}</li>
+                    ))}
+                  </ol>
+                </div>
+              )}
               {corridaFicha.numero_voo && (
                 <p className="text-sm text-gray-600">✈️ Voo: {corridaFicha.numero_voo}</p>
               )}
@@ -2077,14 +2125,16 @@ export default function AgendamentosPage() {
             )}
 
             <div className="rounded-xl px-3 py-3" style={{ background: '#E6F1FB' }}>
-              <p className="text-xs font-semibold mb-2" style={{ color: '#0C447C' }}>🚗 Ida</p>
+              <p className="text-xs font-semibold mb-2" style={{ color: '#0C447C' }}>
+                {form.tipo_servico === 'diaria' || form.tipo_servico === 'city_tour' ? '🚗 Serviço' : '🚗 Ida'}
+              </p>
 
-              <Campo label="Origem *">
+              <Campo label={form.tipo_servico === 'diaria' || form.tipo_servico === 'city_tour' ? 'Local de início *' : 'Origem *'}>
                 <input
                   value={form.origem}
                   onChange={e => setForm(f => ({ ...f, origem: e.target.value }))}
                   readOnly={camposRotaBloqueados}
-                  placeholder="Ex: Aeroporto Internacional"
+                  placeholder={form.tipo_servico === 'diaria' || form.tipo_servico === 'city_tour' ? 'Ex: Aeroporto, hotel, residência do cliente' : 'Ex: Aeroporto Internacional'}
                   className="campo-input"
                   style={{
                     background: camposRotaBloqueados ? '#f9fafb' : '#fff',
@@ -2093,34 +2143,92 @@ export default function AgendamentosPage() {
                 />
               </Campo>
 
-              <Campo label="Destino *">
-                <input
-                  value={form.destino}
-                  onChange={e => setForm(f => ({ ...f, destino: e.target.value }))}
-                  readOnly={camposRotaBloqueados}
-                  placeholder="Ex: Hotel Tropical"
-                  className="campo-input"
-                  style={{
-                    background: camposRotaBloqueados ? '#f9fafb' : '#fff',
-                    color: camposRotaBloqueados ? '#6B7280' : '#222',
-                  }}
-                />
-              </Campo>
+              {form.tipo_servico !== 'diaria' && form.tipo_servico !== 'city_tour' && (
+                <Campo label="Destino *">
+                  <input
+                    value={form.destino}
+                    onChange={e => setForm(f => ({ ...f, destino: e.target.value }))}
+                    readOnly={camposRotaBloqueados}
+                    placeholder="Ex: Hotel Tropical"
+                    className="campo-input"
+                    style={{
+                      background: camposRotaBloqueados ? '#f9fafb' : '#fff',
+                      color: camposRotaBloqueados ? '#6B7280' : '#222',
+                    }}
+                  />
+                </Campo>
+              )}
 
               <div className="grid grid-cols-2 gap-2">
-                <Campo label="Data *">
+                <Campo label={form.tipo_servico === 'diaria' || form.tipo_servico === 'city_tour' ? 'Data de início *' : 'Data *'}>
                   <input type="date" value={form.data}
                     onChange={e => setForm(f => ({ ...f, data: e.target.value }))}
                     className="campo-input" />
                 </Campo>
-                <Campo label="Horário de saída *">
+                <Campo label={form.tipo_servico === 'diaria' || form.tipo_servico === 'city_tour' ? 'Hora de início *' : 'Horário de saída *'}>
                   <SelectHorario value={form.horario}
                     onChange={v => setForm(f => ({ ...f, horario: v }))} />
                 </Campo>
               </div>
             </div>
 
-            {!corridaEditando && (
+            {/* Diária e City Tour: término estimado (editável, opcional) + trajetos */}
+            {(form.tipo_servico === 'diaria' || form.tipo_servico === 'city_tour') && (
+              <>
+                <div className="rounded-xl p-4 flex flex-col gap-2" style={{ background: '#FFF7ED', border: '1px solid #FED7AA' }}>
+                  <p className="text-xs font-semibold" style={{ color: '#9A3412' }}>
+                    ⏰ Previsão de término <span className="font-normal text-gray-500">(opcional — pode preencher depois quando o serviço acabar)</span>
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Campo label="Data de término">
+                      <input type="date" value={form.data_termino}
+                        onChange={e => setForm(f => ({ ...f, data_termino: e.target.value }))}
+                        min={form.data}
+                        className="campo-input" />
+                    </Campo>
+                    <Campo label="Hora de término">
+                      <SelectHorario value={form.horario_termino}
+                        onChange={v => setForm(f => ({ ...f, horario_termino: v }))} />
+                    </Campo>
+                  </div>
+                </div>
+
+                <div className="rounded-xl p-4 flex flex-col gap-2" style={{ background: '#F0FDF4', border: '1px solid #BBF7D0' }}>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold" style={{ color: '#166534' }}>
+                      🗺️ Trajetos percorridos
+                    </p>
+                    <button type="button"
+                      onClick={() => setForm(f => ({ ...f, trajetos: [...f.trajetos, ''] }))}
+                      className="text-xs font-semibold" style={{ color: '#166534' }}>
+                      + Adicionar
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    Pode deixar vazio no cadastro. Adicione durante o serviço conforme os locais forem sendo visitados.
+                  </p>
+                  {form.trajetos.length === 0 && (
+                    <p className="text-xs text-gray-400 italic">Nenhum trajeto registrado ainda.</p>
+                  )}
+                  {form.trajetos.map((t, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <span className="text-xs font-semibold text-gray-500 w-6">{idx + 1}.</span>
+                      <input value={t}
+                        onChange={e => setForm(f => ({ ...f, trajetos: f.trajetos.map((tt, i) => i === idx ? e.target.value : tt) }))}
+                        placeholder="Ex: Fórmula 1, Salão do Automóvel, Restaurante Fasano..."
+                        className="campo-input flex-1" />
+                      <button type="button"
+                        onClick={() => setForm(f => ({ ...f, trajetos: f.trajetos.filter((_, i) => i !== idx) }))}
+                        className="text-xs font-semibold text-red-500 px-2">
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {!corridaEditando && form.tipo_servico !== 'diaria' && form.tipo_servico !== 'city_tour' && (
               <div className="flex items-center justify-between rounded-xl px-4 py-3"
                 style={{ background: '#f9fafb', border: '1px solid #e5e7eb' }}>
                 <div>
