@@ -792,6 +792,15 @@ export default function AgendamentosPage() {
     setCorridas(prev => prev.map(c => ids.includes(c.id) ? { ...c, status: 'cancelada' } : c))
   }
 
+  // Reativa uma corrida cancelada — volta pra 'pendente' pra o gestor poder
+  // reprocessar. Preserva todos os dados (motorista, valor, endereços, etc).
+  async function reativarCorrida(ids: string[]) {
+    for (const id of ids) {
+      await supabase.from('corridas_empresa').update({ status: 'pendente' }).eq('id', id)
+    }
+    setCorridas(prev => prev.map(c => ids.includes(c.id) ? { ...c, status: 'pendente' } : c))
+  }
+
   async function apagarCorrida(ids: string[]) {
     if (!confirm('Tem certeza que deseja apagar este agendamento?')) return
     for (const id of ids) {
@@ -1669,35 +1678,69 @@ export default function AgendamentosPage() {
             <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-2">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Viagem</p>
-                {corridaFicha.tipo_servico !== 'fretamento' && corridaFicha.tipo_servico !== 'excursao' && corridaFicha.tipo_servico !== 'city_tour' && (
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <button
-                      onClick={() => {
-                        const c = corridaFicha
-                        const voltaId = voltaDaFicha?.id
-                        setModalFichaAberto(false)
-                        abrirEditar(c, voltaId)
-                      }}
-                      title="Editar"
-                      className="px-2.5 py-1 rounded-lg text-[10px] font-medium"
-                      style={{ background: '#E1F5EE', color: '#0F6E56' }}>
-                      ✏️
-                    </button>
-                    <button
-                      onClick={async () => {
-                        const id = corridaFicha.id
-                        if (!confirm('Tem certeza que deseja apagar este agendamento?')) return
-                        await supabase.from('corridas_empresa').delete().eq('id', id)
-                        setCorridas(prev => prev.filter(c => c.id !== id))
-                        setModalFichaAberto(false)
-                      }}
-                      title="Excluir"
-                      className="px-2.5 py-1 rounded-lg text-[10px] font-medium"
-                      style={{ background: '#FCEBEB', color: '#A32D2D' }}>
-                      🗑️
-                    </button>
-                  </div>
-                )}
+                {corridaFicha.tipo_servico !== 'fretamento' && corridaFicha.tipo_servico !== 'excursao' && corridaFicha.tipo_servico !== 'city_tour' && (() => {
+                  const idsAcao = voltaDaFicha ? [corridaFicha.id, voltaDaFicha.id] : [corridaFicha.id]
+                  const statusFicha = corridaFicha.status
+                  const eCancelada = statusFicha === 'cancelada' || (voltaDaFicha && voltaDaFicha.status === 'cancelada')
+                  const eConcluida = statusFicha === 'concluida'
+                  return (
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <button
+                        onClick={() => {
+                          const c = corridaFicha
+                          const voltaId = voltaDaFicha?.id
+                          setModalFichaAberto(false)
+                          abrirEditar(c, voltaId)
+                        }}
+                        title="Editar"
+                        className="px-2.5 py-1 rounded-lg text-[10px] font-medium"
+                        style={{ background: '#E1F5EE', color: '#0F6E56' }}>
+                        ✏️
+                      </button>
+                      {!eCancelada && !eConcluida && (
+                        <button
+                          onClick={async () => {
+                            if (!confirm('Cancelar este agendamento? Os dados ficam salvos e você pode reativar depois.')) return
+                            await cancelarCorrida(idsAcao)
+                            setCorridaFicha(prev => prev ? { ...prev, status: 'cancelada' } : prev)
+                            setVoltaDaFicha(prev => prev ? { ...prev, status: 'cancelada' } : prev)
+                          }}
+                          title="Cancelar (mantém os dados)"
+                          className="px-2.5 py-1 rounded-lg text-[10px] font-medium"
+                          style={{ background: '#FCEBEB', color: '#A32D2D' }}>
+                          ❌ Cancelar
+                        </button>
+                      )}
+                      {eCancelada && (
+                        <button
+                          onClick={async () => {
+                            await reativarCorrida(idsAcao)
+                            setCorridaFicha(prev => prev ? { ...prev, status: 'pendente' } : prev)
+                            setVoltaDaFicha(prev => prev ? { ...prev, status: 'pendente' } : prev)
+                          }}
+                          title="Reativar agendamento"
+                          className="px-2.5 py-1 rounded-lg text-[10px] font-medium"
+                          style={{ background: '#E1F5EE', color: '#0F6E56' }}>
+                          ↩️ Reativar
+                        </button>
+                      )}
+                      <button
+                        onClick={async () => {
+                          if (!confirm('Apagar definitivamente este agendamento? Os dados serão perdidos.')) return
+                          for (const id of idsAcao) {
+                            await supabase.from('corridas_empresa').delete().eq('id', id)
+                          }
+                          setCorridas(prev => prev.filter(c => !idsAcao.includes(c.id)))
+                          setModalFichaAberto(false)
+                        }}
+                        title="Excluir definitivamente"
+                        className="px-2.5 py-1 rounded-lg text-[10px] font-medium"
+                        style={{ background: '#FCEBEB', color: '#A32D2D' }}>
+                        🗑️
+                      </button>
+                    </div>
+                  )
+                })()}
               </div>
               <p className="text-base font-bold text-gray-800">{corridaFicha.origem} → {corridaFicha.destino}</p>
               <p className="text-sm text-gray-600">
