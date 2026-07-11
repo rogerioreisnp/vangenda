@@ -79,9 +79,9 @@ export default function AgendamentosHub() {
             📅
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold text-gray-800">Agendamento de passageiros</p>
+            <p className="text-sm font-bold text-gray-800">Agendamento de passageiros e encomendas</p>
             <p className="text-xs text-gray-500 mt-0.5 leading-snug">
-              Calendário com passageiros do dia, criar novo agendamento
+              Calendário com passageiros e encomendas do dia, criar novo agendamento
             </p>
             {!loading && (
               <p className="text-xs mt-1.5 font-semibold" style={{ color: '#0F6E56' }}>
