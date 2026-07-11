@@ -441,13 +441,17 @@ export default function AgendamentosPage() {
       .eq('status', 'confirmada')
       .lt('data_hora', new Date().toISOString())
 
-    // Ordenação das corridas: próximas primeiro (asc, do hoje pra frente),
-    // depois passadas recentes (desc). O gestor vê o que precisa fazer HOJE
-    // em cima, sem rolar até o fim da lista.
+    // Ordenação das corridas em 3 blocos, do mais urgente pro menos:
+    //   1. EM ANDAMENTO (independente da data_hora — o gestor precisa dessas
+    //      no topo pra editar, concluir, etc). Diária que começou às 8h e
+    //      ainda tá rolando cairia como "passada" pela data_hora, mas
+    //      precisa ficar em cima.
+    //   2. FUTURAS (data_hora >= agora e status != em_andamento) — asc
+    //   3. PASSADAS (data_hora < agora e status != em_andamento) — desc
     const agoraISO = new Date().toISOString()
     const colsCorridas = 'id, rota_id, origem, destino, data_hora, created_at, cliente_nome, cliente_telefone, email_solicitante, passageiro1_nome, passageiro1_telefone, valor, status, motorista_id, tipo_servico, forma_pagamento, status_pagamento, valor_recebido, data_pagamento, data_prevista_pagamento, observacoes, motoristas_empresa(nome), numero_voo, nome_passageiro2, telefone_passageiro2, retorno_data, retorno_horario, retorno_origem, retorno_destino, numero_reserva, quantidade_bagagem, passageiros_adicionais, rua, numero, bairro, municipio, cep, referencia, rua_desembarque, numero_desembarque, bairro_desembarque, municipio_desembarque, cep_desembarque, referencia_desembarque, data_hora_termino, trajetos'
 
-    const [{ data: empresa }, { data: rts }, { data: mots }, { data: futuras }, { data: passadas }] = await Promise.all([
+    const [{ data: empresa }, { data: rts }, { data: mots }, { data: emAndamento }, { data: futuras }, { data: passadas }] = await Promise.all([
       supabase
         .from('empresas')
         .select('tipo_operacao, nome, mensagem_confirmacao_transfer')
@@ -468,6 +472,14 @@ export default function AgendamentosPage() {
         .from('corridas_empresa')
         .select(colsCorridas)
         .eq('empresa_id', gestor.empresa_id)
+        .eq('status', 'em_andamento')
+        .order('data_hora', { ascending: true })
+        .limit(100),
+      supabase
+        .from('corridas_empresa')
+        .select(colsCorridas)
+        .eq('empresa_id', gestor.empresa_id)
+        .neq('status', 'em_andamento')
         .gte('data_hora', agoraISO)
         .order('data_hora', { ascending: true })
         .limit(250),
@@ -475,11 +487,12 @@ export default function AgendamentosPage() {
         .from('corridas_empresa')
         .select(colsCorridas)
         .eq('empresa_id', gestor.empresa_id)
+        .neq('status', 'em_andamento')
         .lt('data_hora', agoraISO)
         .order('data_hora', { ascending: false })
         .limit(150),
     ])
-    const corrds = [...(futuras || []), ...(passadas || [])]
+    const corrds = [...(emAndamento || []), ...(futuras || []), ...(passadas || [])]
 
     if (empresa) {
       setTipoOperacao(empresa.tipo_operacao || 'transfer')
