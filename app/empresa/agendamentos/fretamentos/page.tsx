@@ -373,6 +373,10 @@ export default function AgendamentosPage() {
   const [voltaDaFicha, setVoltaDaFicha] = useState<Corrida | null>(null)
   const [modalPDFAberto, setModalPDFAberto] = useState(false)
   const [confirmandoFicha, setConfirmandoFicha] = useState(false)
+  // Adicionar trajeto inline direto na ficha aberta (fluxo do Julimar dirigindo:
+  // adiciona uma parada, salva na hora, sem entrar em modo de edição do form)
+  const [novoTrajetoFicha, setNovoTrajetoFicha] = useState('')
+  const [salvandoTrajetoFicha, setSalvandoTrajetoFicha] = useState(false)
   const [enviandoEmail, setEnviandoEmail] = useState(false)
   const [motoristaFicha, setMotoristaFicha] = useState('')
   const [contactsApi, setContactsApi] = useState(false)
@@ -829,6 +833,30 @@ export default function AgendamentosPage() {
     setCorridas(prev => prev.map(c => ids.includes(c.id) ? { ...c, status: 'cancelada' } : c))
   }
 
+  // Adiciona um trajeto na corrida aberta na ficha, salvando na hora no
+  // banco. Fluxo do Julimar dirigindo: uma parada nova a cada momento,
+  // sem precisar entrar em modo de edição do form completo.
+  async function adicionarTrajetoInline(c: Corrida, texto: string) {
+    const trim = texto.trim()
+    if (!trim) return
+    setSalvandoTrajetoFicha(true)
+    const atuais = Array.isArray(c.trajetos) ? c.trajetos : []
+    const novos = [...atuais, trim]
+    await supabase.from('corridas_empresa').update({ trajetos: novos }).eq('id', c.id)
+    setCorridas(prev => prev.map(x => x.id === c.id ? { ...x, trajetos: novos } : x))
+    setCorridaFicha(prev => prev && prev.id === c.id ? { ...prev, trajetos: novos } : prev)
+    setNovoTrajetoFicha('')
+    setSalvandoTrajetoFicha(false)
+  }
+
+  async function removerTrajetoInline(c: Corrida, idx: number) {
+    const atuais = Array.isArray(c.trajetos) ? c.trajetos : []
+    const novos = atuais.filter((_, i) => i !== idx)
+    await supabase.from('corridas_empresa').update({ trajetos: novos.length > 0 ? novos : null }).eq('id', c.id)
+    setCorridas(prev => prev.map(x => x.id === c.id ? { ...x, trajetos: novos } : x))
+    setCorridaFicha(prev => prev && prev.id === c.id ? { ...prev, trajetos: novos } : prev)
+  }
+
   // Reativa uma corrida cancelada — volta pra 'pendente' pra o gestor poder
   // reprocessar. Preserva todos os dados (motorista, valor, endereços, etc).
   async function reativarCorrida(ids: string[]) {
@@ -847,6 +875,8 @@ export default function AgendamentosPage() {
   }
 
   function abrirFicha(c: Corrida) {
+    // Reset do input de novo trajeto — evita carregar texto de outra ficha
+    setNovoTrajetoFicha('')
     // Detecta se essa corrida faz parte de um par ida-volta (mesmo cliente,
     // created_at com menos de 30s de diferenca — mesma regra do agruparPares).
     // Se sim, guarda a outra ponta em voltaDaFicha pra exibir na ficha.
@@ -1796,16 +1826,58 @@ export default function AgendamentosPage() {
                   ⏹️ Término: {corridaFicha.data_hora_termino.slice(8,10)}/{corridaFicha.data_hora_termino.slice(5,7)}/{corridaFicha.data_hora_termino.slice(0,4)} às {corridaFicha.data_hora_termino.slice(11,16)}
                 </p>
               )}
-              {Array.isArray(corridaFicha.trajetos) && corridaFicha.trajetos.length > 0 && (
-                <div className="rounded-xl p-3 mt-1" style={{ background: '#F0FDF4', border: '1px solid #BBF7D0' }}>
-                  <p className="text-xs font-semibold mb-1" style={{ color: '#166534' }}>🗺️ Trajetos ({corridaFicha.trajetos.length})</p>
-                  <ol className="text-sm text-gray-700 flex flex-col gap-0.5" style={{ paddingLeft: '18px', listStyleType: 'decimal' }}>
-                    {corridaFicha.trajetos.map((t, i) => (
-                      <li key={i}>{t}</li>
-                    ))}
-                  </ol>
-                </div>
-              )}
+              {(corridaFicha.tipo_servico === 'diaria' || corridaFicha.tipo_servico === 'city_tour') && (() => {
+                const trajetos = Array.isArray(corridaFicha.trajetos) ? corridaFicha.trajetos : []
+                return (
+                  <div className="rounded-xl p-3 mt-1 flex flex-col gap-2" style={{ background: '#F0FDF4', border: '1px solid #BBF7D0' }}>
+                    <p className="text-xs font-semibold" style={{ color: '#166534' }}>
+                      🗺️ Trajetos{trajetos.length > 0 ? ` (${trajetos.length})` : ''}
+                    </p>
+                    {trajetos.length === 0 && (
+                      <p className="text-xs text-gray-500 italic">Nenhum trajeto ainda. Adicione conforme os locais forem sendo visitados.</p>
+                    )}
+                    {trajetos.length > 0 && (
+                      <ol className="text-sm text-gray-700 flex flex-col gap-1" style={{ paddingLeft: '18px', listStyleType: 'decimal' }}>
+                        {trajetos.map((t, i) => (
+                          <li key={i} className="flex items-center justify-between gap-2">
+                            <span className="flex-1 break-words">{t}</span>
+                            <button
+                              type="button"
+                              onClick={() => removerTrajetoInline(corridaFicha, i)}
+                              title="Remover este trajeto"
+                              className="text-xs font-semibold text-red-500 px-2 flex-shrink-0">
+                              ✕
+                            </button>
+                          </li>
+                        ))}
+                      </ol>
+                    )}
+                    <div className="flex gap-2 items-center mt-1">
+                      <input
+                        value={novoTrajetoFicha}
+                        onChange={e => setNovoTrajetoFicha(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && novoTrajetoFicha.trim()) {
+                            e.preventDefault()
+                            adicionarTrajetoInline(corridaFicha, novoTrajetoFicha)
+                          }
+                        }}
+                        placeholder="Ex: Restaurante Fasano, Shopping..."
+                        className="campo-input flex-1"
+                        style={{ fontSize: '13px' }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => adicionarTrajetoInline(corridaFicha, novoTrajetoFicha)}
+                        disabled={salvandoTrajetoFicha || !novoTrajetoFicha.trim()}
+                        className="px-3 py-2 rounded-xl text-xs font-semibold text-white disabled:opacity-40 flex-shrink-0"
+                        style={{ background: '#166534' }}>
+                        {salvandoTrajetoFicha ? 'Salvando…' : '+ Adicionar'}
+                      </button>
+                    </div>
+                  </div>
+                )
+              })()}
               {corridaFicha.numero_voo && (
                 <p className="text-sm text-gray-600">✈️ Voo: {corridaFicha.numero_voo}</p>
               )}
