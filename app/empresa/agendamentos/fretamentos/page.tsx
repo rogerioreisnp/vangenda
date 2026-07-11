@@ -416,10 +416,16 @@ export default function AgendamentosPage() {
     if (!gestor) return
     setEmpresaId(gestor.empresa_id)
 
+    // Transição automática: confirmada -> em_andamento quando dá o horário.
+    // Antes esse trecho movia em_andamento -> concluida automaticamente, o que
+    // travava a ficha (não editável) mesmo quando o serviço ainda estava
+    // rolando (ex: diária). Agora deixa a corrida "acessível" pro gestor
+    // ajustar endereço/hora/etc; a mudança pra concluida é sempre manual
+    // no botão "✓ Marcar como Concluído" da ficha.
     await supabase.from('corridas_empresa')
-      .update({ status: 'concluida' })
+      .update({ status: 'em_andamento' })
       .eq('empresa_id', gestor.empresa_id)
-      .eq('status', 'em_andamento')
+      .eq('status', 'confirmada')
       .lt('data_hora', new Date().toISOString())
 
     // Ordenação das corridas: próximas primeiro (asc, do hoje pra frente),
@@ -737,8 +743,11 @@ export default function AgendamentosPage() {
         }
       }
     } else {
-      const statusCorrida = form.status_pagamento === 'recebido' ? 'concluida' : 'confirmada'
-      const base = { empresa_id: empresaId, status: statusCorrida, ...camposComuns }
+      // Nova corrida nasce como 'confirmada'. Não amarra status ao pagamento
+      // (o cliente pode pagar antecipado sem que o serviço tenha rolado ainda).
+      // O gestor promove pra concluida manualmente no botão "✓ Marcar como
+      // Concluído" da ficha quando o serviço acabar.
+      const base = { empresa_id: empresaId, status: 'confirmada', ...camposComuns }
       const registros: typeof base[] = [
         { ...base, data_hora: `${form.data}T${form.horario}:00` } as any,
       ]
@@ -1449,7 +1458,7 @@ export default function AgendamentosPage() {
                             Ver ficha
                           </button>
                         )}
-                        {eAtivo(c.status) && c.status !== 'pendente' && (
+                        {c.status !== 'pendente' && (
                           <button onClick={() => abrirEditar(c)}
                             className="px-2.5 py-1 rounded-lg text-[10px] font-medium"
                             style={{ background: '#E1F5EE', color: '#0F6E56' }}>
@@ -1540,7 +1549,7 @@ export default function AgendamentosPage() {
                       <p className="text-sm font-bold" style={{ color: '#0F6E56' }}>
                         R$ {valorTotal.toFixed(2).replace('.', ',')}
                       </p>
-                      {eAtivo(ida.status) && (
+                      {ida.status !== 'pendente' && (
                         <button onClick={() => abrirEditar(ida, volta.id)}
                           className="px-2.5 py-1 rounded-lg text-[10px] font-medium"
                           style={{ background: '#E1F5EE', color: '#0F6E56' }}>
