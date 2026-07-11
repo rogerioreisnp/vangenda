@@ -85,7 +85,7 @@ export default function AgendaPage() {
   // gestorUserId = user.id do dono da empresa. Populado quando eh motorista
   // funcionario, pra redirecionar SELECTs e INSERTs. Individual/gestor nao usa.
   const [empresaCtx, setEmpresaCtx] = useState<{ empresaId: string; motEmpresaId?: string; gestorUserId?: string } | null | undefined>(undefined)
-  const [rotasEmpresa, setRotasEmpresa] = useState<{ id: string; nome: string | null; origem: string | null; destino: string | null; horario_ida: string | null; horario_volta: string | null }[]>([])
+  const [rotasEmpresa, setRotasEmpresa] = useState<{ id: string; nome: string | null; origem: string | null; destino: string | null; horario_ida: string | null; horario_volta: string | null; modo_endereco: 'paradas' | 'livre' | null; preco: number | null }[]>([])
   const [isGestor, setIsGestor] = useState(false)
   const [gestorUserIds, setGestorUserIds] = useState<string[]>([])
   const [empresaReady, setEmpresaReady] = useState(false)
@@ -229,7 +229,7 @@ export default function AgendaPage() {
       setNomeMotorista(gestorRow.nome || '')
       setEmpresaCtx({ empresaId: gestorRow.empresa_id })
       const { data: rts } = await supabase
-        .from('rotas_empresa').select('id, nome, origem, destino, ativa, horario_ida, horario_volta')
+        .from('rotas_empresa').select('id, nome, origem, destino, ativa, horario_ida, horario_volta, modo_endereco, preco')
         .eq('empresa_id', gestorRow.empresa_id).order('created_at', { ascending: true })
       setRotasEmpresa((rts || []).filter(r => r.ativa !== false))
       const { data: motsEmp } = await supabase
@@ -263,7 +263,7 @@ export default function AgendaPage() {
       setEmpresaCtx({ empresaId: motEmp.empresa_id, motEmpresaId: motEmp.id, gestorUserId: gestorUid })
       const { data: rts } = await supabase
         .from('rotas_empresa')
-        .select('id, nome, origem, destino, ativa, horario_ida, horario_volta')
+        .select('id, nome, origem, destino, ativa, horario_ida, horario_volta, modo_endereco, preco')
         .eq('empresa_id', motEmp.empresa_id)
         .order('created_at', { ascending: true })
       setRotasEmpresa((rts || []).filter(r => r.ativa !== false))
@@ -1209,7 +1209,7 @@ function DetalhePassageiro({ p, onVoltar, onAtualizar, horarioIda, horarioVolta 
 function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSalvo }: {
   data: Date, rotas: any[],
   empresaCtx: { empresaId: string; motEmpresaId?: string; gestorUserId?: string } | null,
-  rotasEmpresa: { id: string; nome: string | null; origem: string | null; destino: string | null; horario_ida?: string | null; horario_volta?: string | null }[],
+  rotasEmpresa: { id: string; nome: string | null; origem: string | null; destino: string | null; horario_ida?: string | null; horario_volta?: string | null; modo_endereco?: 'paradas' | 'livre' | null; preco?: number | null }[],
   onFechar: () => void, onSalvo: () => void
 }) {
   const [paradas, setParadas] = useState<any[]>([])
@@ -1418,7 +1418,26 @@ function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSa
   const vagasDisponiveis = Math.max(0, capacidade - vagasOcupadas)
 
   const excedeCapacidade = !empresaCtx && !!form.rota_id && form.quantidade > vagasDisponiveis
-  const podeSalvar = !saving && !!form.nome_passageiro && !!form.parada_origem && !!form.parada_destino && !!form.valor && form.quantidade > 0 && !excedeCapacidade
+  const ehModoLivre = rotaEmpAtual?.modo_endereco === 'livre'
+  // No modo livre: origem/destino vêm do endereço estruturado (rua/bairro).
+  // Valor é preenchido automaticamente com o preço da rota.
+  function concatEnderecoLivre(campos: { rua: string; numero: string; bairro: string; municipio: string; referencia: string }): string {
+    const partes = [
+      [campos.rua, campos.numero].filter(Boolean).join(', '),
+      [campos.bairro, campos.municipio].filter(Boolean).join(' — '),
+    ].filter(Boolean).join(' · ')
+    return campos.referencia ? `${partes} (${campos.referencia})` : partes
+  }
+  const paradaOrigemFinal = ehModoLivre
+    ? concatEnderecoLivre({ rua: form.rua, numero: form.numero, bairro: form.bairro, municipio: form.municipio, referencia: form.referencia })
+    : form.parada_origem
+  const paradaDestinoFinal = ehModoLivre
+    ? concatEnderecoLivre({ rua: form.rua_desembarque, numero: form.numero_desembarque, bairro: form.bairro_desembarque, municipio: form.municipio_desembarque, referencia: form.referencia_desembarque })
+    : form.parada_destino
+  const valorFinal = ehModoLivre && rotaEmpAtual?.preco != null && !form.valor
+    ? String(rotaEmpAtual.preco)
+    : form.valor
+  const podeSalvar = !saving && !!form.nome_passageiro && !!paradaOrigemFinal && !!paradaDestinoFinal && !!valorFinal && form.quantidade > 0 && !excedeCapacidade
 
   function fechar() {
     localStorage.removeItem('vangenda_form_agendamento')
@@ -1440,10 +1459,10 @@ function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSa
       registrado_por: user!.id,
       nome_passageiro: form.quantidade > 1 ? `${form.nome_passageiro} (${i + 1}/${form.quantidade})` : form.nome_passageiro,
       telefone_passageiro: form.telefone_passageiro || null,
-      parada_origem: form.parada_origem,
-      parada_destino: form.parada_destino,
+      parada_origem: paradaOrigemFinal,
+      parada_destino: paradaDestinoFinal,
       turno: form.turno,
-      valor: parseFloat(form.valor),
+      valor: parseFloat(valorFinal),
       forma_pagamento: form.forma_pagamento,
       fiado_pago: false,
       data_viagem: form.data_viagem,
@@ -1611,28 +1630,39 @@ function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSa
           </div>
         </Campo>
 
-        <div className="grid grid-cols-2 gap-2">
-          <Campo label="Embarca em">
-            <select value={form.parada_origem} onChange={e => setForm(f => ({ ...f, parada_origem: e.target.value }))}
-              className="campo-input">
-              <option value="">Selecione...</option>
-              {empresaCtx
-                ? paradasUnicas.map(p => <option key={p} value={p}>{p}</option>)
-                : paradas.map(p => <option key={p.id} value={p.nome}>{p.nome}</option>)
-              }
-            </select>
-          </Campo>
-          <Campo label="Desembarca em">
-            <select value={form.parada_destino} onChange={e => setForm(f => ({ ...f, parada_destino: e.target.value }))}
-              className="campo-input">
-              <option value="">Selecione...</option>
-              {empresaCtx
-                ? paradasUnicas.map(p => <option key={p} value={p}>{p}</option>)
-                : paradas.map(p => <option key={p.id} value={p.nome}>{p.nome}</option>)
-              }
-            </select>
-          </Campo>
-        </div>
+        {(rotaEmpAtual?.modo_endereco === 'livre') ? (
+          <div className="rounded-xl p-3" style={{ background: '#FFF7ED', border: '1px solid #FED7AA' }}>
+            <p className="text-xs" style={{ color: '#9A3412' }}>
+              🛣️ Esta rota está em <strong>modo endereço livre</strong>. Preencha o endereço de embarque e desembarque nos campos abaixo — eles substituem "embarca em / desembarca em".
+              {rotaEmpAtual?.origem && rotaEmpAtual?.destino && (
+                <> Rota: <strong>{rotaEmpAtual.origem} → {rotaEmpAtual.destino}</strong>.</>
+              )}
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-2">
+            <Campo label="Embarca em">
+              <select value={form.parada_origem} onChange={e => setForm(f => ({ ...f, parada_origem: e.target.value }))}
+                className="campo-input">
+                <option value="">Selecione...</option>
+                {empresaCtx
+                  ? paradasUnicas.map(p => <option key={p} value={p}>{p}</option>)
+                  : paradas.map(p => <option key={p.id} value={p.nome}>{p.nome}</option>)
+                }
+              </select>
+            </Campo>
+            <Campo label="Desembarca em">
+              <select value={form.parada_destino} onChange={e => setForm(f => ({ ...f, parada_destino: e.target.value }))}
+                className="campo-input">
+                <option value="">Selecione...</option>
+                {empresaCtx
+                  ? paradasUnicas.map(p => <option key={p} value={p}>{p}</option>)
+                  : paradas.map(p => <option key={p.id} value={p.nome}>{p.nome}</option>)
+                }
+              </select>
+            </Campo>
+          </div>
+        )}
 
         <Campo label={valorAuto ? '✓ Valor automático da tabela' : 'Valor da passagem'}>
           <div className="flex gap-2">

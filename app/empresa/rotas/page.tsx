@@ -37,6 +37,10 @@ type RotaRF = {
   veiculo_placa: string | null
   ativa: boolean
   dias_semana: number[] | null
+  modo_endereco: 'paradas' | 'livre' | null
+  preco: number | null
+  origem: string | null
+  destino: string | null
 }
 
 type PrecoRF = {
@@ -54,6 +58,10 @@ type FormRotaRF = {
   veiculo_placa: string
   ativa: boolean
   dias_semana: number[]
+  modo_endereco: 'paradas' | 'livre'
+  preco: string
+  origem: string
+  destino: string
 }
 
 export default function RotasPage() {
@@ -76,6 +84,7 @@ export default function RotasPage() {
     nome: '', horario_ida: '05:00', horario_volta: '14:00',
     capacidade: '15', motorista_id: '', veiculo_placa: '',
     ativa: true, dias_semana: [1, 2, 3, 4, 5],
+    modo_endereco: 'paradas', preco: '', origem: '', destino: '',
   })
   const [paradasRF, setParadasRF] = useState<string[]>([])
   const [precosRF, setPrecosRF] = useState<PrecoRF[]>([])
@@ -109,7 +118,7 @@ export default function RotasPage() {
         .single(),
       supabase
         .from('rotas_empresa')
-        .select('id, origem, destino, distancia_km, preco, motorista_id, veiculo_placa, nome, horario_ida, horario_volta, capacidade, ativa, dias_semana')
+        .select('id, origem, destino, distancia_km, preco, motorista_id, veiculo_placa, nome, horario_ida, horario_volta, capacidade, ativa, dias_semana, modo_endereco')
         .eq('empresa_id', gestor.empresa_id)
         .order('created_at'),
       supabase
@@ -215,7 +224,7 @@ export default function RotasPage() {
 
   function abrirAdicionarRF() {
     setRotaRFEditando(null)
-    setFormRF({ nome: '', horario_ida: '05:00', horario_volta: '14:00', capacidade: '15', motorista_id: '', veiculo_placa: '', ativa: true, dias_semana: [1, 2, 3, 4, 5] })
+    setFormRF({ nome: '', horario_ida: '05:00', horario_volta: '14:00', capacidade: '15', motorista_id: '', veiculo_placa: '', ativa: true, dias_semana: [1, 2, 3, 4, 5], modo_endereco: 'paradas', preco: '', origem: '', destino: '' })
     setParadasRF([])
     setPrecosRF([])
     setNovaParadaRF('')
@@ -234,6 +243,10 @@ export default function RotasPage() {
       veiculo_placa: r.veiculo_placa || '',
       ativa: r.ativa ?? true,
       dias_semana: (r.dias_semana ?? [1, 2, 3, 4, 5]).map(Number),
+      modo_endereco: r.modo_endereco || 'paradas',
+      preco: r.preco != null ? String(r.preco) : '',
+      origem: r.origem || '',
+      destino: r.destino || '',
     })
     const { data: trechos } = await supabase
       .from('paradas_empresa')
@@ -262,6 +275,17 @@ export default function RotasPage() {
 
   async function salvarRF() {
     if (!formRF.nome.trim()) { setErroRF('Nome da rota é obrigatório'); return }
+    if (formRF.modo_endereco === 'livre') {
+      if (!formRF.origem.trim() || !formRF.destino.trim()) {
+        setErroRF('No modo "endereço livre", origem e destino da rota são obrigatórios')
+        return
+      }
+      const p = parseFloat(formRF.preco)
+      if (isNaN(p) || p <= 0) {
+        setErroRF('No modo "endereço livre", preço da rota é obrigatório')
+        return
+      }
+    }
     if (!empresaId) return
     setSalvandoRF(true)
     setErroRF('')
@@ -275,6 +299,12 @@ export default function RotasPage() {
       veiculo_placa: formRF.veiculo_placa.trim() || null,
       ativa: formRF.ativa,
       dias_semana: Array.from(new Set(formRF.dias_semana.map(Number))),
+      modo_endereco: formRF.modo_endereco,
+      // Preço e origem/destino texto — só usados no modo livre. Em modo
+      // 'paradas' o preço vem de paradas_empresa por trecho (mantém null aqui).
+      preco: formRF.modo_endereco === 'livre' ? (parseFloat(formRF.preco) || 0) : null,
+      origem: formRF.modo_endereco === 'livre' ? formRF.origem.trim() : null,
+      destino: formRF.modo_endereco === 'livre' ? formRF.destino.trim() : null,
     }
 
     let rotaId: string
@@ -298,8 +328,12 @@ export default function RotasPage() {
       rotaId = data.id
     }
 
-    await supabase.from('paradas_empresa').delete().eq('rota_id', rotaId)
-    if (precosRF.length > 0) {
+    // Só mexe em paradas_empresa se a rota está no modo 'paradas'. No modo
+    // 'livre' o preço vem da rota inteira e não há trechos.
+    if (formRF.modo_endereco === 'paradas') {
+      await supabase.from('paradas_empresa').delete().eq('rota_id', rotaId)
+    }
+    if (formRF.modo_endereco === 'paradas' && precosRF.length > 0) {
       const { error: erroP } = await supabase.from('paradas_empresa').insert(
         precosRF.map((p, i) => ({
           rota_id: rotaId,
@@ -583,9 +617,57 @@ export default function RotasPage() {
                       style={{ left: formRF.ativa ? '22px' : '2px' }} />
                   </button>
                 </div>
+
+                {/* Modo de endereço — paradas fixas OU endereço livre */}
+                <div className="rounded-xl p-3 flex flex-col gap-2" style={{ background: '#F0F9FF', border: '1px solid #BAE6FD' }}>
+                  <p className="text-xs font-semibold" style={{ color: '#075985' }}>Modo de endereço</p>
+                  <p className="text-xs text-gray-500 leading-snug">
+                    <strong>Paradas fixas:</strong> cliente escolhe embarque/desembarque de uma lista com preços por trecho.<br />
+                    <strong>Endereço livre:</strong> cliente digita o próprio endereço (rua, bairro, ...). Preço único da rota.
+                  </p>
+                  <div className="grid grid-cols-2 gap-2 mt-1">
+                    {(['paradas', 'livre'] as const).map(m => (
+                      <button key={m} type="button"
+                        onClick={() => setFormRF(f => ({ ...f, modo_endereco: m }))}
+                        className="py-2 rounded-xl text-xs font-semibold border transition-all"
+                        style={formRF.modo_endereco === m
+                          ? { background: '#0F6E56', color: '#fff', borderColor: '#0F6E56' }
+                          : { background: '#fff', color: '#6B7280', borderColor: '#e5e7eb' }}>
+                        {m === 'paradas' ? 'Paradas fixas' : 'Endereço livre'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Campos exclusivos do modo livre: origem/destino texto + preço da rota */}
+                {formRF.modo_endereco === 'livre' && (
+                  <div className="rounded-xl p-3 flex flex-col gap-2" style={{ background: '#FFF7ED', border: '1px solid #FED7AA' }}>
+                    <p className="text-xs font-semibold" style={{ color: '#9A3412' }}>🛣️ Rota (modo livre)</p>
+                    <Campo label="Município de origem *">
+                      <input value={formRF.origem}
+                        onChange={e => setFormRF(f => ({ ...f, origem: e.target.value }))}
+                        placeholder="Ex: Frutal - MG"
+                        className="campo-input" />
+                    </Campo>
+                    <Campo label="Município de destino *">
+                      <input value={formRF.destino}
+                        onChange={e => setFormRF(f => ({ ...f, destino: e.target.value }))}
+                        placeholder="Ex: Uberlândia - MG"
+                        className="campo-input" />
+                    </Campo>
+                    <Campo label="Preço único da rota *">
+                      <input type="number" step="0.01" min={0} value={formRF.preco}
+                        onChange={e => setFormRF(f => ({ ...f, preco: e.target.value }))}
+                        placeholder="Ex: 80.00"
+                        className="campo-input" />
+                    </Campo>
+                  </div>
+                )}
               </div>
 
-              {/* Paradas */}
+              {/* Paradas e Trechos — apenas no modo 'paradas' */}
+              {formRF.modo_endereco === 'paradas' && (
+              <>
               <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-3">
                 <p className="text-sm font-semibold text-gray-700">📍 Paradas</p>
                 <p className="text-xs text-gray-400">
@@ -658,6 +740,8 @@ export default function RotasPage() {
                     ))}
                   </div>
                 </div>
+              )}
+              </>
               )}
 
               {erroRF && (

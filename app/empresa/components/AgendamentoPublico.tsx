@@ -55,6 +55,7 @@ type Rota = {
   horario_volta: string | null
   dias_semana: number[] | null
   capacidade: number | null
+  modo_endereco: 'paradas' | 'livre' | null
 }
 
 const NOMES_DIAS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
@@ -182,7 +183,7 @@ export default function AgendamentoPublico({
   async function carregarRotas() {
     const { data } = await supabase
       .from('rotas_empresa')
-      .select('id, nome, origem, destino, preco, horario_ida, horario_volta, dias_semana, capacidade')
+      .select('id, nome, origem, destino, preco, horario_ida, horario_volta, dias_semana, capacidade, modo_endereco')
       .eq('empresa_id', empresa.id)
       .order('created_at')
     if (data) setRotas(data)
@@ -339,11 +340,21 @@ export default function AgendamentoPublico({
       setErro(`Esta rota não opera neste dia. Dias disponíveis: ${diasTexto}.`); return
     }
     if (!form.horario) { setErro('Horário é obrigatório'); return }
-    if (empresa.tipo_operacao === 'rota_fixa' && (!embarque || !desembarque)) {
-      setErro('Selecione o embarque e desembarque'); return
+    // Rota_fixa modo 'paradas': exige seleção de embarque/desembarque e trecho válido
+    if (empresa.tipo_operacao === 'rota_fixa' && rotaSelecionada?.modo_endereco !== 'livre') {
+      if (!embarque || !desembarque) {
+        setErro('Selecione o embarque e desembarque'); return
+      }
+      if (valorTrechoRF === null) {
+        setErro('Trecho não disponível para esta rota'); return
+      }
     }
-    if (empresa.tipo_operacao === 'rota_fixa' && valorTrechoRF === null) {
-      setErro('Trecho não disponível para esta rota'); return
+    // Rota_fixa modo 'livre': exige endereço estruturado do passageiro (rua ou bairro)
+    if (empresa.tipo_operacao === 'rota_fixa' && rotaSelecionada?.modo_endereco === 'livre') {
+      const embPreenchido = (form.rua + form.bairro + form.municipio + form.referencia + form.cep).trim()
+      const desPreenchido = (form.rua_desembarque + form.bairro_desembarque + form.municipio_desembarque + form.referencia_desembarque + form.cep_desembarque).trim()
+      if (!embPreenchido) { setErro('Informe o endereço de embarque (pode ser o nome do local, ex: "Rodoviária")'); return }
+      if (!desPreenchido) { setErro('Informe o endereço de desembarque'); return }
     }
     // Transfer: o endereço do Passageiro 1 vira origem/destino da corrida.
     // Aceita qualquer campo preenchido (rua, bairro, município ou referência) —
@@ -384,10 +395,10 @@ export default function AgendamentoPublico({
     const p1EmbarqueVolta = concatEndereco({ rua: form.rua_retorno_embarque, numero: form.numero_retorno_embarque, bairro: form.bairro_retorno_embarque, municipio: form.municipio_retorno_embarque, referencia: form.referencia_retorno_embarque })
     const p1DesembarqueVolta = concatEndereco({ rua: form.rua_retorno_desembarque, numero: form.numero_retorno_desembarque, bairro: form.bairro_retorno_desembarque, municipio: form.municipio_retorno_desembarque, referencia: form.referencia_retorno_desembarque })
     const origemSave = empresa.tipo_operacao === 'rota_fixa'
-      ? embarque
+      ? (rotaSelecionada?.modo_endereco === 'livre' ? p1Embarque : embarque)
       : p1Embarque || (rotaSelecionada?.origem ?? '')
     const destinoSave = empresa.tipo_operacao === 'rota_fixa'
-      ? desembarque
+      ? (rotaSelecionada?.modo_endereco === 'livre' ? p1Desembarque : desembarque)
       : p1Desembarque || (rotaSelecionada?.destino ?? '')
     // Volta do Passageiro 1: usa os campos estruturados (que já vêm
     // pré-preenchidos como inverso da ida se cliente não editou).
@@ -503,8 +514,12 @@ export default function AgendamentoPublico({
       return
     }
 
-    // ── Caminho rota_fixa: salva em corridas_empresa (sem alteração) ─────────
-    const valorSave = valorTrechoRF ?? 0
+    // ── Caminho rota_fixa: salva em corridas_empresa ─────────────────────────
+    // Modo 'paradas': valor vem do trecho (paradas_empresa)
+    // Modo 'livre': valor vem da rota inteira (rotas_empresa.preco)
+    const valorSave = rotaSelecionada?.modo_endereco === 'livre'
+      ? Number(rotaSelecionada.preco ?? 0)
+      : (valorTrechoRF ?? 0)
 
     const { error } = await supabase.from('corridas_empresa').insert({
       empresa_id: empresa.id,
@@ -600,7 +615,9 @@ export default function AgendamentoPublico({
     setErro('')
   }
 
-  const valorParaPix = empresa.tipo_operacao === 'rota_fixa' ? (valorTrechoRF ?? 0) : (rotaManual ? 0 : Number(rotaSelecionada?.preco ?? 0))
+  const valorParaPix = empresa.tipo_operacao === 'rota_fixa'
+    ? (rotaSelecionada?.modo_endereco === 'livre' ? Number(rotaSelecionada.preco ?? 0) : (valorTrechoRF ?? 0))
+    : (rotaManual ? 0 : Number(rotaSelecionada?.preco ?? 0))
   const pixPayload = chavePix && rotaSelecionada && valorParaPix > 0
     ? gerarPayloadPix(chavePix, empresa.nome, valorParaPix)
     : null
@@ -725,9 +742,9 @@ export default function AgendamentoPublico({
               </Campo>
 
 
-              {rotaSelecionada && empresa.tipo_operacao === 'rota_fixa' && (
+              {rotaSelecionada && empresa.tipo_operacao === 'rota_fixa' && rotaSelecionada.modo_endereco !== 'livre' && (
                 <>
-                  {/* Paradas de embarque/desembarque */}
+                  {/* Paradas de embarque/desembarque (modo 'paradas') */}
                   <div className="grid grid-cols-2 gap-2">
                     <Campo label="Embarque *">
                       <select value={embarque} onChange={e => setEmbarque(e.target.value)} className="campo-input">
@@ -761,6 +778,28 @@ export default function AgendamentoPublico({
                   {embarque && desembarque && valorTrechoRF === null && (
                     <div className="rounded-xl px-4 py-3 border" style={{ background: '#FCEBEB', borderColor: '#F5BCBC' }}>
                       <p className="text-xs text-center" style={{ color: '#A32D2D' }}>Trecho não disponível para esta rota.</p>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {rotaSelecionada && empresa.tipo_operacao === 'rota_fixa' && rotaSelecionada.modo_endereco === 'livre' && (
+                <>
+                  {/* Modo endereço livre: cliente digita nos campos de endereço abaixo */}
+                  <div className="rounded-xl p-3" style={{ background: '#FFF7ED', border: '1px solid #FED7AA' }}>
+                    <p className="text-xs" style={{ color: '#9A3412' }}>
+                      🛣️ Rota <strong>{rotaSelecionada.origem} → {rotaSelecionada.destino}</strong>. Preencha seu endereço de embarque e desembarque nos campos abaixo.
+                    </p>
+                  </div>
+
+                  {Number(rotaSelecionada.preco) > 0 && (
+                    <div className="rounded-xl px-4 py-3" style={{ background: '#f0f0ec' }}>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium text-gray-600">Valor da rota</span>
+                        <span className="text-xl font-bold" style={{ color: cor }}>
+                          R$ {Number(rotaSelecionada.preco).toFixed(2).replace('.', ',')}
+                        </span>
+                      </div>
                     </div>
                   )}
                 </>
