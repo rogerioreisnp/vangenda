@@ -1809,24 +1809,37 @@ export default function AgendamentosPage() {
                   )
                 })()}
               </div>
-              {corridaFicha.tipo_servico === 'diaria' || corridaFicha.tipo_servico === 'city_tour' ? (
-                <p className="text-base font-bold text-gray-800">
-                  📍 {corridaFicha.origem}
-                  {corridaFicha.destino ? ` → ${corridaFicha.destino}` : ''}
-                </p>
-              ) : (
-                <p className="text-base font-bold text-gray-800">{corridaFicha.origem} → {corridaFicha.destino}</p>
-              )}
-              <p className="text-sm text-gray-600">
-                {corridaFicha.tipo_servico === 'diaria' || corridaFicha.tipo_servico === 'city_tour' ? '▶️ Início: ' : '📅 '}
-                {corridaFicha.data_hora.slice(8,10)}/{corridaFicha.data_hora.slice(5,7)}/{corridaFicha.data_hora.slice(0,4)} às {corridaFicha.data_hora.slice(11,16)}
-              </p>
-              {corridaFicha.data_hora_termino && (corridaFicha.tipo_servico === 'diaria' || corridaFicha.tipo_servico === 'city_tour') && (
-                <p className="text-sm text-gray-600">
-                  ⏹️ Término: {corridaFicha.data_hora_termino.slice(8,10)}/{corridaFicha.data_hora_termino.slice(5,7)}/{corridaFicha.data_hora_termino.slice(0,4)} às {corridaFicha.data_hora_termino.slice(11,16)}
-                </p>
-              )}
-              {(corridaFicha.tipo_servico === 'diaria' || corridaFicha.tipo_servico === 'city_tour') && (() => {
+              {(() => {
+                const ts = corridaFicha.tipo_servico
+                const trajetosArr = Array.isArray(corridaFicha.trajetos) ? corridaFicha.trajetos : []
+                // Considera "dispose" (diária/city_tour) quando o tipo bate OU quando
+                // já tem dados típicos de dispose (trajetos ou término) — cobre caso
+                // do usuário ter salvado com tipo antigo antes das mudanças.
+                const ehDispose = ts === 'diaria' || ts === 'city_tour' || !!corridaFicha.data_hora_termino || trajetosArr.length > 0
+                return (
+                  <>
+                    {ehDispose ? (
+                      <p className="text-base font-bold text-gray-800">
+                        📍 {corridaFicha.origem}
+                        {corridaFicha.destino ? ` → ${corridaFicha.destino}` : ''}
+                      </p>
+                    ) : (
+                      <p className="text-base font-bold text-gray-800">{corridaFicha.origem} → {corridaFicha.destino}</p>
+                    )}
+                    <p className="text-[10px] text-gray-400">Tipo: {ts ?? '(não definido)'} · Trajetos no banco: {trajetosArr.length}</p>
+                    <p className="text-sm text-gray-600">
+                      {ehDispose ? '▶️ Início: ' : '📅 '}
+                      {corridaFicha.data_hora.slice(8,10)}/{corridaFicha.data_hora.slice(5,7)}/{corridaFicha.data_hora.slice(0,4)} às {corridaFicha.data_hora.slice(11,16)}
+                    </p>
+                    {corridaFicha.data_hora_termino && (
+                      <p className="text-sm text-gray-600">
+                        ⏹️ Término: {corridaFicha.data_hora_termino.slice(8,10)}/{corridaFicha.data_hora_termino.slice(5,7)}/{corridaFicha.data_hora_termino.slice(0,4)} às {corridaFicha.data_hora_termino.slice(11,16)}
+                      </p>
+                    )}
+                  </>
+                )
+              })()}
+              {(corridaFicha.tipo_servico === 'diaria' || corridaFicha.tipo_servico === 'city_tour' || !!corridaFicha.data_hora_termino || (Array.isArray(corridaFicha.trajetos) && corridaFicha.trajetos.length > 0)) && (() => {
                 const trajetos = Array.isArray(corridaFicha.trajetos) ? corridaFicha.trajetos : []
                 return (
                   <div className="rounded-xl p-3 mt-1 flex flex-col gap-2" style={{ background: '#F0FDF4', border: '1px solid #BBF7D0' }}>
