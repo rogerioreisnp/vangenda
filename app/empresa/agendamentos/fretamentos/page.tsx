@@ -63,6 +63,8 @@ type Corrida = {
   retorno_destino: string | null
   data_hora_termino: string | null
   trajetos: string[] | null
+  km_inicial: number | null
+  km_final: number | null
   numero_reserva: number | null
   quantidade_bagagem: number | null
   passageiros_adicionais: Array<{
@@ -156,6 +158,8 @@ type FormCorrida = {
   data_termino: string
   horario_termino: string
   trajetos: string[]
+  km_inicial: string
+  km_final: string
   passageiros_adicionais: PassageiroExtraCorrida[]
   forma_pagamento: string
   status_pagamento: string
@@ -195,6 +199,7 @@ const FORM_VAZIO: FormCorrida = {
   rua_retorno_desembarque: '', numero_retorno_desembarque: '', bairro_retorno_desembarque: '',
   municipio_retorno_desembarque: '', cep_retorno_desembarque: '', referencia_retorno_desembarque: '',
   data_termino: '', horario_termino: '', trajetos: [],
+  km_inicial: '', km_final: '',
   passageiros_adicionais: [],
   forma_pagamento: 'a_definir',
   status_pagamento: 'a_receber',
@@ -449,7 +454,7 @@ export default function AgendamentosPage() {
     //   2. FUTURAS (data_hora >= agora e status != em_andamento) — asc
     //   3. PASSADAS (data_hora < agora e status != em_andamento) — desc
     const agoraISO = new Date().toISOString()
-    const colsCorridas = 'id, rota_id, origem, destino, data_hora, created_at, cliente_nome, cliente_telefone, email_solicitante, passageiro1_nome, passageiro1_telefone, valor, status, motorista_id, tipo_servico, forma_pagamento, status_pagamento, valor_recebido, data_pagamento, data_prevista_pagamento, observacoes, motoristas_empresa(nome), numero_voo, nome_passageiro2, telefone_passageiro2, retorno_data, retorno_horario, retorno_origem, retorno_destino, numero_reserva, quantidade_bagagem, passageiros_adicionais, rua, numero, bairro, municipio, cep, referencia, rua_desembarque, numero_desembarque, bairro_desembarque, municipio_desembarque, cep_desembarque, referencia_desembarque, data_hora_termino, trajetos'
+    const colsCorridas = 'id, rota_id, origem, destino, data_hora, created_at, cliente_nome, cliente_telefone, email_solicitante, passageiro1_nome, passageiro1_telefone, valor, status, motorista_id, tipo_servico, forma_pagamento, status_pagamento, valor_recebido, data_pagamento, data_prevista_pagamento, observacoes, motoristas_empresa(nome), numero_voo, nome_passageiro2, telefone_passageiro2, retorno_data, retorno_horario, retorno_origem, retorno_destino, numero_reserva, quantidade_bagagem, passageiros_adicionais, rua, numero, bairro, municipio, cep, referencia, rua_desembarque, numero_desembarque, bairro_desembarque, municipio_desembarque, cep_desembarque, referencia_desembarque, data_hora_termino, trajetos, km_inicial, km_final'
 
     const [{ data: empresa }, { data: rts }, { data: mots }, { data: emAndamento }, { data: futuras }, { data: passadas }] = await Promise.all([
       supabase
@@ -570,6 +575,8 @@ export default function AgendamentosPage() {
       data_termino: c.data_hora_termino ? c.data_hora_termino.slice(0, 10) : '',
       horario_termino: c.data_hora_termino ? c.data_hora_termino.slice(11, 16) : '',
       trajetos: Array.isArray(c.trajetos) ? c.trajetos : [],
+      km_inicial: c.km_inicial != null ? String(c.km_inicial) : '',
+      km_final: c.km_final != null ? String(c.km_final) : '',
       passageiros_adicionais: (c.passageiros_adicionais || []).map(p => ({
         nome: p.nome || '', telefone: p.telefone || '', numero_voo: '',
         rua: p.rua || '', numero: p.numero || '', bairro: p.bairro || '', municipio: p.municipio || '', cep: p.cep || '', referencia: p.referencia || '',
@@ -719,6 +726,15 @@ export default function AgendamentosPage() {
         : null,
       trajetos: (form.tipo_servico === 'diaria' || form.tipo_servico === 'city_tour') && form.trajetos.some(t => t.trim())
         ? form.trajetos.map(t => t.trim()).filter(Boolean)
+        : null,
+      // KM inicial/final — só faz sentido pra corridas rodadas pelo motorista
+      // da empresa (transfer, diária, city tour). Fretamento e excursão usam
+      // outra estrutura de quilometragem em cobrancas_empresa.
+      km_inicial: (form.tipo_servico === 'transfer' || form.tipo_servico === 'diaria' || form.tipo_servico === 'city_tour') && form.km_inicial.trim() !== ''
+        ? parseFloat(form.km_inicial.replace(',', '.'))
+        : null,
+      km_final: (form.tipo_servico === 'transfer' || form.tipo_servico === 'diaria' || form.tipo_servico === 'city_tour') && form.km_final.trim() !== ''
+        ? parseFloat(form.km_final.replace(',', '.'))
         : null,
       forma_pagamento: form.forma_pagamento,
       status_pagamento: form.status_pagamento,
@@ -1907,6 +1923,25 @@ export default function AgendamentosPage() {
                   </div>
                 )
               })()}
+              {/* Quilometragem — transfer, diária, city tour. Só mostra se
+                  algum dos dois campos foi preenchido. */}
+              {(corridaFicha.tipo_servico === 'transfer' || corridaFicha.tipo_servico === 'diaria' || corridaFicha.tipo_servico === 'city_tour') && (corridaFicha.km_inicial != null || corridaFicha.km_final != null) && (() => {
+                const kmI = corridaFicha.km_inicial
+                const kmF = corridaFicha.km_final
+                const total = kmI != null && kmF != null && kmF >= kmI ? kmF - kmI : null
+                return (
+                  <div className="rounded-xl p-3 mt-1" style={{ background: '#EFF6FF', border: '1px solid #BFDBFE' }}>
+                    <p className="text-xs font-semibold mb-1" style={{ color: '#1D4ED8' }}>🛞 Quilometragem</p>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Inicial: <strong>{kmI != null ? String(kmI).replace('.', ',') : '—'}</strong></span>
+                      <span className="text-gray-600">Final: <strong>{kmF != null ? String(kmF).replace('.', ',') : '—'}</strong></span>
+                    </div>
+                    {total != null && (
+                      <p className="text-sm font-bold mt-1" style={{ color: '#1D4ED8' }}>Total: {total.toFixed(1).replace('.', ',')} km</p>
+                    )}
+                  </div>
+                )
+              })()}
               {corridaFicha.numero_voo && (
                 <p className="text-sm text-gray-600">✈️ Voo: {corridaFicha.numero_voo}</p>
               )}
@@ -2799,6 +2834,46 @@ export default function AgendamentosPage() {
                 ))}
               </div>
             )}
+
+            {/* KM inicial/final — só transfer, diária e city tour */}
+            {(form.tipo_servico === 'transfer' || form.tipo_servico === 'diaria' || form.tipo_servico === 'city_tour') && (() => {
+              const kmI = parseFloat((form.km_inicial || '').replace(',', '.'))
+              const kmF = parseFloat((form.km_final || '').replace(',', '.'))
+              const total = !isNaN(kmI) && !isNaN(kmF) && kmF >= kmI ? (kmF - kmI) : null
+              const invalido = !isNaN(kmI) && !isNaN(kmF) && kmF < kmI
+              return (
+                <div className="rounded-xl p-4 flex flex-col gap-2" style={{ background: '#EFF6FF', border: '1px solid #BFDBFE' }}>
+                  <p className="text-xs font-semibold" style={{ color: '#1D4ED8' }}>
+                    🛞 Quilometragem <span className="font-normal text-gray-500">(opcional — motorista preenche antes e depois do serviço)</span>
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Campo label="KM inicial">
+                      <input type="number" step="0.1" min={0}
+                        value={form.km_inicial}
+                        onChange={e => setForm(f => ({ ...f, km_inicial: e.target.value }))}
+                        placeholder="Ex: 45230.5"
+                        className="campo-input" />
+                    </Campo>
+                    <Campo label="KM final">
+                      <input type="number" step="0.1" min={0}
+                        value={form.km_final}
+                        onChange={e => setForm(f => ({ ...f, km_final: e.target.value }))}
+                        placeholder="Ex: 45312.8"
+                        className="campo-input" />
+                    </Campo>
+                  </div>
+                  {total !== null && (
+                    <div className="rounded-lg px-3 py-2 flex items-center justify-between" style={{ background: '#DBEAFE' }}>
+                      <span className="text-xs font-medium" style={{ color: '#1E3A8A' }}>Total percorrido</span>
+                      <span className="text-sm font-bold" style={{ color: '#1D4ED8' }}>{total.toFixed(1).replace('.', ',')} km</span>
+                    </div>
+                  )}
+                  {invalido && (
+                    <p className="text-xs" style={{ color: '#DC2626' }}>⚠️ KM final não pode ser menor que KM inicial.</p>
+                  )}
+                </div>
+              )
+            })()}
 
             <Campo label="Forma de pagamento">
               <select value={form.forma_pagamento}
