@@ -870,13 +870,16 @@ export default function AgendamentosPage() {
     setCorridaFicha(prev => prev && prev.id === c.id ? { ...prev, trajetos: novos } : prev)
   }
 
-  // Reativa uma corrida cancelada — volta pra 'pendente' pra o gestor poder
-  // reprocessar. Preserva todos os dados (motorista, valor, endereços, etc).
-  async function reativarCorrida(ids: string[]) {
+  // Reativa uma corrida — volta pro status alvo pra o gestor poder mexer
+  // nela de novo. Preserva todos os dados (motorista, valor, endereços, etc).
+  //  - Cancelada  → 'pendente' (precisa reprocessar do zero)
+  //  - Concluida  → 'em_andamento' (serviço voltou a rolar, ex: bug que
+  //    concluiu antes da hora — Julimar reativando a corrida das 11:40)
+  async function reativarCorrida(ids: string[], alvo: 'pendente' | 'em_andamento' = 'pendente') {
     for (const id of ids) {
-      await supabase.from('corridas_empresa').update({ status: 'pendente' }).eq('id', id)
+      await supabase.from('corridas_empresa').update({ status: alvo }).eq('id', id)
     }
-    setCorridas(prev => prev.map(c => ids.includes(c.id) ? { ...c, status: 'pendente' } : c))
+    setCorridas(prev => prev.map(c => ids.includes(c.id) ? { ...c, status: alvo } : c))
   }
 
   async function apagarCorrida(ids: string[]) {
@@ -1791,14 +1794,15 @@ export default function AgendamentosPage() {
                           ❌ Cancelar
                         </button>
                       )}
-                      {eCancelada && (
+                      {(eCancelada || eConcluida) && (
                         <button
                           onClick={async () => {
-                            await reativarCorrida(idsAcao)
-                            setCorridaFicha(prev => prev ? { ...prev, status: 'pendente' } : prev)
-                            setVoltaDaFicha(prev => prev ? { ...prev, status: 'pendente' } : prev)
+                            const alvo = eConcluida ? 'em_andamento' : 'pendente'
+                            await reativarCorrida(idsAcao, alvo)
+                            setCorridaFicha(prev => prev ? { ...prev, status: alvo } : prev)
+                            setVoltaDaFicha(prev => prev ? { ...prev, status: alvo } : prev)
                           }}
-                          title="Reativar agendamento"
+                          title={eConcluida ? 'Voltar para Em andamento' : 'Reativar agendamento'}
                           className="px-2.5 py-1 rounded-lg text-[10px] font-medium"
                           style={{ background: '#E1F5EE', color: '#0F6E56' }}>
                           ↩️ Reativar
