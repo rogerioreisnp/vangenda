@@ -177,18 +177,16 @@ export default function EmpresaPage() {
     const agoraDate = new Date()
     const agoraISOStr = agoraDate.toISOString()
 
-    // Corridas confirmadas cuja viagem já passou viram "concluída". Se a forma
-    // de pagamento é recebida na hora (pix/dinheiro/cartão), já marca como
-    // recebida também. Faturado/a definir ficam "concluída" mas continuam
-    // como "a receber" até o gestor confirmar o recebimento manualmente.
+    // Auto-transição: corridas 'confirmada' cuja data_hora já passou viram
+    // 'em_andamento'. NÃO viram 'concluida' automaticamente — o gestor
+    // decide manualmente no botão "✓ Marcar como Concluído" da ficha.
+    // Bug anterior travava a diária do Julimar assim que ele abria o painel
+    // pela manhã (uma corrida das 11h ainda pra rolar já ia pra concluida).
+    // Pagamento também é sempre manual (não mexer em status_pagamento aqui —
+    // pix/dinheiro/cartão declarados na hora do cadastro não são prova de
+    // recebimento, o gestor confirma depois no botão da ficha).
     await supabase.from('corridas_empresa')
-      .update({ status: 'concluida', status_pagamento: 'recebido', data_pagamento: format(agoraDate, 'yyyy-MM-dd') })
-      .eq('empresa_id', eid)
-      .eq('status', 'confirmada')
-      .in('forma_pagamento', ['pix', 'dinheiro', 'cartao'])
-      .lt('data_hora', agoraISOStr)
-    await supabase.from('corridas_empresa')
-      .update({ status: 'concluida' })
+      .update({ status: 'em_andamento' })
       .eq('empresa_id', eid)
       .eq('status', 'confirmada')
       .lt('data_hora', agoraISOStr)

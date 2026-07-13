@@ -209,19 +209,14 @@ export default function FinanceiroPage() {
     setLoading(true)
 
     const agoraISO = new Date().toISOString()
-    const hojeStr = format(new Date(), 'yyyy-MM-dd')
 
-    // Corridas confirmadas cuja viagem já passou viram "concluída". Pix/dinheiro/
-    // cartão já são pagos na hora, então já entram como recebidas. Faturado/a
-    // definir ficam concluídas mas continuam "a receber" até confirmação manual.
+    // Auto-transição: 'confirmada' com data_hora passada → 'em_andamento'.
+    // NÃO conclui automaticamente (o serviço pode estar rolando ainda, ex:
+    // diária). Concluir é sempre manual no botão da ficha. Também não mexe
+    // em status_pagamento — pagamento é confirmado manualmente pelo gestor,
+    // não pela forma escolhida no cadastro.
     await supabase.from('corridas_empresa')
-      .update({ status: 'concluida', status_pagamento: 'recebido', data_pagamento: hojeStr })
-      .eq('empresa_id', eid)
-      .eq('status', 'confirmada')
-      .in('forma_pagamento', ['pix', 'dinheiro', 'cartao'])
-      .lt('data_hora', agoraISO)
-    await supabase.from('corridas_empresa')
-      .update({ status: 'concluida' })
+      .update({ status: 'em_andamento' })
       .eq('empresa_id', eid)
       .eq('status', 'confirmada')
       .lt('data_hora', agoraISO)
