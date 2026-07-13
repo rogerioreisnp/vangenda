@@ -382,6 +382,10 @@ export default function AgendamentosPage() {
   // adiciona uma parada, salva na hora, sem entrar em modo de edição do form)
   const [novoTrajetoFicha, setNovoTrajetoFicha] = useState('')
   const [salvandoTrajetoFicha, setSalvandoTrajetoFicha] = useState(false)
+  // KM inicial/final inline na ficha — motorista preenche antes de iniciar
+  // e antes de finalizar sem entrar no modo de edição do form completo.
+  const [kmInicialFicha, setKmInicialFicha] = useState('')
+  const [kmFinalFicha, setKmFinalFicha] = useState('')
   const [enviandoEmail, setEnviandoEmail] = useState(false)
   const [motoristaFicha, setMotoristaFicha] = useState('')
   const [contactsApi, setContactsApi] = useState(false)
@@ -907,8 +911,11 @@ export default function AgendamentosPage() {
   }
 
   function abrirFicha(c: Corrida) {
-    // Reset do input de novo trajeto — evita carregar texto de outra ficha
+    // Reset dos inputs inline (novo trajeto + KM) — evita carregar valores
+    // de outra ficha
     setNovoTrajetoFicha('')
+    setKmInicialFicha('')
+    setKmFinalFicha('')
     // Detecta se essa corrida faz parte de um par ida-volta (mesmo cliente,
     // created_at com menos de 30s de diferenca — mesma regra do agruparPares).
     // Se sim, guarda a outra ponta em voltaDaFicha pra exibir na ficha.
@@ -1066,14 +1073,15 @@ export default function AgendamentosPage() {
     setConfirmandoFicha(false)
   }
 
-  async function marcarEmAndamento(c: Corrida, motoristaId: string) {
+  async function marcarEmAndamento(c: Corrida, motoristaId: string, kmInicial: number | null) {
     setConfirmandoFicha(true)
     const upd: Record<string, unknown> = { status: 'em_andamento' }
     if (motoristaId) upd.motorista_id = motoristaId
+    if (kmInicial != null) upd.km_inicial = kmInicial
     const motorista = motoristasOpcoes.find(m => m.id === motoristaId) ?? null
     await supabase.from('corridas_empresa').update(upd).eq('id', c.id)
-    setCorridas(prev => prev.map(x => x.id === c.id ? { ...x, status: 'em_andamento', motorista_id: motoristaId || x.motorista_id, motoristas_empresa: motorista ? { nome: motorista.nome } : x.motoristas_empresa } : x))
-    setCorridaFicha(prev => prev ? { ...prev, status: 'em_andamento', motorista_id: motoristaId || prev.motorista_id } : prev)
+    setCorridas(prev => prev.map(x => x.id === c.id ? { ...x, status: 'em_andamento', motorista_id: motoristaId || x.motorista_id, km_inicial: kmInicial ?? x.km_inicial, motoristas_empresa: motorista ? { nome: motorista.nome } : x.motoristas_empresa } : x))
+    setCorridaFicha(prev => prev ? { ...prev, status: 'em_andamento', motorista_id: motoristaId || prev.motorista_id, km_inicial: kmInicial ?? prev.km_inicial } : prev)
     setConfirmandoFicha(false)
   }
 
@@ -1085,11 +1093,13 @@ export default function AgendamentosPage() {
     setModalFichaAberto(false)
   }
 
-  async function marcarConcluida(c: Corrida) {
+  async function marcarConcluida(c: Corrida, kmFinal: number | null) {
     setConfirmandoFicha(true)
-    await supabase.from('corridas_empresa').update({ status: 'concluida' }).eq('id', c.id)
-    setCorridas(prev => prev.map(x => x.id === c.id ? { ...x, status: 'concluida' } : x))
-    setCorridaFicha(prev => prev ? { ...prev, status: 'concluida' } : prev)
+    const upd: Record<string, unknown> = { status: 'concluida' }
+    if (kmFinal != null) upd.km_final = kmFinal
+    await supabase.from('corridas_empresa').update(upd).eq('id', c.id)
+    setCorridas(prev => prev.map(x => x.id === c.id ? { ...x, status: 'concluida', km_final: kmFinal ?? x.km_final } : x))
+    setCorridaFicha(prev => prev ? { ...prev, status: 'concluida', km_final: kmFinal ?? prev.km_final } : prev)
     setConfirmandoFicha(false)
   }
 
@@ -1923,8 +1933,12 @@ export default function AgendamentosPage() {
                   </div>
                 )
               })()}
-              {/* Quilometragem — transfer, diária, city tour. Só mostra se
-                  algum dos dois campos foi preenchido. */}
+              {/* Quilometragem — transfer, diária, city tour. Sempre visível
+                  nessas modalidades; conteúdo varia por status:
+                    - confirmada: só mostra se já preenchido (edição via form)
+                    - em_andamento / concluida: mostra valores salvos
+                  Os INPUTS inline pra registrar KM ficam nos blocos de
+                  ação (Marcar como em andamento / Marcar como concluído). */}
               {(corridaFicha.tipo_servico === 'transfer' || corridaFicha.tipo_servico === 'diaria' || corridaFicha.tipo_servico === 'city_tour') && (corridaFicha.km_inicial != null || corridaFicha.km_final != null) && (() => {
                 const kmI = corridaFicha.km_inicial
                 const kmF = corridaFicha.km_final
@@ -2178,13 +2192,47 @@ export default function AgendamentosPage() {
                   style={{ background: '#128C7E' }}>
                   💬 Enviar ficha ao cliente
                 </button>
-                <button
-                  onClick={() => marcarEmAndamento(corridaFicha, motoristaFicha)}
-                  disabled={confirmandoFicha || !motoristaFicha}
-                  className="w-full py-3.5 rounded-2xl text-sm font-bold border disabled:opacity-40"
-                  style={{ background: '#E1F5EE', color: '#085041', borderColor: '#9FE1CB' }}>
-                  {confirmandoFicha ? 'Salvando...' : !motoristaFicha ? 'Selecione um motorista primeiro' : '✓ Marcar como Em andamento'}
-                </button>
+                {/* KM inicial obrigatório para iniciar corrida (transfer/diária/city_tour) */}
+                {(corridaFicha.tipo_servico === 'transfer' || corridaFicha.tipo_servico === 'diaria' || corridaFicha.tipo_servico === 'city_tour') ? (() => {
+                  const kmIStr = kmInicialFicha.trim().replace(',', '.')
+                  const kmI = parseFloat(kmIStr)
+                  const kmValido = !isNaN(kmI) && kmI >= 0
+                  return (
+                    <div className="rounded-2xl p-3 flex flex-col gap-2" style={{ background: '#EFF6FF', border: '1px solid #BFDBFE' }}>
+                      <p className="text-xs font-semibold" style={{ color: '#1D4ED8' }}>🛞 KM inicial <span className="font-normal text-gray-500">— obrigatório para iniciar</span></p>
+                      <input
+                        type="number"
+                        step="0.1"
+                        min={0}
+                        value={kmInicialFicha}
+                        onChange={e => setKmInicialFicha(e.target.value)}
+                        placeholder="Ex: 45230.5"
+                        className="campo-input"
+                      />
+                      <button
+                        onClick={() => marcarEmAndamento(corridaFicha, motoristaFicha, kmI)}
+                        disabled={confirmandoFicha || !motoristaFicha || !kmValido}
+                        className="w-full py-3.5 rounded-xl text-sm font-bold border disabled:opacity-40"
+                        style={{ background: '#E1F5EE', color: '#085041', borderColor: '#9FE1CB' }}>
+                        {confirmandoFicha
+                          ? 'Salvando...'
+                          : !motoristaFicha
+                          ? 'Selecione um motorista primeiro'
+                          : !kmValido
+                          ? 'Informe o KM inicial'
+                          : '▶️ Iniciar corrida'}
+                      </button>
+                    </div>
+                  )
+                })() : (
+                  <button
+                    onClick={() => marcarEmAndamento(corridaFicha, motoristaFicha, null)}
+                    disabled={confirmandoFicha || !motoristaFicha}
+                    className="w-full py-3.5 rounded-2xl text-sm font-bold border disabled:opacity-40"
+                    style={{ background: '#E1F5EE', color: '#085041', borderColor: '#9FE1CB' }}>
+                    {confirmandoFicha ? 'Salvando...' : !motoristaFicha ? 'Selecione um motorista primeiro' : '✓ Marcar como Em andamento'}
+                  </button>
+                )}
               </div>
             )}
 
@@ -2205,13 +2253,58 @@ export default function AgendamentosPage() {
                   style={{ background: '#128C7E' }}>
                   💬 Reenviar ficha ao cliente
                 </button>
-                <button
-                  onClick={() => marcarConcluida(corridaFicha)}
-                  disabled={confirmandoFicha}
-                  className="w-full py-3.5 rounded-2xl text-sm font-bold border disabled:opacity-40"
-                  style={{ background: '#E1F5EE', color: '#085041', borderColor: '#9FE1CB' }}>
-                  {confirmandoFicha ? 'Salvando...' : '✓ Marcar como Concluído'}
-                </button>
+                {/* KM final obrigatório para finalizar corrida (transfer/diária/city_tour) */}
+                {(corridaFicha.tipo_servico === 'transfer' || corridaFicha.tipo_servico === 'diaria' || corridaFicha.tipo_servico === 'city_tour') ? (() => {
+                  const kmFStr = kmFinalFicha.trim().replace(',', '.')
+                  const kmF = parseFloat(kmFStr)
+                  const kmValido = !isNaN(kmF) && kmF >= 0
+                  const kmInicialSalvo = corridaFicha.km_inicial
+                  const kmMenorQueInicial = kmValido && kmInicialSalvo != null && kmF < kmInicialSalvo
+                  return (
+                    <div className="rounded-2xl p-3 flex flex-col gap-2" style={{ background: '#EFF6FF', border: '1px solid #BFDBFE' }}>
+                      {kmInicialSalvo != null && (
+                        <p className="text-xs text-gray-500">KM inicial: <strong>{String(kmInicialSalvo).replace('.', ',')}</strong></p>
+                      )}
+                      <p className="text-xs font-semibold" style={{ color: '#1D4ED8' }}>🛞 KM final <span className="font-normal text-gray-500">— obrigatório para finalizar</span></p>
+                      <input
+                        type="number"
+                        step="0.1"
+                        min={0}
+                        value={kmFinalFicha}
+                        onChange={e => setKmFinalFicha(e.target.value)}
+                        placeholder="Ex: 45312.8"
+                        className="campo-input"
+                      />
+                      {kmMenorQueInicial && (
+                        <p className="text-xs" style={{ color: '#DC2626' }}>⚠️ KM final não pode ser menor que o inicial.</p>
+                      )}
+                      {kmValido && !kmMenorQueInicial && kmInicialSalvo != null && (
+                        <p className="text-xs font-semibold" style={{ color: '#1D4ED8' }}>Total: {(kmF - kmInicialSalvo).toFixed(1).replace('.', ',')} km</p>
+                      )}
+                      <button
+                        onClick={() => marcarConcluida(corridaFicha, kmF)}
+                        disabled={confirmandoFicha || !kmValido || kmMenorQueInicial}
+                        className="w-full py-3.5 rounded-xl text-sm font-bold border disabled:opacity-40"
+                        style={{ background: '#E1F5EE', color: '#085041', borderColor: '#9FE1CB' }}>
+                        {confirmandoFicha
+                          ? 'Salvando...'
+                          : !kmValido
+                          ? 'Informe o KM final'
+                          : kmMenorQueInicial
+                          ? 'KM final inválido'
+                          : '⏹️ Finalizar corrida'}
+                      </button>
+                    </div>
+                  )
+                })() : (
+                  <button
+                    onClick={() => marcarConcluida(corridaFicha, null)}
+                    disabled={confirmandoFicha}
+                    className="w-full py-3.5 rounded-2xl text-sm font-bold border disabled:opacity-40"
+                    style={{ background: '#E1F5EE', color: '#085041', borderColor: '#9FE1CB' }}>
+                    {confirmandoFicha ? 'Salvando...' : '✓ Marcar como Concluído'}
+                  </button>
+                )}
               </div>
             )}
           </div>
