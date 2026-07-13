@@ -229,18 +229,48 @@ export default function EmpresaLayout({ children }: { children: React.ReactNode 
   )
 }
 
-type TrialPeriodo = 'mensal' | 'semestral' | 'anual'
+// Planos por período — mesmo modelo simplificado do /empresa/registro:
+// todo mundo tem acesso completo, a única diferença é o período de pagamento.
+// Reflete o pricing atual: mensal R$127, semestral R$97/mês, anual R$77/mês.
+const PLANOS_TRIAL = [
+  {
+    id: 'mensal' as const,
+    nome: 'Mensal',
+    preco: 127,
+    precoLabel: '/mês',
+    subtitulo: 'Pague mês a mês, sem compromisso',
+    destaque: false,
+    badge: null as string | null,
+    badgeStyle: undefined as { bg: string; text: string } | undefined,
+  },
+  {
+    id: 'anual' as const,
+    nome: 'Anual',
+    preco: 924,
+    precoLabel: '/ano',
+    subtitulo: 'equivale a R$ 77/mês · economia de 39%',
+    destaque: true,
+    badge: 'MAIS ESCOLHIDO' as string | null,
+    badgeStyle: { bg: '#FAC775', text: '#7C3E00' } as { bg: string; text: string } | undefined,
+  },
+  {
+    id: 'semestral' as const,
+    nome: 'Semestral',
+    preco: 582,
+    precoLabel: '/semestre',
+    subtitulo: 'equivale a R$ 97/mês · economia de 24%',
+    destaque: false,
+    badge: 'MELHOR CUSTO-BENEFÍCIO' as string | null,
+    badgeStyle: { bg: '#E1F5EE', text: '#085041' } as { bg: string; text: string } | undefined,
+  },
+]
 
-const TRIAL_PRECOS = {
-  starter:  { mensal: 97,  semestral: 87,  anual: 77  },
-  pro:      { mensal: 197, semestral: 177, anual: 157 },
-  business: { mensal: 297, semestral: 267, anual: 237 },
-}
-
-const TRIAL_PLANOS = [
-  { id: 'starter',  nome: 'Starter',  limite: 'Até 3 motoristas', destaque: false },
-  { id: 'pro',      nome: 'Pro',      limite: 'Até 8 motoristas', destaque: true  },
-  { id: 'business', nome: 'Business', limite: 'Ilimitado',         destaque: false },
+const BENEFICIOS_TRIAL = [
+  'Motoristas ilimitados',
+  'Acesso completo a todos os recursos',
+  'Rotas fixas e transfer/turismo',
+  'Agenda e controle financeiro',
+  'Suporte incluso',
 ]
 
 function waAssinar(nomePlano: string) {
@@ -249,8 +279,6 @@ function waAssinar(nomePlano: string) {
 }
 
 function TelaTrialExpirado({ onSair }: { onSair: () => void }) {
-  const [periodo, setPeriodo] = useState<TrialPeriodo>('mensal')
-
   return (
     <div className="min-h-dvh flex flex-col" style={{ background: '#f0f0ec' }}>
       <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-5">
@@ -268,56 +296,46 @@ function TelaTrialExpirado({ onSair }: { onSair: () => void }) {
           </p>
         </div>
 
-        {/* Toggle período */}
-        <div className="bg-white rounded-xl p-1 flex border border-gray-100">
-          {(['mensal', 'semestral', 'anual'] as TrialPeriodo[]).map(p => (
-            <button key={p} onClick={() => setPeriodo(p)}
-              className="flex-1 py-2 rounded-lg text-xs font-semibold transition-all"
-              style={periodo === p
-                ? { background: '#0F6E56', color: '#fff' }
-                : { background: 'transparent', color: '#888' }}>
-              {p === 'mensal' ? 'Mensal' : p === 'semestral' ? 'Semestral' : 'Anual'}
-              {p === 'semestral' && <span className="ml-1 opacity-80">-10%</span>}
-              {p === 'anual'     && <span className="ml-1 opacity-80">-20%</span>}
-            </button>
+        {/* Benefícios (mesma lista pra qualquer período) */}
+        <div className="bg-white rounded-2xl p-4 border border-gray-100">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Todos os planos incluem</p>
+          {BENEFICIOS_TRIAL.map((b, i) => (
+            <p key={i} className="text-sm text-gray-700 mb-1">✅ {b}</p>
           ))}
         </div>
 
-        {/* Cards de plano */}
+        {/* Cards de plano — só varia o período */}
         <div className="flex flex-col gap-2">
-          {TRIAL_PLANOS.map(p => {
-            const preco = TRIAL_PRECOS[p.id as keyof typeof TRIAL_PRECOS][periodo]
-            return (
-              <div key={p.id} className="bg-white rounded-2xl border overflow-hidden"
-                style={{ borderColor: p.destaque ? '#0F6E56' : '#e5e7eb' }}>
-                {p.destaque && (
-                  <div className="py-1 text-center text-xs font-bold"
-                    style={{ background: '#0F6E56', color: '#E1F5EE' }}>
-                    ⭐ MAIS ESCOLHIDO
+          {PLANOS_TRIAL.map(p => (
+            <div key={p.id} className="bg-white rounded-2xl border overflow-hidden"
+              style={{ borderColor: p.destaque ? '#0F6E56' : '#e5e7eb' }}>
+              {p.badge && (
+                <div className="py-1 text-center text-xs font-bold"
+                  style={{ background: p.badgeStyle?.bg || '#0F6E56', color: p.badgeStyle?.text || '#E1F5EE' }}>
+                  ⭐ {p.badge}
+                </div>
+              )}
+              <div className="p-4 flex items-center justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-bold text-gray-800">{p.nome}</p>
+                  <p className="text-xs text-gray-400 leading-snug mt-0.5">{p.subtitulo}</p>
+                </div>
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  <div className="text-right">
+                    <p className="text-sm font-semibold leading-none" style={{ color: '#0F6E56' }}>
+                      R$ {p.preco}
+                    </p>
+                    <p className="text-[10px] text-gray-400 mt-0.5">{p.precoLabel}</p>
                   </div>
-                )}
-                <div className="p-4 flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-bold text-gray-800">{p.nome}</p>
-                    <p className="text-xs text-gray-400">{p.limite}</p>
-                  </div>
-                  <div className="flex items-center gap-3 flex-shrink-0">
-                    <div className="text-right">
-                      <p className="text-sm font-semibold leading-none" style={{ color: '#0F6E56' }}>
-                        R$ {preco}
-                      </p>
-                      <p className="text-[10px] text-gray-400 mt-0.5">/mês</p>
-                    </div>
-                    <a href={waAssinar(p.nome)} target="_blank" rel="noopener noreferrer"
-                      className="px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap"
-                      style={{ background: p.destaque ? '#0F6E56' : '#1D9E75', color: '#fff' }}>
-                      Assinar agora
-                    </a>
-                  </div>
+                  <a href={waAssinar(p.nome)} target="_blank" rel="noopener noreferrer"
+                    className="px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap"
+                    style={{ background: p.destaque ? '#0F6E56' : '#1D9E75', color: '#fff' }}>
+                    Assinar
+                  </a>
                 </div>
               </div>
-            )
-          })}
+            </div>
+          ))}
         </div>
 
         <div className="bg-white rounded-2xl p-4 border border-gray-100 flex items-center gap-3">
