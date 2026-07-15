@@ -48,6 +48,19 @@ function statusParProxima(ida: ProximaCorrida, volta: ProximaCorrida): string {
   return ida.status
 }
 
+// Match tolerante pra agrupar par ida-volta. Nomes normalizados (trim,
+// espaços colapsados, lowercase), janela de 5 minutos (antes eram 30s
+// e insert com latência de rede quebrava). Mesma regra usada no
+// fretamentos/page.tsx — mantém consistente em toda a app.
+function normalizeNomeCliente(s: string | null | undefined): string {
+  return (s || '').trim().replace(/\s+/g, ' ').toLowerCase()
+}
+const JANELA_PAR_MS_HUB = 5 * 60 * 1000
+function saoParProximas(a: ProximaCorrida, b: ProximaCorrida): boolean {
+  if (normalizeNomeCliente(a.cliente_nome) !== normalizeNomeCliente(b.cliente_nome)) return false
+  return Math.abs(new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) < JANELA_PAR_MS_HUB
+}
+
 function agruparProximas(corridas: ProximaCorrida[]): ProximaAgrupada[] {
   const usados = new Set<string>()
   const resultado: ProximaAgrupada[] = []
@@ -58,10 +71,7 @@ function agruparProximas(corridas: ProximaCorrida[]): ProximaAgrupada[] {
     for (let j = i + 1; j < corridas.length; j++) {
       if (usados.has(corridas[j].id)) continue
       const b = corridas[j]
-      if (
-        a.cliente_nome === b.cliente_nome &&
-        Math.abs(new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) < 30000
-      ) { parIdx = j; break }
+      if (saoParProximas(a, b)) { parIdx = j; break }
     }
     if (parIdx !== -1) {
       const b = corridas[parIdx]
@@ -88,8 +98,8 @@ function contarContratos(corridas: { id: string; created_at: string; cliente_nom
       if (usados.has(corridas[j].id)) continue
       const b = corridas[j]
       if (
-        a.cliente_nome === b.cliente_nome &&
-        Math.abs(new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) < 30000
+        normalizeNomeCliente(a.cliente_nome) === normalizeNomeCliente(b.cliente_nome) &&
+        Math.abs(new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) < JANELA_PAR_MS_HUB
       ) {
         usados.add(a.id)
         usados.add(b.id)

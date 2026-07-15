@@ -300,6 +300,34 @@ function statusPar(ida: Corrida, volta: Corrida): string {
 
 // Duas corridas formam um par quando têm o mesmo cliente e foram criadas
 // com menos de 30 segundos de diferença (ambas geradas pelo mesmo agendamento ida e volta).
+// Normaliza cliente_nome pra comparação tolerante (ignora case, espaços
+// extras). Nomes como "Nextour  Giulia" e "nextour giulia" batem como
+// iguais, evitando que par ida-volta apareça separado por typo.
+function normalizeNome(s: string | null | undefined): string {
+  return (s || '').trim().replace(/\s+/g, ' ').toLowerCase()
+}
+
+// Janela pra agrupar par ida-volta: aumentada de 30s pra 5 minutos.
+// O insert cria os 2 registros na mesma transação, mas latência de rede
+// e commit do banco podem espaçar mais que 30s em cenários adversos —
+// nesse caso a volta ficava "solta" e sumia do card.
+const JANELA_PAR_MS = 5 * 60 * 1000
+
+// Decide se dois registros formam par ida-volta. Regras:
+// 1. Mesmo cliente_nome (normalizado — tolerante a case/espaços)
+// 2. created_at com diferença dentro da janela
+// 3. Se AMBOS tem cliente_telefone preenchido, precisam bater — evita
+//    juntar erroneamente dois clientes homônimos cadastrados em sequência
+function saoParIdaVolta(a: Corrida, b: Corrida): boolean {
+  if (normalizeNome(a.cliente_nome) !== normalizeNome(b.cliente_nome)) return false
+  const dt = Math.abs(new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+  if (dt >= JANELA_PAR_MS) return false
+  const telA = (a.cliente_telefone || '').trim()
+  const telB = (b.cliente_telefone || '').trim()
+  if (telA && telB && telA !== telB) return false
+  return true
+}
+
 function agruparPares(corridas: Corrida[]): CorridaAgrupada[] {
   const usados = new Set<string>()
   const resultado: CorridaAgrupada[] = []
@@ -312,12 +340,7 @@ function agruparPares(corridas: Corrida[]): CorridaAgrupada[] {
     for (let j = i + 1; j < corridas.length; j++) {
       if (usados.has(corridas[j].id)) continue
       const b = corridas[j]
-      if (
-        a.cliente_nome === b.cliente_nome &&
-        Math.abs(
-          new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-        ) < 30000
-      ) {
+      if (saoParIdaVolta(a, b)) {
         parIdx = j
         break
       }
@@ -920,9 +943,7 @@ export default function AgendamentosPage() {
     // created_at com menos de 30s de diferenca — mesma regra do agruparPares).
     // Se sim, guarda a outra ponta em voltaDaFicha pra exibir na ficha.
     const par = corridas.find(other =>
-      other.id !== c.id &&
-      other.cliente_nome === c.cliente_nome &&
-      Math.abs(new Date(other.created_at).getTime() - new Date(c.created_at).getTime()) < 30000
+      other.id !== c.id && saoParIdaVolta(c, other)
     ) ?? null
 
     // A ficha sempre exibe a IDA como principal e a VOLTA embaixo, mesmo se o
