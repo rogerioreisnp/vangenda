@@ -3036,7 +3036,20 @@ export default function AgendamentosPage() {
                   <div className="grid grid-cols-2 gap-2">
                     <Campo label="Valor ida (R$) *">
                       <input type="number" step="0.01" min={0} value={form.preco}
-                        onChange={e => setForm(f => ({ ...f, preco: e.target.value }))}
+                        onChange={e => setForm(f => {
+                          const novoPreco = e.target.value
+                          // Se preco_volta está vazio OU espelhando o preço atual
+                          // (nunca foi editado independentemente pelo gestor),
+                          // acompanha o novo valor. Evita bug: gestor digita 160,
+                          // ativa ida-volta (volta copia 160), muda ida pra 320,
+                          // volta ficaria congelada em 160 e total no card = 480.
+                          const espelhando = f.preco_volta === f.preco || f.preco_volta === ''
+                          return {
+                            ...f,
+                            preco: novoPreco,
+                            preco_volta: (f.ida_volta && espelhando) ? novoPreco : f.preco_volta,
+                          }
+                        })}
                         placeholder="0,00" className="campo-input" />
                     </Campo>
                     <Campo label="Valor volta (R$)">
