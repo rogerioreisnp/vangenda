@@ -3022,20 +3022,38 @@ export default function AgendamentosPage() {
               </Campo>
             )}
 
-            {!corridaEditando && form.ida_volta ? (
-              <div className="grid grid-cols-2 gap-2">
-                <Campo label="Valor ida (R$) *">
-                  <input type="number" step="0.01" min={0} value={form.preco}
-                    onChange={e => setForm(f => ({ ...f, preco: e.target.value }))}
-                    placeholder="0,00" className="campo-input" />
-                </Campo>
-                <Campo label="Valor volta (R$)">
-                  <input type="number" step="0.01" min={0} value={form.preco_volta}
-                    onChange={e => setForm(f => ({ ...f, preco_volta: e.target.value }))}
-                    placeholder="0,00" className="campo-input" />
-                </Campo>
-              </div>
-            ) : (
+            {/* Se é PAR ida-e-volta (criando OU editando), mostra os dois valores
+                separados + total. Antes, na edição só aparecia 'Preço' com o
+                valor da ida — o gestor não via a volta e ficava com a
+                impressão de que o valor 'subia' após salvar (na verdade o
+                card da lista mostra a soma ida+volta). */}
+            {form.ida_volta && (!corridaEditando || voltaIdEditando) ? (() => {
+              const vI = parseFloat(form.preco)
+              const vV = parseFloat(form.preco_volta)
+              const total = !isNaN(vI) && !isNaN(vV) ? vI + vV : null
+              return (
+                <div className="flex flex-col gap-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <Campo label="Valor ida (R$) *">
+                      <input type="number" step="0.01" min={0} value={form.preco}
+                        onChange={e => setForm(f => ({ ...f, preco: e.target.value }))}
+                        placeholder="0,00" className="campo-input" />
+                    </Campo>
+                    <Campo label="Valor volta (R$)">
+                      <input type="number" step="0.01" min={0} value={form.preco_volta}
+                        onChange={e => setForm(f => ({ ...f, preco_volta: e.target.value }))}
+                        placeholder="0,00" className="campo-input" />
+                    </Campo>
+                  </div>
+                  {total !== null && (
+                    <div className="rounded-xl px-3 py-2 flex items-center justify-between" style={{ background: '#E1F5EE' }}>
+                      <span className="text-xs font-medium" style={{ color: '#085041' }}>Total (ida + volta)</span>
+                      <span className="text-sm font-bold" style={{ color: '#0F6E56' }}>R$ {total.toFixed(2).replace('.', ',')}</span>
+                    </div>
+                  )}
+                </div>
+              )
+            })() : (
               <Campo label="Preço (R$) *">
                 <input type="number" step="0.01" min={0} value={form.preco}
                   onChange={e => setForm(f => ({ ...f, preco: e.target.value }))}
