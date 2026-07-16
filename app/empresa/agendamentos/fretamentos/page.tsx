@@ -786,6 +786,11 @@ export default function AgendamentosPage() {
         updateFields.retorno_origem = form.origem_volta.trim() || null
         updateFields.retorno_destino = form.destino_volta.trim() || null
       }
+      // Se motorista mudou vs valor anterior, notifica o novo motorista.
+      // Detecta antes do update pra saber se é atribuição inicial ou troca.
+      const motoristaMudou = !!camposComuns.motorista_id &&
+        camposComuns.motorista_id !== corridaEditando.motorista_id
+
       const { error } = await supabase
         .from('corridas_empresa')
         .update(updateFields)
@@ -795,6 +800,17 @@ export default function AgendamentosPage() {
         setErro('Erro ao salvar: ' + error.message)
         setSalvando(false)
         return
+      }
+
+      if (motoristaMudou && camposComuns.motorista_id) {
+        notificarMotoristaAtribuido(
+          camposComuns.motorista_id as string,
+          corridaEditando.id,
+          camposComuns.origem as string,
+          camposComuns.destino as string,
+          updateFields.data_hora as string,
+          camposComuns.tipo_servico as string | null,
+        )
       }
 
       // Se editando um par, atualiza os campos compartilhados na corrida de volta
@@ -852,12 +868,28 @@ export default function AgendamentosPage() {
         } as any)
       }
 
-      const { error } = await supabase.from('corridas_empresa').insert(registros)
+      const { data: inseridos, error } = await supabase
+        .from('corridas_empresa').insert(registros).select('id, motorista_id, origem, destino, data_hora, tipo_servico')
 
       if (error) {
         setErro('Erro ao salvar: ' + error.message)
         setSalvando(false)
         return
+      }
+
+      // Se criou já com motorista atribuído, notifica pra corrida da ida.
+      // Volta (segundo registro) não notifica separadamente — evita 2 pushes
+      // consecutivos do mesmo motorista.
+      const idaInserida = inseridos?.[0]
+      if (idaInserida?.motorista_id) {
+        notificarMotoristaAtribuido(
+          idaInserida.motorista_id as string,
+          idaInserida.id as string,
+          idaInserida.origem as string,
+          idaInserida.destino as string,
+          idaInserida.data_hora as string,
+          idaInserida.tipo_servico as string | null,
+        )
       }
 
       if (form.rota_id === 'manual') {
@@ -880,6 +912,20 @@ export default function AgendamentosPage() {
     })
     setRotaManualParaSalvar(null)
     carregarDados()
+  }
+
+  // Dispara push notification pro motorista quando o gestor atribui uma
+  // corrida a ele. Fire-and-forget — se falhar não trava o fluxo do salvar.
+  function notificarMotoristaAtribuido(motoristasEmpresaId: string, corridaId: string, origem: string, destino: string, dataHora: string, tipoServico: string | null) {
+    fetch('/api/notificar-motorista', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        motoristas_empresa_id: motoristasEmpresaId,
+        corrida_id: corridaId,
+        origem, destino, data_hora: dataHora, tipo_servico: tipoServico,
+      }),
+    }).catch(e => console.error('notificar-motorista falhou:', e))
   }
 
   async function cancelarCorrida(ids: string[]) {
@@ -1100,9 +1146,17 @@ export default function AgendamentosPage() {
     if (motoristaId) upd.motorista_id = motoristaId
     if (kmInicial != null) upd.km_inicial = kmInicial
     const motorista = motoristasOpcoes.find(m => m.id === motoristaId) ?? null
+    // Se motorista foi atribuído/alterado aqui pela ficha (não estava antes),
+    // dispara push. Se ele já era o motorista, ignora.
+    const motoristaFoiAtribuido = !!motoristaId && motoristaId !== c.motorista_id
     await supabase.from('corridas_empresa').update(upd).eq('id', c.id)
     setCorridas(prev => prev.map(x => x.id === c.id ? { ...x, status: 'em_andamento', motorista_id: motoristaId || x.motorista_id, km_inicial: kmInicial ?? x.km_inicial, motoristas_empresa: motorista ? { nome: motorista.nome } : x.motoristas_empresa } : x))
     setCorridaFicha(prev => prev ? { ...prev, status: 'em_andamento', motorista_id: motoristaId || prev.motorista_id, km_inicial: kmInicial ?? prev.km_inicial } : prev)
+    if (motoristaFoiAtribuido) {
+      notificarMotoristaAtribuido(
+        motoristaId, c.id, c.origem, c.destino, c.data_hora, c.tipo_servico,
+      )
+    }
     setConfirmandoFicha(false)
   }
 

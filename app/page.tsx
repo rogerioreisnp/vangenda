@@ -16,15 +16,38 @@ export default function LoginPage() {
   const [form, setForm] = useState({ nome: '', telefone: '', email: '', senha: '', confirmarSenha: '' })
   const [erros, setErros] = useState<Record<string, string>>({})
 
+  // Decide pra onde mandar o usuário baseado no perfil:
+  //  - Gestor de empresa           → /empresa
+  //  - Motorista funcionário       → /motorista (transfer/turismo) ou /dashboard (rota_fixa)
+  //  - Motorista individual/avulso → /dashboard
+  async function destinoPorPerfil(userId: string): Promise<string> {
+    const { data: gestor } = await supabase
+      .from('gestores').select('id').eq('user_id', userId).maybeSingle()
+    if (gestor) return '/empresa'
+
+    const { data: motEmp } = await supabase
+      .from('motoristas_empresa')
+      .select('empresa_id')
+      .eq('user_id', userId)
+      .maybeSingle()
+    if (motEmp) {
+      const { data: emp } = await supabase
+        .from('empresas').select('tipo_operacao').eq('id', motEmp.empresa_id).single()
+      // Motorista de transfer/turismo vai pra rota nova dedicada /motorista.
+      // Rota_fixa mantém /dashboard que já está integrado com agendamentos.
+      if (emp?.tipo_operacao && emp.tipo_operacao !== 'rota_fixa') return '/motorista'
+    }
+    return '/dashboard'
+  }
+
   // Se já existe sessão válida salva (login persiste por padrão no Supabase),
   // pula a tela de login e manda direto pro painel correto — evita o usuário
   // ter que digitar e-mail/senha de novo toda vez que abre o app/PWA.
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session) { setVerificandoSessao(false); return }
-      const { data: gestor } = await supabase
-        .from('gestores').select('id').eq('user_id', session.user.id).maybeSingle()
-      router.replace(gestor ? '/empresa' : '/dashboard')
+      const destino = await destinoPorPerfil(session.user.id)
+      router.replace(destino)
     })
   }, [])
 
@@ -64,27 +87,8 @@ export default function LoginPage() {
         })
         if (error) throw error
 
-        const { data: gestor } = await supabase
-          .from('gestores')
-          .select('id')
-          .eq('user_id', authData.user.id)
-          .maybeSingle()
-
-        if (gestor) {
-          router.push('/empresa')
-          return
-        }
-
-        // Motoristas de empresa e avulsos vão para /dashboard.
-        // Etapa 2 adapta /dashboard para detectar motoristas_empresa via user_id.
-        const { data: motEmpresa } = await supabase
-          .from('motoristas_empresa')
-          .select('id')
-          .eq('user_id', authData.user.id)
-          .maybeSingle()
-
-        void motEmpresa // usado na Etapa 2 para customizar /dashboard
-        router.push('/dashboard')
+        const destino = await destinoPorPerfil(authData.user.id)
+        router.push(destino)
       } else {
         const novosErros = validarCadastro()
         if (Object.keys(novosErros).length > 0) {
