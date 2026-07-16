@@ -345,16 +345,31 @@ export default function MotoristasPage() {
                 placeholder="Nome completo" className="campo-input" />
             </Campo>
 
-            <Campo label={editando ? 'Novo e-mail' : 'E-mail de acesso *'}>
+            <Campo label={editando ? 'Novo e-mail do motorista' : 'E-mail do motorista *'}>
+              {/* autoComplete="off" + name customizado bloqueia o navegador de
+                  auto-preencher com o email do gestor logado — bug reportado
+                  pelo Rogério onde o campo aparecia com o email do Pedro
+                  Transporte em toda edição. type="text" (não email) reforça. */}
               <input value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
                 placeholder={editando ? 'Deixe em branco para manter o atual' : 'motorista@email.com'}
-                type="email" className="campo-input" />
+                type="text" inputMode="email"
+                autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false}
+                name="motorista_email_novo"
+                className="campo-input" />
+              {editando && (
+                <p className="text-[10px] text-gray-400 mt-1">
+                  O e-mail atual do motorista continua salvo. Digite aqui só se quiser trocar por outro.
+                </p>
+              )}
             </Campo>
 
             <Campo label={editando ? 'Nova senha' : 'Senha provisória *'}>
               <input value={form.senha} onChange={e => setForm(f => ({ ...f, senha: e.target.value }))}
                 placeholder={editando ? 'Deixe em branco para manter a atual' : 'Mínimo 6 caracteres'}
-                type="password" className="campo-input" />
+                type="password"
+                autoComplete="new-password"
+                name="motorista_senha_nova"
+                className="campo-input" />
             </Campo>
 
             <Campo label="Telefone">
