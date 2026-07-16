@@ -772,9 +772,21 @@ export default function AgendamentosPage() {
     }
 
     if (corridaEditando) {
+      const novoDataHora = `${form.data}T${form.horario}:00`
       const updateFields: Record<string, unknown> = {
         ...camposComuns,
-        data_hora: `${form.data}T${form.horario}:00`,
+        data_hora: novoDataHora,
+      }
+      // Se o gestor moveu o horario pra FUTURO e a corrida estava 'em_andamento'
+      // sem KM inicial preenchido (ou seja, so entrou em em_andamento pela
+      // auto-transicao no /empresa/page.tsx quando dava a hora), volta pra
+      // 'confirmada'. Se o motorista ja preencheu KM inicial, ele iniciou de
+      // verdade — nao mexemos no status.
+      if (corridaEditando.status === 'em_andamento' && corridaEditando.km_inicial == null) {
+        const novoTs = new Date(novoDataHora).getTime()
+        if (novoTs > Date.now()) {
+          updateFields.status = 'confirmada'
+        }
       }
       // Se e edicao de corrida do link publico com ida-volta (uma so linha
       // com retorno_*), atualiza os campos retorno_* na mesma corrida.
