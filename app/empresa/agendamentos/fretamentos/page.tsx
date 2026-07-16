@@ -394,6 +394,14 @@ export default function AgendamentosPage() {
   const [agEditando, setAgEditando] = useState<AgendamentoRF | null>(null)
   const [filtroData, setFiltroData] = useState(HOJE)
   const [verTodos, setVerTodos] = useState(false)
+  // Filtro por período (range) — presets estilo Google Ads/Meta Ads.
+  //   'dia_unico': usa filtroData (comportamento antigo, default)
+  //   'ultimos7' | 'este_mes' | 'mes_passado': range calculado automaticamente
+  //   'personalizado': gestor escolhe filtroInicio + filtroFim
+  type PeriodoPreset = 'dia_unico' | 'ultimos7' | 'este_mes' | 'mes_passado' | 'personalizado'
+  const [periodoPreset, setPeriodoPreset] = useState<PeriodoPreset>('dia_unico')
+  const [filtroInicio, setFiltroInicio] = useState(HOJE)
+  const [filtroFim, setFiltroFim] = useState(HOJE)
   const [filtroRotaId, setFiltroRotaId] = useState('')
   const [filtroStatus, setFiltroStatus] = useState('')
   const [modalFichaAberto, setModalFichaAberto] = useState(false)
@@ -461,17 +469,12 @@ export default function AgendamentosPage() {
     if (!gestor) return
     setEmpresaId(gestor.empresa_id)
 
-    // Transição automática: confirmada -> em_andamento quando dá o horário.
-    // Antes esse trecho movia em_andamento -> concluida automaticamente, o que
-    // travava a ficha (não editável) mesmo quando o serviço ainda estava
-    // rolando (ex: diária). Agora deixa a corrida "acessível" pro gestor
-    // ajustar endereço/hora/etc; a mudança pra concluida é sempre manual
-    // no botão "✓ Marcar como Concluído" da ficha.
-    await supabase.from('corridas_empresa')
-      .update({ status: 'em_andamento' })
-      .eq('empresa_id', gestor.empresa_id)
-      .eq('status', 'confirmada')
-      .lt('data_hora', new Date().toISOString())
+    // MODELO 100% MANUAL (padrão Smart Car — decisão de negócio 2026-07-16).
+    // Nenhuma auto-transição: corrida fica em 'confirmada' até alguém clicar
+    // ▶️ Iniciar corrida com KM inicial, e em 'em_andamento' até alguém
+    // clicar ⏹️ Finalizar com KM final. Motoristas que atrasam mantêm a
+    // corrida em 'confirmada' até chegarem — sem surpresa de "meu status
+    // mudou sozinho". Márcio e Julimar reportaram confusão com auto-transição.
 
     // Ordenação das corridas em 3 blocos, do mais urgente pro menos:
     //   1. EM ANDAMENTO (independente da data_hora — o gestor precisa dessas
@@ -1390,14 +1393,21 @@ export default function AgendamentosPage() {
     setVerTodos(false)
   }
 
+  // Aplica filtro de período. Se preset 'dia_unico', usa filtroData.
+  // Se qualquer outro preset, usa filtroInicio + filtroFim (inclusive).
+  function passaPeriodo(dataISO: string): boolean {
+    if (verTodos) return true
+    if (periodoPreset === 'dia_unico') return dataISO === filtroData
+    return dataISO >= filtroInicio && dataISO <= filtroFim
+  }
   const corridasFiltradas = (() => {
-    let list = verTodos ? corridas : corridas.filter(c => c.data_hora.slice(0, 10) === filtroData)
+    let list = corridas.filter(c => passaPeriodo(c.data_hora.slice(0, 10)))
     if (filtroRotaId) list = list.filter(c => c.rota_id === filtroRotaId)
     if (filtroStatus) list = list.filter(c => c.status === filtroStatus)
     return list
   })()
   const agendamentosFiltrados = (() => {
-    let list = verTodos ? agendamentosRF : agendamentosRF.filter(ag => ag.data_viagem === filtroData)
+    let list = agendamentosRF.filter(ag => passaPeriodo(ag.data_viagem))
     // Filtro de rota: quando o gestor escolhe uma rota especifica, so aparecem
     // os passageiros vinculados a ela. "Todas as rotas" (filtroRotaId vazio)
     // mostra tudo.
@@ -1451,7 +1461,73 @@ export default function AgendamentosPage() {
           </div>
         )}
 
-        {/* Filtro de data */}
+        {/* Filtro por período — presets Google Ads / Meta Ads style */}
+        {tipoOperacao !== 'rota_fixa' && (
+          <div className="flex flex-col gap-2">
+            <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+              {([
+                { id: 'dia_unico',      label: 'Dia único' },
+                { id: 'ultimos7',       label: 'Últimos 7 dias' },
+                { id: 'este_mes',       label: 'Este mês' },
+                { id: 'mes_passado',    label: 'Mês passado' },
+                { id: 'personalizado',  label: '📅 Personalizado' },
+              ] as { id: PeriodoPreset; label: string }[]).map(p => (
+                <button
+                  key={p.id}
+                  onClick={() => {
+                    setPeriodoPreset(p.id)
+                    setVerTodos(false)
+                    const hoje = new Date()
+                    const iso = (d: Date) => d.toISOString().slice(0, 10)
+                    if (p.id === 'ultimos7') {
+                      const ini = new Date(hoje); ini.setDate(ini.getDate() - 6)
+                      setFiltroInicio(iso(ini)); setFiltroFim(iso(hoje))
+                    } else if (p.id === 'este_mes') {
+                      const ini = new Date(hoje.getFullYear(), hoje.getMonth(), 1)
+                      const fim = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0)
+                      setFiltroInicio(iso(ini)); setFiltroFim(iso(fim))
+                    } else if (p.id === 'mes_passado') {
+                      const ini = new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1)
+                      const fim = new Date(hoje.getFullYear(), hoje.getMonth(), 0)
+                      setFiltroInicio(iso(ini)); setFiltroFim(iso(fim))
+                    }
+                    // 'personalizado' preserva o range atual pra o gestor editar
+                    // 'dia_unico' volta a usar filtroData (não mexe em inicio/fim)
+                  }}
+                  className="flex-shrink-0 text-[11px] font-semibold px-3 py-1.5 rounded-full transition-all"
+                  style={periodoPreset === p.id
+                    ? { background: '#0F6E56', color: '#fff' }
+                    : { background: '#f3f4f6', color: '#6b7280' }}>
+                  {p.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Range de datas — visível quando preset não é 'dia_unico'. Sempre
+                editável no modo personalizado; outros presets mostram readonly
+                com os valores calculados. */}
+            {periodoPreset !== 'dia_unico' && (
+              <div className="bg-white rounded-2xl border border-gray-100 px-3 py-2 flex items-center gap-2">
+                <span className="text-[11px] text-gray-500 flex-shrink-0">De:</span>
+                <input
+                  type="date"
+                  value={filtroInicio}
+                  onChange={e => { setFiltroInicio(e.target.value); if (periodoPreset !== 'personalizado') setPeriodoPreset('personalizado') }}
+                  className="flex-1 text-sm text-gray-700 outline-none border border-gray-200 rounded-lg px-2 py-1" />
+                <span className="text-[11px] text-gray-500 flex-shrink-0">Até:</span>
+                <input
+                  type="date"
+                  value={filtroFim}
+                  onChange={e => { setFiltroFim(e.target.value); if (periodoPreset !== 'personalizado') setPeriodoPreset('personalizado') }}
+                  min={filtroInicio}
+                  className="flex-1 text-sm text-gray-700 outline-none border border-gray-200 rounded-lg px-2 py-1" />
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Filtro de data (único) — só quando preset 'dia_unico' */}
+        {periodoPreset === 'dia_unico' && (
         <div className="bg-white rounded-2xl border border-gray-100 flex items-center px-2 py-2 gap-1">
           <button
             onClick={() => navegarDia(-1)}
@@ -1499,6 +1575,7 @@ export default function AgendamentosPage() {
             </button>
           )}
         </div>
+        )}
 
         {/* Filtro de status */}
         {tipoOperacao !== 'rota_fixa' && (

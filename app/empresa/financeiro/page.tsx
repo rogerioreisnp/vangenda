@@ -208,18 +208,10 @@ export default function FinanceiroPage() {
   async function carregar(eid: string) {
     setLoading(true)
 
-    const agoraISO = new Date().toISOString()
-
-    // Auto-transição: 'confirmada' com data_hora passada → 'em_andamento'.
-    // NÃO conclui automaticamente (o serviço pode estar rolando ainda, ex:
-    // diária). Concluir é sempre manual no botão da ficha. Também não mexe
-    // em status_pagamento — pagamento é confirmado manualmente pelo gestor,
-    // não pela forma escolhida no cadastro.
-    await supabase.from('corridas_empresa')
-      .update({ status: 'em_andamento' })
-      .eq('empresa_id', eid)
-      .eq('status', 'confirmada')
-      .lt('data_hora', agoraISO)
+    // MODELO 100% MANUAL — não muda status ao carregar. Corrida fica em
+    // 'confirmada' até alguém clicar ▶️ Iniciar. Padrão consistente com
+    // /empresa/page.tsx e /empresa/agendamentos/fretamentos após a
+    // decisão de 2026-07-16 (Smart Car style).
 
     const { inicio, fim } = intervalo()
     const selectCorrida = 'id, origem, destino, data_hora, valor, status, cliente_nome, motorista_id, valor_recebido, status_pagamento, data_pagamento, motoristas_empresa(nome, veiculo, placa)'

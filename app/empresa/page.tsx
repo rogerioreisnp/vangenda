@@ -187,19 +187,11 @@ export default function EmpresaPage() {
     const agoraDate = new Date()
     const agoraISOStr = agoraDate.toISOString()
 
-    // Auto-transição: corridas 'confirmada' cuja data_hora já passou viram
-    // 'em_andamento'. NÃO viram 'concluida' automaticamente — o gestor
-    // decide manualmente no botão "✓ Marcar como Concluído" da ficha.
-    // Bug anterior travava a diária do Julimar assim que ele abria o painel
-    // pela manhã (uma corrida das 11h ainda pra rolar já ia pra concluida).
-    // Pagamento também é sempre manual (não mexer em status_pagamento aqui —
-    // pix/dinheiro/cartão declarados na hora do cadastro não são prova de
-    // recebimento, o gestor confirma depois no botão da ficha).
-    await supabase.from('corridas_empresa')
-      .update({ status: 'em_andamento' })
-      .eq('empresa_id', eid)
-      .eq('status', 'confirmada')
-      .lt('data_hora', agoraISOStr)
+    // MODELO 100% MANUAL (decisão de negócio 2026-07-16). Corrida NÃO muda
+    // status sozinha ao passar do horário — quem move é sempre humano
+    // clicando ▶️ Iniciar (com KM inicial) ou ⏹️ Finalizar (com KM final).
+    // Reduz surpresa pro motorista e evita bugs de canto (adiei horário,
+    // status voltou etc.). Pagamento também é sempre manual.
 
     const agora = agoraDate
     const agoraISO = agoraISOStr
