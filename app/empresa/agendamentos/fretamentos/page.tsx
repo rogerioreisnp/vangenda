@@ -415,8 +415,13 @@ export default function AgendamentosPage() {
   const [salvandoTrajetoFicha, setSalvandoTrajetoFicha] = useState(false)
   // KM inicial/final inline na ficha — motorista preenche antes de iniciar
   // e antes de finalizar sem entrar no modo de edição do form completo.
+  // Separado por ponta (ida/volta) pra permitir ações independentes:
+  // motorista pode finalizar só a IDA e a VOLTA continuar em aberto até
+  // ser feita (útil quando a volta é em outra data).
   const [kmInicialFicha, setKmInicialFicha] = useState('')
   const [kmFinalFicha, setKmFinalFicha] = useState('')
+  const [kmInicialFichaVolta, setKmInicialFichaVolta] = useState('')
+  const [kmFinalFichaVolta, setKmFinalFichaVolta] = useState('')
   const [enviandoEmail, setEnviandoEmail] = useState(false)
   const [motoristaFicha, setMotoristaFicha] = useState('')
   const [contactsApi, setContactsApi] = useState(false)
@@ -1025,11 +1030,13 @@ export default function AgendamentosPage() {
   }
 
   function abrirFicha(c: Corrida) {
-    // Reset dos inputs inline (novo trajeto + KM) — evita carregar valores
-    // de outra ficha
+    // Reset dos inputs inline (novo trajeto + KM ida + KM volta) — evita
+    // carregar valores de outra ficha
     setNovoTrajetoFicha('')
     setKmInicialFicha('')
     setKmFinalFicha('')
+    setKmInicialFichaVolta('')
+    setKmFinalFichaVolta('')
     // Detecta se essa corrida faz parte de um par ida-volta (mesmo cliente,
     // created_at com menos de 30s de diferenca — mesma regra do agruparPares).
     // Se sim, guarda a outra ponta em voltaDaFicha pra exibir na ficha.
@@ -1196,7 +1203,14 @@ export default function AgendamentosPage() {
     const motoristaFoiAtribuido = !!motoristaId && motoristaId !== c.motorista_id
     await supabase.from('corridas_empresa').update(upd).eq('id', c.id)
     setCorridas(prev => prev.map(x => x.id === c.id ? { ...x, status: 'em_andamento', motorista_id: motoristaId || x.motorista_id, km_inicial: kmInicial ?? x.km_inicial, motoristas_empresa: motorista ? { nome: motorista.nome } : x.motoristas_empresa } : x))
-    setCorridaFicha(prev => prev ? { ...prev, status: 'em_andamento', motorista_id: motoristaId || prev.motorista_id, km_inicial: kmInicial ?? prev.km_inicial } : prev)
+    // Atualiza corridaFicha OU voltaDaFicha dependendo de qual foi acionada.
+    // Isso permite iniciar/finalizar ida e volta independentemente.
+    setCorridaFicha(prev => prev && prev.id === c.id
+      ? { ...prev, status: 'em_andamento', motorista_id: motoristaId || prev.motorista_id, km_inicial: kmInicial ?? prev.km_inicial }
+      : prev)
+    setVoltaDaFicha(prev => prev && prev.id === c.id
+      ? { ...prev, status: 'em_andamento', motorista_id: motoristaId || prev.motorista_id, km_inicial: kmInicial ?? prev.km_inicial }
+      : prev)
     if (motoristaFoiAtribuido) {
       notificarMotoristaAtribuido(
         motoristaId, c.id, c.origem, c.destino, c.data_hora, c.tipo_servico,
@@ -1219,7 +1233,15 @@ export default function AgendamentosPage() {
     if (kmFinal != null) upd.km_final = kmFinal
     await supabase.from('corridas_empresa').update(upd).eq('id', c.id)
     setCorridas(prev => prev.map(x => x.id === c.id ? { ...x, status: 'concluida', km_final: kmFinal ?? x.km_final } : x))
-    setCorridaFicha(prev => prev ? { ...prev, status: 'concluida', km_final: kmFinal ?? prev.km_final } : prev)
+    // Atualiza corridaFicha OU voltaDaFicha dependendo de qual foi acionada.
+    // Só finaliza a ponta específica — a outra ponta continua no status
+    // atual até ser finalizada independentemente.
+    setCorridaFicha(prev => prev && prev.id === c.id
+      ? { ...prev, status: 'concluida', km_final: kmFinal ?? prev.km_final }
+      : prev)
+    setVoltaDaFicha(prev => prev && prev.id === c.id
+      ? { ...prev, status: 'concluida', km_final: kmFinal ?? prev.km_final }
+      : prev)
     setConfirmandoFicha(false)
   }
 
@@ -2391,6 +2413,18 @@ export default function AgendamentosPage() {
               </div>
             )}
 
+            {/* Aviso pro gestor: horário passou mas corrida ainda em confirmada.
+                Modelo 100% manual (decisão 2026-07-16) não muda status sozinho,
+                então se o motorista rodou e ninguém clicou Iniciar, o card
+                deixa isso claro. */}
+            {corridaFicha.status === 'confirmada' && new Date(corridaFicha.data_hora) < new Date() && (
+              <div className="rounded-xl px-4 py-3 border" style={{ background: '#FFF7ED', borderColor: '#FED7AA' }}>
+                <p className="text-xs" style={{ color: '#9A3412' }}>
+                  ⏰ O horário desta corrida já passou e ela ainda está como <strong>Confirmada</strong>. Se o motorista já saiu, toque em <strong>▶️ Iniciar corrida</strong> abaixo (com o KM inicial). Se ainda não rolou, edite o horário.
+                </p>
+              </div>
+            )}
+
             {/* Ações — Confirmada: definir motorista e marcar em andamento */}
             {corridaFicha.status === 'confirmada' && (
               <div className="flex flex-col gap-2 mt-2">
@@ -2523,6 +2557,124 @@ export default function AgendamentosPage() {
                 )}
               </div>
             )}
+
+            {/* ─────────────────────────────────────────────────────────────
+                BLOCO DA VOLTA — só aparece quando é PAR ida-volta com duas
+                linhas separadas em corridas_empresa (voltaDaFicha).
+                Cada ponta tem seus próprios botões Iniciar/Finalizar com
+                KMs independentes. Decisão de negócio 2026-07-16: motorista
+                pode finalizar só a IDA e a VOLTA continuar aberta até
+                acontecer (útil quando a volta é em outro dia).
+                ───────────────────────────────────────────────────────── */}
+            {voltaDaFicha && (() => {
+              const v = voltaDaFicha
+              const stMeta = {
+                confirmada:   { bg: '#EFF6FF', text: '#1D4ED8', label: 'Confirmada' },
+                em_andamento: { bg: '#E1F5EE', text: '#0F6E56', label: 'Em andamento' },
+                concluida:    { bg: '#F3F4F6', text: '#6B7280', label: 'Concluída' },
+                pendente:     { bg: '#FEF3C7', text: '#92400E', label: 'Pendente' },
+                cancelada:    { bg: '#FCEBEB', text: '#A32D2D', label: 'Cancelada' },
+              }[v.status] ?? { bg: '#F3F4F6', text: '#6B7280', label: v.status }
+              return (
+                <div className="rounded-2xl p-4 border-2 flex flex-col gap-3 mt-2" style={{ background: '#EEEDFE', borderColor: '#AFA9EC' }}>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-bold uppercase tracking-wide" style={{ color: '#3C3489' }}>🔁 Volta</p>
+                    <span className="text-[10px] font-semibold px-2 py-1 rounded-full"
+                      style={{ background: stMeta.bg, color: stMeta.text }}>
+                      {stMeta.label}
+                    </span>
+                  </div>
+                  <p className="text-sm font-bold text-gray-800">{v.origem} → {v.destino}</p>
+                  <p className="text-sm text-gray-600">
+                    📅 {v.data_hora.slice(8,10)}/{v.data_hora.slice(5,7)}/{v.data_hora.slice(0,4)} às {v.data_hora.slice(11,16)}
+                  </p>
+                  {Number(v.valor) > 0 && (
+                    <p className="text-sm font-semibold" style={{ color: '#3C3489' }}>
+                      💰 R$ {Number(v.valor).toFixed(2).replace('.', ',')}
+                    </p>
+                  )}
+
+                  {/* KM da volta se ja preenchido */}
+                  {(v.km_inicial != null || v.km_final != null) && (
+                    <div className="rounded-xl p-2 border" style={{ background: '#fff', borderColor: '#BFDBFE' }}>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-gray-600">KM Inicial: <strong>{v.km_inicial != null ? String(v.km_inicial).replace('.', ',') : '—'}</strong></span>
+                        <span className="text-gray-600">Final: <strong>{v.km_final != null ? String(v.km_final).replace('.', ',') : '—'}</strong></span>
+                      </div>
+                      {v.km_inicial != null && v.km_final != null && v.km_final >= v.km_inicial && (
+                        <p className="text-xs font-bold mt-1" style={{ color: '#1D4ED8' }}>
+                          Total: {(Number(v.km_final) - Number(v.km_inicial)).toFixed(1).replace('.', ',')} km
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Iniciar volta */}
+                  {v.status === 'confirmada' && (v.tipo_servico === 'transfer' || v.tipo_servico === 'diaria' || v.tipo_servico === 'city_tour') && (() => {
+                    const kmI = parseFloat(kmInicialFichaVolta.replace(',', '.'))
+                    const kmValido = !isNaN(kmI) && kmI >= 0
+                    return (
+                      <div className="flex flex-col gap-2">
+                        <p className="text-xs font-semibold" style={{ color: '#3C3489' }}>🛞 KM inicial da volta</p>
+                        <input type="number" step="0.1" min={0}
+                          value={kmInicialFichaVolta}
+                          onChange={e => setKmInicialFichaVolta(e.target.value)}
+                          placeholder="Ex: 45312.0"
+                          className="campo-input" />
+                        <button
+                          onClick={() => marcarEmAndamento(v, v.motorista_id ?? '', kmI)}
+                          disabled={confirmandoFicha || !kmValido}
+                          className="w-full py-3 rounded-xl text-sm font-bold border disabled:opacity-40"
+                          style={{ background: '#3C3489', color: '#fff', borderColor: '#3C3489' }}>
+                          {confirmandoFicha ? 'Salvando…' : !kmValido ? 'Informe o KM inicial' : '▶️ Iniciar volta'}
+                        </button>
+                      </div>
+                    )
+                  })()}
+
+                  {/* Finalizar volta */}
+                  {v.status === 'em_andamento' && (v.tipo_servico === 'transfer' || v.tipo_servico === 'diaria' || v.tipo_servico === 'city_tour') && (() => {
+                    const kmF = parseFloat(kmFinalFichaVolta.replace(',', '.'))
+                    const kmValido = !isNaN(kmF) && kmF >= 0
+                    const kmMenor = kmValido && v.km_inicial != null && kmF < v.km_inicial
+                    return (
+                      <div className="flex flex-col gap-2">
+                        {v.km_inicial != null && (
+                          <p className="text-xs text-gray-500">KM inicial: <strong>{String(v.km_inicial).replace('.', ',')}</strong></p>
+                        )}
+                        <p className="text-xs font-semibold" style={{ color: '#3C3489' }}>🛞 KM final da volta</p>
+                        <input type="number" step="0.1" min={0}
+                          value={kmFinalFichaVolta}
+                          onChange={e => setKmFinalFichaVolta(e.target.value)}
+                          placeholder="Ex: 45400.5"
+                          className="campo-input" />
+                        {kmMenor && (
+                          <p className="text-xs" style={{ color: '#DC2626' }}>⚠️ KM final não pode ser menor que o inicial.</p>
+                        )}
+                        {kmValido && !kmMenor && v.km_inicial != null && (
+                          <p className="text-xs font-semibold" style={{ color: '#3C3489' }}>
+                            Total: {(kmF - Number(v.km_inicial)).toFixed(1).replace('.', ',')} km
+                          </p>
+                        )}
+                        <button
+                          onClick={() => marcarConcluida(v, kmF)}
+                          disabled={confirmandoFicha || !kmValido || kmMenor}
+                          className="w-full py-3 rounded-xl text-sm font-bold border disabled:opacity-40"
+                          style={{ background: '#3C3489', color: '#fff', borderColor: '#3C3489' }}>
+                          {confirmandoFicha ? 'Salvando…' : !kmValido ? 'Informe o KM final' : kmMenor ? 'KM final inválido' : '⏹️ Finalizar volta'}
+                        </button>
+                      </div>
+                    )
+                  })()}
+
+                  {v.status === 'concluida' && (
+                    <div className="rounded-lg p-2 border" style={{ background: '#F3F4F6', borderColor: '#E5E7EB' }}>
+                      <p className="text-xs text-gray-500">✅ Volta concluída.</p>
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
           </div>
         </div>
       )}
