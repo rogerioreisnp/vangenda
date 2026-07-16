@@ -160,6 +160,12 @@ type FormCorrida = {
   trajetos: string[]
   km_inicial: string
   km_final: string
+  // KM da volta — separados dos da ida quando é par ida-volta. Cada linha
+  // em corridas_empresa carrega seu próprio km_inicial/km_final; esses
+  // campos alimentam o updateVolta pra que a volta receba seus valores
+  // independentes da ida (comum quando ida é dia 10 e volta dia 11).
+  km_inicial_volta: string
+  km_final_volta: string
   passageiros_adicionais: PassageiroExtraCorrida[]
   forma_pagamento: string
   status_pagamento: string
@@ -199,7 +205,7 @@ const FORM_VAZIO: FormCorrida = {
   rua_retorno_desembarque: '', numero_retorno_desembarque: '', bairro_retorno_desembarque: '',
   municipio_retorno_desembarque: '', cep_retorno_desembarque: '', referencia_retorno_desembarque: '',
   data_termino: '', horario_termino: '', trajetos: [],
-  km_inicial: '', km_final: '',
+  km_inicial: '', km_final: '', km_inicial_volta: '', km_final_volta: '',
   passageiros_adicionais: [],
   forma_pagamento: 'a_definir',
   status_pagamento: 'a_receber',
@@ -612,6 +618,11 @@ export default function AgendamentosPage() {
       trajetos: Array.isArray(c.trajetos) ? c.trajetos : [],
       km_inicial: c.km_inicial != null ? String(c.km_inicial) : '',
       km_final: c.km_final != null ? String(c.km_final) : '',
+      // KM da volta vem da OUTRA linha do par (voltaId). Se link público
+      // ida-e-volta (uma só linha), a volta compartilha os KMs da ida —
+      // nesse caso mantém em branco pra não confundir.
+      km_inicial_volta: volta && volta.km_inicial != null ? String(volta.km_inicial) : '',
+      km_final_volta: volta && volta.km_final != null ? String(volta.km_final) : '',
       passageiros_adicionais: (c.passageiros_adicionais || []).map(p => ({
         nome: p.nome || '', telefone: p.telefone || '', numero_voo: '',
         rua: p.rua || '', numero: p.numero || '', bairro: p.bairro || '', municipio: p.municipio || '', cep: p.cep || '', referencia: p.referencia || '',
@@ -854,6 +865,15 @@ export default function AgendamentosPage() {
           updateVolta.valor = precoVoltaNum
         }
         updateVolta.observacoes = form.observacoes_volta.trim() || null
+
+        // KM da volta independentes da ida. Só grava se cliente digitou
+        // valor válido; se em branco, grava null pra permitir limpar campo.
+        const kmIVoltaTrim = form.km_inicial_volta.trim()
+        const kmFVoltaTrim = form.km_final_volta.trim()
+        const kmIVoltaNum = parseFloat(kmIVoltaTrim.replace(',', '.'))
+        const kmFVoltaNum = parseFloat(kmFVoltaTrim.replace(',', '.'))
+        updateVolta.km_inicial = kmIVoltaTrim && !isNaN(kmIVoltaNum) ? kmIVoltaNum : null
+        updateVolta.km_final   = kmFVoltaTrim && !isNaN(kmFVoltaNum) ? kmFVoltaNum : null
 
         const { error: erroVolta } = await supabase
           .from('corridas_empresa')
@@ -3302,45 +3322,96 @@ export default function AgendamentosPage() {
               </div>
             )}
 
-            {/* KM inicial/final — só transfer, diária e city tour */}
-            {(form.tipo_servico === 'transfer' || form.tipo_servico === 'diaria' || form.tipo_servico === 'city_tour') && (() => {
-              const kmI = parseFloat((form.km_inicial || '').replace(',', '.'))
-              const kmF = parseFloat((form.km_final || '').replace(',', '.'))
-              const total = !isNaN(kmI) && !isNaN(kmF) && kmF >= kmI ? (kmF - kmI) : null
-              const invalido = !isNaN(kmI) && !isNaN(kmF) && kmF < kmI
-              return (
-                <div className="rounded-xl p-4 flex flex-col gap-2" style={{ background: '#EFF6FF', border: '1px solid #BFDBFE' }}>
-                  <p className="text-xs font-semibold" style={{ color: '#1D4ED8' }}>
-                    🛞 Quilometragem <span className="font-normal text-gray-500">(opcional — motorista preenche antes e depois do serviço)</span>
-                  </p>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Campo label="KM inicial">
-                      <input type="number" step="0.1" min={0}
-                        value={form.km_inicial}
-                        onChange={e => setForm(f => ({ ...f, km_inicial: e.target.value }))}
-                        placeholder="Ex: 45230.5"
-                        className="campo-input" />
-                    </Campo>
-                    <Campo label="KM final">
-                      <input type="number" step="0.1" min={0}
-                        value={form.km_final}
-                        onChange={e => setForm(f => ({ ...f, km_final: e.target.value }))}
-                        placeholder="Ex: 45312.8"
-                        className="campo-input" />
-                    </Campo>
-                  </div>
-                  {total !== null && (
-                    <div className="rounded-lg px-3 py-2 flex items-center justify-between" style={{ background: '#DBEAFE' }}>
-                      <span className="text-xs font-medium" style={{ color: '#1E3A8A' }}>Total percorrido</span>
-                      <span className="text-sm font-bold" style={{ color: '#1D4ED8' }}>{total.toFixed(1).replace('.', ',')} km</span>
+            {/* KM inicial/final — só transfer, diária e city tour.
+                Se é par ida-volta (voltaIdEditando setado), divide em DOIS
+                blocos: KM da ida (azul) e KM da volta (roxo). Cada ponta
+                grava em sua própria linha em corridas_empresa. Julimar
+                pediu isso quando ida e volta são em dias distintos. */}
+            {(form.tipo_servico === 'transfer' || form.tipo_servico === 'diaria' || form.tipo_servico === 'city_tour') && (
+              <>
+                {(() => {
+                  const kmI = parseFloat((form.km_inicial || '').replace(',', '.'))
+                  const kmF = parseFloat((form.km_final || '').replace(',', '.'))
+                  const total = !isNaN(kmI) && !isNaN(kmF) && kmF >= kmI ? (kmF - kmI) : null
+                  const invalido = !isNaN(kmI) && !isNaN(kmF) && kmF < kmI
+                  const ehPar = !!voltaIdEditando
+                  return (
+                    <div className="rounded-xl p-4 flex flex-col gap-2" style={{ background: '#EFF6FF', border: '1px solid #BFDBFE' }}>
+                      <p className="text-xs font-semibold" style={{ color: '#1D4ED8' }}>
+                        🛞 Quilometragem {ehPar ? 'da IDA' : ''} <span className="font-normal text-gray-500">(opcional — motorista preenche antes e depois do serviço)</span>
+                      </p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Campo label="KM inicial">
+                          <input type="number" step="0.1" min={0}
+                            value={form.km_inicial}
+                            onChange={e => setForm(f => ({ ...f, km_inicial: e.target.value }))}
+                            placeholder="Ex: 45230.5"
+                            className="campo-input" />
+                        </Campo>
+                        <Campo label="KM final">
+                          <input type="number" step="0.1" min={0}
+                            value={form.km_final}
+                            onChange={e => setForm(f => ({ ...f, km_final: e.target.value }))}
+                            placeholder="Ex: 45312.8"
+                            className="campo-input" />
+                        </Campo>
+                      </div>
+                      {total !== null && (
+                        <div className="rounded-lg px-3 py-2 flex items-center justify-between" style={{ background: '#DBEAFE' }}>
+                          <span className="text-xs font-medium" style={{ color: '#1E3A8A' }}>Total percorrido {ehPar ? 'na ida' : ''}</span>
+                          <span className="text-sm font-bold" style={{ color: '#1D4ED8' }}>{total.toFixed(1).replace('.', ',')} km</span>
+                        </div>
+                      )}
+                      {invalido && (
+                        <p className="text-xs" style={{ color: '#DC2626' }}>⚠️ KM final não pode ser menor que KM inicial.</p>
+                      )}
                     </div>
-                  )}
-                  {invalido && (
-                    <p className="text-xs" style={{ color: '#DC2626' }}>⚠️ KM final não pode ser menor que KM inicial.</p>
-                  )}
-                </div>
-              )
-            })()}
+                  )
+                })()}
+
+                {/* Bloco KM da VOLTA — só aparece quando editando um par
+                    ida-volta (2 linhas separadas). Link público ida-volta
+                    (uma só linha) NÃO tem voltaIdEditando, então não mostra. */}
+                {voltaIdEditando && (() => {
+                  const kmI = parseFloat((form.km_inicial_volta || '').replace(',', '.'))
+                  const kmF = parseFloat((form.km_final_volta || '').replace(',', '.'))
+                  const total = !isNaN(kmI) && !isNaN(kmF) && kmF >= kmI ? (kmF - kmI) : null
+                  const invalido = !isNaN(kmI) && !isNaN(kmF) && kmF < kmI
+                  return (
+                    <div className="rounded-xl p-4 flex flex-col gap-2" style={{ background: '#EEEDFE', border: '1px solid #AFA9EC' }}>
+                      <p className="text-xs font-semibold" style={{ color: '#3C3489' }}>
+                        🔁 Quilometragem da VOLTA <span className="font-normal text-gray-500">(opcional)</span>
+                      </p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Campo label="KM inicial da volta">
+                          <input type="number" step="0.1" min={0}
+                            value={form.km_inicial_volta}
+                            onChange={e => setForm(f => ({ ...f, km_inicial_volta: e.target.value }))}
+                            placeholder="Ex: 45320.0"
+                            className="campo-input" />
+                        </Campo>
+                        <Campo label="KM final da volta">
+                          <input type="number" step="0.1" min={0}
+                            value={form.km_final_volta}
+                            onChange={e => setForm(f => ({ ...f, km_final_volta: e.target.value }))}
+                            placeholder="Ex: 45402.5"
+                            className="campo-input" />
+                        </Campo>
+                      </div>
+                      {total !== null && (
+                        <div className="rounded-lg px-3 py-2 flex items-center justify-between" style={{ background: '#DDD6FE' }}>
+                          <span className="text-xs font-medium" style={{ color: '#3C3489' }}>Total percorrido na volta</span>
+                          <span className="text-sm font-bold" style={{ color: '#3C3489' }}>{total.toFixed(1).replace('.', ',')} km</span>
+                        </div>
+                      )}
+                      {invalido && (
+                        <p className="text-xs" style={{ color: '#DC2626' }}>⚠️ KM final da volta não pode ser menor que o inicial.</p>
+                      )}
+                    </div>
+                  )
+                })()}
+              </>
+            )}
 
             <Campo label="Forma de pagamento">
               <select value={form.forma_pagamento}
@@ -3448,7 +3519,9 @@ export default function AgendamentosPage() {
               </Campo>
             )}
 
-            <Campo label={form.ida_volta && !corridaEditando ? 'Observações da ida' : 'Observações'}>
+            {/* Observações — label muda quando é par ida-volta pra deixar
+                claro que este campo é da IDA especificamente. */}
+            <Campo label={(form.ida_volta && (!corridaEditando || voltaIdEditando)) ? 'Observações da IDA' : 'Observações'}>
               <textarea value={form.observacoes}
                 onChange={e => setForm(f => ({ ...f, observacoes: e.target.value }))}
                 placeholder="Informações adicionais, ponto de encontro, etc."
@@ -3457,8 +3530,12 @@ export default function AgendamentosPage() {
                 style={{ resize: 'none' }} />
             </Campo>
 
-            {!corridaEditando && form.ida_volta && (
-              <Campo label="Observações da volta">
+            {/* Observações da VOLTA — antes só aparecia na criação. Agora
+                também aparece na edição de par ida-volta (voltaIdEditando).
+                Julimar pediu campo separado por ponta — corridas podem
+                ter contextos diferentes (ex: mala extra só no retorno). */}
+            {form.ida_volta && (!corridaEditando || voltaIdEditando) && (
+              <Campo label="Observações da VOLTA">
                 <textarea value={form.observacoes_volta}
                   onChange={e => setForm(f => ({ ...f, observacoes_volta: e.target.value }))}
                   placeholder="Informações adicionais, ponto de encontro, etc."
