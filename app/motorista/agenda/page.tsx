@@ -33,12 +33,17 @@ const TIPO_META: Record<string, { bg: string; text: string; label: string }> = {
   excursao:  { bg: '#FFF7ED', text: '#7C2D12', label: 'Excursão' },
 }
 
-type Filtro = 'proximas' | 'hoje' | 'em_andamento' | 'concluidas' | 'todas'
+type Filtro = 'proximas' | 'hoje' | 'em_andamento' | 'concluidas' | 'data' | 'todas'
 
 export default function MotoristaAgenda() {
   const [corridas, setCorridas] = useState<Corrida[]>([])
   const [loading, setLoading] = useState(true)
   const [filtro, setFiltro] = useState<Filtro>('proximas')
+  // Data específica quando filtro === 'data'. Motorista escolhe pra ver
+  // corridas de um dia específico (hoje, amanhã, próxima semana...).
+  const [dataSelecionada, setDataSelecionada] = useState<string>(
+    new Date().toISOString().slice(0, 10)
+  )
 
   useEffect(() => { carregar() }, [])
 
@@ -89,6 +94,7 @@ export default function MotoristaAgenda() {
     if (filtro === 'em_andamento') return c.status === 'em_andamento'
     if (filtro === 'concluidas') return c.status === 'concluida'
     if (filtro === 'hoje') return c.data_hora.slice(0, 10) === hojeStr
+    if (filtro === 'data') return c.data_hora.slice(0, 10) === dataSelecionada
     if (filtro === 'proximas') return c.data_hora >= agoraISO && c.status !== 'concluida' && c.status !== 'cancelada'
     return true
   })
@@ -96,10 +102,21 @@ export default function MotoristaAgenda() {
   const filtros: { id: Filtro; label: string }[] = [
     { id: 'proximas',     label: 'Próximas' },
     { id: 'hoje',         label: 'Hoje' },
+    { id: 'data',         label: '📅 Por dia' },
     { id: 'em_andamento', label: 'Em andamento' },
     { id: 'concluidas',   label: 'Concluídas' },
     { id: 'todas',        label: 'Todas' },
   ]
+
+  // Contadores por dia dos próximos 7 dias — atalho visual pra motorista
+  // ver rapidamente onde tem corrida (padrão de calendário compacto).
+  const proximosDias = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date()
+    d.setDate(d.getDate() + i)
+    const iso = d.toISOString().slice(0, 10)
+    const qtd = corridas.filter(c => c.data_hora.slice(0, 10) === iso && c.status !== 'cancelada').length
+    return { iso, dia: d.getDate(), rotulo: format(d, 'EEE', { locale: ptBR }), qtd }
+  })
 
   return (
     <div>
@@ -108,7 +125,44 @@ export default function MotoristaAgenda() {
         <p style={{ color: '#E1F5EE' }} className="text-lg font-bold">Suas corridas</p>
       </div>
 
+      {/* Mini-calendário próximos 7 dias — atalho rápido pro motorista */}
       <div className="px-4 pt-3">
+        <div className="flex gap-1.5 overflow-x-auto pb-2">
+          {proximosDias.map((d, i) => {
+            const ativo = filtro === 'data' && dataSelecionada === d.iso
+            const eHoje = d.iso === hojeStr
+            return (
+              <button key={d.iso} type="button"
+                onClick={() => { setDataSelecionada(d.iso); setFiltro('data') }}
+                className="flex-shrink-0 flex flex-col items-center justify-center rounded-xl transition-all"
+                style={{
+                  width: '52px',
+                  padding: '6px 4px',
+                  background: ativo ? '#0F6E56' : eHoje ? '#E1F5EE' : '#fff',
+                  color: ativo ? '#fff' : eHoje ? '#0F6E56' : '#333',
+                  border: `1px solid ${ativo ? '#0F6E56' : eHoje ? '#9FE1CB' : '#e5e7eb'}`,
+                }}>
+                <span className="text-[9px] font-semibold uppercase leading-tight">
+                  {i === 0 ? 'Hoje' : i === 1 ? 'Amanhã' : d.rotulo.slice(0, 3)}
+                </span>
+                <span className="text-lg font-bold leading-tight">{d.dia}</span>
+                {d.qtd > 0 && (
+                  <span className="text-[9px] font-semibold leading-tight"
+                    style={{ color: ativo ? '#E1F5EE' : '#0F6E56' }}>
+                    {d.qtd} corrida{d.qtd !== 1 ? 's' : ''}
+                  </span>
+                )}
+                {d.qtd === 0 && (
+                  <span className="text-[9px] leading-tight" style={{ color: ativo ? '#9FE1CB' : '#9ca3af' }}>livre</span>
+                )}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Filtros por status */}
+      <div className="px-4 pt-1">
         <div className="flex gap-2 overflow-x-auto pb-2">
           {filtros.map(f => (
             <button key={f.id} type="button"
@@ -122,6 +176,22 @@ export default function MotoristaAgenda() {
           ))}
         </div>
       </div>
+
+      {/* Input de data específica — visível quando filtro 'data' está ativo,
+          pra escolher dia arbitrário (não só os 7 próximos) */}
+      {filtro === 'data' && (
+        <div className="px-4 pt-1">
+          <div className="bg-white rounded-xl p-3 border border-gray-100 flex items-center gap-2">
+            <span className="text-xs text-gray-500">Ver dia:</span>
+            <input type="date" value={dataSelecionada}
+              onChange={e => setDataSelecionada(e.target.value)}
+              className="flex-1 text-sm text-gray-700 outline-none border border-gray-200 rounded-lg px-2 py-1.5" />
+          </div>
+          <p className="text-xs text-gray-500 mt-1.5 capitalize">
+            {format(new Date(dataSelecionada + 'T00:00:00'), "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+          </p>
+        </div>
+      )}
 
       <div className="px-4 py-3 flex flex-col gap-2">
         {loading && (
