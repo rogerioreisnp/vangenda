@@ -940,6 +940,36 @@ export default function AgendamentosPage() {
     }).catch(e => console.error('notificar-motorista falhou:', e))
   }
 
+  // Atribui/troca motorista na ficha aberta, salvando na hora + notificando
+  // o novo motorista via push. Fluxo: gestor abre ficha, muda motorista no
+  // seletor inline, clica em Salvar sem precisar entrar em ✏️ Editar nem
+  // "Iniciar corrida".
+  async function atribuirMotoristaInline(c: Corrida, novoMotoristaId: string) {
+    if (novoMotoristaId === (c.motorista_id ?? '')) return
+    setConfirmandoFicha(true)
+    const motoristaNovo = motoristasOpcoes.find(m => m.id === novoMotoristaId) ?? null
+    const motoristaMudou = !!novoMotoristaId && novoMotoristaId !== c.motorista_id
+    await supabase.from('corridas_empresa')
+      .update({ motorista_id: novoMotoristaId || null })
+      .eq('id', c.id)
+    setCorridas(prev => prev.map(x => x.id === c.id ? {
+      ...x,
+      motorista_id: novoMotoristaId || null,
+      motoristas_empresa: motoristaNovo ? { nome: motoristaNovo.nome } : null,
+    } : x))
+    setCorridaFicha(prev => prev && prev.id === c.id ? {
+      ...prev,
+      motorista_id: novoMotoristaId || null,
+      motoristas_empresa: motoristaNovo ? { nome: motoristaNovo.nome } : null,
+    } : prev)
+    if (motoristaMudou) {
+      notificarMotoristaAtribuido(
+        novoMotoristaId, c.id, c.origem, c.destino, c.data_hora, c.tipo_servico,
+      )
+    }
+    setConfirmandoFicha(false)
+  }
+
   async function cancelarCorrida(ids: string[]) {
     for (const id of ids) {
       await supabase.from('corridas_empresa').update({ status: 'cancelada' }).eq('id', id)
@@ -2208,22 +2238,44 @@ export default function AgendamentosPage() {
               </div>
             )}
 
-            {/* Motorista — só aparece em "Confirmada" para definição */}
-            {corridaFicha.status === 'confirmada' && (
+            {/* Motorista — inline em confirmada e em_andamento pra o gestor
+                atribuir/trocar sem precisar entrar em Editar. Se muda em
+                em_andamento, dispara push pro novo motorista. */}
+            {(corridaFicha.status === 'confirmada' || corridaFicha.status === 'em_andamento') && (
               <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-2">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Definir motorista</p>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                  {corridaFicha.status === 'em_andamento' ? '🚗 Motorista da corrida' : 'Definir motorista'}
+                </p>
                 {motoristasOpcoes.length === 0 ? (
                   <p className="text-xs text-gray-400">Nenhum motorista ativo cadastrado</p>
                 ) : (
-                  <select
-                    value={motoristaFicha}
-                    onChange={e => setMotoristaFicha(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 bg-white outline-none">
-                    <option value="">Selecione o motorista...</option>
-                    {motoristasOpcoes.map(m => (
-                      <option key={m.id} value={m.id}>{m.nome}</option>
-                    ))}
-                  </select>
+                  <>
+                    <select
+                      value={motoristaFicha}
+                      onChange={e => setMotoristaFicha(e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 bg-white outline-none">
+                      <option value="">Selecione o motorista...</option>
+                      {motoristasOpcoes.map(m => (
+                        <option key={m.id} value={m.id}>{m.nome}</option>
+                      ))}
+                    </select>
+                    {/* Botão "Salvar motorista" aparece só quando o seletor
+                        mostra alguém diferente do motorista já salvo. Evita
+                        ruído quando o gestor abre a ficha sem intenção de mexer. */}
+                    {motoristaFicha !== (corridaFicha.motorista_id ?? '') && (
+                      <button
+                        onClick={() => atribuirMotoristaInline(corridaFicha, motoristaFicha)}
+                        disabled={confirmandoFicha}
+                        className="w-full py-2.5 rounded-xl text-xs font-semibold border disabled:opacity-40"
+                        style={{ background: '#0F6E56', color: '#fff', borderColor: '#0F6E56' }}>
+                        {confirmandoFicha
+                          ? 'Salvando…'
+                          : motoristaFicha
+                          ? '💾 Salvar motorista (notifica ele agora)'
+                          : '💾 Remover motorista atual'}
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
             )}
@@ -2426,6 +2478,21 @@ export default function AgendamentosPage() {
                     <option value="diaria">Diária</option>
                   </>
                 )}
+              </select>
+            </Campo>
+
+            {/* Motorista movido pro topo pra ficar visível na edição sem
+                precisar rolar. Notificação push é disparada automaticamente
+                quando o gestor atribui/troca motorista (funcao
+                notificarMotoristaAtribuido). */}
+            <Campo label="Motorista atribuído">
+              <select value={form.motorista_id}
+                onChange={e => setForm(f => ({ ...f, motorista_id: e.target.value }))}
+                className="campo-input">
+                <option value="">A definir</option>
+                {motoristasOpcoes.map(m => (
+                  <option key={m.id} value={m.id}>{m.nome}</option>
+                ))}
               </select>
             </Campo>
 
@@ -2650,17 +2717,6 @@ export default function AgendamentosPage() {
                 </div>
               </div>
             )}
-
-            <Campo label="Motorista">
-              <select value={form.motorista_id}
-                onChange={e => setForm(f => ({ ...f, motorista_id: e.target.value }))}
-                className="campo-input">
-                <option value="">A definir</option>
-                {motoristasOpcoes.map(m => (
-                  <option key={m.id} value={m.id}>{m.nome}</option>
-                ))}
-              </select>
-            </Campo>
 
             <Campo label="Nome do solicitante *">
               <input value={form.cliente_nome}
