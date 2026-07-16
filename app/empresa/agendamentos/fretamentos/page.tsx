@@ -1768,28 +1768,29 @@ export default function AgendamentosPage() {
                           R$ {Number(c.valor).toFixed(2).replace('.', ',')}
                         </p>
                         {c.status === 'pendente' && (
-                          <button onClick={() => abrirFicha(c)}
+                          <button onClick={e => { e.stopPropagation(); abrirFicha(c) }}
                             className="px-2.5 py-1 rounded-lg text-[10px] font-medium"
                             style={{ background: '#FEF3C7', color: '#92400E' }}>
                             Ver ficha
                           </button>
                         )}
                         {c.status !== 'pendente' && (
-                          <button onClick={() => abrirEditar(c)}
+                          <button onClick={e => { e.stopPropagation(); abrirEditar(c) }}
+                            title="Editar corrida"
                             className="px-2.5 py-1 rounded-lg text-[10px] font-medium"
                             style={{ background: '#E1F5EE', color: '#0F6E56' }}>
                             ✏️
                           </button>
                         )}
                         {c.status === 'confirmada' && (
-                          <button onClick={() => cancelarCorrida([c.id])}
+                          <button onClick={e => { e.stopPropagation(); cancelarCorrida([c.id]) }}
                             className="px-2.5 py-1 rounded-lg text-[10px] font-medium"
                             style={{ background: '#FCEBEB', color: '#A32D2D' }}>
                             Cancelar
                           </button>
                         )}
                         {(c.status === 'cancelada' || c.status === 'recusada') && (
-                          <button onClick={() => apagarCorrida([c.id])}
+                          <button onClick={e => { e.stopPropagation(); apagarCorrida([c.id]) }}
                             className="px-2.5 py-1 rounded-lg text-[10px] font-medium"
                             style={{ background: '#FCEBEB', color: '#A32D2D' }}>
                             🗑️
@@ -1866,21 +1867,22 @@ export default function AgendamentosPage() {
                         R$ {valorTotal.toFixed(2).replace('.', ',')}
                       </p>
                       {ida.status !== 'pendente' && (
-                        <button onClick={() => abrirEditar(ida, volta.id)}
+                        <button onClick={e => { e.stopPropagation(); abrirEditar(ida, volta.id) }}
+                          title="Editar corrida (ida e volta)"
                           className="px-2.5 py-1 rounded-lg text-[10px] font-medium"
                           style={{ background: '#E1F5EE', color: '#0F6E56' }}>
                           ✏️
                         </button>
                       )}
                       {idsCancelar.length > 0 && (
-                        <button onClick={() => cancelarCorrida(idsCancelar)}
+                        <button onClick={e => { e.stopPropagation(); cancelarCorrida(idsCancelar) }}
                           className="px-2.5 py-1 rounded-lg text-[10px] font-medium"
                           style={{ background: '#FCEBEB', color: '#A32D2D' }}>
                           Cancelar
                         </button>
                       )}
                       {statusKey === 'cancelada' && (
-                        <button onClick={() => apagarCorrida([ida.id, volta.id])}
+                        <button onClick={e => { e.stopPropagation(); apagarCorrida([ida.id, volta.id]) }}
                           className="px-2.5 py-1 rounded-lg text-[10px] font-medium"
                           style={{ background: '#FCEBEB', color: '#A32D2D' }}>
                           🗑️
