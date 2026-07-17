@@ -34,6 +34,8 @@ type Despesa = {
   data: string
   tipo: 'receita' | 'despesa'
   forma_pagamento: string | null
+  cartao_banco?: string | null
+  cartao_final?: string | null
 }
 
 type Motorista = {
@@ -53,6 +55,8 @@ type FormDespesa = {
   data: string
   motorista_id: string
   forma_pagamento: string
+  cartao_banco: string
+  cartao_final: string
 }
 
 const FORM_VAZIO: FormDespesa = {
@@ -65,6 +69,8 @@ const FORM_VAZIO: FormDespesa = {
   data: '',
   motorista_id: '',
   forma_pagamento: 'pix',
+  cartao_banco: '',
+  cartao_final: '',
 }
 
 const CATEGORIAS = [
@@ -227,7 +233,7 @@ export default function FinanceiroPage() {
         .order('data_hora', { ascending: false }),
       supabase
         .from('despesas_empresa')
-        .select('id, motorista_id, veiculo, categoria, descricao, valor, km_odometro, data, tipo, forma_pagamento')
+        .select('id, motorista_id, veiculo, categoria, descricao, valor, km_odometro, data, tipo, forma_pagamento, cartao_banco, cartao_final')
         .eq('empresa_id', eid)
         .gte('data', inicio)
         .lte('data', fim)
@@ -285,6 +291,8 @@ export default function FinanceiroPage() {
       data:         d.data,
       motorista_id: d.motorista_id ?? '',
       forma_pagamento: d.forma_pagamento ?? 'pix',
+      cartao_banco: (d as any).cartao_banco ?? '',
+      cartao_final: (d as any).cartao_final ?? '',
     })
     setErro('')
     setModalAberto(true)
@@ -311,6 +319,8 @@ export default function FinanceiroPage() {
       data:         form.data,
       motorista_id: form.motorista_id || null,
       forma_pagamento: form.tipo === 'despesa' ? form.forma_pagamento : null,
+      cartao_banco: (form.tipo === 'despesa' && form.forma_pagamento === 'cartao') ? (form.cartao_banco.trim() || null) : null,
+      cartao_final: (form.tipo === 'despesa' && form.forma_pagamento === 'cartao') ? (form.cartao_final.trim() || null) : null,
     }
 
     const { error } = editando
@@ -711,6 +721,9 @@ export default function FinanceiroPage() {
                           {d.forma_pagamento && (
                             <p className="text-xs text-gray-400">
                               {FORMA_PAGAMENTO_LABEL[d.forma_pagamento] ?? d.forma_pagamento}
+                              {d.forma_pagamento === 'cartao' && (d.cartao_banco || d.cartao_final)
+                                ? ` (${[d.cartao_banco, d.cartao_final ? `final ${d.cartao_final}` : null].filter(Boolean).join(' · ')})`
+                                : ''}
                             </p>
                           )}
                         </div>
@@ -916,6 +929,26 @@ export default function FinanceiroPage() {
               </Campo>
             )}
 
+            {/* Detalhes do cartão — só quando despesa paga no cartão. Banco
+                + últimos 4 dígitos, nunca o número completo. */}
+            {form.tipo === 'despesa' && form.forma_pagamento === 'cartao' && (
+              <div className="rounded-xl p-3 flex flex-col gap-2" style={{ background: '#EFF6FF', border: '1px solid #BFDBFE' }}>
+                <p className="text-xs font-semibold" style={{ color: '#1D4ED8' }}>💳 Detalhes do cartão <span className="font-normal text-gray-500">— opcional</span></p>
+                <div className="grid grid-cols-2 gap-2">
+                  <Campo label="Banco / cartão">
+                    <input value={form.cartao_banco}
+                      onChange={e => setForm(f => ({ ...f, cartao_banco: e.target.value }))}
+                      placeholder="Ex: Nubank" className="campo-input" />
+                  </Campo>
+                  <Campo label="Final (4 dígitos)">
+                    <input value={form.cartao_final}
+                      onChange={e => setForm(f => ({ ...f, cartao_final: e.target.value.replace(/\D/g, '').slice(0, 4) }))}
+                      placeholder="1234" inputMode="numeric" maxLength={4} className="campo-input" />
+                  </Campo>
+                </div>
+              </div>
+            )}
+
             <Campo label="Motorista (opcional)">
               <select value={form.motorista_id}
                 onChange={e => {
@@ -1044,7 +1077,7 @@ function FinanceiroRotaFixa({ empresaId }: { empresaId: string }) {
     const [{ data: cobrancas, error: errCobr }, { data: agends }, { data: encs }] = await Promise.all([
       supabase
         .from('cobrancas_empresa')
-        .select('id, tipo, categoria, observacao, valor, data, created_at, quilometragem, forma_pagamento')
+        .select('id, tipo, categoria, observacao, valor, data, created_at, quilometragem, forma_pagamento, cartao_banco, cartao_final')
         .eq('empresa_id', empresaId)
         .in('tipo', ['receita', 'despesa'])
         .order('created_at', { ascending: false }),
@@ -1359,6 +1392,8 @@ function FormLancamentoEmpresa({
     data:          lancamento?.data ?? format(new Date(), 'yyyy-MM-dd'),
     quilometragem: lancamento?.quilometragem != null ? String(lancamento.quilometragem) : '',
     forma_pagamento: lancamento?.forma_pagamento ?? 'pix',
+    cartao_banco: (lancamento as any)?.cartao_banco ?? '',
+    cartao_final: (lancamento as any)?.cartao_final ?? '',
   })
   const [saving, setSaving] = useState(false)
   const [erro, setErro]     = useState('')
@@ -1383,6 +1418,8 @@ function FormLancamentoEmpresa({
         ? parseInt(form.quilometragem)
         : null,
       forma_pagamento: tipo === 'despesa' ? form.forma_pagamento : null,
+      cartao_banco: (tipo === 'despesa' && form.forma_pagamento === 'cartao') ? (form.cartao_banco.trim() || null) : null,
+      cartao_final: (tipo === 'despesa' && form.forma_pagamento === 'cartao') ? (form.cartao_final.trim() || null) : null,
     }
 
     let error
@@ -1455,6 +1492,29 @@ function FormLancamentoEmpresa({
               <option value="cartao">Cartão</option>
               <option value="dinheiro">Dinheiro</option>
             </select>
+          </div>
+        )}
+
+        {/* Detalhes do cartão — só quando despesa paga no cartão. */}
+        {tipo === 'despesa' && form.forma_pagamento === 'cartao' && (
+          <div className="rounded-xl p-3 flex flex-col gap-2" style={{ background: '#EFF6FF', border: '1px solid #BFDBFE' }}>
+            <p className="text-xs font-semibold" style={{ color: '#1D4ED8' }}>💳 Detalhes do cartão <span className="font-normal text-gray-500">— opcional</span></p>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <p className="text-[11px] text-gray-500 mb-1">Banco / cartão</p>
+                <input value={form.cartao_banco}
+                  onChange={e => setForm(f => ({ ...f, cartao_banco: e.target.value }))}
+                  placeholder="Ex: Nubank"
+                  className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none bg-white focus:border-green-600" />
+              </div>
+              <div>
+                <p className="text-[11px] text-gray-500 mb-1">Final (4 dígitos)</p>
+                <input value={form.cartao_final}
+                  onChange={e => setForm(f => ({ ...f, cartao_final: e.target.value.replace(/\D/g, '').slice(0, 4) }))}
+                  placeholder="1234" inputMode="numeric" maxLength={4}
+                  className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none bg-white focus:border-green-600" />
+              </div>
+            </div>
           </div>
         )}
 

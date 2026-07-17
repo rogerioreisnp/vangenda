@@ -18,6 +18,8 @@ type Despesa = {
   motorista_id?: string
   registrado_por?: string | null
   forma_pagamento?: string | null
+  cartao_banco?: string | null
+  cartao_final?: string | null
 }
 
 type Receita = {
@@ -507,6 +509,9 @@ function FinanceiroContent() {
                               {format(new Date(d.data_despesa + 'T00:00:00'), "dd/MM/yyyy")}
                               {d.quilometragem ? <span className="ml-1 text-gray-300">· {d.quilometragem.toLocaleString('pt-BR')} km</span> : null}
                               {d.forma_pagamento ? <span className="ml-1 text-gray-300">· {{ pix: '📱 Pix', cartao: '💳 Cartão', dinheiro: '💵 Dinheiro' }[d.forma_pagamento] || d.forma_pagamento}</span> : null}
+                              {d.forma_pagamento === 'cartao' && ((d as any).cartao_banco || (d as any).cartao_final)
+                                ? <span className="ml-1 text-gray-300">({[(d as any).cartao_banco, (d as any).cartao_final ? `final ${(d as any).cartao_final}` : null].filter(Boolean).join(' · ')})</span>
+                                : null}
                             </p>
                             {anotadoPor && (
                               <p className="text-[10px] mt-0.5" style={{ color: '#0F6E56' }}>
@@ -2592,6 +2597,8 @@ function FormDespesa({
     data_despesa: despesa?.data_despesa ?? format(new Date(), 'yyyy-MM-dd'),
     quilometragem: despesa?.quilometragem?.toString() ?? '',
     forma_pagamento: despesa?.forma_pagamento ?? 'pix',
+    cartao_banco: (despesa as any)?.cartao_banco ?? '',
+    cartao_final: (despesa as any)?.cartao_final ?? '',
   })
   const [saving, setSaving] = useState(false)
   const [erro, setErro] = useState('')
@@ -2613,6 +2620,10 @@ function FormDespesa({
       quilometragem: (categoriasComKm.includes(form.categoria) && form.quilometragem)
         ? parseInt(form.quilometragem) : null,
       forma_pagamento: form.forma_pagamento,
+      // Detalhes do cartão só quando pago no cartão. Em outras formas, limpa
+      // pra não deixar dado órfão de uma troca de forma de pagamento.
+      cartao_banco: form.forma_pagamento === 'cartao' ? (form.cartao_banco.trim() || null) : null,
+      cartao_final: form.forma_pagamento === 'cartao' ? (form.cartao_final.trim() || null) : null,
     }
 
     let error
@@ -2693,6 +2704,30 @@ function FormDespesa({
             <option value="dinheiro">Dinheiro</option>
           </select>
         </div>
+
+        {/* Detalhes do cartão — só quando pago no cartão. Guarda apenas
+            banco/apelido + últimos 4 dígitos (nunca o número completo). */}
+        {form.forma_pagamento === 'cartao' && (
+          <div className="rounded-xl p-3 flex flex-col gap-2" style={{ background: '#EFF6FF', border: '1px solid #BFDBFE' }}>
+            <p className="text-xs font-semibold" style={{ color: '#1D4ED8' }}>💳 Detalhes do cartão <span className="font-normal text-gray-500">— opcional</span></p>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <p className="text-[11px] text-gray-500 mb-1">Banco / cartão</p>
+                <input value={form.cartao_banco}
+                  onChange={e => setForm(prev => ({ ...prev, cartao_banco: e.target.value }))}
+                  placeholder="Ex: Nubank"
+                  className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none bg-white focus:border-green-600" />
+              </div>
+              <div>
+                <p className="text-[11px] text-gray-500 mb-1">Final (4 dígitos)</p>
+                <input value={form.cartao_final}
+                  onChange={e => setForm(prev => ({ ...prev, cartao_final: e.target.value.replace(/\D/g, '').slice(0, 4) }))}
+                  placeholder="1234" inputMode="numeric" maxLength={4}
+                  className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none bg-white focus:border-green-600" />
+              </div>
+            </div>
+          </div>
+        )}
 
         {erro && <p className="text-xs text-red-500 bg-red-50 px-3 py-2 rounded-xl">{erro}</p>}
       </div>
