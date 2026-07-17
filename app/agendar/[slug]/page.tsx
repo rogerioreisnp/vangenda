@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { formatarTelefoneWhatsApp } from '@/lib/telefone'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import InstallBanner from '@/components/InstallBanner'
@@ -793,8 +794,7 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
             </div>
 
             {motorista.telefone ? (() => {
-              const tel = motorista.telefone.replace(/\D/g, '')
-              const telFormatado = tel.startsWith('55') ? tel : `55${tel}`
+              const telFormatado = formatarTelefoneWhatsApp(motorista.telefone)
               const msg = encodeURIComponent(
                 `Olá ${motorista.nome}, segue o comprovante do meu agendamento para ${dataSelecionada} - ${form.origem} → ${form.destino}`
               )
@@ -877,8 +877,7 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
             </div>
 
             {motorista.telefone && (() => {
-              const tel = motorista.telefone.replace(/\D/g, '')
-              const telFormatado = tel.startsWith('55') ? tel : `55${tel}`
+              const telFormatado = formatarTelefoneWhatsApp(motorista.telefone)
               const msg = encodeURIComponent(
                 `Olá ${motorista.nome}, segue o comprovante do meu agendamento para ${dataSelecionada} - ${form.origem} → ${form.destino}`
               )

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { formatarTelefoneWhatsApp } from '@/lib/telefone'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
@@ -492,8 +493,7 @@ function formatEnd(e: { rua?: string | null; numero?: string | null; bairro?: st
 }
 
 function waLink(tel: string, nome: string, c: Corrida): string {
-  const clean = tel.replace(/\D/g, '')
-  const t = clean.startsWith('55') ? clean : `55${clean}`
+  const t = formatarTelefoneWhatsApp(tel)
   const dataFmt = c.data_hora.slice(8, 10) + '/' + c.data_hora.slice(5, 7)
   const horaFmt = c.data_hora.slice(11, 16)
   const msg = encodeURIComponent(

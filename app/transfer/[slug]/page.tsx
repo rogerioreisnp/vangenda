@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { formatarTelefoneWhatsApp } from '@/lib/telefone'
 
 type EmpresaTransfer = {
   id: string
@@ -278,7 +279,8 @@ export default function TransferSlugPage({ params }: { params: { slug: string } 
               <Campo label="Telefone / WhatsApp *">
                 <input value={form.telefone}
                   onChange={e => setForm(f => ({ ...f, telefone: e.target.value }))}
-                  placeholder="(XX) XXXXX-XXXX" type="tel" className="campo-input" />
+                  placeholder="(11) 99999-9999 ou +1 555 123 4567" type="tel" className="campo-input" />
+                <p className="text-[10px] text-gray-400 mt-1">Número de fora do Brasil? Comece com + e o código do país (ex: +1, +351).</p>
               </Campo>
             </div>
 
@@ -522,9 +524,8 @@ export default function TransferSlugPage({ params }: { params: { slug: string } 
             </div>
 
             {(() => {
-              const tel = (empresa.whatsapp_comercial || empresa.telefone || '').replace(/\D/g, '')
-              if (!tel) return null
-              const telFmt = tel.startsWith('55') ? tel : `55${tel}`
+              const telFmt = formatarTelefoneWhatsApp(empresa.whatsapp_comercial || empresa.telefone)
+              if (!telFmt) return null
               const dataFmt = form.data.split('-').reverse().join('/')
               const msg = encodeURIComponent(
                 `Olá ${empresa.nome}, acabei de solicitar um transfer pelo site. Meu nome é ${form.nome}, para o dia ${dataFmt} às ${form.horario}, de ${form.origem} para ${form.destino}.`

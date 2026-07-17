@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { formatarTelefoneWhatsApp } from '@/lib/telefone'
 import ModalListaPassageirosPDF from '@/components/ModalListaPassageirosPDF'
 
 type RotaOpcao = {
@@ -1159,9 +1160,8 @@ export default function AgendamentosPage() {
   }
 
   function enviarWhatsAppConfirmacao(c: Corrida) {
-    const tel = (c.cliente_telefone || '').replace(/\D/g, '')
-    if (!tel) return
-    const telFmt = tel.startsWith('55') ? tel : `55${tel}`
+    const telFmt = formatarTelefoneWhatsApp(c.cliente_telefone)
+    if (!telFmt) return
     const data = `${c.data_hora.slice(8,10)}/${c.data_hora.slice(5,7)}/${c.data_hora.slice(0,4)}`
     const hora = c.data_hora.slice(11,16)
     const dia = diaSemana(c.data_hora)
@@ -1187,9 +1187,8 @@ export default function AgendamentosPage() {
   }
 
   function enviarWhatsAppClienteComMotorista(c: Corrida, motoristaId: string) {
-    const tel = (c.cliente_telefone || '').replace(/\D/g, '')
-    if (!tel) { alert('Cliente não tem telefone cadastrado.'); return }
-    const telFmt = tel.startsWith('55') ? tel : `55${tel}`
+    const telFmt = formatarTelefoneWhatsApp(c.cliente_telefone)
+    if (!telFmt) { alert('Cliente não tem telefone cadastrado.'); return }
     const msg = montarMsgDetalhada(c, motoristaId)
     window.open(`https://wa.me/${telFmt}?text=${encodeURIComponent(msg)}`, '_blank')
   }
@@ -1197,9 +1196,8 @@ export default function AgendamentosPage() {
   function enviarWhatsAppMotorista(c: Corrida, motoristaId: string) {
     const motorista = motoristasOpcoes.find(m => m.id === motoristaId)
     if (!motorista) return
-    const tel = motorista.telefone?.replace(/\D/g, '')
-    if (!tel) { alert(`Motorista ${motorista.nome} não tem telefone cadastrado.`); return }
-    const telFmt = tel.startsWith('55') ? tel : `55${tel}`
+    const telFmt = formatarTelefoneWhatsApp(motorista.telefone)
+    if (!telFmt) { alert(`Motorista ${motorista.nome} não tem telefone cadastrado.`); return }
     const msg = montarMsgDetalhada(c, motoristaId)
     window.open(`https://wa.me/${telFmt}?text=${encodeURIComponent(msg)}`, '_blank')
   }
@@ -2978,7 +2976,8 @@ export default function AgendamentosPage() {
             <Campo label="Telefone do solicitante">
               <input value={form.cliente_telefone}
                 onChange={e => setForm(f => ({ ...f, cliente_telefone: e.target.value }))}
-                placeholder="(XX) XXXXX-XXXX" className="campo-input" />
+                placeholder="(11) 99999-9999 ou +1 555 123 4567" className="campo-input" />
+              <p className="text-[10px] text-gray-400 mt-1">Aceita número internacional. Para fora do Brasil, comece com + e o código do país (ex: +1, +351).</p>
             </Campo>
 
             <Campo label="E-mail do solicitante">

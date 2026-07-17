@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { format, startOfMonth, endOfMonth, subDays, addDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { supabase } from '@/lib/supabase'
+import { formatarTelefoneWhatsApp } from '@/lib/telefone'
 import NotificacoesStatus from '@/components/NotificacoesStatus'
 
 type ProximaCorrida = {
@@ -1322,8 +1323,7 @@ function DashboardRotaFixa({
               <p className="text-center text-gray-400 text-sm py-10">Nenhum pagamento pendente</p>
             ) : pendentes.map(ag => {
               const mot = motByUserId[ag.motorista_id]
-              const rawTel = (ag.telefone_passageiro ?? '').replace(/\D/g, '')
-              const tel = rawTel ? (rawTel.startsWith('55') ? rawTel : `55${rawTel}`) : null
+              const tel = formatarTelefoneWhatsApp(ag.telefone_passageiro) || null
               const dataFmt = ag.data_viagem.split('-').reverse().join('/')
               const msg = encodeURIComponent(
                 `Olá ${ag.nome_passageiro.split(' ')[0]}, tudo bem? A sua passagem de ${ag.parada_origem} → ${ag.parada_destino} do dia ${dataFmt} no valor de R$${Number(ag.valor).toFixed(2).replace('.', ',')} está pendente de pagamento. Poderia realizar o pagamento?`
