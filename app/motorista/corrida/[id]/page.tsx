@@ -61,6 +61,10 @@ export default function CorridaFicha({ params }: { params: { id: string } }) {
   const [salvando, setSalvando] = useState(false)
   const [novoTrajeto, setNovoTrajeto] = useState('')
   const [salvandoTrajeto, setSalvandoTrajeto] = useState(false)
+  // Mensagem de erro visível quando UPDATE falha (RLS, sem permissão etc).
+  // Antes falhas silenciosas faziam a UI mentir sucesso e o gestor precisava
+  // ajustar tudo manualmente.
+  const [erroAcao, setErroAcao] = useState<string | null>(null)
 
   useEffect(() => { carregar() }, [params.id])
 
@@ -80,16 +84,27 @@ export default function CorridaFicha({ params }: { params: { id: string } }) {
     setLoading(false)
   }
 
+  // Tratamento de erro sempre — sem isso, RLS bloqueando (motorista sem
+  // policy pra UPDATE em corridas_empresa) fazia a UI fingir sucesso e o
+  // banco não atualizava. Motorista via "Concluída" mas gestor via
+  // "Confirmada". Julimar reportou esse cenário 2026-07-17.
   async function iniciarCorrida() {
     if (!c) return
     const km = parseFloat(kmInicial.replace(',', '.'))
     if (isNaN(km) || km < 0) return
     setSalvando(true)
-    await supabase.from('corridas_empresa')
+    setErroAcao(null)
+    const { data, error } = await supabase.from('corridas_empresa')
       .update({ status: 'em_andamento', km_inicial: km })
       .eq('id', c.id)
-    setC({ ...c, status: 'em_andamento', km_inicial: km })
+      .select('id')
     setSalvando(false)
+    if (error) { setErroAcao(`Erro ao iniciar: ${error.message}`); return }
+    if (!data || data.length === 0) {
+      setErroAcao('Sem permissão pra iniciar esta corrida. Confirme com o gestor que ela está atribuída a você e que a migration RLS foi rodada.')
+      return
+    }
+    setC({ ...c, status: 'em_andamento', km_inicial: km })
   }
 
   async function finalizarCorrida() {
@@ -98,22 +113,36 @@ export default function CorridaFicha({ params }: { params: { id: string } }) {
     if (isNaN(km) || km < 0) return
     if (c.km_inicial != null && km < c.km_inicial) return
     setSalvando(true)
-    await supabase.from('corridas_empresa')
+    setErroAcao(null)
+    const { data, error } = await supabase.from('corridas_empresa')
       .update({ status: 'concluida', km_final: km })
       .eq('id', c.id)
-    setC({ ...c, status: 'concluida', km_final: km })
+      .select('id')
     setSalvando(false)
+    if (error) { setErroAcao(`Erro ao finalizar: ${error.message}`); return }
+    if (!data || data.length === 0) {
+      setErroAcao('Sem permissão pra finalizar esta corrida. Confirme com o gestor que ela está atribuída a você.')
+      return
+    }
+    setC({ ...c, status: 'concluida', km_final: km })
   }
 
   async function adicionarTrajeto() {
     if (!c || !novoTrajeto.trim()) return
     setSalvandoTrajeto(true)
+    setErroAcao(null)
     const atuais = Array.isArray(c.trajetos) ? c.trajetos : []
     const novos = [...atuais, novoTrajeto.trim()]
-    await supabase.from('corridas_empresa').update({ trajetos: novos }).eq('id', c.id)
+    const { data, error } = await supabase.from('corridas_empresa')
+      .update({ trajetos: novos }).eq('id', c.id).select('id')
+    setSalvandoTrajeto(false)
+    if (error) { setErroAcao(`Erro ao adicionar trajeto: ${error.message}`); return }
+    if (!data || data.length === 0) {
+      setErroAcao('Sem permissão pra adicionar trajeto nesta corrida.')
+      return
+    }
     setC({ ...c, trajetos: novos })
     setNovoTrajeto('')
-    setSalvandoTrajeto(false)
   }
 
   if (loading) {
@@ -340,6 +369,15 @@ export default function CorridaFicha({ params }: { params: { id: string } }) {
             </div>
           )
         })()}
+
+        {/* Erro visível — se o UPDATE falhou por RLS/permissão/rede, o
+            motorista precisa saber. Antes falhava silenciosamente e a UI
+            fingia sucesso. */}
+        {erroAcao && (
+          <div className="rounded-2xl px-4 py-3 border" style={{ background: '#FEF2F2', borderColor: '#FECACA' }}>
+            <p className="text-xs" style={{ color: '#B91C1C' }}>⚠️ {erroAcao}</p>
+          </div>
+        )}
 
         {eDele && c.status === 'em_andamento' && (() => {
           const kmF = parseFloat(kmFinal.replace(',', '.'))
