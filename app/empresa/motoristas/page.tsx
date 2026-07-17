@@ -12,16 +12,25 @@ type Motorista = {
   placa: string | null
   cor: string | null
   status: string
+  veiculos?: VeiculoMotorista[]
 }
+
+type VeiculoMotorista = {
+  id?: string
+  veiculo: string
+  placa: string
+  cor: string
+}
+
+const VEICULO_VAZIO: VeiculoMotorista = { veiculo: '', placa: '', cor: '' }
+const MAX_VEICULOS = 5
 
 type FormMotorista = {
   nome: string
   email: string
   senha: string
   telefone: string
-  veiculo: string
-  placa: string
-  cor: string
+  veiculos: VeiculoMotorista[]
 }
 
 export default function MotoristasPage() {
@@ -30,7 +39,7 @@ export default function MotoristasPage() {
   const [loading, setLoading] = useState(true)
   const [modalAberto, setModalAberto] = useState(false)
   const [editando, setEditando] = useState<Motorista | null>(null)
-  const [form, setForm] = useState<FormMotorista>({ nome: '', email: '', senha: '', telefone: '', veiculo: '', placa: '', cor: '' })
+  const [form, setForm] = useState<FormMotorista>({ nome: '', email: '', senha: '', telefone: '', veiculos: [{ ...VEICULO_VAZIO }] })
   const [salvando, setSalvando] = useState(false)
   const salvandoRef = useRef(false)
   const [erro, setErro] = useState('')
@@ -61,24 +70,32 @@ export default function MotoristasPage() {
 
     const { data: mots } = await supabase
       .from('motoristas_empresa')
-      .select('id, user_id, nome, telefone, veiculo, placa, cor, status')
+      .select('id, user_id, nome, telefone, veiculo, placa, cor, status, veiculos_motorista(id, veiculo, placa, cor, ordem)')
       .eq('empresa_id', empresa.id)
       .order('created_at')
 
-    if (mots) setMotoristas(mots)
+    if (mots) {
+      setMotoristas(mots.map((m: any) => ({
+        ...m,
+        veiculos: (m.veiculos_motorista || []).sort((a: any, b: any) => a.ordem - b.ordem),
+      })))
+    }
     setLoading(false)
   }
 
   function abrirAdicionar() {
     setEditando(null)
-    setForm({ nome: '', email: '', senha: '', telefone: '', veiculo: '', placa: '', cor: '' })
+    setForm({ nome: '', email: '', senha: '', telefone: '', veiculos: [{ ...VEICULO_VAZIO }] })
     setErro('')
     setModalAberto(true)
   }
 
   function abrirEditar(m: Motorista) {
     setEditando(m)
-    setForm({ nome: m.nome, email: '', senha: '', telefone: m.telefone || '', veiculo: m.veiculo || '', placa: m.placa || '', cor: m.cor || '' })
+    const veiculosCarregados = (m.veiculos && m.veiculos.length > 0)
+      ? m.veiculos.map(v => ({ id: v.id, veiculo: v.veiculo || '', placa: v.placa || '', cor: v.cor || '' }))
+      : [{ ...VEICULO_VAZIO }]
+    setForm({ nome: m.nome, email: '', senha: '', telefone: m.telefone || '', veiculos: veiculosCarregados })
     setErro('')
     setModalAberto(true)
   }
@@ -99,18 +116,39 @@ export default function MotoristasPage() {
           return
         }
 
+        // Veículo principal (colunas legadas) = primeiro da lista, mantém
+        // compatibilidade com mensagem de WhatsApp / tela do motorista.
+        const veiculosValidos = form.veiculos.filter(v => v.veiculo.trim() || v.placa.trim() || v.cor.trim())
+        const principal = veiculosValidos[0]
+
         const { error } = await supabase
           .from('motoristas_empresa')
           .update({
             nome: form.nome.trim(),
             telefone: form.telefone.trim() || null,
-            veiculo: form.veiculo.trim() || null,
-            placa: form.placa.trim() || null,
-            cor: form.cor.trim() || null,
+            veiculo: principal?.veiculo.trim() || null,
+            placa: principal?.placa.trim() || null,
+            cor: principal?.cor.trim() || null,
           })
           .eq('id', editando.id)
 
         if (error) { setErro('Erro ao salvar: ' + error.message); return }
+
+        // Sincroniza veiculos_motorista: apaga tudo e reinsere (volume baixo,
+        // máx 5 — mesmo padrão usado em paradas_empresa pra rotas).
+        await supabase.from('veiculos_motorista').delete().eq('motorista_empresa_id', editando.id)
+        if (veiculosValidos.length > 0) {
+          const { error: errVeiculos } = await supabase.from('veiculos_motorista').insert(
+            veiculosValidos.map((v, i) => ({
+              motorista_empresa_id: editando.id,
+              veiculo: v.veiculo.trim() || null,
+              placa: v.placa.trim() || null,
+              cor: v.cor.trim() || null,
+              ordem: i,
+            }))
+          )
+          if (errVeiculos) { setErro('Erro ao salvar veículos: ' + errVeiculos.message); return }
+        }
 
         if (form.email.trim() || form.senha) {
           const { data: { session } } = await supabase.auth.getSession()
@@ -151,9 +189,9 @@ export default function MotoristasPage() {
             email: form.email.trim(),
             senha: form.senha,
             telefone: form.telefone.trim() || null,
-            veiculo: form.veiculo.trim() || null,
-            placa: form.placa.trim() || null,
-            cor: form.cor.trim() || null,
+            veiculos: form.veiculos
+              .filter(v => v.veiculo.trim() || v.placa.trim() || v.cor.trim())
+              .map(v => ({ veiculo: v.veiculo.trim() || null, placa: v.placa.trim() || null, cor: v.cor.trim() || null })),
           }),
         })
 
@@ -262,7 +300,16 @@ export default function MotoristasPage() {
                     {m.telefone && (
                       <p className="text-xs text-gray-400 mt-0.5">{m.telefone}</p>
                     )}
-                    {(m.veiculo || m.placa || m.cor) && (
+                    {(m.veiculos && m.veiculos.length > 0) ? (
+                      <div className="mt-0.5">
+                        <p className="text-xs text-gray-400">
+                          {[m.veiculos[0].veiculo, m.veiculos[0].cor, m.veiculos[0].placa].filter(Boolean).join(' · ')}
+                        </p>
+                        {m.veiculos.length > 1 && (
+                          <p className="text-[10px] text-gray-400">+ {m.veiculos.length - 1} veículo{m.veiculos.length - 1 !== 1 ? 's' : ''}</p>
+                        )}
+                      </div>
+                    ) : (m.veiculo || m.placa || m.cor) && (
                       <p className="text-xs text-gray-400 mt-0.5">
                         {[m.veiculo, m.cor, m.placa].filter(Boolean).join(' · ')}
                       </p>
@@ -376,18 +423,55 @@ export default function MotoristasPage() {
               <input value={form.telefone} onChange={e => setForm(f => ({ ...f, telefone: e.target.value }))}
                 placeholder="(XX) XXXXX-XXXX" className="campo-input" />
             </Campo>
-            <Campo label="Veículo">
-              <input value={form.veiculo} onChange={e => setForm(f => ({ ...f, veiculo: e.target.value }))}
-                placeholder="Ex: Van Sprinter" className="campo-input" />
-            </Campo>
-            <Campo label="Placa">
-              <input value={form.placa} onChange={e => setForm(f => ({ ...f, placa: e.target.value }))}
-                placeholder="Ex: ABC-1234" className="campo-input" />
-            </Campo>
-            <Campo label="Cor do veículo">
-              <input value={form.cor} onChange={e => setForm(f => ({ ...f, cor: e.target.value }))}
-                placeholder="Ex: Preto, Branco, Prata" className="campo-input" />
-            </Campo>
+
+            {/* Lista repetível de veículos — motorista pode ter mais de um
+                carro (próprio + cedido pela empresa, ou terceirizado com
+                frota própria). Limite de 5 evita cadastro descontrolado.
+                Mesmo padrão visual do "+ Adicionar passageiro" no transfer. */}
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-medium text-gray-500">Veículos</p>
+                {form.veiculos.length < MAX_VEICULOS && (
+                  <button type="button"
+                    onClick={() => setForm(f => ({ ...f, veiculos: [...f.veiculos, { ...VEICULO_VAZIO }] }))}
+                    className="text-xs font-semibold" style={{ color: '#1D9E75' }}>
+                    + Adicionar veículo
+                  </button>
+                )}
+              </div>
+
+              {form.veiculos.map((v, idx) => (
+                <div key={idx} className="rounded-xl border border-gray-100 p-3 flex flex-col gap-2" style={{ background: '#f9f9f7' }}>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                      Veículo {idx + 1}
+                    </span>
+                    {form.veiculos.length > 1 && (
+                      <button type="button"
+                        onClick={() => setForm(f => ({ ...f, veiculos: f.veiculos.filter((_, i) => i !== idx) }))}
+                        className="text-xs font-semibold text-red-500">
+                        − Remover
+                      </button>
+                    )}
+                  </div>
+                  <input value={v.veiculo}
+                    onChange={e => setForm(f => ({ ...f, veiculos: f.veiculos.map((vv, i) => i === idx ? { ...vv, veiculo: e.target.value } : vv) }))}
+                    placeholder="Ex: Van Sprinter" className="campo-input" />
+                  <div className="grid grid-cols-2 gap-2">
+                    <input value={v.placa}
+                      onChange={e => setForm(f => ({ ...f, veiculos: f.veiculos.map((vv, i) => i === idx ? { ...vv, placa: e.target.value } : vv) }))}
+                      placeholder="Placa: ABC-1234" className="campo-input" />
+                    <input value={v.cor}
+                      onChange={e => setForm(f => ({ ...f, veiculos: f.veiculos.map((vv, i) => i === idx ? { ...vv, cor: e.target.value } : vv) }))}
+                      placeholder="Cor" className="campo-input" />
+                  </div>
+                </div>
+              ))}
+
+              {form.veiculos.length >= MAX_VEICULOS && (
+                <p className="text-[10px] text-gray-400">Limite de {MAX_VEICULOS} veículos por motorista.</p>
+              )}
+            </div>
 
             {erro && (
               <div className="rounded-xl px-4 py-3 text-sm border"

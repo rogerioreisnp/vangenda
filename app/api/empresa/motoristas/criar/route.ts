@@ -30,7 +30,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
     }
 
-    const { nome, email, senha, telefone, veiculo, placa, cor } = await req.json()
+    const { nome, email, senha, telefone, veiculo, placa, cor, veiculos } = await req.json()
+
+    // `veiculos` (array) é o formato novo (múltiplos veículos). Se não vier,
+    // cai pro formato antigo (veiculo/placa/cor únicos) por compatibilidade.
+    const listaVeiculos: { veiculo?: string; placa?: string; cor?: string }[] =
+      Array.isArray(veiculos) && veiculos.length > 0
+        ? veiculos
+        : (veiculo || placa || cor) ? [{ veiculo, placa, cor }] : []
 
     if (!nome?.trim() || !email?.trim() || !senha) {
       return NextResponse.json({ error: 'Nome, e-mail e senha são obrigatórios' }, { status: 400 })
@@ -103,23 +110,50 @@ export async function POST(req: NextRequest) {
     console.log('[criar-motorista] Upsert motoristas OK')
 
     // ── Passo 3: inserir em motoristas_empresa ────────────────────────────────
-    const { error: errMotEmp } = await supabaseAdmin
+    // Colunas legadas veiculo/placa/cor guardam o "veículo principal" (o
+    // primeiro da lista) — mantém compatibilidade com todo lugar que ainda
+    // lê essas colunas direto (mensagem de WhatsApp, tela do motorista).
+    const principal = listaVeiculos[0]
+    const { data: motEmpCriado, error: errMotEmp } = await supabaseAdmin
       .from('motoristas_empresa')
       .insert({
         empresa_id: gestor.empresa_id,
         user_id: motoristaId,
         nome: nome.trim(),
         telefone: telefone?.trim() || null,
-        veiculo: veiculo?.trim() || null,
-        placa: placa?.trim() || null,
-        cor: cor?.trim() || null,
+        veiculo: principal?.veiculo?.trim() || null,
+        placa: principal?.placa?.trim() || null,
+        cor: principal?.cor?.trim() || null,
         status: 'ativo',
       })
+      .select('id')
+      .single()
 
     if (errMotEmp) {
       console.error('[criar-motorista] Erro no insert motoristas_empresa:', errMotEmp.message)
       await rollback(supabaseAdmin, motoristaId, true)
       throw errMotEmp
+    }
+
+    // ── Passo 4: inserir todos os veículos em veiculos_motorista ──────────────
+    if (listaVeiculos.length > 0 && motEmpCriado) {
+      const registros = listaVeiculos
+        .filter(v => v.veiculo?.trim() || v.placa?.trim() || v.cor?.trim())
+        .map((v, i) => ({
+          motorista_empresa_id: motEmpCriado.id,
+          veiculo: v.veiculo?.trim() || null,
+          placa: v.placa?.trim() || null,
+          cor: v.cor?.trim() || null,
+          ordem: i,
+        }))
+      if (registros.length > 0) {
+        const { error: errVeiculos } = await supabaseAdmin.from('veiculos_motorista').insert(registros)
+        if (errVeiculos) {
+          // Não faz rollback total por causa disso — motorista e veículo
+          // principal já foram criados com sucesso. Só loga o problema.
+          console.error('[criar-motorista] Erro ao inserir veiculos_motorista:', errVeiculos.message)
+        }
+      }
     }
 
     console.log('[criar-motorista] Concluído com sucesso para:', emailNorm)
