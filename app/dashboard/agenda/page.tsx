@@ -85,7 +85,7 @@ export default function AgendaPage() {
   // gestorUserId = user.id do dono da empresa. Populado quando eh motorista
   // funcionario, pra redirecionar SELECTs e INSERTs. Individual/gestor nao usa.
   const [empresaCtx, setEmpresaCtx] = useState<{ empresaId: string; motEmpresaId?: string; gestorUserId?: string } | null | undefined>(undefined)
-  const [rotasEmpresa, setRotasEmpresa] = useState<{ id: string; nome: string | null; origem: string | null; destino: string | null; horario_ida: string | null; horario_volta: string | null; modo_endereco: 'paradas' | 'livre' | null; preco: number | null }[]>([])
+  const [rotasEmpresa, setRotasEmpresa] = useState<{ id: string; nome: string | null; origem: string | null; destino: string | null; horario_ida: string | null; horario_volta: string | null; modo_endereco: 'paradas' | 'livre' | null; preco: number | null; motorista_id?: string | null }[]>([])
   const [isGestor, setIsGestor] = useState(false)
   const [gestorUserIds, setGestorUserIds] = useState<string[]>([])
   const [empresaReady, setEmpresaReady] = useState(false)
@@ -93,7 +93,15 @@ export default function AgendaPage() {
 
   useEffect(() => { detectarEmpresa().then(() => setEmpresaReady(true)) }, [])
   useEffect(() => { if (empresaReady) carregarMes() }, [empresaReady, mesAtual, rotaSelecionada])
-  useEffect(() => { carregarEncomendasDoDia(diaSelecionado); carregarFretamentosDoDia(diaSelecionado) }, [diaSelecionado])
+  // empresaReady na dependência: sem isso, no primeiro carregamento as
+  // encomendas/fretamentos buscavam ANTES de detectarEmpresa resolver o
+  // gestorUserId — motorista funcionário consultava com o próprio user.id
+  // e via lista vazia até trocar de dia manualmente.
+  useEffect(() => {
+    if (!empresaReady) return
+    carregarEncomendasDoDia(diaSelecionado)
+    carregarFretamentosDoDia(diaSelecionado)
+  }, [empresaReady, diaSelecionado, rotaSelecionada])
 
   async function carregarMes() {
     setLoading(true)
@@ -178,7 +186,46 @@ export default function AgendaPage() {
       supabase.from('motoristas').select('dias_trabalho, nome').eq('id', user.id).single(),
     ])
 
-    if (data) setAgendamentos([...data].sort((a, b) => {
+    // Motorista funcionario tambem ve os agendamentos do LINK PUBLICO da
+    // empresa (gravados em corridas_empresa, nao em agendamentos). Antes so
+    // o gestor mesclava essa tabela — o motorista da rota nao via os
+    // passageiros que agendaram sozinhos pelo link. RLS ja liberada em
+    // funcionario_corridas_empresa_select. Mesmo mapeamento usado no bloco
+    // do gestor acima.
+    let corrDataMot: any[] = []
+    if (empresaCtx?.motEmpresaId && empresaCtx.empresaId) {
+      let cq = supabase.from('corridas_empresa')
+        .select('id, rota_id, origem, destino, data_hora, cliente_nome, cliente_telefone, valor, status, forma_pagamento')
+        .eq('empresa_id', empresaCtx.empresaId)
+        .gte('data_hora', `${inicio}T00:00:00`)
+        .lte('data_hora', `${fim}T23:59:59`)
+        .neq('status', 'cancelada')
+      if (rotaSelecionada) cq = cq.eq('rota_id', rotaSelecionada)
+      const { data: cd } = await cq
+      corrDataMot = cd || []
+    }
+    const corrMappedMot: Agendamento[] = corrDataMot.reduce((acc: Agendamento[], c: any) => {
+      if (!c.data_hora || !c.cliente_nome) return acc
+      const horaStr = c.data_hora.slice(11, 16)
+      const rotaEmp = rotasEmpresa.find(r => r.id === c.rota_id)
+      const turno: 'ida' | 'volta' = rotaEmp?.horario_volta?.slice(0, 5) === horaStr ? 'volta' : 'ida'
+      acc.push({
+        id: c.id,
+        nome_passageiro: c.cliente_nome,
+        parada_origem: c.origem || rotaEmp?.origem || '',
+        parada_destino: c.destino || rotaEmp?.destino || '',
+        turno,
+        valor: Number(c.valor) || 0,
+        status: (c.status === 'confirmada' ? 'confirmado' : 'agendado') as 'agendado' | 'confirmado' | 'cancelado',
+        data_viagem: c.data_hora.slice(0, 10),
+        telefone_passageiro: c.cliente_telefone ?? undefined,
+        forma_pagamento: c.forma_pagamento ?? undefined,
+        _source: 'corrida_empresa' as const,
+      })
+      return acc
+    }, [])
+
+    if (data) setAgendamentos([...data, ...corrMappedMot].sort((a, b) => {
       if (a.ordem != null && b.ordem != null) return a.ordem - b.ordem
       if (a.ordem != null) return -1
       if (b.ordem != null) return 1
@@ -195,12 +242,18 @@ export default function AgendaPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
     const idParaBuscar = empresaCtx?.gestorUserId ?? user.id
-    const { data: encs } = await supabase
+    let q = supabase
       .from('encomendas')
-      .select('id, nome, telefone, valor, observacao, pago, valor_pago, forma_pagamento, data_entrega, horario_entrega')
+      .select('id, nome, telefone, valor, observacao, pago, valor_pago, forma_pagamento, data_entrega, horario_entrega, rota_id')
       .eq('motorista_id', idParaBuscar)
       .eq('data_entrega', format(data, 'yyyy-MM-dd'))
       .order('criado_em', { ascending: true })
+    // Filtro por rota (empresa): mostra as da rota selecionada + as sem rota
+    // (encomendas antigas, criadas antes da coluna existir, não podem sumir).
+    if (empresaCtx && rotaSelecionada) {
+      q = q.or(`rota_id.eq.${rotaSelecionada},rota_id.is.null`)
+    }
+    const { data: encs } = await q
     setEncomendasDoDia(encs || [])
   }
 
@@ -263,10 +316,16 @@ export default function AgendaPage() {
       setEmpresaCtx({ empresaId: motEmp.empresa_id, motEmpresaId: motEmp.id, gestorUserId: gestorUid })
       const { data: rts } = await supabase
         .from('rotas_empresa')
-        .select('id, nome, origem, destino, ativa, horario_ida, horario_volta, modo_endereco, preco')
+        .select('id, nome, origem, destino, ativa, horario_ida, horario_volta, modo_endereco, preco, motorista_id')
         .eq('empresa_id', motEmp.empresa_id)
         .order('created_at', { ascending: true })
-      setRotasEmpresa((rts || []).filter(r => r.ativa !== false))
+      const rotasAtivas = (rts || []).filter(r => r.ativa !== false)
+      setRotasEmpresa(rotasAtivas)
+      // Pré-seleciona a rota atribuída a este motorista (rotas_empresa.motorista_id
+      // guarda o id de motoristas_empresa). Ele abre a agenda já vendo só a
+      // rota dele; pode trocar pra "Todas as rotas" no seletor se quiser.
+      const rotaDoMotorista = rotasAtivas.find((r: any) => r.motorista_id === motEmp.id)
+      if (rotaDoMotorista) setRotaSelecionada(rotaDoMotorista.id)
     } else {
       setEmpresaCtx(null)
     }
@@ -358,7 +417,10 @@ export default function AgendaPage() {
           })}
         </div>
 
-        {isGestor && rotasEmpresa.length > 0 && (
+        {/* Seletor de rota: gestor E motorista funcionário. O motorista abre
+            pré-selecionado na rota dele (setado em detectarEmpresa) mas pode
+            ver "Todas as rotas" se precisar cobrir outra. */}
+        {(isGestor || !!empresaCtx?.motEmpresaId) && rotasEmpresa.length > 0 && (
           <div className="pb-3">
             <p className="text-xs font-medium mb-1.5" style={{ color: '#9FE1CB' }}>Rota</p>
             <select
@@ -497,6 +559,8 @@ export default function AgendaPage() {
       {modalEncomenda && (
         <ModalNovaEncomenda
           dataSelecionada={diaSelecionado}
+          rotasEmpresa={empresaCtx ? rotasEmpresa : undefined}
+          rotaDefault={empresaCtx ? rotaSelecionada || undefined : undefined}
           onFechar={() => setModalEncomenda(false)}
           onSalvo={() => { setModalEncomenda(false); carregarEncomendasDoDia(diaSelecionado) }}
         />
@@ -1209,7 +1273,7 @@ function DetalhePassageiro({ p, onVoltar, onAtualizar, horarioIda, horarioVolta 
 function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSalvo }: {
   data: Date, rotas: any[],
   empresaCtx: { empresaId: string; motEmpresaId?: string; gestorUserId?: string } | null,
-  rotasEmpresa: { id: string; nome: string | null; origem: string | null; destino: string | null; horario_ida?: string | null; horario_volta?: string | null; modo_endereco?: 'paradas' | 'livre' | null; preco?: number | null }[],
+  rotasEmpresa: { id: string; nome: string | null; origem: string | null; destino: string | null; horario_ida?: string | null; horario_volta?: string | null; modo_endereco?: 'paradas' | 'livre' | null; preco?: number | null; motorista_id?: string | null }[],
   onFechar: () => void, onSalvo: () => void
 }) {
   const [paradas, setParadas] = useState<any[]>([])
@@ -1297,7 +1361,14 @@ function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSa
   }, [rotaEmpresaId])
 
   useEffect(() => {
-    if (rotasEmpresa.length > 0 && !rotaEmpresaId) setRotaEmpresaId(rotasEmpresa[0].id)
+    if (rotasEmpresa.length > 0 && !rotaEmpresaId) {
+      // Motorista funcionário: default na rota atribuída a ele (se houver).
+      // Gestor/sem atribuição: primeira rota da lista.
+      const rotaDoMotorista = empresaCtx?.motEmpresaId
+        ? rotasEmpresa.find(r => r.motorista_id === empresaCtx.motEmpresaId)
+        : undefined
+      setRotaEmpresaId(rotaDoMotorista?.id || rotasEmpresa[0].id)
+    }
   }, [rotasEmpresa])
 
   useEffect(() => {
@@ -1507,8 +1578,11 @@ function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSa
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
-        {empresaCtx && rotasEmpresa.length > 1 && (
-          <Campo label="Rota">
+        {/* Seletor de rota SEMPRE visível pra empresa (mesmo com 1 rota) —
+            o gestor/motorista precisa ver claramente em qual rota o
+            agendamento vai cair. Antes ficava escondido com 1 rota só. */}
+        {empresaCtx && rotasEmpresa.length > 0 && (
+          <Campo label="Rota do agendamento *">
             <select value={rotaEmpresaId} onChange={e => {
               setRotaEmpresaId(e.target.value)
               setForm(f => ({ ...f, parada_origem: '', parada_destino: '' }))

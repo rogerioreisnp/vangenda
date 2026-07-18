@@ -4,12 +4,17 @@ import { format } from 'date-fns'
 import { supabase } from '@/lib/supabase'
 import { getMotoristaIdSalvar } from '@/lib/motorista-salvar'
 
-export default function ModalNovaEncomenda({ onFechar, onSalvo, nomeInicial, telefoneInicial, dataSelecionada }: {
+export default function ModalNovaEncomenda({ onFechar, onSalvo, nomeInicial, telefoneInicial, dataSelecionada, rotasEmpresa, rotaDefault }: {
   onFechar: () => void
   onSalvo: () => void
   nomeInicial?: string
   telefoneInicial?: string
   dataSelecionada?: Date
+  // Empresarial rota_fixa: lista de rotas pra vincular a encomenda.
+  // Individual não passa (undefined) → seletor não aparece, comportamento
+  // idêntico ao anterior.
+  rotasEmpresa?: { id: string; nome: string | null; origem: string | null; destino: string | null }[]
+  rotaDefault?: string
 }) {
   const dataDefault = dataSelecionada ? format(dataSelecionada, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd')
   const [form, setForm] = useState({
@@ -18,6 +23,7 @@ export default function ModalNovaEncomenda({ onFechar, onSalvo, nomeInicial, tel
     forma_pagamento: 'dinheiro',
     data_entrega: dataDefault,
     horario_entrega: '',
+    rota_id: rotaDefault ?? '',
   })
   const [saving, setSaving] = useState(false)
   const [erro, setErro] = useState('')
@@ -69,6 +75,8 @@ export default function ModalNovaEncomenda({ onFechar, onSalvo, nomeInicial, tel
       forma_pagamento: form.status === 'pago_na_hora' ? form.forma_pagamento : null,
       data_entrega: dataEntrega,
       horario_entrega: horarioEntrega,
+      // Rota da empresa (rota_fixa empresarial). Individual: sempre null.
+      rota_id: form.rota_id || null,
     }).select('id').single()
 
     if (error) { setErro('Erro: ' + error.message); setSaving(false); return }
@@ -118,6 +126,24 @@ export default function ModalNovaEncomenda({ onFechar, onSalvo, nomeInicial, tel
             placeholder="(95) 99999-9999" type="tel"
             className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none bg-white focus:border-green-600" />
         </div>
+
+        {/* Rota da encomenda — só empresarial rota_fixa (individual não recebe
+            a prop). Sempre visível pra deixar claro em qual van a encomenda vai. */}
+        {rotasEmpresa && rotasEmpresa.length > 0 && (
+          <div>
+            <p className="text-xs font-medium text-gray-500 mb-1">Rota da encomenda</p>
+            <select value={form.rota_id}
+              onChange={e => setForm(f => ({ ...f, rota_id: e.target.value }))}
+              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none bg-white focus:border-green-600">
+              <option value="">Sem rota específica</option>
+              {rotasEmpresa.map(r => (
+                <option key={r.id} value={r.id}>
+                  {r.nome || `${r.origem || ''} → ${r.destino || ''}`}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div>
           <p className="text-xs font-medium text-gray-500 mb-1">Valor do frete (R$) *</p>
