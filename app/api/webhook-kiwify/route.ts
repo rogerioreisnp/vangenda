@@ -35,9 +35,22 @@ export async function POST(req: NextRequest) {
 
     console.log(`[kiwify] event: ${eventType} | email: ${email} | produto: ${nomeProduto} | plano: ${planName} | expira: ${accessUntil}`)
 
-    // Só processar compras aprovadas
-    const eventosAprovados = ['order_approved', 'paid', 'approved', 'complete', 'completed']
-    if (!eventosAprovados.includes(eventType)) {
+    // Eventos que ATIVAM/RENOVAM acesso (compra aprovada + renovação recorrente).
+    // Cobre variações porque a Kiwify não documenta 100% os nomes técnicos.
+    const eventosAtivam = [
+      'order_approved', 'paid', 'approved', 'complete', 'completed',
+      'subscription_renewed', 'subscription_renewal', 'renewal_approved',
+      'subscription_charged', 'subscription_charge_paid', 'charge_recurring_paid',
+    ]
+    // Eventos que DESATIVAM acesso (cancelamento, atraso, reembolso, chargeback).
+    // "Atraso" cobre o caso do cartão não passar — sistema já bloqueia até quitar.
+    const eventosDesativam = [
+      'subscription_canceled', 'subscription_cancelled',
+      'subscription_late', 'subscription_overdue',
+      'order_refunded', 'refunded', 'chargeback',
+    ]
+
+    if (!eventosAtivam.includes(eventType) && !eventosDesativam.includes(eventType)) {
       console.log(`[kiwify] Evento ignorado: ${eventType}`)
       return NextResponse.json({ ok: true, msg: `Evento ignorado: ${eventType}` })
     }
@@ -135,6 +148,36 @@ export async function POST(req: NextRequest) {
 
     const userId = usuario.id
     console.log(`[kiwify] Usuário encontrado: ${userId}`)
+
+    // DESATIVAÇÃO — cancelamento, atraso, reembolso ou chargeback.
+    // Setar status 'inativo' bloqueia acesso imediato (tanto em motoristas
+    // quanto em empresas o gate lê status/assinatura_status pra decidir).
+    if (eventosDesativam.includes(eventType)) {
+      console.log(`[kiwify] Desativando acesso — motivo: ${eventType}`)
+      const { data: gestorDes } = await supabase
+        .from('gestores')
+        .select('empresa_id')
+        .eq('user_id', userId)
+        .single()
+
+      if (gestorDes?.empresa_id) {
+        const { error: errEmpDes } = await supabase
+          .from('empresas')
+          .update({ status: 'inativo' })
+          .eq('id', gestorDes.empresa_id)
+        if (errEmpDes) console.error('[kiwify] Erro desativar empresa:', errEmpDes.message)
+        console.log(`[kiwify] Empresa desativada | empresa_id: ${gestorDes.empresa_id}`)
+      } else {
+        // Individual: mantém assinatura_expira pra preservar histórico, muda só status.
+        const { error: errMotDes } = await supabase
+          .from('motoristas')
+          .update({ assinatura_status: 'inativo' })
+          .eq('id', userId)
+        if (errMotDes) console.error('[kiwify] Erro desativar motorista:', errMotDes.message)
+        console.log(`[kiwify] Motorista desativado | user_id: ${userId}`)
+      }
+      return NextResponse.json({ ok: true, msg: `Acesso desativado: ${email} (motivo: ${eventType})` })
+    }
 
     // Se URL tem ?plano=individual, vai direto para motoristas
     if (planoParam === 'individual') {
