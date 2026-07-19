@@ -116,7 +116,7 @@ type LancamentoEmpresa = {
   forma_pagamento: string | null
 }
 
-type FiltroRF = 'hoje' | '7dias' | '30dias' | 'mes'
+type FiltroRF = 'hoje' | '7dias' | '30dias' | 'mes' | 'personalizado'
 
 const categoriasReceitaRF = [
   { value: 'rota_diaria',       label: 'Rota diária',      emoji: '🚗' },
@@ -1043,6 +1043,8 @@ type ReceitaEncomenda = {
 function FinanceiroRotaFixa({ empresaId }: { empresaId: string }) {
   const [filtro, setFiltro] = useState<FiltroRF>('mes')
   const [mes, setMes] = useState(new Date())
+  const [dataInicioCustom, setDataInicioCustom] = useState(format(new Date(), 'yyyy-MM-dd'))
+  const [dataFimCustom, setDataFimCustom] = useState(format(new Date(), 'yyyy-MM-dd'))
   const [lancamentos, setLancamentos] = useState<LancamentoEmpresa[]>([])
   const [receitasAgendamentos, setReceitasAgendamentos] = useState<ReceitaAgendamento[]>([])
   const [receitasEncomendas, setReceitasEncomendas] = useState<ReceitaEncomenda[]>([])
@@ -1050,13 +1052,14 @@ function FinanceiroRotaFixa({ empresaId }: { empresaId: string }) {
   const [modal, setModal] = useState<null | 'receita' | 'despesa'>(null)
   const [editando, setEditando] = useState<LancamentoEmpresa | null>(null)
 
-  useEffect(() => { carregar() }, [filtro, mes])
+  useEffect(() => { carregar() }, [filtro, mes, dataInicioCustom, dataFimCustom])
 
   function getPeriodo() {
     const hoje = new Date()
     if (filtro === 'hoje')  return { inicio: format(startOfDay(hoje), 'yyyy-MM-dd'),  fim: format(endOfDay(hoje), 'yyyy-MM-dd') }
     if (filtro === '7dias') return { inicio: format(subDays(hoje, 6), 'yyyy-MM-dd'),   fim: format(hoje, 'yyyy-MM-dd') }
     if (filtro === '30dias') return { inicio: format(subDays(hoje, 29), 'yyyy-MM-dd'), fim: format(hoje, 'yyyy-MM-dd') }
+    if (filtro === 'personalizado') return { inicio: dataInicioCustom, fim: dataFimCustom }
     return { inicio: format(startOfMonth(mes), 'yyyy-MM-dd'), fim: format(endOfMonth(mes), 'yyyy-MM-dd') }
   }
 
@@ -1147,6 +1150,7 @@ function FinanceiroRotaFixa({ empresaId }: { empresaId: string }) {
     { key: '7dias',  label: '7 dias'  },
     { key: '30dias', label: '30 dias' },
     { key: 'mes',    label: 'Mês'     },
+    { key: 'personalizado', label: '📅' },
   ]
 
   return (
@@ -1177,6 +1181,23 @@ function FinanceiroRotaFixa({ empresaId }: { empresaId: string }) {
             <button onClick={() => setMes(m => addMonths(m, 1))}
               style={{ background: '#085041', color: '#9FE1CB' }}
               className="w-8 h-8 rounded-lg flex items-center justify-center text-lg font-bold">›</button>
+          </div>
+        )}
+
+        {filtro === 'personalizado' && (
+          <div className="rounded-xl mb-4 p-2.5 flex items-center gap-2" style={{ background: '#085041' }}>
+            <span className="text-[11px] flex-shrink-0" style={{ color: '#9FE1CB' }}>De:</span>
+            <input type="date" value={dataInicioCustom}
+              onChange={e => setDataInicioCustom(e.target.value)}
+              max={dataFimCustom}
+              className="flex-1 min-w-0 px-2 py-1 rounded-lg text-xs outline-none"
+              style={{ background: '#E1F5EE', color: '#0F6E56' }} />
+            <span className="text-[11px] flex-shrink-0" style={{ color: '#9FE1CB' }}>até</span>
+            <input type="date" value={dataFimCustom}
+              onChange={e => setDataFimCustom(e.target.value)}
+              min={dataInicioCustom}
+              className="flex-1 min-w-0 px-2 py-1 rounded-lg text-xs outline-none"
+              style={{ background: '#E1F5EE', color: '#0F6E56' }} />
           </div>
         )}
 
