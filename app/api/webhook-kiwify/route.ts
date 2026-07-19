@@ -42,11 +42,13 @@ export async function POST(req: NextRequest) {
       'subscription_renewed', 'subscription_renewal', 'renewal_approved',
       'subscription_charged', 'subscription_charge_paid', 'charge_recurring_paid',
     ]
-    // Eventos que DESATIVAM acesso (cancelamento, atraso, reembolso, chargeback).
-    // "Atraso" cobre o caso do cartão não passar — sistema já bloqueia até quitar.
+    // Eventos que DESATIVAM acesso (cancelamento definitivo, reembolso, chargeback).
+    // NÃO tratamos "atraso" (subscription_late): a Kiwify já reprocessa o cartão
+    // algumas vezes antes de cancelar de fato. Bloquear no primeiro atraso irrita
+    // cliente com problema passageiro de cartão. Se realmente não pagar, vira
+    // subscription_canceled e aí desativamos.
     const eventosDesativam = [
       'subscription_canceled', 'subscription_cancelled',
-      'subscription_late', 'subscription_overdue',
       'order_refunded', 'refunded', 'chargeback',
     ]
 
