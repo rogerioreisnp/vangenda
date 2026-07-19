@@ -211,7 +211,7 @@ function EtapaPlano({ onEscolher }: { onEscolher: (p: Periodo) => void }) {
       <div className="rounded-xl px-4 py-3 text-center"
         style={{ background: '#E1F5EE', border: '1px solid #9FE1CB' }}>
         <p className="text-sm font-semibold" style={{ color: '#085041' }}>
-          🎉 15 dias de trial grátis
+          🎉 10 dias de trial grátis
         </p>
         <p className="text-xs mt-0.5" style={{ color: '#0F6E56' }}>
           Sem cartão de crédito. Cancele quando quiser.
@@ -287,7 +287,7 @@ function EtapaPlano({ onEscolher }: { onEscolher: (p: Periodo) => void }) {
               </button>
 
               <p className="text-center text-xs mt-3" style={{ color: inv ? '#9FE1CB' : '#9ca3af' }}>
-                15 dias grátis · sem cartão de crédito
+                10 dias grátis · sem cartão de crédito
               </p>
             </div>
           </div>
@@ -350,7 +350,7 @@ function EtapaDados({
             {periodoInfo.nome} — R$ {periodoInfo.preco}{periodoInfo.precoLabel}
           </p>
           <p className="text-xs" style={{ color: '#0F6E56' }}>
-            15 dias grátis · motoristas ilimitados
+            10 dias grátis · motoristas ilimitados
           </p>
         </div>
       </div>

@@ -242,6 +242,7 @@ const PLANOS_TRIAL = [
     destaque: false,
     badge: null as string | null,
     badgeStyle: undefined as { bg: string; text: string } | undefined,
+    kiwifyUrl: 'https://pay.kiwify.com.br/EsShhQI',
   },
   {
     id: 'anual' as const,
@@ -252,6 +253,7 @@ const PLANOS_TRIAL = [
     destaque: true,
     badge: 'MAIS ESCOLHIDO' as string | null,
     badgeStyle: { bg: '#FAC775', text: '#7C3E00' } as { bg: string; text: string } | undefined,
+    kiwifyUrl: 'https://pay.kiwify.com.br/9VEuUrk',
   },
   {
     id: 'semestral' as const,
@@ -262,6 +264,7 @@ const PLANOS_TRIAL = [
     destaque: false,
     badge: 'MELHOR CUSTO-BENEFÍCIO' as string | null,
     badgeStyle: { bg: '#E1F5EE', text: '#085041' } as { bg: string; text: string } | undefined,
+    kiwifyUrl: 'https://pay.kiwify.com.br/B7F8FFO',
   },
 ]
 
@@ -291,7 +294,7 @@ function TelaTrialExpirado({ onSair }: { onSair: () => void }) {
           <p className="text-4xl mb-3">⏰</p>
           <p className="text-base font-bold text-gray-800 mb-2">Período de avaliação encerrado</p>
           <p className="text-sm text-gray-500 leading-relaxed">
-            Seu trial de 15 dias chegou ao fim. Assine um plano para continuar
+            Seu trial de 10 dias chegou ao fim. Assine um plano para continuar
             usando o RotaGenda Empresarial com todos os seus dados preservados.
           </p>
         </div>
@@ -327,7 +330,7 @@ function TelaTrialExpirado({ onSair }: { onSair: () => void }) {
                     </p>
                     <p className="text-[10px] text-gray-400 mt-0.5">{p.precoLabel}</p>
                   </div>
-                  <a href={waAssinar(p.nome)} target="_blank" rel="noopener noreferrer"
+                  <a href={p.kiwifyUrl} target="_blank" rel="noopener noreferrer"
                     className="px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap"
                     style={{ background: p.destaque ? '#0F6E56' : '#1D9E75', color: '#fff' }}>
                     Assinar
