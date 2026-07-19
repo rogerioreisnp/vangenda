@@ -431,6 +431,10 @@ export default function AgendamentosPage() {
   const [kmFinalFichaVolta, setKmFinalFichaVolta] = useState('')
   const [enviandoEmail, setEnviandoEmail] = useState(false)
   const [motoristaFicha, setMotoristaFicha] = useState('')
+  // Motorista da VOLTA — separado do motorista da ida. Corridas podem trocar
+  // de motorista entre os dois trechos (dias diferentes, disponibilidade
+  // diferente), então cada ponta precisa do próprio seletor.
+  const [motoristaFichaVolta, setMotoristaFichaVolta] = useState('')
   const [contactsApi, setContactsApi] = useState(false)
   const fichaAutoAberta = useRef(false)
   useEffect(() => { setContactsApi('contacts' in navigator) }, [])
@@ -986,7 +990,14 @@ export default function AgendamentosPage() {
       motorista_id: novoMotoristaId || null,
       motoristas_empresa: motoristaNovo ? { nome: motoristaNovo.nome } : null,
     } : x))
+    // Atualiza corridaFicha OU voltaDaFicha, dependendo de qual ponta foi
+    // acionada — permite motorista diferente na ida e na volta.
     setCorridaFicha(prev => prev && prev.id === c.id ? {
+      ...prev,
+      motorista_id: novoMotoristaId || null,
+      motoristas_empresa: motoristaNovo ? { nome: motoristaNovo.nome } : null,
+    } : prev)
+    setVoltaDaFicha(prev => prev && prev.id === c.id ? {
       ...prev,
       motorista_id: novoMotoristaId || null,
       motoristas_empresa: motoristaNovo ? { nome: motoristaNovo.nome } : null,
@@ -1077,6 +1088,7 @@ export default function AgendamentosPage() {
     setCorridaFicha(idaAtual)
     setVoltaDaFicha(voltaAtual)
     setMotoristaFicha(idaAtual.motorista_id ?? '')
+    setMotoristaFichaVolta(voltaAtual?.motorista_id ?? '')
     setModalFichaAberto(true)
   }
 
@@ -1086,7 +1098,11 @@ export default function AgendamentosPage() {
     return dias[d.getDay()]
   }
 
-  function montarMsgDetalhada(c: Corrida, motoristaId: string): string {
+  // `etapa` marca a mensagem como (IDA) ou (VOLTA) quando a corrida faz
+  // parte de um par ida-volta (duas linhas separadas em corridas_empresa).
+  // Sem isso, reenviar a confirmação da volta ficava idêntico ao da ida e
+  // confundia motorista/cliente sobre qual trecho estava sendo confirmado.
+  function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'volta'): string {
     const motorista = motoristasOpcoes.find(m => m.id === motoristaId)
     const data = `${c.data_hora.slice(8,10)}/${c.data_hora.slice(5,7)}/${c.data_hora.slice(0,4)}`
     const hora = c.data_hora.slice(11,16)
@@ -1105,7 +1121,8 @@ export default function AgendamentosPage() {
       if (p.telefone) telefones += telefones ? `, ${p.telefone}` : p.telefone
     }
 
-    let msg = `Olá, tudo bem?\n\nSegue a confirmação do Transfer: ${num}`
+    const rotulo = etapa === 'ida' ? ' (IDA)' : etapa === 'volta' ? ' (VOLTA)' : ''
+    let msg = `Olá, tudo bem?\n\nSegue a confirmação do Transfer${rotulo}: ${num}`
     msg += `\n📅 *Data/Hora:* ${data} às ${hora} (${dia})`
     msg += `\n\n👤 *Passageiros:* ${passageiros}`
     if (telefones) msg += `\n📞 *Telefones:* ${telefones}`
@@ -1186,19 +1203,19 @@ export default function AgendamentosPage() {
     window.open(`https://wa.me/${telFmt}?text=${encodeURIComponent(msg)}`, '_blank')
   }
 
-  function enviarWhatsAppClienteComMotorista(c: Corrida, motoristaId: string) {
+  function enviarWhatsAppClienteComMotorista(c: Corrida, motoristaId: string, etapa?: 'ida' | 'volta') {
     const telFmt = formatarTelefoneWhatsApp(c.cliente_telefone)
     if (!telFmt) { alert('Cliente não tem telefone cadastrado.'); return }
-    const msg = montarMsgDetalhada(c, motoristaId)
+    const msg = montarMsgDetalhada(c, motoristaId, etapa)
     window.open(`https://wa.me/${telFmt}?text=${encodeURIComponent(msg)}`, '_blank')
   }
 
-  function enviarWhatsAppMotorista(c: Corrida, motoristaId: string) {
+  function enviarWhatsAppMotorista(c: Corrida, motoristaId: string, etapa?: 'ida' | 'volta') {
     const motorista = motoristasOpcoes.find(m => m.id === motoristaId)
     if (!motorista) return
     const telFmt = formatarTelefoneWhatsApp(motorista.telefone)
     if (!telFmt) { alert(`Motorista ${motorista.nome} não tem telefone cadastrado.`); return }
-    const msg = montarMsgDetalhada(c, motoristaId)
+    const msg = montarMsgDetalhada(c, motoristaId, etapa)
     window.open(`https://wa.me/${telFmt}?text=${encodeURIComponent(msg)}`, '_blank')
   }
 
@@ -2449,18 +2466,18 @@ export default function AgendamentosPage() {
             {corridaFicha.status === 'confirmada' && (
               <div className="flex flex-col gap-2 mt-2">
                 <button
-                  onClick={() => enviarWhatsAppMotorista(corridaFicha, motoristaFicha)}
+                  onClick={() => enviarWhatsAppMotorista(corridaFicha, motoristaFicha, voltaDaFicha ? 'ida' : undefined)}
                   disabled={!motoristaFicha}
                   className="w-full py-4 rounded-2xl text-white text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-40"
                   style={{ background: '#25D366' }}>
-                  💬 Enviar ficha ao motorista
+                  💬 Enviar ficha ao motorista{voltaDaFicha ? ' (ida)' : ''}
                 </button>
                 <button
-                  onClick={() => enviarWhatsAppClienteComMotorista(corridaFicha, motoristaFicha)}
+                  onClick={() => enviarWhatsAppClienteComMotorista(corridaFicha, motoristaFicha, voltaDaFicha ? 'ida' : undefined)}
                   disabled={!motoristaFicha}
                   className="w-full py-3.5 rounded-2xl text-white text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-40"
                   style={{ background: '#128C7E' }}>
-                  💬 Enviar ficha ao cliente
+                  💬 Enviar ficha ao cliente{voltaDaFicha ? ' (ida)' : ''}
                 </button>
                 {/* KM inicial obrigatório para iniciar corrida (transfer/diária/city_tour) */}
                 {(corridaFicha.tipo_servico === 'transfer' || corridaFicha.tipo_servico === 'diaria' || corridaFicha.tipo_servico === 'city_tour') ? (() => {
@@ -2510,18 +2527,18 @@ export default function AgendamentosPage() {
             {corridaFicha.status === 'em_andamento' && (
               <div className="flex flex-col gap-2 mt-2">
                 <button
-                  onClick={() => enviarWhatsAppMotorista(corridaFicha, corridaFicha.motorista_id ?? '')}
+                  onClick={() => enviarWhatsAppMotorista(corridaFicha, corridaFicha.motorista_id ?? '', voltaDaFicha ? 'ida' : undefined)}
                   disabled={!corridaFicha.motorista_id}
                   className="w-full py-4 rounded-2xl text-white text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-40"
                   style={{ background: '#25D366' }}>
-                  💬 Reenviar ficha ao motorista
+                  💬 Reenviar ficha ao motorista{voltaDaFicha ? ' (ida)' : ''}
                 </button>
                 <button
-                  onClick={() => enviarWhatsAppClienteComMotorista(corridaFicha, corridaFicha.motorista_id ?? '')}
+                  onClick={() => enviarWhatsAppClienteComMotorista(corridaFicha, corridaFicha.motorista_id ?? '', voltaDaFicha ? 'ida' : undefined)}
                   disabled={!corridaFicha.motorista_id}
                   className="w-full py-3.5 rounded-2xl text-white text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-40"
                   style={{ background: '#128C7E' }}>
-                  💬 Reenviar ficha ao cliente
+                  💬 Reenviar ficha ao cliente{voltaDaFicha ? ' (ida)' : ''}
                 </button>
                 {/* KM final obrigatório para finalizar corrida (transfer/diária/city_tour) */}
                 {(corridaFicha.tipo_servico === 'transfer' || corridaFicha.tipo_servico === 'diaria' || corridaFicha.tipo_servico === 'city_tour') ? (() => {
@@ -2612,6 +2629,63 @@ export default function AgendamentosPage() {
                     <p className="text-sm font-semibold" style={{ color: '#3C3489' }}>
                       💰 R$ {Number(v.valor).toFixed(2).replace('.', ',')}
                     </p>
+                  )}
+
+                  {/* Motorista da volta — pode ser diferente do da ida (dias
+                      distintos, disponibilidade diferente). Botão "Salvar"
+                      só aparece quando o valor muda, igual ao seletor da ida. */}
+                  {(v.status === 'confirmada' || v.status === 'em_andamento') && motoristasOpcoes.length > 0 && (
+                    <div className="flex flex-col gap-2">
+                      <p className="text-xs font-semibold" style={{ color: '#3C3489' }}>
+                        {v.status === 'em_andamento' ? '🚗 Motorista da volta' : 'Definir motorista da volta'}
+                      </p>
+                      <select
+                        value={motoristaFichaVolta}
+                        onChange={e => setMotoristaFichaVolta(e.target.value)}
+                        className="w-full px-3 py-2.5 rounded-xl border text-sm text-gray-700 bg-white outline-none"
+                        style={{ borderColor: '#AFA9EC' }}>
+                        <option value="">Selecione o motorista...</option>
+                        {motoristasOpcoes.map(m => (
+                          <option key={m.id} value={m.id}>{m.nome}</option>
+                        ))}
+                      </select>
+                      {motoristaFichaVolta !== (v.motorista_id ?? '') && (
+                        <button
+                          onClick={() => atribuirMotoristaInline(v, motoristaFichaVolta)}
+                          disabled={confirmandoFicha}
+                          className="w-full py-2.5 rounded-xl text-xs font-semibold border disabled:opacity-40"
+                          style={{ background: '#3C3489', color: '#fff', borderColor: '#3C3489' }}>
+                          {confirmandoFicha
+                            ? 'Salvando…'
+                            : motoristaFichaVolta
+                            ? '💾 Salvar motorista da volta (notifica ele agora)'
+                            : '💾 Remover motorista da volta'}
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Confirmação por WhatsApp — separada da ida. Reportado pelo
+                      Julimar: quando ida e volta são em dias diferentes, o
+                      motorista/cliente precisam de uma confirmação específica
+                      da volta, não só a mensagem combinada da ida. */}
+                  {(v.status === 'confirmada' || v.status === 'em_andamento') && (
+                    <div className="flex flex-col gap-2">
+                      <button
+                        onClick={() => enviarWhatsAppMotorista(v, motoristaFichaVolta || (v.motorista_id ?? ''), 'volta')}
+                        disabled={!motoristaFichaVolta && !v.motorista_id}
+                        className="w-full py-3 rounded-xl text-white text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-40"
+                        style={{ background: '#25D366' }}>
+                        💬 {v.status === 'em_andamento' ? 'Reenviar' : 'Enviar'} ficha ao motorista (volta)
+                      </button>
+                      <button
+                        onClick={() => enviarWhatsAppClienteComMotorista(v, motoristaFichaVolta || (v.motorista_id ?? ''), 'volta')}
+                        disabled={!motoristaFichaVolta && !v.motorista_id}
+                        className="w-full py-2.5 rounded-xl text-white text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-40"
+                        style={{ background: '#128C7E' }}>
+                        💬 {v.status === 'em_andamento' ? 'Reenviar' : 'Enviar'} ficha ao cliente (volta)
+                      </button>
+                    </div>
                   )}
 
                   {/* KM da volta se ja preenchido */}
