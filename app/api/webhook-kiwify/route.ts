@@ -77,8 +77,60 @@ export async function POST(req: NextRequest) {
 
     const usuario = userData?.users?.find(u => u.email?.toLowerCase() === email)
     if (!usuario) {
-      console.warn(`[kiwify] Usuário não cadastrado ainda: ${email} | plano: ${planoParam} | expira: ${expira}`)
-      return NextResponse.json({ ok: true, msg: `Aguardando cadastro do usuário: ${email}` })
+      // Cliente pagou com email diferente do cadastro (ou ainda não cadastrou).
+      // Guarda o pagamento em `pagamentos_orfaos` pra não perder + notifica o
+      // admin por email pra resolver manualmente (linkar ao user_id correto).
+      // Case real: Girassol tour, 2026-07-19.
+      console.warn(`[kiwify] Órfão — email não cadastrado: ${email} | plano: ${planoParam} | expira: ${expira}`)
+
+      const valorPago = Number(order?.Commissions?.charge_amount ?? order?.CheckoutValueByCurrency?.value ?? order?.total_amount ?? 0) / 100
+      const kiwifyOrderId = order?.order_id ?? order?.id ?? null
+
+      const { error: errOrfao } = await supabase.from('pagamentos_orfaos').insert({
+        email_pagamento: email,
+        valor: isFinite(valorPago) && valorPago > 0 ? valorPago : null,
+        plano_nome: planName || nomeProduto || null,
+        periodo,
+        expira_em: expira,
+        kiwify_order_id: kiwifyOrderId,
+        payload_completo: body,
+      })
+      if (errOrfao) console.error('[kiwify] Erro ao salvar órfão:', errOrfao.message)
+
+      // Notifica admin por email — reaproveita Resend que já está configurado.
+      const adminEmail = process.env.ADMIN_EMAIL || 'rogerioreisguitar@gmail.com'
+      const resendKey = process.env.RESEND_API_KEY
+      if (resendKey) {
+        const htmlAdmin = `
+<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:20px;">
+  <h2 style="color:#A32D2D;margin:0 0 12px 0;">⚠️ Pagamento órfão — Kiwify</h2>
+  <p style="color:#374151;">Um cliente pagou mas o email não bate com nenhum cadastro no app. Precisa ativar manualmente.</p>
+  <div style="background:#FEF2F2;border-left:4px solid #A32D2D;padding:16px;border-radius:8px;margin:16px 0;">
+    <p style="margin:0 0 6px 0;"><strong>Email do pagamento:</strong> ${email}</p>
+    <p style="margin:0 0 6px 0;"><strong>Plano:</strong> ${planName || nomeProduto || '—'}</p>
+    <p style="margin:0 0 6px 0;"><strong>Período:</strong> ${periodo}</p>
+    <p style="margin:0 0 6px 0;"><strong>Expira em:</strong> ${expira}</p>
+    <p style="margin:0;"><strong>Kiwify Order ID:</strong> ${kiwifyOrderId ?? '—'}</p>
+  </div>
+  <p style="color:#6B7280;font-size:13px;">Como resolver: descubra o email real do cliente no app, e rode um UPDATE em <code>motoristas</code> ou <code>empresas</code> conforme o plano. Depois marque <code>resolvido = true</code> na tabela <code>pagamentos_orfaos</code>.</p>
+</div>`
+        try {
+          await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              from: 'Rotagenda Alertas <alertas@rotagenda.com.br>',
+              to: [adminEmail],
+              subject: `⚠️ Pagamento órfão Kiwify: ${email}`,
+              html: htmlAdmin,
+            }),
+          })
+        } catch (e) {
+          console.error('[kiwify] Falha ao enviar email admin:', e)
+        }
+      }
+
+      return NextResponse.json({ ok: true, msg: `Pagamento órfão registrado: ${email}` })
     }
 
     const userId = usuario.id
