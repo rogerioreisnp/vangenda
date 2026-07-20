@@ -606,23 +606,7 @@ export default function ConfiguracoesPage() {
           </p>
         </Secao>
 
-        <Secao titulo="💬 Mensagem de confirmação (WhatsApp)">
-          <Campo label="Mensagem enviada ao passageiro">
-            <textarea
-              value={motorista?.mensagem_confirmacao ?? ''}
-              onChange={e => setMotorista((m: any) => ({ ...m, mensagem_confirmacao: e.target.value }))}
-              placeholder={'Olá {nome}! 👋\n\nConfirmando sua viagem:\n📍 {origem} → {destino}\n📅 {data} - {turno}\n💰 R$ {valor}\n\nTudo certo? ✅'}
-              rows={6}
-              className="campo-input"
-              style={{ resize: 'vertical' }}
-            />
-          </Campo>
-          <p className="text-xs text-gray-400 mt-2 leading-relaxed">
-            Deixe em branco para usar a mensagem padrão. Use as variáveis: <b>{'{nome}'}</b>, <b>{'{origem}'}</b>, <b>{'{destino}'}</b>, <b>{'{data}'}</b>, <b>{'{turno}'}</b>, <b>{'{valor}'}</b>.
-          </p>
-        </Secao>
-
-        <Secao titulo="🔗 Meu link de agendamento">
+<Secao titulo="🔗 Meu link de agendamento">
           {temEmpresa && empresaSlug && (
             <div className="rounded-xl p-3 mb-3" style={{ background: '#E1F5EE', border: '1px solid #9FE1CB' }}>
               <p className="text-xs" style={{ color: '#085041' }}>

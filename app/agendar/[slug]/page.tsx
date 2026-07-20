@@ -599,30 +599,6 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
                     )}
                   </Campo>
 
-                  {/* ── QUANTIDADE DE BAGAGEM ── */}
-                  <Campo label="Quantidade de bagagem">
-                    <div className="flex items-center gap-3">
-                      <button
-                        onClick={() => setForm(f => ({ ...f, quantidade_bagagem: Math.max(0, f.quantidade_bagagem - 1) }))}
-                        className="w-10 h-10 rounded-xl text-xl font-bold border border-gray-200 flex items-center justify-center"
-                        style={{ background: '#f0f0ec', color: '#0F6E56' }}>
-                        −
-                      </button>
-                      <div className="flex-1 text-center">
-                        <span className="text-2xl font-bold text-gray-800">🧳 {form.quantidade_bagagem}</span>
-                        <p className="text-xs text-gray-400">
-                          {form.quantidade_bagagem === 1 ? 'mala/volume' : 'malas/volumes'}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => setForm(f => ({ ...f, quantidade_bagagem: f.quantidade_bagagem + 1 }))}
-                        className="w-10 h-10 rounded-xl text-xl font-bold border border-gray-200 flex items-center justify-center"
-                        style={{ background: '#0F6E56', color: '#fff' }}>
-                        +
-                      </button>
-                    </div>
-                  </Campo>
-
                   {/* ── VALOR ── */}
                   {valorUnitario !== null && (
                     <div style={{ background: '#E1F5EE', borderColor: '#9FE1CB' }}
