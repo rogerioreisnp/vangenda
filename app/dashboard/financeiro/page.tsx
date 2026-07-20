@@ -88,6 +88,7 @@ const categoriasDespesa = [
   { value: 'hospedagem', label: 'Hospedagem/Hotel', emoji: '🏨' },
   { value: 'financiamento', label: 'Financiamento/Parcela', emoji: '🚙' },
   { value: 'pneu', label: 'Pneu', emoji: '🔄' },
+  { value: 'contas', label: 'Contas', emoji: '🧾' },
   { value: 'outros', label: 'Outros', emoji: '📦' },
 ]
 

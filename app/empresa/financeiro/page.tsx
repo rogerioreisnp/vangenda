@@ -86,6 +86,7 @@ const CATEGORIAS = [
   { valor: 'hospedagem',        label: 'Hospedagem/Hotel',    emoji: '🏨' },
   { valor: 'financiamento',     label: 'Financiamento/Parcela', emoji: '🚙' },
   { valor: 'multa',             label: 'Multa',               emoji: '⚠️' },
+  { valor: 'contas',            label: 'Contas',              emoji: '🧾' },
   { valor: 'outros',            label: 'Outros',              emoji: '📦' },
 ] as const
 
@@ -136,6 +137,7 @@ const categoriasDespesaRF = [
   { value: 'hospedagem',    label: 'Hospedagem/Hotel', emoji: '🏨' },
   { value: 'financiamento', label: 'Financiamento/Parcela', emoji: '🚙' },
   { value: 'pneu',          label: 'Pneu',             emoji: '🔄' },
+  { value: 'contas',        label: 'Contas',           emoji: '🧾' },
   { value: 'outros',        label: 'Outros',           emoji: '📦' },
 ]
 
