@@ -493,18 +493,37 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
 
               {!lotado && (
                 <>
-                  {/* Filtro por cidade: só ativa quando o motorista preencheu
-                      cidade_origem+cidade_destino na rota E pelo menos uma parada
-                      tem cidade. Sem isso, mantém comportamento antigo (mostra
-                      todas as paradas) — 100% retrocompatível. */}
+                  {/* Filtro por cidade — 100% retrocompativel:
+                      - Ativa quando motorista preencheu cidade_origem+destino na rota.
+                      - Cidade da parada: usa p.cidade se marcado explicitamente;
+                        senao infere pelo nome (parada "Campinas" numa rota com
+                        cidade_origem=Campinas conta como Campinas). Assim o
+                        motorista nao precisa marcar cada parada quando o nome
+                        ja diz tudo — caso Francisco (PI).
+                      - Quando so sobra 1 parada apos filtrar, vira campo FIXO
+                        (nao dropdown) e o form ja auto-seleciona — zero chance
+                        do passageiro escolher direcao errada. */}
                   {(() => {
                     const cO = rota?.cidade_origem?.trim()
                     const cD = rota?.cidade_destino?.trim()
-                    const filtroAtivo = !!(cO && cD && paradas.some(p => p.cidade))
+                    const filtroAtivo = !!(cO && cD)
+                    const cidadeDe = (p: any): string | null => {
+                      if (p.cidade?.trim()) return p.cidade.trim()
+                      if (!filtroAtivo) return null
+                      const n = (p.nome || '').toLowerCase()
+                      if (cO && n.includes(cO.toLowerCase())) return cO
+                      if (cD && n.includes(cD.toLowerCase())) return cD
+                      return null
+                    }
                     const cidadeEmbarque    = filtroAtivo ? (form.turno === 'ida' ? cO : cD) : null
                     const cidadeDesembarque = filtroAtivo ? (form.turno === 'ida' ? cD : cO) : null
-                    const paradasEmbarque    = filtroAtivo ? paradas.filter(p => p.cidade === cidadeEmbarque)    : paradas
-                    const paradasDesembarque = filtroAtivo ? paradas.filter(p => p.cidade === cidadeDesembarque) : paradas
+                    const paradasEmbarque    = filtroAtivo ? paradas.filter(p => cidadeDe(p) === cidadeEmbarque)    : paradas
+                    const paradasDesembarque = filtroAtivo ? paradas.filter(p => cidadeDe(p) === cidadeDesembarque) : paradas
+                    const embFixa = filtroAtivo && paradasEmbarque.length    === 1 ? paradasEmbarque[0]    : null
+                    const desFixo = filtroAtivo && paradasDesembarque.length === 1 ? paradasDesembarque[0] : null
+                    // Auto-seleciona quando so ha 1 opcao — evita passageiro esquecer.
+                    if (embFixa && form.origem  !== embFixa.nome) setTimeout(() => setForm(f => ({ ...f, origem:  embFixa.nome })), 0)
+                    if (desFixo && form.destino !== desFixo.nome) setTimeout(() => setForm(f => ({ ...f, destino: desFixo.nome })), 0)
                     return (
                       <>
                         {filtroAtivo && (
@@ -519,18 +538,32 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
                         )}
                         <div className="grid grid-cols-2 gap-2">
                           <Campo label={filtroAtivo ? `Embarca em (${cidadeEmbarque})` : 'Embarca em'}>
-                            <select value={form.origem} onChange={e => setForm(f => ({ ...f, origem: e.target.value }))}
-                              className="campo-input">
-                              <option value="">Selecione...</option>
-                              {paradasEmbarque.map(p => <option key={p.id} value={p.nome}>{p.nome}</option>)}
-                            </select>
+                            {embFixa ? (
+                              <div className="campo-input flex items-center gap-2"
+                                style={{ background: '#F0F9F5', color: '#0F6E56', fontWeight: 500 }}>
+                                <span>✓</span>{embFixa.nome}
+                              </div>
+                            ) : (
+                              <select value={form.origem} onChange={e => setForm(f => ({ ...f, origem: e.target.value }))}
+                                className="campo-input">
+                                <option value="">Selecione...</option>
+                                {paradasEmbarque.map(p => <option key={p.id} value={p.nome}>{p.nome}</option>)}
+                              </select>
+                            )}
                           </Campo>
                           <Campo label={filtroAtivo ? `Desembarca em (${cidadeDesembarque})` : 'Desembarca em'}>
-                            <select value={form.destino} onChange={e => setForm(f => ({ ...f, destino: e.target.value }))}
-                              className="campo-input">
-                              <option value="">Selecione...</option>
-                              {paradasDesembarque.map(p => <option key={p.id} value={p.nome}>{p.nome}</option>)}
-                            </select>
+                            {desFixo ? (
+                              <div className="campo-input flex items-center gap-2"
+                                style={{ background: '#F0F9F5', color: '#0F6E56', fontWeight: 500 }}>
+                                <span>✓</span>{desFixo.nome}
+                              </div>
+                            ) : (
+                              <select value={form.destino} onChange={e => setForm(f => ({ ...f, destino: e.target.value }))}
+                                className="campo-input">
+                                <option value="">Selecione...</option>
+                                {paradasDesembarque.map(p => <option key={p.id} value={p.nome}>{p.nome}</option>)}
+                              </select>
+                            )}
                           </Campo>
                         </div>
                       </>
