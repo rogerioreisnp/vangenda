@@ -1239,7 +1239,7 @@ export default function AgendamentosPage() {
     if (!telFmt) { alert('Cliente não tem telefone cadastrado.'); return }
     const nome = (c as any).passageiro1_nome || c.cliente_nome || ''
     let msg = `Olá ${nome}! 🙏\n\n`
-    msg += `Sua corrida de ${c.origem} para ${c.destino} foi concluída com sucesso hoje.\n\n`
+    msg += `Seu atendimento de ${c.origem} para ${c.destino} foi concluído com sucesso hoje.\n\n`
     msg += `Foi um prazer atender você! Ficamos à disposição para as próximas viagens.\n\n`
     msg += `Obrigado pela preferência!`
     if (empresaNome) msg += `\n— *${empresaNome.toUpperCase()}*`
@@ -1255,7 +1255,7 @@ export default function AgendamentosPage() {
     if (!telFmt) { alert(`Motorista ${motorista.nome} não tem telefone cadastrado.`); return }
     const data = `${c.data_hora.slice(8,10)}/${c.data_hora.slice(5,7)}/${c.data_hora.slice(0,4)}`
     let msg = `Olá ${motorista.nome}! 🚐\n\n`
-    msg += `Passando pra agradecer pela parceria na corrida de ${data} (${c.origem} → ${c.destino}).\n\n`
+    msg += `Passando pra agradecer pela parceria no atendimento de ${data} (${c.origem} → ${c.destino}).\n\n`
     msg += `Serviço concluído com excelência — conto com você nas próximas! 🤝`
     if (empresaNome) msg += `\n\n— *${empresaNome.toUpperCase()}*`
     window.open(`https://wa.me/${telFmt}?text=${encodeURIComponent(msg)}`, '_blank')
@@ -1727,7 +1727,7 @@ export default function AgendamentosPage() {
         <button onClick={abrirNovaCorrida}
           className="w-full py-3 rounded-xl text-sm font-semibold"
           style={{ background: '#1D9E75', color: '#fff' }}>
-          + Nova corrida
+          + Novo atendimento
         </button>
 
         {/* Lista de corridas e agendamentos */}
@@ -1758,7 +1758,7 @@ export default function AgendamentosPage() {
               <>
                 <p className="text-sm text-gray-500">Nenhum agendamento ainda.</p>
                 <p className="text-xs text-gray-400 mt-1">
-                  {tipoOperacao === 'rota_fixa' ? 'Toque em "+ Agendar passageiro" para começar.' : 'Toque em "+ Nova corrida" para começar.'}
+                  {tipoOperacao === 'rota_fixa' ? 'Toque em "+ Agendar passageiro" para começar.' : 'Toque em "+ Novo atendimento" para começar.'}
                 </p>
               </>
             )}
@@ -1853,7 +1853,7 @@ export default function AgendamentosPage() {
                         )}
                         {c.status !== 'pendente' && (
                           <button onClick={e => { e.stopPropagation(); abrirEditar(c) }}
-                            title="Editar corrida"
+                            title="Editar atendimento"
                             className="px-2.5 py-1 rounded-lg text-[10px] font-medium"
                             style={{ background: '#E1F5EE', color: '#0F6E56' }}>
                             ✏️
@@ -1945,7 +1945,7 @@ export default function AgendamentosPage() {
                       </p>
                       {ida.status !== 'pendente' && (
                         <button onClick={e => { e.stopPropagation(); abrirEditar(ida, volta.id) }}
-                          title="Editar corrida (ida e volta)"
+                          title="Editar atendimento (ida e volta)"
                           className="px-2.5 py-1 rounded-lg text-[10px] font-medium"
                           style={{ background: '#E1F5EE', color: '#0F6E56' }}>
                           ✏️
@@ -2422,7 +2422,7 @@ export default function AgendamentosPage() {
             {(corridaFicha.status === 'confirmada' || corridaFicha.status === 'em_andamento') && (
               <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-2">
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
-                  {corridaFicha.status === 'em_andamento' ? '🚗 Motorista da corrida' : 'Definir motorista'}
+                  {corridaFicha.status === 'em_andamento' ? '🚗 Motorista do atendimento' : 'Definir motorista'}
                 </p>
                 {motoristasOpcoes.length === 0 ? (
                   <p className="text-xs text-gray-400">Nenhum motorista ativo cadastrado</p>
@@ -2499,7 +2499,7 @@ export default function AgendamentosPage() {
             {corridaFicha.status === 'confirmada' && new Date(corridaFicha.data_hora) < new Date() && (
               <div className="rounded-xl px-4 py-3 border" style={{ background: '#FFF7ED', borderColor: '#FED7AA' }}>
                 <p className="text-xs" style={{ color: '#9A3412' }}>
-                  ⏰ O horário desta corrida já passou e ela ainda está como <strong>Confirmada</strong>. Se o motorista já saiu, toque em <strong>▶️ Iniciar corrida</strong> abaixo (com o KM inicial). Se ainda não rolou, edite o horário.
+                  ⏰ O horário deste atendimento já passou e ele ainda está como <strong>Confirmado</strong>. Se o motorista já saiu, toque em <strong>▶️ Iniciar atendimento</strong> abaixo (com o KM inicial). Se ainda não rolou, edite o horário.
                 </p>
               </div>
             )}
@@ -2549,7 +2549,7 @@ export default function AgendamentosPage() {
                           ? 'Selecione um motorista primeiro'
                           : !kmValido
                           ? 'Informe o KM inicial'
-                          : '▶️ Iniciar corrida'}
+                          : '▶️ Iniciar atendimento'}
                       </button>
                     </div>
                   )
@@ -2621,7 +2621,7 @@ export default function AgendamentosPage() {
                           ? 'Informe o KM final'
                           : kmMenorQueInicial
                           ? 'KM final inválido'
-                          : '⏹️ Finalizar corrida'}
+                          : '⏹️ Finalizar atendimento'}
                       </button>
                     </div>
                   )
@@ -2843,7 +2843,7 @@ export default function AgendamentosPage() {
           <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-4 flex items-center gap-3 flex-shrink-0">
             <button onClick={() => setModalAberto(false)} style={{ color: '#9FE1CB' }} className="text-2xl">‹</button>
             <p style={{ color: '#E1F5EE' }} className="text-sm font-semibold">
-              {corridaEditando ? 'Editar corrida' : 'Nova corrida'}
+              {corridaEditando ? 'Editar atendimento' : 'Novo atendimento'}
             </p>
           </div>
 
@@ -3704,8 +3704,8 @@ export default function AgendamentosPage() {
                 : corridaEditando
                   ? 'Salvar alterações'
                   : form.ida_volta
-                    ? '✓ Confirmar corrida (ida + volta)'
-                    : '✓ Confirmar corrida'}
+                    ? '✓ Confirmar atendimento (ida + volta)'
+                    : '✓ Confirmar atendimento'}
             </button>
           </div>
 

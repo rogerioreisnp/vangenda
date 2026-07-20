@@ -96,7 +96,7 @@ const catMap = Object.fromEntries(CATEGORIAS.map(c => [c.valor, c])) as Record<s
 const FORMA_PAGAMENTO_LABEL: Record<string, string> = { pix: '📱 Pix', cartao: '💳 Cartão', dinheiro: '💵 Dinheiro' }
 
 const CATEGORIAS_RECEITA = [
-  { valor: 'corrida_extra', label: 'Corrida extra (fora do app)', emoji: '🚗' },
+  { valor: 'corrida_extra', label: 'Atendimento extra (fora do app)', emoji: '🚗' },
   { valor: 'gorjeta',       label: 'Gorjeta',                     emoji: '💵' },
   { valor: 'diaria',        label: 'Diária/pacote fechado',       emoji: '📦' },
   { valor: 'outros',        label: 'Outros',                      emoji: '➕' },
@@ -520,7 +520,7 @@ export default function FinanceiroPage() {
               </div>
 
               <div className="col-span-2 bg-white rounded-2xl p-4 border border-gray-100">
-                <p className="text-xs text-gray-400 mb-2">🚗 Corridas concluídas</p>
+                <p className="text-xs text-gray-400 mb-2">🚗 Atendimentos concluídos</p>
                 <p className="text-xl font-bold" style={{ color: '#6B7280' }}>{corridasConcluidas.length}</p>
               </div>
             </div>
@@ -547,7 +547,7 @@ export default function FinanceiroPage() {
               </div>
               {corridasRecebidasPeriodo.length === 0 ? (
                 <div className="text-center py-6">
-                  <p className="text-sm text-gray-400">Nenhuma corrida recebida no período</p>
+                  <p className="text-sm text-gray-400">Nenhum atendimento recebido no período</p>
                 </div>
               ) : (
                 <div className="flex flex-col gap-2">
@@ -584,7 +584,7 @@ export default function FinanceiroPage() {
               </div>
               {corridasAReceber.length === 0 ? (
                 <div className="text-center py-6">
-                  <p className="text-sm text-gray-400">Nenhuma corrida concluída pendente de recebimento</p>
+                  <p className="text-sm text-gray-400">Nenhum atendimento concluído pendente de recebimento</p>
                 </div>
               ) : (
                 <div className="flex flex-col gap-2">
@@ -901,7 +901,7 @@ export default function FinanceiroPage() {
             <Campo label="Descrição *">
               <input value={form.descricao}
                 onChange={e => setForm(f => ({ ...f, descricao: e.target.value }))}
-                placeholder={form.tipo === 'receita' ? 'Ex: Corrida combinada direto com o cliente' : 'Ex: Abastecimento — posto BR km 45'}
+                placeholder={form.tipo === 'receita' ? 'Ex: Atendimento combinado direto com o cliente' : 'Ex: Abastecimento — posto BR km 45'}
                 className="campo-input" />
             </Campo>
 

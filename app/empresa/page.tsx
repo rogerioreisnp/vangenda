@@ -385,7 +385,7 @@ export default function EmpresaPage() {
 
         {/* Métricas */}
         <div className="grid grid-cols-2 gap-3">
-          <CardMetrica label="Corridas hoje" valor={corridasHoje} emoji="📋" cor="#0F6E56" />
+          <CardMetrica label="Atendimentos hoje" valor={corridasHoje} emoji="📋" cor="#0F6E56" />
           <CardMetrica label="Motoristas ativos" valor={motoristasAtivos} emoji="🚗" cor="#0F6E56" />
           <CardMetrica
             label="Receita do mês"
@@ -409,7 +409,7 @@ export default function EmpresaPage() {
             <span className="text-xl flex-shrink-0">⚠️</span>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold" style={{ color: '#854F0B' }}>
-                {corridasSemMotorista} corrida{corridasSemMotorista !== 1 ? 's' : ''} sem motorista atribuído
+                {corridasSemMotorista} atendimento{corridasSemMotorista !== 1 ? 's' : ''} sem motorista atribuído
               </p>
               <p className="text-xs mt-0.5" style={{ color: '#A0622A' }}>
                 Toque para ver os agendamentos
@@ -425,10 +425,10 @@ export default function EmpresaPage() {
           </div>
         )}
 
-        {/* Próximas corridas */}
+        {/* Próximos atendimentos */}
         <div>
           <div className="flex items-center justify-between mb-2">
-            <p className="text-sm font-semibold text-gray-700">Próximas corridas</p>
+            <p className="text-sm font-semibold text-gray-700">Próximos atendimentos</p>
             <Link href="/empresa/agendamentos/fretamentos?todos=1"
               className="text-xs font-medium" style={{ color: '#0F6E56' }}>
               Ver todas →
@@ -438,12 +438,12 @@ export default function EmpresaPage() {
           {proximas.length === 0 ? (
             <div className="bg-white rounded-2xl p-5 border border-gray-100 text-center">
               <p className="text-3xl mb-2">📅</p>
-              <p className="text-sm font-medium text-gray-700">Nenhuma corrida agendada</p>
-              <p className="text-xs text-gray-400 mt-1 mb-3">Que tal agendar a primeira?</p>
+              <p className="text-sm font-medium text-gray-700">Nenhum atendimento agendado</p>
+              <p className="text-xs text-gray-400 mt-1 mb-3">Que tal agendar o primeiro?</p>
               <Link href="/empresa/agendamentos/fretamentos"
                 className="inline-block px-5 py-2 rounded-xl text-xs font-semibold"
                 style={{ background: '#1D9E75', color: '#fff' }}>
-                + Nova corrida
+                + Novo atendimento
               </Link>
             </div>
           ) : (
@@ -678,7 +678,7 @@ export default function EmpresaPage() {
           <p className="text-sm font-semibold text-gray-700 mb-2">Atalhos rápidos</p>
           <div className="grid grid-cols-2 gap-2">
             {[
-              { emoji: '📋', label: 'Nova corrida', href: '/empresa/agendamentos/fretamentos?nova=1' },
+              { emoji: '📋', label: 'Novo atendimento', href: '/empresa/agendamentos/fretamentos?nova=1' },
               { emoji: '💰', label: 'Financeiro', href: '/empresa/financeiro' },
               { emoji: '🚗', label: 'Motoristas', href: '/empresa/motoristas' },
               { emoji: '🛣️', label: 'Operar rota', href: '/dashboard/agenda' },
