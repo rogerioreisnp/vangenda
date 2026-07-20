@@ -1102,8 +1102,21 @@ export default function AgendamentosPage() {
   // parte de um par ida-volta (duas linhas separadas em corridas_empresa).
   // Sem isso, reenviar a confirmação da volta ficava idêntico ao da ida e
   // confundia motorista/cliente sobre qual trecho estava sendo confirmado.
+  // Resolve motorista pra exibicao: preferimos o lookup em motoristasOpcoes
+  // (traz veiculo/placa/telefone), mas fazemos fallback pro JOIN da corrida
+  // (c.motoristas_empresa) quando o motorista foi DESATIVADO depois — antes
+  // o nome do motorista sumia da mensagem porque motoristasOpcoes só traz
+  // status='ativo'.
+  function motoristaInfo(c: Corrida, motoristaId: string) {
+    const m = motoristasOpcoes.find(x => x.id === motoristaId)
+    if (m) return m
+    const j = (c as any).motoristas_empresa
+    if (!j) return null
+    return { id: motoristaId, nome: j.nome ?? '', veiculo: j.veiculo ?? null, placa: j.placa ?? null, cor: j.cor ?? null, telefone: j.telefone ?? null, user_id: null }
+  }
+
   function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'volta'): string {
-    const motorista = motoristasOpcoes.find(m => m.id === motoristaId)
+    const motorista = motoristaInfo(c, motoristaId)
     const data = `${c.data_hora.slice(8,10)}/${c.data_hora.slice(5,7)}/${c.data_hora.slice(0,4)}`
     const hora = c.data_hora.slice(11,16)
     const dia = diaSemana(c.data_hora)
@@ -1211,11 +1224,40 @@ export default function AgendamentosPage() {
   }
 
   function enviarWhatsAppMotorista(c: Corrida, motoristaId: string, etapa?: 'ida' | 'volta') {
-    const motorista = motoristasOpcoes.find(m => m.id === motoristaId)
+    const motorista = motoristaInfo(c, motoristaId)
     if (!motorista) return
     const telFmt = formatarTelefoneWhatsApp(motorista.telefone)
     if (!telFmt) { alert(`Motorista ${motorista.nome} não tem telefone cadastrado.`); return }
     const msg = montarMsgDetalhada(c, motoristaId, etapa)
+    window.open(`https://wa.me/${telFmt}?text=${encodeURIComponent(msg)}`, '_blank')
+  }
+
+  // Agradecimento pos-conclusao — pra cliente. Reforca relacionamento e
+  // aumenta chance de reserva futura (padrao de mercado premium).
+  function enviarAgradecimentoCliente(c: Corrida) {
+    const telFmt = formatarTelefoneWhatsApp(c.cliente_telefone)
+    if (!telFmt) { alert('Cliente não tem telefone cadastrado.'); return }
+    const nome = (c as any).passageiro1_nome || c.cliente_nome || ''
+    let msg = `Olá ${nome}! 🙏\n\n`
+    msg += `Sua corrida de ${c.origem} para ${c.destino} foi concluída com sucesso hoje.\n\n`
+    msg += `Foi um prazer atender você! Ficamos à disposição para as próximas viagens.\n\n`
+    msg += `Obrigado pela preferência!`
+    if (empresaNome) msg += `\n— *${empresaNome.toUpperCase()}*`
+    window.open(`https://wa.me/${telFmt}?text=${encodeURIComponent(msg)}`, '_blank')
+  }
+
+  // Agradecimento pos-conclusao — pra motorista parceiro. Fideliza o parceiro,
+  // aumenta prioridade dele nas proximas chamadas.
+  function enviarAgradecimentoMotorista(c: Corrida) {
+    const motorista = motoristaInfo(c, c.motorista_id ?? '')
+    if (!motorista) return
+    const telFmt = formatarTelefoneWhatsApp(motorista.telefone)
+    if (!telFmt) { alert(`Motorista ${motorista.nome} não tem telefone cadastrado.`); return }
+    const data = `${c.data_hora.slice(8,10)}/${c.data_hora.slice(5,7)}/${c.data_hora.slice(0,4)}`
+    let msg = `Olá ${motorista.nome}! 🚐\n\n`
+    msg += `Passando pra agradecer pela parceria na corrida de ${data} (${c.origem} → ${c.destino}).\n\n`
+    msg += `Serviço concluído com excelência — conto com você nas próximas! 🤝`
+    if (empresaNome) msg += `\n\n— *${empresaNome.toUpperCase()}*`
     window.open(`https://wa.me/${telFmt}?text=${encodeURIComponent(msg)}`, '_blank')
   }
 
@@ -2592,6 +2634,28 @@ export default function AgendamentosPage() {
                     {confirmandoFicha ? 'Salvando...' : '✓ Marcar como Concluído'}
                   </button>
                 )}
+              </div>
+            )}
+
+            {/* Ações — Concluída: agradecimento pós-serviço (padrão de mercado
+                premium — reforça relacionamento com cliente + fideliza motorista
+                parceiro). Só aparece quando corrida está concluída. */}
+            {corridaFicha.status === 'concluida' && (
+              <div className="flex flex-col gap-2 mt-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">💚 Mensagens de agradecimento</p>
+                <button
+                  onClick={() => enviarAgradecimentoCliente(corridaFicha)}
+                  className="w-full py-3.5 rounded-2xl text-white text-sm font-bold flex items-center justify-center gap-2"
+                  style={{ background: '#25D366' }}>
+                  🙏 Agradecer cliente
+                </button>
+                <button
+                  onClick={() => enviarAgradecimentoMotorista(corridaFicha)}
+                  disabled={!corridaFicha.motorista_id}
+                  className="w-full py-3.5 rounded-2xl text-white text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-40"
+                  style={{ background: '#128C7E' }}>
+                  🤝 Agradecer motorista
+                </button>
               </div>
             )}
 
