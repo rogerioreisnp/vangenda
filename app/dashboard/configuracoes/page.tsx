@@ -241,6 +241,7 @@ export default function ConfiguracoesPage() {
   const [paradas, setParadas] = useState<any[]>([])
   const [precos, setPrecos] = useState<any[]>([])
   const [novaParada, setNovaParada] = useState('')
+  const [novaParadaCidade, setNovaParadaCidade] = useState('')
   const [saving, setSaving] = useState(false)
   const [savedMsg, setSavedMsg] = useState(false)
   const [erroSalvar, setErroSalvar] = useState('')
@@ -326,6 +327,8 @@ export default function ConfiguracoesPage() {
 
     const { error: erroRota } = await supabase.from('rotas').update({
       nome: rota.nome, horario_ida: horarioIda, horario_volta: horarioVolta, capacidade: rota.capacidade || 1,
+      cidade_origem:  rota.cidade_origem?.trim()  || null,
+      cidade_destino: rota.cidade_destino?.trim() || null,
     }).eq('id', rota.id)
 
     console.log('[configuracoes] resultado UPDATE rotas:', erroRota ?? 'ok')
@@ -339,7 +342,7 @@ export default function ConfiguracoesPage() {
     await supabase.from('paradas').delete().eq('rota_id', rota.id)
     if (paradas.length > 0) {
       const { error: erroParadas } = await supabase.from('paradas').insert(
-        paradas.map((p, i) => ({ rota_id: rota.id, nome: p.nome, ordem: i }))
+        paradas.map((p, i) => ({ rota_id: rota.id, nome: p.nome, ordem: i, cidade: p.cidade?.trim() || null }))
       )
       if (erroParadas) {
         setErroSalvar('Erro ao salvar as paradas: ' + erroParadas.message)
@@ -379,13 +382,15 @@ export default function ConfiguracoesPage() {
     if (!novaParada.trim()) return
     const ultima = paradas.length - 1
     const novas = [...paradas]
+    const nova = { nome: novaParada.trim(), cidade: novaParadaCidade.trim() || null, ordem: 0 }
     if (novas.length >= 2) {
-      novas.splice(ultima, 0, { nome: novaParada.trim(), ordem: ultima })
+      novas.splice(ultima, 0, { ...nova, ordem: ultima })
     } else {
-      novas.push({ nome: novaParada.trim(), ordem: novas.length })
+      novas.push({ ...nova, ordem: novas.length })
     }
     setParadas(novas.map((p, i) => ({ ...p, ordem: i })))
     setNovaParada('')
+    setNovaParadaCidade('')
     gerarPrecos(novas)
   }
 
@@ -776,6 +781,26 @@ export default function ConfiguracoesPage() {
           </div>
         </Secao>
 
+        <Secao titulo="🏙️ Cidades da rota (opcional)">
+          <p className="text-xs text-gray-400 mb-3">
+            Se preenchidas, o passageiro vê as paradas separadas por cidade no
+            momento de agendar — evita confusão entre ida e volta. Se deixar
+            em branco, funciona como antes.
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            <Campo label="Cidade de origem">
+              <input value={rota?.cidade_origem ?? ''}
+                onChange={e => setRota((r: any) => ({ ...r, cidade_origem: e.target.value }))}
+                placeholder="Ex: Piripiri" className="campo-input" />
+            </Campo>
+            <Campo label="Cidade de destino">
+              <input value={rota?.cidade_destino ?? ''}
+                onChange={e => setRota((r: any) => ({ ...r, cidade_destino: e.target.value }))}
+                placeholder="Ex: Teresina" className="campo-input" />
+            </Campo>
+          </div>
+        </Secao>
+
         <Secao titulo="📍 Paradas da rota">
           <p className="text-xs text-gray-400 mb-3">
             Adicione na ordem do trajeto — primeira é a origem, última é o destino.{' '}
@@ -804,21 +829,37 @@ export default function ConfiguracoesPage() {
                     style={{ background: i === 0 || i === paradas.length - 1 ? '#085041' : '#1D9E75' }} />
                   {i < paradas.length - 1 && <div className="w-0.5 h-5 mt-0.5" style={{ background: '#9FE1CB' }} />}
                 </div>
-                <span className="flex-1 text-sm text-gray-800 font-medium select-none">{p.nome}</span>
+                <div className="flex-1 min-w-0 select-none">
+                  <p className="text-sm text-gray-800 font-medium truncate">{p.nome}</p>
+                  {p.cidade && (
+                    <p className="text-[10px]" style={{ color: '#0F6E56' }}>📍 {p.cidade}</p>
+                  )}
+                </div>
                 <button onClick={() => removerParada(i)}
                   className="text-xs px-2 py-1 rounded-lg flex-shrink-0"
                   style={{ background: '#FCEBEB', color: '#A32D2D' }}>✕</button>
               </div>
             ))}
           </div>
-          <div className="flex gap-2 mt-2">
-            <input value={novaParada} onChange={e => setNovaParada(e.target.value)}
-              placeholder="Nova parada..."
-              onKeyDown={e => e.key === 'Enter' && adicionarParada()}
-              className="campo-input flex-1" />
-            <button onClick={adicionarParada}
-              className="px-4 py-2.5 rounded-xl text-sm font-medium"
-              style={{ background: '#E1F5EE', color: '#0F6E56' }}>+ Add</button>
+          <div className="flex flex-col gap-2 mt-2">
+            <div className="flex gap-2">
+              <input value={novaParada} onChange={e => setNovaParada(e.target.value)}
+                placeholder="Nova parada..."
+                onKeyDown={e => e.key === 'Enter' && adicionarParada()}
+                className="campo-input flex-1" />
+              <button onClick={adicionarParada}
+                className="px-4 py-2.5 rounded-xl text-sm font-medium"
+                style={{ background: '#E1F5EE', color: '#0F6E56' }}>+ Add</button>
+            </div>
+            {(rota?.cidade_origem || rota?.cidade_destino) && (
+              <select value={novaParadaCidade}
+                onChange={e => setNovaParadaCidade(e.target.value)}
+                className="campo-input">
+                <option value="">Cidade desta parada (opcional)...</option>
+                {rota?.cidade_origem  && <option value={rota.cidade_origem}>{rota.cidade_origem}</option>}
+                {rota?.cidade_destino && <option value={rota.cidade_destino}>{rota.cidade_destino}</option>}
+              </select>
+            )}
           </div>
         </Secao>
 

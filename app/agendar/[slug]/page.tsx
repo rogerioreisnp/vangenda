@@ -493,22 +493,49 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
 
               {!lotado && (
                 <>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Campo label="Embarca em">
-                      <select value={form.origem} onChange={e => setForm(f => ({ ...f, origem: e.target.value }))}
-                        className="campo-input">
-                        <option value="">Selecione...</option>
-                        {paradas.map(p => <option key={p.id} value={p.nome}>{p.nome}</option>)}
-                      </select>
-                    </Campo>
-                    <Campo label="Desembarca em">
-                      <select value={form.destino} onChange={e => setForm(f => ({ ...f, destino: e.target.value }))}
-                        className="campo-input">
-                        <option value="">Selecione...</option>
-                        {paradas.map(p => <option key={p.id} value={p.nome}>{p.nome}</option>)}
-                      </select>
-                    </Campo>
-                  </div>
+                  {/* Filtro por cidade: só ativa quando o motorista preencheu
+                      cidade_origem+cidade_destino na rota E pelo menos uma parada
+                      tem cidade. Sem isso, mantém comportamento antigo (mostra
+                      todas as paradas) — 100% retrocompatível. */}
+                  {(() => {
+                    const cO = rota?.cidade_origem?.trim()
+                    const cD = rota?.cidade_destino?.trim()
+                    const filtroAtivo = !!(cO && cD && paradas.some(p => p.cidade))
+                    const cidadeEmbarque    = filtroAtivo ? (form.turno === 'ida' ? cO : cD) : null
+                    const cidadeDesembarque = filtroAtivo ? (form.turno === 'ida' ? cD : cO) : null
+                    const paradasEmbarque    = filtroAtivo ? paradas.filter(p => p.cidade === cidadeEmbarque)    : paradas
+                    const paradasDesembarque = filtroAtivo ? paradas.filter(p => p.cidade === cidadeDesembarque) : paradas
+                    return (
+                      <>
+                        {filtroAtivo && (
+                          <div className="rounded-xl px-3 py-2" style={{ background: '#E1F5EE', border: '1px solid #9FE1CB' }}>
+                            <p className="text-xs font-semibold" style={{ color: '#085041' }}>
+                              🚐 {form.turno === 'ida' ? 'Ida' : 'Volta'}: {cidadeEmbarque} → {cidadeDesembarque}
+                            </p>
+                            <p className="text-[11px] mt-0.5" style={{ color: '#0F6E56' }}>
+                              Saída {form.turno === 'ida' ? rota?.horario_ida?.substring(0, 5) : rota?.horario_volta?.substring(0, 5)}h
+                            </p>
+                          </div>
+                        )}
+                        <div className="grid grid-cols-2 gap-2">
+                          <Campo label={filtroAtivo ? `Embarca em (${cidadeEmbarque})` : 'Embarca em'}>
+                            <select value={form.origem} onChange={e => setForm(f => ({ ...f, origem: e.target.value }))}
+                              className="campo-input">
+                              <option value="">Selecione...</option>
+                              {paradasEmbarque.map(p => <option key={p.id} value={p.nome}>{p.nome}</option>)}
+                            </select>
+                          </Campo>
+                          <Campo label={filtroAtivo ? `Desembarca em (${cidadeDesembarque})` : 'Desembarca em'}>
+                            <select value={form.destino} onChange={e => setForm(f => ({ ...f, destino: e.target.value }))}
+                              className="campo-input">
+                              <option value="">Selecione...</option>
+                              {paradasDesembarque.map(p => <option key={p.id} value={p.nome}>{p.nome}</option>)}
+                            </select>
+                          </Campo>
+                        </div>
+                      </>
+                    )
+                  })()}
 
                   {/* ── QUANTIDADE DE PASSAGEIROS ── */}
                   <Campo label="Quantidade de passageiros">
