@@ -36,6 +36,7 @@ type Despesa = {
   forma_pagamento: string | null
   cartao_banco?: string | null
   cartao_final?: string | null
+  pix_banco?: string | null
 }
 
 type Motorista = {
@@ -57,6 +58,7 @@ type FormDespesa = {
   forma_pagamento: string
   cartao_banco: string
   cartao_final: string
+  pix_banco: string
 }
 
 const FORM_VAZIO: FormDespesa = {
@@ -71,6 +73,7 @@ const FORM_VAZIO: FormDespesa = {
   forma_pagamento: 'pix',
   cartao_banco: '',
   cartao_final: '',
+  pix_banco: '',
 }
 
 const CATEGORIAS = [
@@ -235,7 +238,7 @@ export default function FinanceiroPage() {
         .order('data_hora', { ascending: false }),
       supabase
         .from('despesas_empresa')
-        .select('id, motorista_id, veiculo, categoria, descricao, valor, km_odometro, data, tipo, forma_pagamento, cartao_banco, cartao_final')
+        .select('id, motorista_id, veiculo, categoria, descricao, valor, km_odometro, data, tipo, forma_pagamento, cartao_banco, cartao_final, pix_banco')
         .eq('empresa_id', eid)
         .gte('data', inicio)
         .lte('data', fim)
@@ -295,6 +298,7 @@ export default function FinanceiroPage() {
       forma_pagamento: d.forma_pagamento ?? 'pix',
       cartao_banco: (d as any).cartao_banco ?? '',
       cartao_final: (d as any).cartao_final ?? '',
+      pix_banco:    (d as any).pix_banco    ?? '',
     })
     setErro('')
     setModalAberto(true)
@@ -323,6 +327,7 @@ export default function FinanceiroPage() {
       forma_pagamento: form.tipo === 'despesa' ? form.forma_pagamento : null,
       cartao_banco: (form.tipo === 'despesa' && form.forma_pagamento === 'cartao') ? (form.cartao_banco.trim() || null) : null,
       cartao_final: (form.tipo === 'despesa' && form.forma_pagamento === 'cartao') ? (form.cartao_final.trim() || null) : null,
+      pix_banco:    (form.tipo === 'despesa' && form.forma_pagamento === 'pix')    ? (form.pix_banco.trim()    || null) : null,
     }
 
     const { error } = editando
@@ -725,6 +730,8 @@ export default function FinanceiroPage() {
                               {FORMA_PAGAMENTO_LABEL[d.forma_pagamento] ?? d.forma_pagamento}
                               {d.forma_pagamento === 'cartao' && (d.cartao_banco || d.cartao_final)
                                 ? ` (${[d.cartao_banco, d.cartao_final ? `final ${d.cartao_final}` : null].filter(Boolean).join(' · ')})`
+                                : d.forma_pagamento === 'pix' && d.pix_banco
+                                ? ` (${d.pix_banco})`
                                 : ''}
                             </p>
                           )}
@@ -948,6 +955,17 @@ export default function FinanceiroPage() {
                       placeholder="1234" inputMode="numeric" maxLength={4} className="campo-input" />
                   </Campo>
                 </div>
+              </div>
+            )}
+
+            {/* Banco do Pix — pedido do Julimar pra bater com extrato bancario
+                no fim do mes ("qual banco recebeu esses R$ do Pix?"). */}
+            {form.tipo === 'despesa' && form.forma_pagamento === 'pix' && (
+              <div className="rounded-xl p-3 flex flex-col gap-2" style={{ background: '#F0FDF4', border: '1px solid #86EFAC' }}>
+                <p className="text-xs font-semibold" style={{ color: '#166534' }}>📱 Banco do Pix <span className="font-normal text-gray-500">— opcional</span></p>
+                <input value={form.pix_banco}
+                  onChange={e => setForm(f => ({ ...f, pix_banco: e.target.value }))}
+                  placeholder="Ex: Nubank, Itaú, Sicoob" className="campo-input" />
               </div>
             )}
 
