@@ -373,6 +373,9 @@ export default function AgendamentosPage() {
   const searchParams = useSearchParams()
   const [empresaId, setEmpresaId] = useState<string | null>(null)
   const [empresaNome, setEmpresaNome] = useState<string>('')
+  const [empresaDescricao, setEmpresaDescricao] = useState<string>('')
+  const [empresaWhatsApp, setEmpresaWhatsApp] = useState<string>('')
+  const [empresaInstagram, setEmpresaInstagram] = useState<string>('')
   const [mensagemConfirmacaoTransfer, setMensagemConfirmacaoTransfer] = useState<string | null>(null)
   const [rotasOpcoes, setRotasOpcoes] = useState<RotaOpcao[]>([])
   const [motoristasOpcoes, setMotoristasOpcoes] = useState<MotoristaOpcao[]>([])
@@ -505,7 +508,7 @@ export default function AgendamentosPage() {
     const [{ data: empresa }, { data: rts }, { data: mots }, { data: emAndamento }, { data: futuras }, { data: passadas }] = await Promise.all([
       supabase
         .from('empresas')
-        .select('tipo_operacao, nome, mensagem_confirmacao_transfer')
+        .select('tipo_operacao, nome, mensagem_confirmacao_transfer, descricao, whatsapp_comercial, instagram')
         .eq('id', gestor.empresa_id)
         .single(),
       supabase
@@ -548,6 +551,9 @@ export default function AgendamentosPage() {
     if (empresa) {
       setTipoOperacao(empresa.tipo_operacao || 'transfer')
       setEmpresaNome((empresa as any).nome || '')
+      setEmpresaDescricao((empresa as any).descricao || '')
+      setEmpresaWhatsApp((empresa as any).whatsapp_comercial || '')
+      setEmpresaInstagram((empresa as any).instagram || '')
       setMensagemConfirmacaoTransfer((empresa as any).mensagem_confirmacao_transfer || null)
     }
     if (rts) setRotasOpcoes(rts)
@@ -1102,6 +1108,24 @@ export default function AgendamentosPage() {
   // parte de um par ida-volta (duas linhas separadas em corridas_empresa).
   // Sem isso, reenviar a confirmação da volta ficava idêntico ao da ida e
   // confundia motorista/cliente sobre qual trecho estava sendo confirmado.
+  // Assinatura profissional das mensagens WhatsApp — cada empresa assina
+  // com seus proprios dados. Nome sempre aparece; descricao/whatsapp/instagram
+  // so aparecem se a empresa preencheu em Configuracoes. Empresa que so tem
+  // nome continua com assinatura minima (comportamento antigo).
+  function montarAssinatura(): string {
+    if (!empresaNome) return ''
+    const linhas: string[] = [`— *${empresaNome.toUpperCase()}*`]
+    if (empresaDescricao?.trim()) linhas.push(empresaDescricao.trim())
+    const contatos: string[] = []
+    if (empresaWhatsApp?.trim()) contatos.push(`📱 ${empresaWhatsApp.trim()}`)
+    if (empresaInstagram?.trim()) {
+      const ig = empresaInstagram.trim().replace(/^@/, '')
+      contatos.push(`@${ig}`)
+    }
+    if (contatos.length) linhas.push(contatos.join(' · '))
+    return linhas.join('\n')
+  }
+
   // Resolve motorista pra exibicao: preferimos o lookup em motoristasOpcoes
   // (traz veiculo/placa/telefone), mas fazemos fallback pro JOIN da corrida
   // (c.motoristas_empresa) quando o motorista foi DESATIVADO depois — antes
@@ -1154,7 +1178,8 @@ export default function AgendamentosPage() {
       if (c.retorno_origem) msg += `\n📍 ${c.retorno_origem} → ${c.retorno_destino}`
     }
     if (c.observacoes) msg += `\n\n📝 *Obs:* ${c.observacoes}`
-    if (empresaNome) msg += `\n\n*${empresaNome.toUpperCase()}*`
+    const ass = montarAssinatura()
+    if (ass) msg += `\n\n${ass}`
     return msg
   }
 
@@ -1212,7 +1237,8 @@ export default function AgendamentosPage() {
     }
     if (c.observacoes) msg += `\n\n📝 *Obs:* ${c.observacoes}`
     msg += `\n\nEm breve informaremos o motorista responsável. Qualquer dúvida estamos à disposição!`
-    if (empresaNome) msg += `\n\n*${empresaNome.toUpperCase()}*`
+    const ass = montarAssinatura()
+    if (ass) msg += `\n\n${ass}`
     window.open(`https://wa.me/${telFmt}?text=${encodeURIComponent(msg)}`, '_blank')
   }
 
@@ -1246,7 +1272,8 @@ export default function AgendamentosPage() {
     msg += `Seu atendimento de ${c.origem} para ${c.destino} foi concluído com sucesso hoje.\n\n`
     msg += `Foi um prazer atender você! Ficamos à disposição para as próximas viagens.\n\n`
     msg += `Obrigado pela preferência!`
-    if (empresaNome) msg += `\n— *${empresaNome.toUpperCase()}*`
+    const ass = montarAssinatura()
+    if (ass) msg += `\n\n${ass}`
     window.open(`https://wa.me/${telFmt}?text=${encodeURIComponent(msg)}`, '_blank')
   }
 
@@ -1261,7 +1288,8 @@ export default function AgendamentosPage() {
     let msg = `Olá ${motorista.nome}! 🚐\n\n`
     msg += `Passando pra agradecer pela parceria no atendimento de ${data} (${c.origem} → ${c.destino}).\n\n`
     msg += `Serviço concluído com excelência — conto com você nas próximas! 🤝`
-    if (empresaNome) msg += `\n\n— *${empresaNome.toUpperCase()}*`
+    const ass = montarAssinatura()
+    if (ass) msg += `\n\n${ass}`
     window.open(`https://wa.me/${telFmt}?text=${encodeURIComponent(msg)}`, '_blank')
   }
 
