@@ -1545,8 +1545,21 @@ export default function AgendamentosPage() {
     if (filtroRotaId) list = list.filter(ag => ag.rota_id === filtroRotaId)
     return list
   })()
-  const corridasAgrupadas = agruparPares(corridasFiltradas)
   const eAtivo = (s: string) => s !== 'cancelada' && s !== 'concluida'
+  // Sort defensivo — garante que ATIVAS aparecem antes de CONCLUÍDAS/CANCELADAS,
+  // ordenadas por data_hora asc dentro de cada grupo. Isso protege contra
+  // corridas com data_hora salva sem timezone (case Julimar: corrida hoje
+  // 17:00 caia entre concluidas porque a query gte/lt classificava errado).
+  const corridasOrdenadas = [...corridasFiltradas].sort((a, b) => {
+    const aAtivo = eAtivo(a.status)
+    const bAtivo = eAtivo(b.status)
+    if (aAtivo !== bAtivo) return aAtivo ? -1 : 1
+    const ta = new Date(a.data_hora).getTime()
+    const tb = new Date(b.data_hora).getTime()
+    // Ativas: asc (mais proxima primeiro). Concluidas/canceladas: desc (recente primeiro).
+    return aAtivo ? ta - tb : tb - ta
+  })
+  const corridasAgrupadas = agruparPares(corridasOrdenadas)
   const qtdAtivas = corridasAgrupadas.filter(g =>
     g.tipo === 'simples'
       ? eAtivo(g.corrida.status)
