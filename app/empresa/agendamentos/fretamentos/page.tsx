@@ -1114,7 +1114,7 @@ export default function AgendamentosPage() {
   // nome continua com assinatura minima (comportamento antigo).
   function montarAssinatura(): string {
     if (!empresaNome) return ''
-    const linhas: string[] = [`— *${empresaNome.toUpperCase()}*`]
+    const linhas: string[] = [`*${empresaNome}*`]
     if (empresaDescricao?.trim()) linhas.push(empresaDescricao.trim())
     const contatos: string[] = []
     if (empresaWhatsApp?.trim()) contatos.push(`📱 ${empresaWhatsApp.trim()}`)
