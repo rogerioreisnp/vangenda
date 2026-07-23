@@ -1234,10 +1234,14 @@ export default function AgendamentosPage() {
 
   // Agradecimento pos-conclusao — pra cliente. Reforca relacionamento e
   // aumenta chance de reserva futura (padrao de mercado premium).
+  // Nome do CONTRATANTE (c.cliente_nome), nao do passageiro — em transfer
+  // executivo o contratante e o passageiro podem ser pessoas diferentes;
+  // quem escolheu, pagou e vai contratar de novo e o contratante. Se
+  // contratante = passageiro, ainda funciona igual.
   function enviarAgradecimentoCliente(c: Corrida) {
     const telFmt = formatarTelefoneWhatsApp(c.cliente_telefone)
     if (!telFmt) { alert('Cliente não tem telefone cadastrado.'); return }
-    const nome = (c as any).passageiro1_nome || c.cliente_nome || ''
+    const nome = c.cliente_nome || ''
     let msg = `Olá ${nome}! 🙏\n\n`
     msg += `Seu atendimento de ${c.origem} para ${c.destino} foi concluído com sucesso hoje.\n\n`
     msg += `Foi um prazer atender você! Ficamos à disposição para as próximas viagens.\n\n`
