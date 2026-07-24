@@ -376,6 +376,7 @@ export default function AgendamentosPage() {
   const [empresaDescricao, setEmpresaDescricao] = useState<string>('')
   const [empresaWhatsApp, setEmpresaWhatsApp] = useState<string>('')
   const [empresaInstagram, setEmpresaInstagram] = useState<string>('')
+  const [empresaSlug, setEmpresaSlug] = useState<string>('')
   const [mensagemConfirmacaoTransfer, setMensagemConfirmacaoTransfer] = useState<string | null>(null)
   const [rotasOpcoes, setRotasOpcoes] = useState<RotaOpcao[]>([])
   const [motoristasOpcoes, setMotoristasOpcoes] = useState<MotoristaOpcao[]>([])
@@ -508,7 +509,7 @@ export default function AgendamentosPage() {
     const [{ data: empresa }, { data: rts }, { data: mots }, { data: emAndamento }, { data: futuras }, { data: passadas }] = await Promise.all([
       supabase
         .from('empresas')
-        .select('tipo_operacao, nome, mensagem_confirmacao_transfer, descricao, whatsapp_comercial, instagram')
+        .select('tipo_operacao, nome, mensagem_confirmacao_transfer, descricao, whatsapp_comercial, instagram, slug')
         .eq('id', gestor.empresa_id)
         .single(),
       supabase
@@ -554,6 +555,7 @@ export default function AgendamentosPage() {
       setEmpresaDescricao((empresa as any).descricao || '')
       setEmpresaWhatsApp((empresa as any).whatsapp_comercial || '')
       setEmpresaInstagram((empresa as any).instagram || '')
+      setEmpresaSlug((empresa as any).slug || '')
       setMensagemConfirmacaoTransfer((empresa as any).mensagem_confirmacao_transfer || null)
     }
     if (rts) setRotasOpcoes(rts)
@@ -1788,6 +1790,25 @@ export default function AgendamentosPage() {
           style={{ background: '#1D9E75', color: '#fff' }}>
           + Novo atendimento
         </button>
+
+        {/* Compartilhar disponibilidade — link publico, sem PII/valor, so
+            horarios + tipo. Cliente consulta antes de perguntar. */}
+        {empresaSlug && (
+          <button
+            onClick={() => {
+              const url = `${window.location.origin}/disponibilidade/${empresaSlug}`
+              const msg = `Consulte minha disponibilidade dos próximos 60 dias: ${url}`
+              if (navigator.share) {
+                navigator.share({ title: 'Disponibilidade', url, text: msg }).catch(() => {})
+              } else {
+                navigator.clipboard.writeText(url).then(() => alert('Link copiado! Cole no WhatsApp do cliente.'))
+              }
+            }}
+            className="w-full py-2.5 rounded-xl text-xs font-semibold border"
+            style={{ background: '#fff', color: '#0F6E56', borderColor: '#9FE1CB' }}>
+            🔗 Compartilhar disponibilidade
+          </button>
+        )}
 
         {/* Lista de corridas e agendamentos */}
         {corridasFiltradas.length === 0 && agendamentosFiltrados.length === 0 && (
