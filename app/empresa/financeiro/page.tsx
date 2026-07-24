@@ -20,6 +20,7 @@ type CorridaFin = {
   valor_recebido: number | null
   status_pagamento: string | null
   data_pagamento: string | null
+  numero_reserva: string | null
   motoristas_empresa: { nome: string; veiculo: string | null; placa: string | null } | null
 }
 
@@ -37,6 +38,7 @@ type Despesa = {
   cartao_banco?: string | null
   cartao_final?: string | null
   pix_banco?: string | null
+  corrida_id?: string | null
 }
 
 type Motorista = {
@@ -59,6 +61,7 @@ type FormDespesa = {
   cartao_banco: string
   cartao_final: string
   pix_banco: string
+  corrida_id: string
 }
 
 const FORM_VAZIO: FormDespesa = {
@@ -74,6 +77,7 @@ const FORM_VAZIO: FormDespesa = {
   cartao_banco: '',
   cartao_final: '',
   pix_banco: '',
+  corrida_id: '',
 }
 
 const CATEGORIAS = [
@@ -225,7 +229,7 @@ export default function FinanceiroPage() {
     // decisão de 2026-07-16 (Smart Car style).
 
     const { inicio, fim } = intervalo()
-    const selectCorrida = 'id, origem, destino, data_hora, valor, status, cliente_nome, motorista_id, valor_recebido, status_pagamento, data_pagamento, motoristas_empresa(nome, veiculo, placa)'
+    const selectCorrida = 'id, origem, destino, data_hora, valor, status, cliente_nome, motorista_id, valor_recebido, status_pagamento, data_pagamento, numero_reserva, motoristas_empresa(nome, veiculo, placa)'
 
     const [{ data: corr }, { data: desp }, { data: recebidas }, { data: aReceber }] = await Promise.all([
       // Corridas concluídas no período (atividade/operação, não é a conta de receita)
@@ -238,7 +242,7 @@ export default function FinanceiroPage() {
         .order('data_hora', { ascending: false }),
       supabase
         .from('despesas_empresa')
-        .select('id, motorista_id, veiculo, categoria, descricao, valor, km_odometro, data, tipo, forma_pagamento, cartao_banco, cartao_final, pix_banco')
+        .select('id, motorista_id, veiculo, categoria, descricao, valor, km_odometro, data, tipo, forma_pagamento, cartao_banco, cartao_final, pix_banco, corrida_id')
         .eq('empresa_id', eid)
         .gte('data', inicio)
         .lte('data', fim)
@@ -299,6 +303,7 @@ export default function FinanceiroPage() {
       cartao_banco: (d as any).cartao_banco ?? '',
       cartao_final: (d as any).cartao_final ?? '',
       pix_banco:    (d as any).pix_banco    ?? '',
+      corrida_id:   (d as any).corrida_id   ?? '',
     })
     setErro('')
     setModalAberto(true)
@@ -328,6 +333,7 @@ export default function FinanceiroPage() {
       cartao_banco: (form.tipo === 'despesa' && form.forma_pagamento === 'cartao') ? (form.cartao_banco.trim() || null) : null,
       cartao_final: (form.tipo === 'despesa' && form.forma_pagamento === 'cartao') ? (form.cartao_final.trim() || null) : null,
       pix_banco:    (form.tipo === 'despesa' && form.forma_pagamento === 'pix')    ? (form.pix_banco.trim()    || null) : null,
+      corrida_id:   (form.tipo === 'despesa' && form.corrida_id) ? form.corrida_id : null,
     }
 
     const { error } = editando
@@ -735,6 +741,16 @@ export default function FinanceiroPage() {
                                 : ''}
                             </p>
                           )}
+                          {d.corrida_id && (() => {
+                            const c = corridas.find(x => x.id === d.corrida_id)
+                            if (!c) return null
+                            const num = c.numero_reserva || `#${c.id.slice(-5).toUpperCase()}`
+                            return (
+                              <p className="text-xs" style={{ color: '#0F6E56' }}>
+                                🔗 Atendimento {num} · {c.origem} → {c.destino}
+                              </p>
+                            )
+                          })()}
                         </div>
                         <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
                           <p className="text-sm font-bold" style={{ color: '#A32D2D' }}>
@@ -989,6 +1005,29 @@ export default function FinanceiroPage() {
                 ))}
               </select>
             </Campo>
+
+            {/* Vincular despesa a um atendimento — pedido do Julimar pra saber
+                quanto uma corrida especifica custou (combustivel + pedagio etc).
+                So aparece pra despesa. Corridas ordenadas por data desc — mais
+                recente primeiro. */}
+            {form.tipo === 'despesa' && (
+              <Campo label="Vincular a atendimento (opcional)">
+                <select value={form.corrida_id}
+                  onChange={e => setForm(f => ({ ...f, corrida_id: e.target.value }))}
+                  className="campo-input">
+                  <option value="">Nenhum</option>
+                  {[...corridas].sort((a, b) => b.data_hora.localeCompare(a.data_hora)).map(c => {
+                    const num = c.numero_reserva || `#${c.id.slice(-5).toUpperCase()}`
+                    const dt = `${c.data_hora.slice(8,10)}/${c.data_hora.slice(5,7)}`
+                    return (
+                      <option key={c.id} value={c.id}>
+                        {num} · {dt} · {c.origem} → {c.destino}
+                      </option>
+                    )
+                  })}
+                </select>
+              </Campo>
+            )}
 
             <Campo label="Veículo">
               <input value={form.veiculo}

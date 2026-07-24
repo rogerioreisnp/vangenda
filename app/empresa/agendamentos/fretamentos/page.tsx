@@ -1116,13 +1116,11 @@ export default function AgendamentosPage() {
     if (!empresaNome) return ''
     const linhas: string[] = [`*${empresaNome}*`]
     if (empresaDescricao?.trim()) linhas.push(empresaDescricao.trim())
-    const contatos: string[] = []
-    if (empresaWhatsApp?.trim()) contatos.push(`📱 ${empresaWhatsApp.trim()}`)
+    if (empresaWhatsApp?.trim()) linhas.push(`📱 ${empresaWhatsApp.trim()}`)
     if (empresaInstagram?.trim()) {
       const ig = empresaInstagram.trim().replace(/^@/, '')
-      contatos.push(`@${ig}`)
+      linhas.push(`📸 Siga no Instagram: @${ig}`)
     }
-    if (contatos.length) linhas.push(contatos.join(' · '))
     return linhas.join('\n')
   }
 
@@ -1268,8 +1266,24 @@ export default function AgendamentosPage() {
     const telFmt = formatarTelefoneWhatsApp(c.cliente_telefone)
     if (!telFmt) { alert('Cliente não tem telefone cadastrado.'); return }
     const nome = c.cliente_nome || ''
+    // Data REAL do servico — usa data_hora_termino se diaria/city_tour terminou
+    // depois do inicio, senao a propria data_hora. Formato dd/mm/yyyy. Evita
+    // "hoje" errado quando gestor manda a mensagem no dia seguinte.
+    const dataRef = (c as any).data_hora_termino || c.data_hora
+    const dataFmt = `${dataRef.slice(8,10)}/${dataRef.slice(5,7)}/${dataRef.slice(0,4)}`
     let msg = `Olá ${nome}! 🙏\n\n`
-    msg += `Seu atendimento de ${c.origem} para ${c.destino} foi concluído com sucesso hoje.\n\n`
+    msg += `Seu atendimento de ${c.origem} para ${c.destino} foi concluído com sucesso em ${dataFmt}.\n\n`
+    // Se e diaria ou city tour com trajetos preenchidos, lista os trajetos —
+    // reforca com o cliente tudo o que foi rodado no dia.
+    const trajetos = (c as any).trajetos as { origem?: string; destino?: string }[] | null | undefined
+    if ((c.tipo_servico === 'diaria' || c.tipo_servico === 'city_tour') && Array.isArray(trajetos) && trajetos.length > 0) {
+      const listaValida = trajetos.filter(t => t?.origem || t?.destino)
+      if (listaValida.length > 0) {
+        msg += `*Trajetos realizados:*\n`
+        listaValida.forEach(t => { msg += `• ${t.origem || '...'} → ${t.destino || '...'}\n` })
+        msg += `\n`
+      }
+    }
     msg += `Foi um prazer atender você! Ficamos à disposição para as próximas viagens.\n\n`
     msg += `Obrigado pela preferência!`
     const ass = montarAssinatura()
@@ -1837,6 +1851,9 @@ export default function AgendamentosPage() {
                             style={{ background: tm.bg, color: tm.text }}>
                             {tm.badge}
                           </span>
+                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-full" style={{ background: '#F3F4F6', color: '#4B5563' }}>
+                            {c.numero_reserva || `#${c.id.slice(-5).toUpperCase()}`}
+                          </span>
                           {temVolta && (
                             <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
                               style={{ background: '#E1F5EE', color: '#0F6E56' }}>
@@ -1941,6 +1958,9 @@ export default function AgendamentosPage() {
                         <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
                           style={{ background: tmPar.bg, color: tmPar.text }}>
                           {tmPar.badge}
+                        </span>
+                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-full" style={{ background: '#F3F4F6', color: '#4B5563' }}>
+                          {ida.numero_reserva || `#${ida.id.slice(-5).toUpperCase()}`}
                         </span>
                         <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
                           style={{ background: '#E1F5EE', color: '#0F6E56' }}>
