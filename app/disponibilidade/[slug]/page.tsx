@@ -2,7 +2,7 @@
 // consulta agenda do transfer sem precisar perguntar. Escopo estrito:
 // - Sem valor, sem nome de cliente, sem telefone, sem origem/destino.
 // - So mostra data + hora + tipo (Transfer/Diaria/City Tour) + fim se diaria.
-// - Proximos 60 dias, so status ativos (nao mostra cancelada nem concluida).
+// - Proximos 30 dias, so status ativos (nao mostra cancelada nem concluida).
 // Server component: usa service_role no server pra ler direto, cliente nunca
 // ve dados brutos alem do que retornamos.
 import { createClient } from '@supabase/supabase-js'
@@ -56,7 +56,7 @@ export default async function DisponibilidadePage({ params }: { params: { slug: 
   }
 
   const agora = new Date()
-  const fim = new Date(agora.getTime() + 60 * 24 * 60 * 60 * 1000)
+  const fim = new Date(agora.getTime() + 30 * 24 * 60 * 60 * 1000)
 
   const { data: raw } = await supabase
     .from('corridas_empresa')
@@ -96,7 +96,7 @@ export default async function DisponibilidadePage({ params }: { params: { slug: 
             </div>
           </div>
           <p className="text-sm mt-4 font-semibold" style={{ color: '#E1F5EE' }}>
-            📅 Disponibilidade — próximos 60 dias
+            📅 Disponibilidade — próximos 30 dias
           </p>
           <p className="text-xs mt-1" style={{ color: '#9FE1CB' }}>
             Horários abaixo já estão ocupados. Fale conosco para encaixar sua reserva.
@@ -109,7 +109,7 @@ export default async function DisponibilidadePage({ params }: { params: { slug: 
           <div className="bg-white rounded-2xl p-8 text-center border border-gray-100">
             <p className="text-4xl mb-2">✅</p>
             <p className="text-base font-semibold text-gray-700">Agenda totalmente livre!</p>
-            <p className="text-sm text-gray-500 mt-1">Nenhum atendimento nos próximos 60 dias — fale conosco pra reservar.</p>
+            <p className="text-sm text-gray-500 mt-1">Nenhum atendimento nos próximos 30 dias — fale conosco pra reservar.</p>
           </div>
         ) : (
           dias.map(([dia, lista]) => {

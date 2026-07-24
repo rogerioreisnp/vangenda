@@ -1797,7 +1797,7 @@ export default function AgendamentosPage() {
           <button
             onClick={() => {
               const url = `${window.location.origin}/disponibilidade/${empresaSlug}`
-              const msg = `Consulte minha disponibilidade dos próximos 60 dias: ${url}`
+              const msg = `Consulte minha disponibilidade dos próximos 30 dias: ${url}`
               if (navigator.share) {
                 navigator.share({ title: 'Disponibilidade', url, text: msg }).catch(() => {})
               } else {
