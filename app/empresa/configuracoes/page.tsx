@@ -27,6 +27,19 @@ type Empresa = {
   transfer_numero_inicio: number | null
   mensagem_confirmacao: string | null
   mensagem_confirmacao_transfer: string | null
+  // Fase 1 cadastro fiscal — usados nos vouchers/recibos
+  endereco_rua: string | null
+  endereco_numero: string | null
+  endereco_bairro: string | null
+  endereco_cep: string | null
+  inscricao_estadual: string | null
+  site: string | null
+  banco_nome: string | null
+  banco_agencia: string | null
+  banco_conta: string | null
+  banco_tipo_conta: string | null
+  banco_titular_nome: string | null
+  banco_titular_documento: string | null
 }
 
 const PLANO_LABEL: Record<string, string> = { starter: 'Starter', pro: 'Pro', fleet: 'Fleet' }
@@ -67,7 +80,7 @@ export default function ConfiguracoesEmpresaPage() {
 
     const { data: emp } = await supabase
       .from('empresas')
-      .select('id, nome, telefone, tipo_operacao, plano, status, cnpj, email_comercial, cidade, estado, qtd_veiculos, descricao, chave_pix, tipo_chave_pix, instagram, whatsapp_comercial, cor_destaque, logo_url, trial_fim, slug, transfer_numero_inicio, mensagem_confirmacao, mensagem_confirmacao_transfer')
+      .select('id, nome, telefone, tipo_operacao, plano, status, cnpj, email_comercial, cidade, estado, qtd_veiculos, descricao, chave_pix, tipo_chave_pix, instagram, whatsapp_comercial, cor_destaque, logo_url, trial_fim, slug, transfer_numero_inicio, mensagem_confirmacao, mensagem_confirmacao_transfer, endereco_rua, endereco_numero, endereco_bairro, endereco_cep, inscricao_estadual, site, banco_nome, banco_agencia, banco_conta, banco_tipo_conta, banco_titular_nome, banco_titular_documento')
       .eq('id', gestor.empresa_id)
       .single()
 
@@ -140,6 +153,18 @@ export default function ConfiguracoesEmpresaPage() {
         transfer_numero_inicio: empresa.transfer_numero_inicio || 1,
         mensagem_confirmacao: empresa.mensagem_confirmacao?.trim() || null,
         mensagem_confirmacao_transfer: empresa.mensagem_confirmacao_transfer?.trim() || null,
+        endereco_rua:           empresa.endereco_rua?.trim()           || null,
+        endereco_numero:        empresa.endereco_numero?.trim()        || null,
+        endereco_bairro:        empresa.endereco_bairro?.trim()        || null,
+        endereco_cep:           empresa.endereco_cep?.trim()           || null,
+        inscricao_estadual:     empresa.inscricao_estadual?.trim()     || null,
+        site:                   empresa.site?.trim()                   || null,
+        banco_nome:             empresa.banco_nome?.trim()             || null,
+        banco_agencia:          empresa.banco_agencia?.trim()          || null,
+        banco_conta:            empresa.banco_conta?.trim()            || null,
+        banco_tipo_conta:       empresa.banco_tipo_conta               || null,
+        banco_titular_nome:     empresa.banco_titular_nome?.trim()     || null,
+        banco_titular_documento: empresa.banco_titular_documento?.trim() || null,
       })
       .eq('id', empresa.id)
 
@@ -287,6 +312,134 @@ export default function ConfiguracoesEmpresaPage() {
                 {STATUS_LABEL[empresa?.status || ''] || empresa?.status}
               </span>
             </div>
+          </div>
+        </Secao>
+
+        <Secao titulo="📍 Endereço fiscal (opcional)">
+          <p className="text-xs text-gray-400 mb-3">
+            Usado no cabeçalho dos vouchers e recibos enviados aos clientes.
+          </p>
+          <div className="flex flex-col gap-3">
+            <div className="grid grid-cols-3 gap-2" style={{ gridTemplateColumns: '2fr 1fr' }}>
+              <Campo label="Rua / Logradouro">
+                <input
+                  value={empresa?.endereco_rua || ''}
+                  onChange={e => setEmpresa(emp => emp ? { ...emp, endereco_rua: e.target.value } : emp)}
+                  placeholder="Ex: Rua Gumercindo de Paula"
+                  className="campo-input"
+                />
+              </Campo>
+              <Campo label="Número">
+                <input
+                  value={empresa?.endereco_numero || ''}
+                  onChange={e => setEmpresa(emp => emp ? { ...emp, endereco_numero: e.target.value } : emp)}
+                  placeholder="203"
+                  className="campo-input"
+                />
+              </Campo>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <Campo label="Bairro">
+                <input
+                  value={empresa?.endereco_bairro || ''}
+                  onChange={e => setEmpresa(emp => emp ? { ...emp, endereco_bairro: e.target.value } : emp)}
+                  placeholder="Ex: Jardim Monte Alegre"
+                  className="campo-input"
+                />
+              </Campo>
+              <Campo label="CEP">
+                <input
+                  value={empresa?.endereco_cep || ''}
+                  onChange={e => {
+                    const v = e.target.value.replace(/\D/g, '').slice(0, 8)
+                    const mask = v.length > 5 ? `${v.slice(0,5)}-${v.slice(5)}` : v
+                    setEmpresa(emp => emp ? { ...emp, endereco_cep: mask } : emp)
+                  }}
+                  placeholder="00000-000"
+                  className="campo-input"
+                />
+              </Campo>
+            </div>
+            <Campo label="Inscrição Estadual (opcional)">
+              <input
+                value={empresa?.inscricao_estadual || ''}
+                onChange={e => setEmpresa(emp => emp ? { ...emp, inscricao_estadual: e.target.value } : emp)}
+                placeholder="Ex: 123.456.789.000 ou Isento"
+                className="campo-input"
+              />
+            </Campo>
+            <Campo label="Site (opcional)">
+              <input
+                value={empresa?.site || ''}
+                onChange={e => setEmpresa(emp => emp ? { ...emp, site: e.target.value } : emp)}
+                placeholder="www.suaempresa.com.br"
+                className="campo-input"
+              />
+            </Campo>
+          </div>
+        </Secao>
+
+        <Secao titulo="🏦 Dados bancários (opcional)">
+          <p className="text-xs text-gray-400 mb-3">
+            Aparecem no rodapé dos vouchers/recibos pro cliente pagar por
+            transferência ou Pix. A chave Pix e o tipo de chave ficam na
+            seção "Personalização" abaixo.
+          </p>
+          <div className="flex flex-col gap-3">
+            <Campo label="Banco">
+              <input
+                value={empresa?.banco_nome || ''}
+                onChange={e => setEmpresa(emp => emp ? { ...emp, banco_nome: e.target.value } : emp)}
+                placeholder="Ex: C6, Itaú, Bradesco"
+                className="campo-input"
+              />
+            </Campo>
+            <div className="grid grid-cols-2 gap-2">
+              <Campo label="Agência">
+                <input
+                  value={empresa?.banco_agencia || ''}
+                  onChange={e => setEmpresa(emp => emp ? { ...emp, banco_agencia: e.target.value } : emp)}
+                  placeholder="0001"
+                  className="campo-input"
+                />
+              </Campo>
+              <Campo label="Conta">
+                <input
+                  value={empresa?.banco_conta || ''}
+                  onChange={e => setEmpresa(emp => emp ? { ...emp, banco_conta: e.target.value } : emp)}
+                  placeholder="12345-6"
+                  className="campo-input"
+                />
+              </Campo>
+            </div>
+            <Campo label="Tipo de conta">
+              <select
+                value={empresa?.banco_tipo_conta || ''}
+                onChange={e => setEmpresa(emp => emp ? { ...emp, banco_tipo_conta: e.target.value } : emp)}
+                className="campo-input"
+              >
+                <option value="">Selecione...</option>
+                <option value="corrente">Corrente</option>
+                <option value="poupanca">Poupança</option>
+                <option value="pagamento">Pagamento</option>
+              </select>
+            </Campo>
+            <Campo label="Titular da conta">
+              <input
+                value={empresa?.banco_titular_nome || ''}
+                onChange={e => setEmpresa(emp => emp ? { ...emp, banco_titular_nome: e.target.value } : emp)}
+                placeholder="Nome como consta no banco"
+                className="campo-input"
+              />
+            </Campo>
+            <Campo label="CPF/CNPJ do titular">
+              <input
+                value={empresa?.banco_titular_documento || ''}
+                onChange={e => setEmpresa(emp => emp ? { ...emp, banco_titular_documento: e.target.value } : emp)}
+                placeholder="XX.XXX.XXX/XXXX-XX ou XXX.XXX.XXX-XX"
+                className="campo-input"
+              />
+            </Campo>
           </div>
         </Secao>
 
