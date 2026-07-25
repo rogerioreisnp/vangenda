@@ -1,4 +1,9 @@
--- Migration: modulo de Clientes (PJ + PF) — Fase 2 vouchers/recibos.
+-- Migration: modulo de Clientes (PJ + PF) do transfer empresarial — Fase 2.
+--
+-- NOME: `clientes_empresa` — segue o padrao das outras tabelas empresariais
+-- (motoristas_empresa, corridas_empresa, despesas_empresa, cobrancas_empresa,
+-- rotas_empresa). Nao pode ser so `clientes` porque ja existe uma tabela
+-- `clientes` no app INDIVIDUAL (motorista_id, parada_origem_frequente etc).
 --
 -- Contexto: hoje as corridas_empresa tem cliente_nome/cliente_telefone
 -- como campos livres. Julimar quer poder CADASTRAR clientes recorrentes
@@ -16,7 +21,7 @@
 --
 -- Idempotente. Execute no SQL Editor do Vangenda.
 
-CREATE TABLE IF NOT EXISTS clientes (
+CREATE TABLE IF NOT EXISTS clientes_empresa (
   id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   empresa_id        UUID NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
   tipo              TEXT NOT NULL CHECK (tipo IN ('pj', 'pf')),
@@ -50,37 +55,35 @@ CREATE TABLE IF NOT EXISTS clientes (
   atualizado_em     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS clientes_empresa_idx ON clientes (empresa_id);
-CREATE INDEX IF NOT EXISTS clientes_empresa_ativo_idx ON clientes (empresa_id, ativo) WHERE ativo;
+CREATE INDEX IF NOT EXISTS clientes_empresa_empresa_idx ON clientes_empresa (empresa_id);
+CREATE INDEX IF NOT EXISTS clientes_empresa_ativo_idx ON clientes_empresa (empresa_id, ativo) WHERE ativo;
 -- Busca por nome/razao — mais util pro autocomplete
-CREATE INDEX IF NOT EXISTS clientes_busca_idx ON clientes (empresa_id, tipo, razao_social, nome_fantasia, nome);
+CREATE INDEX IF NOT EXISTS clientes_empresa_busca_idx ON clientes_empresa (empresa_id, tipo, razao_social, nome_fantasia, nome);
 
 -- RLS: gestor da empresa pode tudo, funcionario motorista pode ler
 -- (pra ver cliente nos atendimentos que ele executa).
--- IMPORTANTE: qualificamos TODAS as colunas com alias pra evitar ambiguidade
--- entre clientes.empresa_id (linha sendo avaliada) e gestores.empresa_id
--- (subquery). Sem alias, Postgres reclama "column empresa_id does not exist".
-ALTER TABLE clientes ENABLE ROW LEVEL SECURITY;
+-- IMPORTANTE: qualificamos TODAS as colunas com alias pra evitar ambiguidade.
+ALTER TABLE clientes_empresa ENABLE ROW LEVEL SECURITY;
 
 DO $$
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'clientes' AND policyname = 'gestor_gerencia_clientes') THEN
-    CREATE POLICY "gestor_gerencia_clientes" ON clientes
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'clientes_empresa' AND policyname = 'gestor_gerencia_clientes_empresa') THEN
+    CREATE POLICY "gestor_gerencia_clientes_empresa" ON clientes_empresa
       FOR ALL TO authenticated
-      USING (clientes.empresa_id IN (SELECT g.empresa_id FROM gestores g WHERE g.user_id = auth.uid()))
-      WITH CHECK (clientes.empresa_id IN (SELECT g.empresa_id FROM gestores g WHERE g.user_id = auth.uid()));
+      USING (clientes_empresa.empresa_id IN (SELECT g.empresa_id FROM gestores g WHERE g.user_id = auth.uid()))
+      WITH CHECK (clientes_empresa.empresa_id IN (SELECT g.empresa_id FROM gestores g WHERE g.user_id = auth.uid()));
   END IF;
 
-  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'clientes' AND policyname = 'funcionario_le_clientes') THEN
-    CREATE POLICY "funcionario_le_clientes" ON clientes
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'clientes_empresa' AND policyname = 'funcionario_le_clientes_empresa') THEN
+    CREATE POLICY "funcionario_le_clientes_empresa" ON clientes_empresa
       FOR SELECT TO authenticated
-      USING (clientes.empresa_id IN (SELECT empresas_do_motorista_logado()));
+      USING (clientes_empresa.empresa_id IN (SELECT empresas_do_motorista_logado()));
   END IF;
 END $$;
 
 -- FK opcional em corridas_empresa
 ALTER TABLE corridas_empresa
-  ADD COLUMN IF NOT EXISTS cliente_id UUID REFERENCES clientes(id) ON DELETE SET NULL;
+  ADD COLUMN IF NOT EXISTS cliente_id UUID REFERENCES clientes_empresa(id) ON DELETE SET NULL;
 
 CREATE INDEX IF NOT EXISTS corridas_empresa_cliente_idx ON corridas_empresa (cliente_id) WHERE cliente_id IS NOT NULL;
 

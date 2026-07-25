@@ -108,7 +108,7 @@ export default function ClientesPage() {
     if (!gestor) { setLoading(false); return }
     setEmpresaId(gestor.empresa_id)
     const { data } = await supabase
-      .from('clientes')
+      .from('clientes_empresa')
       .select('*')
       .eq('empresa_id', gestor.empresa_id)
       .order('atualizado_em', { ascending: false })
@@ -180,8 +180,8 @@ export default function ClientesPage() {
       atualizado_em: new Date().toISOString(),
     }
     const { error } = editando
-      ? await supabase.from('clientes').update(payload).eq('id', editando.id)
-      : await supabase.from('clientes').insert(payload)
+      ? await supabase.from('clientes_empresa').update(payload).eq('id', editando.id)
+      : await supabase.from('clientes_empresa').insert(payload)
     setSalvando(false)
     if (error) { setErro('Erro ao salvar: ' + error.message); return }
     setModalAberto(false)
@@ -190,7 +190,7 @@ export default function ClientesPage() {
 
   async function excluir(c: Cliente) {
     if (!confirm(`Excluir cliente "${nomeExibicao(c)}"? Atendimentos vinculados a ele ficarão sem cliente vinculado.`)) return
-    await supabase.from('clientes').delete().eq('id', c.id)
+    await supabase.from('clientes_empresa').delete().eq('id', c.id)
     carregar()
   }
 

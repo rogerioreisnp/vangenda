@@ -528,7 +528,7 @@ export default function AgendamentosPage() {
         .eq('status', 'ativo')
         .order('nome'),
       supabase
-        .from('clientes')
+        .from('clientes_empresa')
         .select('id, tipo, razao_social, nome_fantasia, nome, telefone, email')
         .eq('empresa_id', gestor.empresa_id)
         .eq('ativo', true)
