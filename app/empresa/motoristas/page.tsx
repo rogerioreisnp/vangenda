@@ -12,6 +12,7 @@ type Motorista = {
   placa: string | null
   cor: string | null
   status: string
+  percentual_repasse: number | null
   veiculos?: VeiculoMotorista[]
 }
 
@@ -30,6 +31,7 @@ type FormMotorista = {
   email: string
   senha: string
   telefone: string
+  percentual_repasse: string  // input string, converte no save
   veiculos: VeiculoMotorista[]
 }
 
@@ -39,7 +41,7 @@ export default function MotoristasPage() {
   const [loading, setLoading] = useState(true)
   const [modalAberto, setModalAberto] = useState(false)
   const [editando, setEditando] = useState<Motorista | null>(null)
-  const [form, setForm] = useState<FormMotorista>({ nome: '', email: '', senha: '', telefone: '', veiculos: [{ ...VEICULO_VAZIO }] })
+  const [form, setForm] = useState<FormMotorista>({ nome: '', email: '', senha: '', telefone: '', percentual_repasse: '', veiculos: [{ ...VEICULO_VAZIO }] })
   const [salvando, setSalvando] = useState(false)
   const salvandoRef = useRef(false)
   const [erro, setErro] = useState('')
@@ -70,7 +72,7 @@ export default function MotoristasPage() {
 
     const { data: mots } = await supabase
       .from('motoristas_empresa')
-      .select('id, user_id, nome, telefone, veiculo, placa, cor, status, veiculos_motorista(id, veiculo, placa, cor, ordem)')
+      .select('id, user_id, nome, telefone, veiculo, placa, cor, status, percentual_repasse, veiculos_motorista(id, veiculo, placa, cor, ordem)')
       .eq('empresa_id', empresa.id)
       .order('created_at')
 
@@ -85,7 +87,7 @@ export default function MotoristasPage() {
 
   function abrirAdicionar() {
     setEditando(null)
-    setForm({ nome: '', email: '', senha: '', telefone: '', veiculos: [{ ...VEICULO_VAZIO }] })
+    setForm({ nome: '', email: '', senha: '', telefone: '', percentual_repasse: '', veiculos: [{ ...VEICULO_VAZIO }] })
     setErro('')
     setModalAberto(true)
   }
@@ -95,7 +97,14 @@ export default function MotoristasPage() {
     const veiculosCarregados = (m.veiculos && m.veiculos.length > 0)
       ? m.veiculos.map(v => ({ id: v.id, veiculo: v.veiculo || '', placa: v.placa || '', cor: v.cor || '' }))
       : [{ ...VEICULO_VAZIO }]
-    setForm({ nome: m.nome, email: '', senha: '', telefone: m.telefone || '', veiculos: veiculosCarregados })
+    setForm({
+      nome: m.nome,
+      email: '',
+      senha: '',
+      telefone: m.telefone || '',
+      percentual_repasse: m.percentual_repasse != null ? String(m.percentual_repasse) : '',
+      veiculos: veiculosCarregados,
+    })
     setErro('')
     setModalAberto(true)
   }
@@ -121,6 +130,13 @@ export default function MotoristasPage() {
         const veiculosValidos = form.veiculos.filter(v => v.veiculo.trim() || v.placa.trim() || v.cor.trim())
         const principal = veiculosValidos[0]
 
+        const pctRaw = form.percentual_repasse.replace(',', '.').trim()
+        const pctNum = pctRaw ? parseFloat(pctRaw) : null
+        if (pctNum !== null && (isNaN(pctNum) || pctNum < 0 || pctNum > 100)) {
+          setErro('Percentual de repasse deve estar entre 0 e 100')
+          return
+        }
+
         const { error } = await supabase
           .from('motoristas_empresa')
           .update({
@@ -129,6 +145,7 @@ export default function MotoristasPage() {
             veiculo: principal?.veiculo.trim() || null,
             placa: principal?.placa.trim() || null,
             cor: principal?.cor.trim() || null,
+            percentual_repasse: pctNum,
           })
           .eq('id', editando.id)
 
@@ -422,6 +439,24 @@ export default function MotoristasPage() {
             <Campo label="Telefone">
               <input value={form.telefone} onChange={e => setForm(f => ({ ...f, telefone: e.target.value }))}
                 placeholder="(XX) XXXXX-XXXX" className="campo-input" />
+            </Campo>
+
+            {/* Percentual de repasse — motorista parceiro/agregado. Auto-preenche
+                o valor de repasse quando atribuido a um atendimento. Deixar em
+                branco quando e motorista funcionario (nao tem repasse). */}
+            <Campo label="Percentual de repasse (motorista parceiro)">
+              <div className="flex items-center gap-2">
+                <input type="number" min={0} max={100} step={0.01}
+                  value={form.percentual_repasse}
+                  onChange={e => setForm(f => ({ ...f, percentual_repasse: e.target.value }))}
+                  placeholder="Ex: 70"
+                  className="campo-input flex-1" />
+                <span className="text-sm text-gray-500">%</span>
+              </div>
+              <p className="text-[10px] text-gray-400 mt-1">
+                Se preenchido, o sistema auto-calcula o valor de repasse ao atribuir
+                este motorista a um atendimento. Deixe em branco pra motorista funcionário.
+              </p>
             </Campo>
 
             {/* Lista repetível de veículos — motorista pode ter mais de um

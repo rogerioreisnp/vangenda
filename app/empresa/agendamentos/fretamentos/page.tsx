@@ -28,6 +28,7 @@ type MotoristaOpcao = {
   veiculo: string | null
   placa: string | null
   cor: string | null
+  percentual_repasse: number | null
 }
 
 type Corrida = {
@@ -52,6 +53,7 @@ type Corrida = {
   valor_recebido: number | null
   data_pagamento: string | null
   data_prevista_pagamento: string | null
+  valor_repasse_motorista: number | null
   observacoes: string | null
   motoristas_empresa: { nome: string } | null
   numero_voo: string | null
@@ -181,6 +183,7 @@ type FormCorrida = {
   data_pagamento: string
   data_prevista_pagamento: string
   preco: string
+  valor_repasse_motorista: string
   observacoes: string
 }
 
@@ -222,6 +225,7 @@ const FORM_VAZIO: FormCorrida = {
   data_pagamento: '',
   data_prevista_pagamento: '',
   preco: '',
+  valor_repasse_motorista: '',
   observacoes: '',
 }
 
@@ -517,7 +521,7 @@ export default function AgendamentosPage() {
     //   2. FUTURAS (data_hora >= agora e status != em_andamento) — asc
     //   3. PASSADAS (data_hora < agora e status != em_andamento) — desc
     const agoraISO = new Date().toISOString()
-    const colsCorridas = 'id, rota_id, cliente_id, origem, destino, data_hora, created_at, cliente_nome, cliente_telefone, email_solicitante, passageiro1_nome, passageiro1_telefone, valor, status, motorista_id, tipo_servico, forma_pagamento, status_pagamento, valor_recebido, data_pagamento, data_prevista_pagamento, observacoes, motoristas_empresa(nome), numero_voo, nome_passageiro2, telefone_passageiro2, retorno_data, retorno_horario, retorno_origem, retorno_destino, numero_reserva, quantidade_bagagem, passageiros_adicionais, rua, numero, bairro, municipio, cep, referencia, rua_desembarque, numero_desembarque, bairro_desembarque, municipio_desembarque, cep_desembarque, referencia_desembarque, data_hora_termino, trajetos, km_inicial, km_final'
+    const colsCorridas = 'id, rota_id, cliente_id, origem, destino, data_hora, created_at, cliente_nome, cliente_telefone, email_solicitante, passageiro1_nome, passageiro1_telefone, valor, status, motorista_id, tipo_servico, forma_pagamento, status_pagamento, valor_recebido, data_pagamento, data_prevista_pagamento, valor_repasse_motorista, observacoes, motoristas_empresa(nome), numero_voo, nome_passageiro2, telefone_passageiro2, retorno_data, retorno_horario, retorno_origem, retorno_destino, numero_reserva, quantidade_bagagem, passageiros_adicionais, rua, numero, bairro, municipio, cep, referencia, rua_desembarque, numero_desembarque, bairro_desembarque, municipio_desembarque, cep_desembarque, referencia_desembarque, data_hora_termino, trajetos, km_inicial, km_final'
 
     const [{ data: empresa }, { data: rts }, { data: mots }, { data: clientesData }, { data: emAndamento }, { data: futuras }, { data: passadas }] = await Promise.all([
       supabase
@@ -532,7 +536,7 @@ export default function AgendamentosPage() {
         .order('created_at'),
       supabase
         .from('motoristas_empresa')
-        .select('id, nome, user_id, telefone, veiculo, placa, cor')
+        .select('id, nome, user_id, telefone, veiculo, placa, cor, percentual_repasse')
         .eq('empresa_id', gestor.empresa_id)
         .eq('status', 'ativo')
         .order('nome'),
@@ -683,6 +687,7 @@ export default function AgendamentosPage() {
       data_pagamento: c.data_pagamento || '',
       data_prevista_pagamento: c.data_prevista_pagamento || '',
       preco: String(c.valor),
+      valor_repasse_motorista: c.valor_repasse_motorista != null ? String(c.valor_repasse_motorista) : '',
       observacoes: c.observacoes || '',
     })
     setErro('')
@@ -832,6 +837,9 @@ export default function AgendamentosPage() {
       valor_recebido: valorRecebido,
       data_pagamento: dataPagamento,
       data_prevista_pagamento: form.data_prevista_pagamento || null,
+      valor_repasse_motorista: form.valor_repasse_motorista.trim()
+        ? Math.max(0, parseFloat(form.valor_repasse_motorista.replace(',', '.'))) || null
+        : null,
       observacoes: form.observacoes.trim() || null,
     }
 
@@ -2435,6 +2443,24 @@ export default function AgendamentosPage() {
                   R$ {Number(corridaFicha.valor).toFixed(2).replace('.', ',')}
                 </p>
               )}
+              {/* Bloco de repasse/lucro — so aparece quando ha repasse a
+                  motorista parceiro configurado. Nao mostra pro funcionario. */}
+              {Number(corridaFicha.valor_repasse_motorista) > 0 && (
+                <div className="mt-1.5 rounded-lg p-2" style={{ background: '#F5F6F8' }}>
+                  <div className="flex justify-between text-xs">
+                    <span style={{ color: '#6B7280' }}>Repasse motorista</span>
+                    <span style={{ color: '#A32D2D' }}>
+                      − R$ {Number(corridaFicha.valor_repasse_motorista).toFixed(2).replace('.', ',')}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-xs font-semibold mt-1 pt-1" style={{ borderTop: '1px dashed #D9DCE3' }}>
+                    <span style={{ color: '#0F6E56' }}>Lucro real</span>
+                    <span style={{ color: '#0F6E56' }}>
+                      R$ {(Number(corridaFicha.valor) - Number(corridaFicha.valor_repasse_motorista)).toFixed(2).replace('.', ',')}
+                    </span>
+                  </div>
+                </div>
+              )}
               {corridaFicha.status_pagamento === 'recebido' && corridaFicha.data_pagamento && (
                 <p className="text-xs mt-1" style={{ color: '#0F6E56' }}>
                   ✅ Recebido em {corridaFicha.data_pagamento.slice(8,10)}/{corridaFicha.data_pagamento.slice(5,7)}/{corridaFicha.data_pagamento.slice(0,4)}
@@ -3056,14 +3082,43 @@ export default function AgendamentosPage() {
                 notificarMotoristaAtribuido). */}
             <Campo label="Motorista atribuído">
               <select value={form.motorista_id}
-                onChange={e => setForm(f => ({ ...f, motorista_id: e.target.value }))}
+                onChange={e => {
+                  const id = e.target.value
+                  const mot = motoristasOpcoes.find(m => m.id === id)
+                  const valorNum = parseFloat(form.preco?.replace(',', '.') || '0')
+                  // Auto-calcula repasse do percentual padrao do motorista, so se
+                  // o campo estiver vazio (nao sobrescreve edicao manual do gestor).
+                  const repasseAuto = (!form.valor_repasse_motorista && mot?.percentual_repasse && valorNum > 0)
+                    ? (valorNum * mot.percentual_repasse / 100).toFixed(2)
+                    : form.valor_repasse_motorista
+                  setForm(f => ({ ...f, motorista_id: id, valor_repasse_motorista: repasseAuto }))
+                }}
                 className="campo-input">
                 <option value="">A definir</option>
                 {motoristasOpcoes.map(m => (
-                  <option key={m.id} value={m.id}>{m.nome}</option>
+                  <option key={m.id} value={m.id}>
+                    {m.nome}{m.percentual_repasse ? ` · ${m.percentual_repasse}% repasse` : ''}
+                  </option>
                 ))}
               </select>
             </Campo>
+
+            {/* Repasse ao motorista parceiro. Aparece so quando tem motorista
+                atribuido. Autopreenchido pelo percentual padrao — gestor pode
+                editar. Lucro real = valor - repasse (mostrado na ficha). */}
+            {form.motorista_id && (
+              <Campo label="Valor de repasse ao motorista (R$)">
+                <input type="number" min={0} step={0.01}
+                  value={form.valor_repasse_motorista}
+                  onChange={e => setForm(f => ({ ...f, valor_repasse_motorista: e.target.value }))}
+                  placeholder="Ex: 350.00"
+                  className="campo-input" />
+                <p className="text-[10px] text-gray-400 mt-1">
+                  Deixe em branco pra motorista funcionário (sem repasse).
+                  Se o motorista tem % configurado, o valor é calculado automaticamente.
+                </p>
+              </Campo>
+            )}
 
             {tipoOperacao !== 'rota_fixa' && (
               <Campo label="Rota">
