@@ -57,6 +57,9 @@ CREATE INDEX IF NOT EXISTS clientes_busca_idx ON clientes (empresa_id, tipo, raz
 
 -- RLS: gestor da empresa pode tudo, funcionario motorista pode ler
 -- (pra ver cliente nos atendimentos que ele executa).
+-- IMPORTANTE: qualificamos TODAS as colunas com alias pra evitar ambiguidade
+-- entre clientes.empresa_id (linha sendo avaliada) e gestores.empresa_id
+-- (subquery). Sem alias, Postgres reclama "column empresa_id does not exist".
 ALTER TABLE clientes ENABLE ROW LEVEL SECURITY;
 
 DO $$
@@ -64,14 +67,14 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'clientes' AND policyname = 'gestor_gerencia_clientes') THEN
     CREATE POLICY "gestor_gerencia_clientes" ON clientes
       FOR ALL TO authenticated
-      USING (empresa_id IN (SELECT empresa_id FROM gestores WHERE user_id = auth.uid()))
-      WITH CHECK (empresa_id IN (SELECT empresa_id FROM gestores WHERE user_id = auth.uid()));
+      USING (clientes.empresa_id IN (SELECT g.empresa_id FROM gestores g WHERE g.user_id = auth.uid()))
+      WITH CHECK (clientes.empresa_id IN (SELECT g.empresa_id FROM gestores g WHERE g.user_id = auth.uid()));
   END IF;
 
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'clientes' AND policyname = 'funcionario_le_clientes') THEN
     CREATE POLICY "funcionario_le_clientes" ON clientes
       FOR SELECT TO authenticated
-      USING (empresa_id IN (SELECT empresas_do_motorista_logado()));
+      USING (clientes.empresa_id IN (SELECT empresas_do_motorista_logado()));
   END IF;
 END $$;
 
