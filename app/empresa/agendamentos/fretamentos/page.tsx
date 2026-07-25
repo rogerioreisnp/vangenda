@@ -10,6 +10,7 @@ import ModalListaPassageirosPDF from '@/components/ModalListaPassageirosPDF'
 // Modal do voucher usa @react-pdf/renderer no client — SSR pode explodir por
 // causa de font/canvas. Carregar dinamicamente sem SSR resolve.
 const ModalGerarVoucher = dynamic(() => import('@/components/ModalGerarVoucher'), { ssr: false })
+const ModalGerarRecibo  = dynamic(() => import('@/components/ModalGerarRecibo'),  { ssr: false })
 
 type RotaOpcao = {
   id: string
@@ -393,6 +394,7 @@ export default function AgendamentosPage() {
   const [empresaFiscal, setEmpresaFiscal] = useState<any>(null)
   // Modal de voucher aberto na ficha da corrida
   const [voucherAberto, setVoucherAberto] = useState<null | { corrida: Corrida; cliente: any }>(null)
+  const [reciboAberto, setReciboAberto] = useState<null | { corrida: Corrida; cliente: any }>(null)
   const [mensagemConfirmacaoTransfer, setMensagemConfirmacaoTransfer] = useState<string | null>(null)
   const [rotasOpcoes, setRotasOpcoes] = useState<RotaOpcao[]>([])
   const [motoristasOpcoes, setMotoristasOpcoes] = useState<MotoristaOpcao[]>([])
@@ -2240,6 +2242,43 @@ export default function AgendamentosPage() {
         )
       })()}
 
+      {/* Modal Recibo PDF — so aparece quando gestor clica no botao
+          (que so aparece pra atendimentos com status_pagamento='recebido') */}
+      {reciboAberto && empresaFiscal && (() => {
+        const c = reciboAberto.corrida
+        const cli = reciboAberto.cliente
+        const enderecoCliente = cli ? [
+          [cli.endereco_rua, cli.endereco_numero].filter(Boolean).join(', '),
+          cli.endereco_bairro,
+          [cli.endereco_cidade, cli.endereco_estado].filter(Boolean).join('-'),
+        ].filter(Boolean).join(', ') : null
+        const num = c.numero_reserva ? String(c.numero_reserva) : c.id.slice(-5).toUpperCase()
+        return (
+          <ModalGerarRecibo
+            empresa={empresaFiscal}
+            cliente={{
+              nome: c.cliente_nome,
+              telefone: c.cliente_telefone,
+              email: c.email_solicitante,
+              endereco_linha: enderecoCliente,
+            }}
+            atendimento={{
+              numero: num,
+              tipo_servico: c.tipo_servico,
+              origem: c.origem,
+              destino: c.destino,
+              data_hora: c.data_hora,
+              valor: Number(c.valor) || 0,
+              valor_recebido: c.valor_recebido != null ? Number(c.valor_recebido) : null,
+              forma_pagamento: c.forma_pagamento,
+              data_pagamento: c.data_pagamento,
+            }}
+            emailCliente={c.email_solicitante}
+            onFechar={() => setReciboAberto(null)}
+          />
+        )
+      })()}
+
       {/* Modal ficha de solicitação pendente (transfer) */}
       {modalFichaAberto && corridaFicha && (
         <div className="fixed inset-0 z-[60] flex flex-col" style={{ background: '#fff' }}>
@@ -2711,6 +2750,20 @@ export default function AgendamentosPage() {
               style={{ background: '#fff', color: '#0F6E56', borderColor: '#9FE1CB' }}>
               📄 Gerar voucher PDF
             </button>
+
+            {/* Botao Recibo PDF — so aparece quando pagamento foi recebido.
+                Antes disso nao faz sentido emitir recibo. */}
+            {corridaFicha.status_pagamento === 'recebido' && (
+              <button
+                onClick={() => {
+                  const cli = clientesOpcoes.find(c => c.id === corridaFicha.cliente_id)?.raw
+                  setReciboAberto({ corrida: corridaFicha, cliente: cli || null })
+                }}
+                className="w-full py-3 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 border"
+                style={{ background: '#E1F5EE', color: '#085041', borderColor: '#9FE1CB' }}>
+                🧾 Gerar recibo de pagamento
+              </button>
+            )}
 
             {/* Ações — Confirmada: definir motorista e marcar em andamento */}
             {corridaFicha.status === 'confirmada' && (
