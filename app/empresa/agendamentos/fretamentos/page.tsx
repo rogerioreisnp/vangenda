@@ -11,6 +11,7 @@ import ModalListaPassageirosPDF from '@/components/ModalListaPassageirosPDF'
 // causa de font/canvas. Carregar dinamicamente sem SSR resolve.
 const ModalGerarVoucher = dynamic(() => import('@/components/ModalGerarVoucher'), { ssr: false })
 const ModalGerarRecibo  = dynamic(() => import('@/components/ModalGerarRecibo'),  { ssr: false })
+const ModalGerarReciboRepasse = dynamic(() => import('@/components/ModalGerarReciboRepasse'), { ssr: false })
 
 type RotaOpcao = {
   id: string
@@ -395,6 +396,7 @@ export default function AgendamentosPage() {
   // Modal de voucher aberto na ficha da corrida
   const [voucherAberto, setVoucherAberto] = useState<null | { corrida: Corrida; cliente: any }>(null)
   const [reciboAberto, setReciboAberto] = useState<null | { corrida: Corrida; cliente: any }>(null)
+  const [repasseAberto, setRepasseAberto] = useState<Corrida | null>(null)
   const [mensagemConfirmacaoTransfer, setMensagemConfirmacaoTransfer] = useState<string | null>(null)
   const [rotasOpcoes, setRotasOpcoes] = useState<RotaOpcao[]>([])
   const [motoristasOpcoes, setMotoristasOpcoes] = useState<MotoristaOpcao[]>([])
@@ -2279,6 +2281,37 @@ export default function AgendamentosPage() {
         )
       })()}
 
+      {/* Modal Recibo de repasse pro motorista — so acessivel via botao
+          que so aparece quando ha valor_repasse configurado. */}
+      {repasseAberto && empresaFiscal && (() => {
+        const c = repasseAberto
+        const mot = motoristaInfo(c, c.motorista_id ?? '')
+        if (!mot) return null
+        const num = c.numero_reserva ? String(c.numero_reserva) : c.id.slice(-5).toUpperCase()
+        return (
+          <ModalGerarReciboRepasse
+            empresa={empresaFiscal}
+            motorista={{
+              nome: mot.nome,
+              documento: null,  // motoristas_empresa nao tem CPF hoje — fica em branco
+              telefone: mot.telefone,
+              veiculo: mot.veiculo,
+              placa: mot.placa,
+            }}
+            atendimento={{
+              numero: num,
+              origem: c.origem,
+              destino: c.destino,
+              data_hora: c.data_hora,
+            }}
+            valor_repasse={Number(c.valor_repasse_motorista) || 0}
+            data_pagamento={c.data_pagamento}
+            forma_pagamento={c.forma_pagamento}
+            onFechar={() => setRepasseAberto(null)}
+          />
+        )
+      })()}
+
       {/* Modal ficha de solicitação pendente (transfer) */}
       {modalFichaAberto && corridaFicha && (
         <div className="fixed inset-0 z-[60] flex flex-col" style={{ background: '#fff' }}>
@@ -2762,6 +2795,17 @@ export default function AgendamentosPage() {
                 className="w-full py-3 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 border"
                 style={{ background: '#E1F5EE', color: '#085041', borderColor: '#9FE1CB' }}>
                 🧾 Gerar recibo de pagamento
+              </button>
+            )}
+
+            {/* Botao Recibo de repasse — so aparece quando ha valor de repasse
+                configurado (motorista parceiro/agregado). */}
+            {Number(corridaFicha.valor_repasse_motorista) > 0 && (
+              <button
+                onClick={() => setRepasseAberto(corridaFicha)}
+                className="w-full py-3 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 border"
+                style={{ background: '#F0F4FA', color: '#1D4ED8', borderColor: '#BFDBFE' }}>
+                🤝 Recibo de repasse ao motorista
               </button>
             )}
 
