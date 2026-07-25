@@ -31,6 +31,11 @@ export default function EmpresaLayout({ children }: { children: React.ReactNode 
   const [planoEmpresa, setPlanoEmpresa] = useState('')
   const [statusEmpresa, setStatusEmpresa] = useState('')
   const [trialExpirado, setTrialExpirado] = useState(false)
+  // Motivo do bloqueio — muda a mensagem exibida na TelaTrialExpirado.
+  //   'trial': trial de 10 dias acabou (nunca assinou)
+  //   'assinatura': assinatura ativa venceu (trial_fim < agora com status='ativo')
+  //   'inativo': status='inativo' (cancelou/reembolso/chargeback via webhook)
+  const [motivoBloqueio, setMotivoBloqueio] = useState<'trial' | 'assinatura' | 'inativo'>('trial')
   const [tipoOperacao, setTipoOperacao] = useState('')
 
   useEffect(() => {
@@ -65,9 +70,25 @@ export default function EmpresaLayout({ children }: { children: React.ReactNode 
       setStatusEmpresa(empresa.status || '')
       setTipoOperacao(empresa.tipo_operacao || '')
       const agora = new Date()
-      const ativa =
-        empresa.status === 'ativo' ||
-        (empresa.status === 'trial' && !!empresa.trial_fim && new Date(empresa.trial_fim) > agora)
+      // Nova regra: trial_fim manda em AMBOS os status (trial E ativo). Pra
+      // Kiwify, o webhook renova trial_fim toda vez que a assinatura mensal
+      // recorre — se falhar, trial_fim nao renova e o cliente cai aqui. Pra
+      // ativacao manual (ex: pago por fora), gestor tem 30 dias e depois cai
+      // na tela pedindo renovacao. Trial_fim = null e status='ativo' e caso
+      // legacy — libera pra nao quebrar.
+      const trialFimData = empresa.trial_fim ? new Date(empresa.trial_fim) : null
+      const dentroDoPrazo = trialFimData ? trialFimData > agora : true
+      let ativa = false
+      if (empresa.status === 'inativo') {
+        ativa = false
+        setMotivoBloqueio('inativo')
+      } else if (empresa.status === 'ativo') {
+        ativa = dentroDoPrazo || !trialFimData
+        if (!ativa) setMotivoBloqueio('assinatura')
+      } else if (empresa.status === 'trial') {
+        ativa = dentroDoPrazo && !!trialFimData
+        if (!ativa) setMotivoBloqueio('trial')
+      }
       if (!ativa) setTrialExpirado(true)
     }
 
@@ -108,7 +129,7 @@ export default function EmpresaLayout({ children }: { children: React.ReactNode 
   }
 
   if (trialExpirado) {
-    return <TelaTrialExpirado onSair={sair} />
+    return <TelaTrialExpirado onSair={sair} motivo={motivoBloqueio} />
   }
 
   return (
@@ -292,22 +313,34 @@ function waAssinar(nomePlano: string) {
   return `https://wa.me/5595984143839?text=${msg}`
 }
 
-function TelaTrialExpirado({ onSair }: { onSair: () => void }) {
+function TelaTrialExpirado({ onSair, motivo = 'trial' }: { onSair: () => void; motivo?: 'trial' | 'assinatura' | 'inativo' }) {
+  const cabecalho = motivo === 'assinatura' ? 'Assinatura vencida'
+    : motivo === 'inativo'    ? 'Conta desativada'
+    : 'Trial encerrado'
+  const emoji = motivo === 'assinatura' ? '💳'
+    : motivo === 'inativo'    ? '🚫'
+    : '⏰'
+  const titulo = motivo === 'assinatura' ? 'Sua assinatura mensal venceu'
+    : motivo === 'inativo'    ? 'Sua conta está desativada'
+    : 'Período de avaliação encerrado'
+  const descricao = motivo === 'assinatura'
+    ? 'Sua mensalidade venceu e o acesso foi suspenso. Renove um plano abaixo para continuar usando com todos os seus dados preservados.'
+    : motivo === 'inativo'
+    ? 'Sua conta foi cancelada ou reembolsada. Assine um plano novamente para continuar usando com todos os seus dados preservados.'
+    : 'Seu trial de 10 dias chegou ao fim. Assine um plano para continuar usando o RotaGenda Empresarial com todos os seus dados preservados.'
+
   return (
     <div className="min-h-dvh flex flex-col" style={{ background: '#f0f0ec' }}>
       <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-5">
-        <p style={{ color: '#E1F5EE' }} className="text-base font-semibold">Trial encerrado</p>
+        <p style={{ color: '#E1F5EE' }} className="text-base font-semibold">{cabecalho}</p>
         <p style={{ color: '#9FE1CB' }} className="text-xs mt-0.5">RotaGenda Empresarial</p>
       </div>
 
       <div className="px-4 py-5 flex flex-col gap-4 flex-1">
         <div className="bg-white rounded-2xl p-5 border border-gray-100 text-center">
-          <p className="text-4xl mb-3">⏰</p>
-          <p className="text-base font-bold text-gray-800 mb-2">Período de avaliação encerrado</p>
-          <p className="text-sm text-gray-500 leading-relaxed">
-            Seu trial de 10 dias chegou ao fim. Assine um plano para continuar
-            usando o RotaGenda Empresarial com todos os seus dados preservados.
-          </p>
+          <p className="text-4xl mb-3">{emoji}</p>
+          <p className="text-base font-bold text-gray-800 mb-2">{titulo}</p>
+          <p className="text-sm text-gray-500 leading-relaxed">{descricao}</p>
         </div>
 
         {/* Benefícios (mesma lista pra qualquer período) */}
