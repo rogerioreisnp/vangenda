@@ -680,6 +680,8 @@ export default function EmpresaPage() {
             {[
               { emoji: '📋', label: 'Novo atendimento', href: '/empresa/agendamentos/fretamentos?nova=1' },
               { emoji: '💰', label: 'Financeiro', href: '/empresa/financeiro' },
+              { emoji: '📇', label: 'Clientes', href: '/empresa/clientes' },
+              { emoji: '📊', label: 'Relatórios', href: '/empresa/relatorios' },
               { emoji: '🚗', label: 'Motoristas', href: '/empresa/motoristas' },
               { emoji: '🛣️', label: 'Operar rota', href: '/dashboard/agenda' },
             ].map(item => (
