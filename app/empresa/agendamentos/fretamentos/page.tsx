@@ -32,6 +32,7 @@ type Corrida = {
   destino: string
   data_hora: string
   created_at: string
+  cliente_id: string | null
   cliente_nome: string
   cliente_telefone: string | null
   email_solicitante: string | null
@@ -142,6 +143,7 @@ type FormCorrida = {
   preco_volta: string
   observacoes_volta: string
   motorista_id: string
+  cliente_id: string
   cliente_nome: string
   cliente_telefone: string
   email_solicitante: string
@@ -192,6 +194,7 @@ const FORM_VAZIO: FormCorrida = {
   preco_volta: '',
   observacoes_volta: '',
   motorista_id: '',
+  cliente_id: '',
   cliente_nome: '',
   cliente_telefone: '',
   email_solicitante: '',
@@ -380,6 +383,7 @@ export default function AgendamentosPage() {
   const [mensagemConfirmacaoTransfer, setMensagemConfirmacaoTransfer] = useState<string | null>(null)
   const [rotasOpcoes, setRotasOpcoes] = useState<RotaOpcao[]>([])
   const [motoristasOpcoes, setMotoristasOpcoes] = useState<MotoristaOpcao[]>([])
+  const [clientesOpcoes, setClientesOpcoes] = useState<Array<{ id: string; tipo: 'pj'|'pf'; label: string; telefone: string | null; email: string | null }>>([])
   const [tipoOperacao, setTipoOperacao] = useState<string>('transfer')
   const [corridas, setCorridas] = useState<Corrida[]>([])
   const [loading, setLoading] = useState(true)
@@ -504,9 +508,9 @@ export default function AgendamentosPage() {
     //   2. FUTURAS (data_hora >= agora e status != em_andamento) — asc
     //   3. PASSADAS (data_hora < agora e status != em_andamento) — desc
     const agoraISO = new Date().toISOString()
-    const colsCorridas = 'id, rota_id, origem, destino, data_hora, created_at, cliente_nome, cliente_telefone, email_solicitante, passageiro1_nome, passageiro1_telefone, valor, status, motorista_id, tipo_servico, forma_pagamento, status_pagamento, valor_recebido, data_pagamento, data_prevista_pagamento, observacoes, motoristas_empresa(nome), numero_voo, nome_passageiro2, telefone_passageiro2, retorno_data, retorno_horario, retorno_origem, retorno_destino, numero_reserva, quantidade_bagagem, passageiros_adicionais, rua, numero, bairro, municipio, cep, referencia, rua_desembarque, numero_desembarque, bairro_desembarque, municipio_desembarque, cep_desembarque, referencia_desembarque, data_hora_termino, trajetos, km_inicial, km_final'
+    const colsCorridas = 'id, rota_id, cliente_id, origem, destino, data_hora, created_at, cliente_nome, cliente_telefone, email_solicitante, passageiro1_nome, passageiro1_telefone, valor, status, motorista_id, tipo_servico, forma_pagamento, status_pagamento, valor_recebido, data_pagamento, data_prevista_pagamento, observacoes, motoristas_empresa(nome), numero_voo, nome_passageiro2, telefone_passageiro2, retorno_data, retorno_horario, retorno_origem, retorno_destino, numero_reserva, quantidade_bagagem, passageiros_adicionais, rua, numero, bairro, municipio, cep, referencia, rua_desembarque, numero_desembarque, bairro_desembarque, municipio_desembarque, cep_desembarque, referencia_desembarque, data_hora_termino, trajetos, km_inicial, km_final'
 
-    const [{ data: empresa }, { data: rts }, { data: mots }, { data: emAndamento }, { data: futuras }, { data: passadas }] = await Promise.all([
+    const [{ data: empresa }, { data: rts }, { data: mots }, { data: clientesData }, { data: emAndamento }, { data: futuras }, { data: passadas }] = await Promise.all([
       supabase
         .from('empresas')
         .select('tipo_operacao, nome, mensagem_confirmacao_transfer, descricao, whatsapp_comercial, instagram, slug')
@@ -523,6 +527,12 @@ export default function AgendamentosPage() {
         .eq('empresa_id', gestor.empresa_id)
         .eq('status', 'ativo')
         .order('nome'),
+      supabase
+        .from('clientes')
+        .select('id, tipo, razao_social, nome_fantasia, nome, telefone, email')
+        .eq('empresa_id', gestor.empresa_id)
+        .eq('ativo', true)
+        .order('atualizado_em', { ascending: false }),
       supabase
         .from('corridas_empresa')
         .select(colsCorridas)
@@ -560,6 +570,15 @@ export default function AgendamentosPage() {
     }
     if (rts) setRotasOpcoes(rts)
     if (mots) setMotoristasOpcoes(mots)
+    if (clientesData) {
+      setClientesOpcoes((clientesData as any[]).map(c => ({
+        id: c.id,
+        tipo: c.tipo,
+        label: c.tipo === 'pj' ? (c.nome_fantasia || c.razao_social || 'Sem nome') : (c.nome || 'Sem nome'),
+        telefone: c.telefone,
+        email: c.email,
+      })))
+    }
     if (corrds) setCorridas(corrds as any)
 
     if (empresa?.tipo_operacao === 'rota_fixa' && mots) {
@@ -613,6 +632,7 @@ export default function AgendamentosPage() {
       preco_volta: volta ? String(volta.valor) : '',
       observacoes_volta: volta?.observacoes || '',
       motorista_id: c.motorista_id || '',
+      cliente_id: c.cliente_id || '',
       cliente_nome: c.cliente_nome,
       cliente_telefone: c.cliente_telefone || '',
       email_solicitante: c.email_solicitante || '',
@@ -725,6 +745,7 @@ export default function AgendamentosPage() {
       origem: form.origem.trim(),
       destino: form.destino.trim(),
       cliente_nome: form.cliente_nome.trim(),
+      cliente_id: form.cliente_id || null,
       cliente_telefone: form.cliente_telefone.trim() || null,
       email_solicitante: form.email_solicitante.trim() || null,
       passageiro1_nome: form.passageiro1_nome.trim() || null,
@@ -3189,6 +3210,36 @@ export default function AgendamentosPage() {
                   </Campo>
                 </div>
               </div>
+            )}
+
+            {/* Cliente cadastrado (opcional). Se selecionar, autopreencue nome/tel/email
+                pra evitar redigitacao. Continua editavel — gestor pode ajustar. */}
+            {clientesOpcoes.length > 0 && (
+              <Campo label="Cliente cadastrado (opcional)">
+                <select value={form.cliente_id}
+                  onChange={e => {
+                    const id = e.target.value
+                    const c = clientesOpcoes.find(x => x.id === id)
+                    setForm(f => ({
+                      ...f,
+                      cliente_id: id,
+                      cliente_nome: c ? c.label : f.cliente_nome,
+                      cliente_telefone: c?.telefone ? c.telefone : f.cliente_telefone,
+                      email_solicitante: c?.email ? c.email : f.email_solicitante,
+                    }))
+                  }}
+                  className="campo-input">
+                  <option value="">— Cliente avulso (digitar manualmente) —</option>
+                  {clientesOpcoes.map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.tipo === 'pj' ? '🏢' : '👤'} {c.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-gray-400 mt-1">
+                  Cadastre novos clientes em <a href="/empresa/clientes" className="underline" style={{ color: '#0F6E56' }}>Clientes</a>.
+                </p>
+              </Campo>
             )}
 
             <Campo label="Nome do solicitante *">

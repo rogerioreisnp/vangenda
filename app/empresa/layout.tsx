@@ -5,6 +5,9 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import OneSignalInit from '@/components/OneSignalInit'
 
+// Slot "rotas/clientes" e contextual: rota_fixa ve "Rotas" (usa muito),
+// transfer ve "Clientes" (nao tem rotas fixas mas gerencia clientes PJ/PF).
+// Trocamos no render pra manter o menu com 6 itens em ambos.
 const navItems = [
   { href: '/empresa', label: 'Painel', emoji: '⌂' },
   { href: '/empresa/agendamentos', label: 'Agendamentos', emoji: '📋' },
@@ -206,19 +209,27 @@ export default function EmpresaLayout({ children }: { children: React.ReactNode 
       <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 safe-area-bottom z-50">
         <div className="grid grid-cols-6 max-w-lg mx-auto">
           {navItems.map((item) => {
-  const href = item.href === '/empresa/agendamentos' && tipoOperacao !== 'rota_fixa'
-    ? '/empresa/agendamentos/fretamentos'
-    : item.href
+  // Transfer nao usa "Rotas" (nao tem rota fixa), troca esse slot por "Clientes"
+  const trocaParaClientes = item.href === '/empresa/rotas' && tipoOperacao !== 'rota_fixa'
+  const hrefFinal = trocaParaClientes
+    ? '/empresa/clientes'
+    : (item.href === '/empresa/agendamentos' && tipoOperacao !== 'rota_fixa'
+        ? '/empresa/agendamentos/fretamentos'
+        : item.href)
+  const labelFinal = trocaParaClientes
+    ? 'Clientes'
+    : (item.href === '/empresa/agendamentos' && tipoOperacao !== 'rota_fixa' ? 'Corridas' : item.label)
+  const emojiFinal = trocaParaClientes ? '📇' : item.emoji
   const ativo = item.href === '/empresa/agendamentos'
     ? pathname.startsWith('/empresa/agendamentos')
-    : pathname === item.href
+    : pathname === hrefFinal
   return (
-    <Link key={item.href} href={href}
+    <Link key={item.href} href={hrefFinal}
       className="flex flex-col items-center py-2 pb-3 gap-0.5 transition-colors"
       style={{ color: ativo ? '#0F6E56' : '#aaa' }}>
-      <span className="text-lg leading-none">{item.emoji}</span>
+      <span className="text-lg leading-none">{emojiFinal}</span>
       <span className="text-[9px] font-medium">
-        {item.href === '/empresa/agendamentos' && tipoOperacao !== 'rota_fixa' ? 'Corridas' : item.label}
+        {labelFinal}
       </span>
     </Link>
   )
