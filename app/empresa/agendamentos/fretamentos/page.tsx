@@ -1,10 +1,15 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
+import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { formatarTelefoneWhatsApp } from '@/lib/telefone'
 import ModalListaPassageirosPDF from '@/components/ModalListaPassageirosPDF'
+
+// Modal do voucher usa @react-pdf/renderer no client — SSR pode explodir por
+// causa de font/canvas. Carregar dinamicamente sem SSR resolve.
+const ModalGerarVoucher = dynamic(() => import('@/components/ModalGerarVoucher'), { ssr: false })
 
 type RotaOpcao = {
   id: string
@@ -380,10 +385,14 @@ export default function AgendamentosPage() {
   const [empresaWhatsApp, setEmpresaWhatsApp] = useState<string>('')
   const [empresaInstagram, setEmpresaInstagram] = useState<string>('')
   const [empresaSlug, setEmpresaSlug] = useState<string>('')
+  // Dados fiscais/bancarios completos da empresa (Fase 1) — usados no voucher PDF
+  const [empresaFiscal, setEmpresaFiscal] = useState<any>(null)
+  // Modal de voucher aberto na ficha da corrida
+  const [voucherAberto, setVoucherAberto] = useState<null | { corrida: Corrida; cliente: any }>(null)
   const [mensagemConfirmacaoTransfer, setMensagemConfirmacaoTransfer] = useState<string | null>(null)
   const [rotasOpcoes, setRotasOpcoes] = useState<RotaOpcao[]>([])
   const [motoristasOpcoes, setMotoristasOpcoes] = useState<MotoristaOpcao[]>([])
-  const [clientesOpcoes, setClientesOpcoes] = useState<Array<{ id: string; tipo: 'pj'|'pf'; label: string; telefone: string | null; email: string | null }>>([])
+  const [clientesOpcoes, setClientesOpcoes] = useState<Array<{ id: string; tipo: 'pj'|'pf'; label: string; telefone: string | null; email: string | null; raw: any }>>([])
   const [tipoOperacao, setTipoOperacao] = useState<string>('transfer')
   const [corridas, setCorridas] = useState<Corrida[]>([])
   const [loading, setLoading] = useState(true)
@@ -513,7 +522,7 @@ export default function AgendamentosPage() {
     const [{ data: empresa }, { data: rts }, { data: mots }, { data: clientesData }, { data: emAndamento }, { data: futuras }, { data: passadas }] = await Promise.all([
       supabase
         .from('empresas')
-        .select('tipo_operacao, nome, mensagem_confirmacao_transfer, descricao, whatsapp_comercial, instagram, slug')
+        .select('tipo_operacao, nome, mensagem_confirmacao_transfer, descricao, whatsapp_comercial, instagram, slug, cnpj, inscricao_estadual, logo_url, telefone, email_comercial, site, endereco_rua, endereco_numero, endereco_bairro, endereco_cep, cidade, estado, chave_pix, tipo_chave_pix, banco_nome, banco_agencia, banco_conta, banco_tipo_conta, banco_titular_nome, banco_titular_documento')
         .eq('id', gestor.empresa_id)
         .single(),
       supabase
@@ -529,7 +538,7 @@ export default function AgendamentosPage() {
         .order('nome'),
       supabase
         .from('clientes_empresa')
-        .select('id, tipo, razao_social, nome_fantasia, nome, telefone, email')
+        .select('id, tipo, razao_social, nome_fantasia, cnpj, nome, cpf, telefone, email, endereco_rua, endereco_numero, endereco_bairro, endereco_cidade, endereco_estado, endereco_cep')
         .eq('empresa_id', gestor.empresa_id)
         .eq('ativo', true)
         .order('atualizado_em', { ascending: false }),
@@ -566,6 +575,7 @@ export default function AgendamentosPage() {
       setEmpresaWhatsApp((empresa as any).whatsapp_comercial || '')
       setEmpresaInstagram((empresa as any).instagram || '')
       setEmpresaSlug((empresa as any).slug || '')
+      setEmpresaFiscal(empresa)
       setMensagemConfirmacaoTransfer((empresa as any).mensagem_confirmacao_transfer || null)
     }
     if (rts) setRotasOpcoes(rts)
@@ -577,6 +587,7 @@ export default function AgendamentosPage() {
         label: c.tipo === 'pj' ? (c.nome_fantasia || c.razao_social || 'Sem nome') : (c.nome || 'Sem nome'),
         telefone: c.telefone,
         email: c.email,
+        raw: c,
       })))
     }
     if (corrds) setCorridas(corrds as any)
@@ -2169,6 +2180,58 @@ export default function AgendamentosPage() {
         )
       })()}
 
+      {/* Modal Voucher PDF — pra qualquer atendimento da ficha */}
+      {voucherAberto && empresaFiscal && (() => {
+        const c = voucherAberto.corrida
+        const cli = voucherAberto.cliente
+        const enderecoCliente = cli ? [
+          [cli.endereco_rua, cli.endereco_numero].filter(Boolean).join(', '),
+          cli.endereco_bairro,
+          [cli.endereco_cidade, cli.endereco_estado].filter(Boolean).join('-'),
+        ].filter(Boolean).join(', ') : null
+        // Passageiros: P1 (obrigatorio no transfer) + P2 + adicionais
+        const passageiros: string[] = []
+        if (c.passageiro1_nome) passageiros.push(c.passageiro1_nome)
+        if (c.nome_passageiro2) passageiros.push(c.nome_passageiro2)
+        for (const p of (c.passageiros_adicionais || [])) {
+          if (p?.nome) passageiros.push(p.nome)
+        }
+        const motInfo = motoristaInfo(c, c.motorista_id ?? '')
+        // Numero exibido: usa numero_reserva se existe (formato "AMES2025-1234")
+        const num = c.numero_reserva ? String(c.numero_reserva) : c.id.slice(-5).toUpperCase()
+        return (
+          <ModalGerarVoucher
+            empresa={empresaFiscal}
+            cliente={{
+              nome: c.cliente_nome,
+              telefone: c.cliente_telefone,
+              email: c.email_solicitante,
+              endereco_linha: enderecoCliente,
+            }}
+            atendimento={{
+              numero: num,
+              tipo_servico: c.tipo_servico,
+              subtitulo_servico: null,
+              origem: c.origem,
+              destino: c.destino,
+              data_hora: c.data_hora,
+              data_hora_termino: c.data_hora_termino,
+              numero_voo: c.numero_voo,
+              passageiros_nomes: passageiros,
+              motorista_nome: motInfo?.nome ?? null,
+              motorista_veiculo: motInfo?.veiculo ?? null,
+              motorista_placa: motInfo?.placa ?? null,
+              observacoes: c.observacoes,
+              descricao_servico: null,
+              trajetos: (c.trajetos as any) || null,
+              valor: Number(c.valor) || 0,
+            }}
+            emailCliente={c.email_solicitante}
+            onFechar={() => setVoucherAberto(null)}
+          />
+        )
+      })()}
+
       {/* Modal ficha de solicitação pendente (transfer) */}
       {modalFichaAberto && corridaFicha && (
         <div className="fixed inset-0 z-[60] flex flex-col" style={{ background: '#fff' }}>
@@ -2610,6 +2673,18 @@ export default function AgendamentosPage() {
                 </p>
               </div>
             )}
+
+            {/* Botao Voucher PDF — sempre disponivel na ficha, independente do
+                status. Comprovante de reserva formal pro cliente. */}
+            <button
+              onClick={() => {
+                const cli = clientesOpcoes.find(c => c.id === corridaFicha.cliente_id)?.raw
+                setVoucherAberto({ corrida: corridaFicha, cliente: cli || null })
+              }}
+              className="w-full py-3 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 mt-2 border"
+              style={{ background: '#fff', color: '#0F6E56', borderColor: '#9FE1CB' }}>
+              📄 Gerar voucher PDF
+            </button>
 
             {/* Ações — Confirmada: definir motorista e marcar em andamento */}
             {corridaFicha.status === 'confirmada' && (
