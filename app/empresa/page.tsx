@@ -683,7 +683,9 @@ export default function EmpresaPage() {
               { emoji: '📇', label: 'Clientes', href: '/empresa/clientes' },
               { emoji: '📊', label: 'Relatórios', href: '/empresa/relatorios' },
               { emoji: '🚗', label: 'Motoristas', href: '/empresa/motoristas' },
-              { emoji: '🛣️', label: 'Operar rota', href: '/dashboard/agenda' },
+              // "Operar rota" so aparece pra rota_fixa — pro transfer nao existe
+              // rota fixa pra operar, jogava o gestor pro app individual e causava
+              // confusao (caso Julimar 2026-07-26).
             ].map(item => (
               <Link key={item.href} href={item.href}
                 className="bg-white rounded-2xl flex flex-col items-center justify-center py-4 gap-1.5 active:opacity-75"

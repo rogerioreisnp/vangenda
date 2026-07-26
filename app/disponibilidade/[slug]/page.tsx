@@ -155,8 +155,8 @@ export default async function DisponibilidadePage({ params }: { params: { slug: 
         )}
 
         {/* Rodape — contato pra fechar */}
-        <div className="bg-white rounded-2xl p-4 border border-gray-100 mt-4 text-center">
-          <p className="text-sm font-semibold text-gray-700 mb-2">Quer reservar um horário?</p>
+        <div className="bg-white rounded-2xl p-4 border border-gray-100 mt-4 text-center flex flex-col gap-2">
+          <p className="text-sm font-semibold text-gray-700 mb-1">Quer reservar um horário?</p>
           {empresa.whatsapp_comercial && (
             <Link
               href={`https://wa.me/${(empresa.whatsapp_comercial as string).replace(/\D/g, '')}`}
@@ -167,8 +167,17 @@ export default async function DisponibilidadePage({ params }: { params: { slug: 
               💬 Chamar no WhatsApp
             </Link>
           )}
+          {/* Botao de agendamento direto — pedido do Julimar. Leva o cliente
+              pro link publico de agendamento (/transfer/[slug]) pra ele
+              reservar sozinho sem precisar chamar no WhatsApp primeiro. */}
+          <Link
+            href={`/transfer/${params.slug}`}
+            className="inline-block px-5 py-2.5 rounded-xl text-sm font-bold"
+            style={{ background: '#0F6E56', color: '#fff' }}>
+            📋 Agendar transfer agora
+          </Link>
           {empresa.instagram && (
-            <p className="text-xs text-gray-400 mt-3">
+            <p className="text-xs text-gray-400 mt-2">
               📸 <span style={{ color: '#0F6E56' }}>@{(empresa.instagram as string).replace(/^@/, '')}</span>
             </p>
           )}
