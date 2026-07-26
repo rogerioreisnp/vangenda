@@ -9,7 +9,7 @@ import type { LinhaConsolidado, ReciboConsolidadoProps } from '@/components/Reci
 const fmtData = (iso: string) => iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : ''
 
 export async function baixarRelatorioExcel(props: ReciboConsolidadoProps) {
-  const { empresa, cliente, periodo, linhas } = props
+  const { empresa, cliente, periodo, linhas, reembolsos = [] } = props
   const wb = new ExcelJS.Workbook()
   wb.creator = empresa.nome
   wb.created = new Date()
@@ -82,8 +82,46 @@ export async function baixarRelatorioExcel(props: ReciboConsolidadoProps) {
     })
   })
 
-  // Total
-  const totalRow = ws.addRow(['', '', '', '', 'TOTAL', linhas.reduce((s, l) => s + Number(l.valor || 0), 0)])
+  // Subtotal atendimentos (so quando ha reembolsos pra somar depois)
+  const totalAt = linhas.reduce((s, l) => s + Number(l.valor || 0), 0)
+  const totalReemb = reembolsos.reduce((s, r) => s + Number(r.valor || 0), 0)
+  if (reembolsos.length > 0) {
+    const subAt = ws.addRow(['', '', '', '', 'Subtotal atendimentos', totalAt])
+    subAt.getCell(5).alignment = { horizontal: 'right' }
+    subAt.getCell(6).numFmt = 'R$ #,##0.00'
+    subAt.font = { bold: true }
+
+    // Cabecalho da secao de reembolsos
+    ws.addRow([])
+    const rHeaderRow = ws.addRow(['Despesas reembolsáveis', '', '', '', '', ''])
+    rHeaderRow.font = { bold: true, size: 11, color: { argb: 'FF854F0B' } }
+    ws.mergeCells(`A${rHeaderRow.number}:F${rHeaderRow.number}`)
+
+    const rHead = ws.addRow(['Data', 'Descrição', 'Categoria', 'Atendimento', '', 'Valor (R$)'])
+    rHead.font = { bold: true, color: { argb: 'FFFFFFFF' } }
+    rHead.eachCell(cell => {
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF854F0B' } }
+      cell.alignment = { vertical: 'middle', horizontal: 'left' }
+    })
+
+    reembolsos.forEach((r, i) => {
+      const row = ws.addRow([fmtData(r.data), r.descricao, r.categoria || '', r.atendimento_numero || '—', '', Number(r.valor || 0)])
+      row.getCell(6).numFmt = 'R$ #,##0.00'
+      if (i % 2 === 1) {
+        row.eachCell(c => {
+          c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEF9E7' } }
+        })
+      }
+    })
+    const subReemb = ws.addRow(['', '', '', '', 'Subtotal reembolsos', totalReemb])
+    subReemb.getCell(5).alignment = { horizontal: 'right' }
+    subReemb.getCell(6).numFmt = 'R$ #,##0.00'
+    subReemb.font = { bold: true }
+  }
+
+  // Total geral
+  ws.addRow([])
+  const totalRow = ws.addRow(['', '', '', '', 'TOTAL', totalAt + totalReemb])
   totalRow.font = { bold: true }
   totalRow.getCell(5).alignment = { horizontal: 'right' }
   totalRow.getCell(6).numFmt = 'R$ #,##0.00'

@@ -19,11 +19,20 @@ export type LinhaConsolidado = {
   valor: number
 }
 
+export type LinhaReembolso = {
+  data: string  // yyyy-mm-dd
+  descricao: string
+  categoria?: string | null
+  atendimento_numero?: string | null
+  valor: number
+}
+
 export type ReciboConsolidadoProps = {
   empresa: VoucherEmpresa
   cliente: VoucherCliente
   periodo: { inicio: string; fim: string }  // yyyy-mm-dd
   linhas: LinhaConsolidado[]
+  reembolsos?: LinhaReembolso[]  // despesas reembolsaveis a cobrar
 }
 
 const fmtBRL = (n: number) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -94,8 +103,10 @@ const s = StyleSheet.create({
   rodapeLinha: { fontSize: 7, color: CINZA_TXT },
 })
 
-export function ReciboConsolidadoPDF({ empresa, cliente, periodo, linhas }: ReciboConsolidadoProps) {
-  const total = linhas.reduce((s, l) => s + Number(l.valor || 0), 0)
+export function ReciboConsolidadoPDF({ empresa, cliente, periodo, linhas, reembolsos = [] }: ReciboConsolidadoProps) {
+  const totalAtendimentos = linhas.reduce((s, l) => s + Number(l.valor || 0), 0)
+  const totalReembolsos = reembolsos.reduce((s, r) => s + Number(r.valor || 0), 0)
+  const total = totalAtendimentos + totalReembolsos
   const dataEmissao = new Date().toLocaleDateString('pt-BR')
   const endEmpresa = [empresa.endereco_rua, empresa.endereco_numero].filter(Boolean).join(', ')
   const cidUF = [empresa.cidade, empresa.estado].filter(Boolean).join('/')
@@ -156,7 +167,42 @@ export function ReciboConsolidadoPDF({ empresa, cliente, periodo, linhas }: Reci
           </View>
         ))}
 
-        {/* Total */}
+        {/* Subtotal atendimentos — so aparece quando tem reembolsos pra somar */}
+        {reembolsos.length > 0 && (
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 6, paddingVertical: 4 }}>
+            <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 9 }}>Subtotal atendimentos</Text>
+            <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 9 }}>R$ {fmtBRL(totalAtendimentos)}</Text>
+          </View>
+        )}
+
+        {/* Despesas reembolsaveis — so aparece quando tem alguma */}
+        {reembolsos.length > 0 && (
+          <>
+            <View style={s.faixa}><Text style={s.faixaTitulo}>Despesas reembolsáveis</Text></View>
+            <View style={{ ...s.thead, backgroundColor: '#854F0B' }}>
+              <Text style={{ ...s.th, ...s.colData }}>Data</Text>
+              <Text style={{ ...s.th, ...s.colTrecho }}>Descrição</Text>
+              <Text style={{ ...s.th, ...s.colPassag }}>Atendimento</Text>
+              <Text style={{ ...s.th, ...s.colValor }}>Valor</Text>
+            </View>
+            {reembolsos.map((r, i) => (
+              <View key={i} style={{ ...s.trow, ...(i % 2 === 1 ? s.trowAlt : {}) }} wrap={false}>
+                <Text style={{ ...s.td, ...s.colData }}>{fmtData(r.data)}</Text>
+                <Text style={{ ...s.td, ...s.colTrecho }}>
+                  {r.categoria ? `[${r.categoria}] ` : ''}{r.descricao}
+                </Text>
+                <Text style={{ ...s.td, ...s.colPassag }}>{r.atendimento_numero || '—'}</Text>
+                <Text style={{ ...s.td, ...s.colValor }}>R$ {fmtBRL(r.valor)}</Text>
+              </View>
+            ))}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 6, paddingVertical: 4 }}>
+              <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 9 }}>Subtotal reembolsos</Text>
+              <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 9 }}>R$ {fmtBRL(totalReembolsos)}</Text>
+            </View>
+          </>
+        )}
+
+        {/* Total geral */}
         <View style={s.totalRow}>
           <View>
             <Text style={s.totalLabel}>Total do período</Text>

@@ -14,7 +14,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { pdf } from '@react-pdf/renderer'
 import { supabase } from '@/lib/supabase'
-import { ReciboConsolidadoPDF, type LinhaConsolidado } from '@/components/ReciboConsolidadoPDF'
+import { ReciboConsolidadoPDF, type LinhaConsolidado, type LinhaReembolso } from '@/components/ReciboConsolidadoPDF'
 import { baixarRelatorioExcel } from '@/lib/gerar-relatorio-excel'
 import type { VoucherEmpresa } from '@/components/VoucherPDF'
 
@@ -65,6 +65,7 @@ export default function RelatoriosPage() {
   const [empresaId, setEmpresaId] = useState<string | null>(null)
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [corridas, setCorridas] = useState<Corrida[]>([])
+  const [reembolsos, setReembolsos] = useState<LinhaReembolso[]>([])
   const [clienteId, setClienteId] = useState<string>('')
   const [dataInicio, setDataInicio] = useState<string>(() => {
     const d = new Date(); d.setDate(1)
@@ -108,8 +109,39 @@ export default function RelatoriosPage() {
       .order('data_hora', { ascending: true })
       .limit(500)
     if (clienteId) q = q.eq('cliente_id', clienteId)
-    const { data } = await q
-    setCorridas((data as Corrida[]) ?? [])
+    const { data: cds } = await q
+    const listaCorridas = (cds as Corrida[]) ?? []
+    setCorridas(listaCorridas)
+
+    // Reembolsos: despesas reembolsaveis A COBRAR (reembolsado_em IS NULL)
+    // vinculadas as corridas do filtro. Filtro por cliente vem via corrida_id
+    // das corridas ja carregadas.
+    const corridaIds = listaCorridas.map(c => c.id)
+    if (corridaIds.length === 0) {
+      setReembolsos([])
+      return
+    }
+    const { data: reemb } = await supabase
+      .from('despesas_empresa')
+      .select('id, corrida_id, data, categoria, descricao, valor')
+      .eq('empresa_id', empresaId)
+      .eq('reembolsavel', true)
+      .is('reembolsado_em', null)
+      .in('corrida_id', corridaIds)
+      .order('data', { ascending: true })
+    const mapaCorridas: Record<string, Corrida> = {}
+    listaCorridas.forEach(c => { mapaCorridas[c.id] = c })
+    setReembolsos(((reemb as any[]) ?? []).map(r => {
+      const c = r.corrida_id ? mapaCorridas[r.corrida_id] : null
+      const num = c ? (c.numero_reserva ? String(c.numero_reserva) : c.id.slice(-5).toUpperCase()) : null
+      return {
+        data: r.data,
+        descricao: r.descricao || '(sem descrição)',
+        categoria: r.categoria,
+        atendimento_numero: num,
+        valor: Number(r.valor) || 0,
+      }
+    }))
   }
 
   const cliente = clientes.find(c => c.id === clienteId) || null
@@ -121,7 +153,9 @@ export default function RelatoriosPage() {
     passageiro: c.passageiro1_nome || null,
     valor: Number(c.valor) || 0,
   }))
-  const total = linhas.reduce((s, l) => s + l.valor, 0)
+  const totalAtendimentos = linhas.reduce((s, l) => s + l.valor, 0)
+  const totalReembolsos = reembolsos.reduce((s, r) => s + r.valor, 0)
+  const total = totalAtendimentos + totalReembolsos
 
   function montarClientePayload() {
     if (!cliente) {
@@ -152,6 +186,7 @@ export default function RelatoriosPage() {
           cliente={montarClientePayload()}
           periodo={{ inicio: dataInicio, fim: dataFim }}
           linhas={linhas}
+          reembolsos={reembolsos}
         />
       ).toBlob()
       const url = URL.createObjectURL(blob)
@@ -175,6 +210,7 @@ export default function RelatoriosPage() {
         cliente: montarClientePayload(),
         periodo: { inicio: dataInicio, fim: dataFim },
         linhas,
+        reembolsos,
       })
     } catch (e: any) {
       setErro(e?.message || 'Erro ao gerar Excel')
@@ -221,13 +257,31 @@ export default function RelatoriosPage() {
         </div>
 
         <div className="bg-white rounded-2xl border border-gray-100 p-4 flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-semibold text-gray-800">
-              {linhas.length} atendimento{linhas.length !== 1 ? 's' : ''}
-            </p>
-            <p className="text-lg font-bold" style={{ color: '#0F6E56' }}>
-              R$ {total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </p>
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold text-gray-800">
+                {linhas.length} atendimento{linhas.length !== 1 ? 's' : ''}
+              </p>
+              <p className="text-sm text-gray-700">
+                R$ {totalAtendimentos.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </p>
+            </div>
+            {reembolsos.length > 0 && (
+              <div className="flex items-center justify-between">
+                <p className="text-xs" style={{ color: '#854F0B' }}>
+                  🔄 + {reembolsos.length} reembolso{reembolsos.length !== 1 ? 's' : ''} a cobrar
+                </p>
+                <p className="text-xs" style={{ color: '#854F0B' }}>
+                  R$ {totalReembolsos.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </p>
+              </div>
+            )}
+            <div className="flex items-center justify-between pt-1.5 mt-0.5" style={{ borderTop: '1px solid #f0f0f0' }}>
+              <p className="text-sm font-semibold text-gray-800">Total a cobrar</p>
+              <p className="text-lg font-bold" style={{ color: '#0F6E56' }}>
+                R$ {total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </p>
+            </div>
           </div>
           {loading ? (
             <p className="text-xs text-gray-400 text-center py-6">Carregando...</p>

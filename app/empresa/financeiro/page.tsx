@@ -39,6 +39,8 @@ type Despesa = {
   cartao_final?: string | null
   pix_banco?: string | null
   corrida_id?: string | null
+  reembolsavel?: boolean | null
+  reembolsado_em?: string | null
 }
 
 type Motorista = {
@@ -62,6 +64,7 @@ type FormDespesa = {
   cartao_final: string
   pix_banco: string
   corrida_id: string
+  reembolsavel: boolean
 }
 
 const FORM_VAZIO: FormDespesa = {
@@ -78,6 +81,7 @@ const FORM_VAZIO: FormDespesa = {
   cartao_final: '',
   pix_banco: '',
   corrida_id: '',
+  reembolsavel: false,
 }
 
 const CATEGORIAS = [
@@ -242,7 +246,7 @@ export default function FinanceiroPage() {
         .order('data_hora', { ascending: false }),
       supabase
         .from('despesas_empresa')
-        .select('id, motorista_id, veiculo, categoria, descricao, valor, km_odometro, data, tipo, forma_pagamento, cartao_banco, cartao_final, pix_banco, corrida_id')
+        .select('id, motorista_id, veiculo, categoria, descricao, valor, km_odometro, data, tipo, forma_pagamento, cartao_banco, cartao_final, pix_banco, corrida_id, reembolsavel, reembolsado_em')
         .eq('empresa_id', eid)
         .gte('data', inicio)
         .lte('data', fim)
@@ -304,6 +308,7 @@ export default function FinanceiroPage() {
       cartao_final: (d as any).cartao_final ?? '',
       pix_banco:    (d as any).pix_banco    ?? '',
       corrida_id:   (d as any).corrida_id   ?? '',
+      reembolsavel: !!(d as any).reembolsavel,
     })
     setErro('')
     setModalAberto(true)
@@ -334,6 +339,9 @@ export default function FinanceiroPage() {
       cartao_final: (form.tipo === 'despesa' && form.forma_pagamento === 'cartao') ? (form.cartao_final.trim() || null) : null,
       pix_banco:    (form.tipo === 'despesa' && form.forma_pagamento === 'pix')    ? (form.pix_banco.trim()    || null) : null,
       corrida_id:   (form.tipo === 'despesa' && form.corrida_id) ? form.corrida_id : null,
+      // Reembolsavel so faz sentido pra despesa vinculada a atendimento.
+      // Sem corrida vinculada, nao tem cliente pra reembolsar.
+      reembolsavel: (form.tipo === 'despesa' && form.corrida_id) ? !!form.reembolsavel : false,
     }
 
     const { error } = editando
@@ -349,6 +357,18 @@ export default function FinanceiroPage() {
   async function excluir(id: string) {
     if (!confirm('Excluir este lançamento?')) return
     await supabase.from('despesas_empresa').delete().eq('id', id)
+    if (empresaId) carregar(empresaId)
+  }
+
+  // Marca despesa reembolsavel como paga (cliente reembolsou). Depois disso
+  // ela nao aparece mais no relatorio consolidado. Toggle: se ja estiver
+  // marcada como paga, desmarca pra voltar pro relatorio (caso Julimar
+  // clique errado).
+  async function toggleReembolsada(d: Despesa) {
+    const jaPago = !!d.reembolsado_em
+    await supabase.from('despesas_empresa')
+      .update({ reembolsado_em: jaPago ? null : new Date().toISOString() })
+      .eq('id', d.id)
     if (empresaId) carregar(empresaId)
   }
 
@@ -751,6 +771,28 @@ export default function FinanceiroPage() {
                               </p>
                             )
                           })()}
+                          {/* Badge de reembolso: amarelo = a cobrar, verde = paga */}
+                          {d.reembolsavel && (
+                            <div className="mt-1 flex items-center gap-1.5">
+                              {d.reembolsado_em ? (
+                                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
+                                  style={{ background: '#E1F5EE', color: '#085041' }}>
+                                  🟢 Reembolsada em {d.reembolsado_em.slice(8,10)}/{d.reembolsado_em.slice(5,7)}
+                                </span>
+                              ) : (
+                                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
+                                  style={{ background: '#FEF9E7', color: '#854F0B' }}>
+                                  🟡 Reembolso a cobrar
+                                </span>
+                              )}
+                              <button onClick={() => toggleReembolsada(d)}
+                                className="text-[10px] font-medium underline"
+                                style={{ color: '#0F6E56' }}
+                                title={d.reembolsado_em ? 'Desmarcar (voltar pro relatório)' : 'Marcar como paga pelo cliente'}>
+                                {d.reembolsado_em ? 'desmarcar' : 'marcar paga'}
+                              </button>
+                            </div>
+                          )}
                         </div>
                         <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
                           <p className="text-sm font-bold" style={{ color: '#A32D2D' }}>
@@ -1013,7 +1055,7 @@ export default function FinanceiroPage() {
             {form.tipo === 'despesa' && (
               <Campo label="Vincular a atendimento (opcional)">
                 <select value={form.corrida_id}
-                  onChange={e => setForm(f => ({ ...f, corrida_id: e.target.value }))}
+                  onChange={e => setForm(f => ({ ...f, corrida_id: e.target.value, reembolsavel: e.target.value ? f.reembolsavel : false }))}
                   className="campo-input">
                   <option value="">Nenhum</option>
                   {[...corridas].sort((a, b) => b.data_hora.localeCompare(a.data_hora)).map(c => {
@@ -1027,6 +1069,27 @@ export default function FinanceiroPage() {
                   })}
                 </select>
               </Campo>
+            )}
+
+            {/* Checkbox de reembolso — so aparece quando ha atendimento
+                vinculado (sem corrida, nao tem cliente pra reembolsar).
+                Padrao QuickBooks/Bling: despesa marcada entra no relatorio
+                consolidado do cliente ate ser marcada como reembolsada. */}
+            {form.tipo === 'despesa' && form.corrida_id && (
+              <div className="rounded-xl p-3 flex flex-col gap-2" style={{ background: '#FEF9E7', border: '1px solid #FAC775' }}>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={form.reembolsavel}
+                    onChange={e => setForm(f => ({ ...f, reembolsavel: e.target.checked }))} />
+                  <span className="text-sm font-semibold" style={{ color: '#854F0B' }}>
+                    🔄 Reembolsável pelo cliente
+                  </span>
+                </label>
+                <p className="text-[10px]" style={{ color: '#854F0B' }}>
+                  Marque quando a despesa foi combinada como reembolsável (estacionamento,
+                  pedágio extra, etc). Ela vai aparecer no relatório consolidado do cliente
+                  até você marcar como paga.
+                </p>
+              </div>
             )}
 
             <Campo label="Veículo">
