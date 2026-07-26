@@ -87,9 +87,11 @@ export default function ModalGerarVoucher({ empresa, cliente, atendimento, email
     }
   }
 
+  // z-[70] fica acima da ficha do atendimento (z-[60]) e da bottom nav (z-50).
+  // pb-24 evita botao final ser cortado pela nav — fix Julimar 2026-07-26.
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center" style={{ background: 'rgba(0,0,0,0.4)' }} onClick={onFechar}>
-      <div className="w-full max-w-lg bg-white rounded-t-2xl p-5 flex flex-col gap-3" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-[70] flex items-end justify-center" style={{ background: 'rgba(0,0,0,0.4)' }} onClick={onFechar}>
+      <div className="w-full max-w-lg bg-white rounded-t-2xl p-5 pb-24 flex flex-col gap-3" style={{ maxHeight: '92dvh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between">
           <p className="text-base font-bold text-gray-800">📄 Voucher do atendimento</p>
           <button onClick={onFechar} className="text-gray-400 text-xl leading-none">✕</button>

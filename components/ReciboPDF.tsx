@@ -23,10 +23,18 @@ export type ReciboAtendimento = {
   data_pagamento?: string | null
 }
 
+export type ReciboReembolso = {
+  data: string           // yyyy-mm-dd
+  descricao: string
+  categoria?: string | null
+  valor: number
+}
+
 export type ReciboProps = {
   empresa: VoucherEmpresa
   cliente: VoucherCliente
   atendimento: ReciboAtendimento
+  reembolsos?: ReciboReembolso[]  // despesas reembolsaveis pagas junto com a corrida
 }
 
 const fmtBRL = (n: number) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -91,8 +99,10 @@ function formaPagamentoLabel(f?: string | null): string {
   return f ? (m[f] || f) : 'Não informada'
 }
 
-export function ReciboPDF({ empresa, cliente, atendimento }: ReciboProps) {
-  const valorRecebido = atendimento.valor_recebido ?? atendimento.valor
+export function ReciboPDF({ empresa, cliente, atendimento, reembolsos = [] }: ReciboProps) {
+  const valorCorrida = atendimento.valor_recebido ?? atendimento.valor
+  const totalReembolsos = reembolsos.reduce((s, r) => s + Number(r.valor || 0), 0)
+  const valorRecebido = valorCorrida + totalReembolsos  // total do recibo = corrida + reembolsos ja pagos
   const dataEmissao = atendimento.data_pagamento
     ? fmtData(atendimento.data_pagamento)
     : new Date().toLocaleDateString('pt-BR')
@@ -159,6 +169,30 @@ export function ReciboPDF({ empresa, cliente, atendimento }: ReciboProps) {
             <Text style={s.valor}>{formaPagamentoLabel(atendimento.forma_pagamento)}</Text>
           </View>
         </View>
+
+        {/* Breakdown: valor corrida + reembolsos + total. So aparece quando ha
+            reembolsos pagos junto — evita clutter em recibo simples. */}
+        {reembolsos.length > 0 && (
+          <>
+            <View style={s.faixa}><Text style={s.faixaTitulo}>Composição do valor</Text></View>
+            <View style={{ ...s.linha, flexDirection: 'row', justifyContent: 'space-between' }}>
+              <Text style={s.valor}>Atendimento ({atendimento.origem} → {atendimento.destino})</Text>
+              <Text style={s.valor}>R$ {fmtBRL(valorCorrida)}</Text>
+            </View>
+            {reembolsos.map((r, i) => (
+              <View key={i} style={{ ...s.linha, flexDirection: 'row', justifyContent: 'space-between' }}>
+                <Text style={s.valor}>
+                  Reembolso {r.categoria ? `(${r.categoria})` : ''} — {r.descricao} · {fmtData(r.data)}
+                </Text>
+                <Text style={s.valor}>R$ {fmtBRL(Number(r.valor))}</Text>
+              </View>
+            ))}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4, marginTop: 4, borderTop: `1pt solid ${CINZA_BORDA}` as any }}>
+              <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 10 }}>Total pago</Text>
+              <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 10, color: AZUL }}>R$ {fmtBRL(valorRecebido)}</Text>
+            </View>
+          </>
+        )}
 
         <Text style={s.declaracao}>
           Declaramos ter recebido de {cliente.nome} a importância de R$ {fmtBRL(valorRecebido)} ({valorPorExtenso(valorRecebido)}),

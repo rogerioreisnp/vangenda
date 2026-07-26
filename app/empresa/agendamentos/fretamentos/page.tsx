@@ -395,7 +395,7 @@ export default function AgendamentosPage() {
   const [empresaFiscal, setEmpresaFiscal] = useState<any>(null)
   // Modal de voucher aberto na ficha da corrida
   const [voucherAberto, setVoucherAberto] = useState<null | { corrida: Corrida; cliente: any }>(null)
-  const [reciboAberto, setReciboAberto] = useState<null | { corrida: Corrida; cliente: any }>(null)
+  const [reciboAberto, setReciboAberto] = useState<null | { corrida: Corrida; cliente: any; reembolsos: any[] }>(null)
   const [repasseAberto, setRepasseAberto] = useState<Corrida | null>(null)
   const [mensagemConfirmacaoTransfer, setMensagemConfirmacaoTransfer] = useState<string | null>(null)
   const [rotasOpcoes, setRotasOpcoes] = useState<RotaOpcao[]>([])
@@ -2277,6 +2277,12 @@ export default function AgendamentosPage() {
             }}
             emailCliente={c.email_solicitante}
             onFechar={() => setReciboAberto(null)}
+            reembolsos={(reciboAberto.reembolsos || []).map((r: any) => ({
+              data: r.data,
+              descricao: r.descricao || '(sem descrição)',
+              categoria: r.categoria,
+              valor: Number(r.valor) || 0,
+            }))}
           />
         )
       })()}
@@ -2788,9 +2794,19 @@ export default function AgendamentosPage() {
                 Antes disso nao faz sentido emitir recibo. */}
             {corridaFicha.status_pagamento === 'recebido' && (
               <button
-                onClick={() => {
+                onClick={async () => {
                   const cli = clientesOpcoes.find(c => c.id === corridaFicha.cliente_id)?.raw
-                  setReciboAberto({ corrida: corridaFicha, cliente: cli || null })
+                  // Busca reembolsos JA PAGOS vinculados a esta corrida — entram
+                  // no recibo como composicao do valor total pago pelo cliente.
+                  // Reembolsos ainda pendentes ficam de fora (nao foram cobrados).
+                  const { data: reembs } = await supabase
+                    .from('despesas_empresa')
+                    .select('id, data, categoria, descricao, valor, reembolsado_em')
+                    .eq('corrida_id', corridaFicha.id)
+                    .eq('reembolsavel', true)
+                    .not('reembolsado_em', 'is', null)
+                    .order('data', { ascending: true })
+                  setReciboAberto({ corrida: corridaFicha, cliente: cli || null, reembolsos: reembs || [] })
                 }}
                 className="w-full py-3 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 border"
                 style={{ background: '#E1F5EE', color: '#085041', borderColor: '#9FE1CB' }}>

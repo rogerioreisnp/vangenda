@@ -6,18 +6,19 @@
  */
 import { useState } from 'react'
 import { pdf } from '@react-pdf/renderer'
-import { ReciboPDF, type ReciboAtendimento } from './ReciboPDF'
+import { ReciboPDF, type ReciboAtendimento, type ReciboReembolso } from './ReciboPDF'
 import type { VoucherEmpresa, VoucherCliente } from './VoucherPDF'
 
 type Props = {
   empresa: VoucherEmpresa
   cliente: VoucherCliente
   atendimento: ReciboAtendimento
+  reembolsos?: ReciboReembolso[]
   emailCliente?: string | null
   onFechar: () => void
 }
 
-export default function ModalGerarRecibo({ empresa, cliente, atendimento, emailCliente, onFechar }: Props) {
+export default function ModalGerarRecibo({ empresa, cliente, atendimento, reembolsos = [], emailCliente, onFechar }: Props) {
   const [gerando, setGerando] = useState<null | 'baixar' | 'email'>(null)
   const [erro, setErro] = useState('')
   const [sucesso, setSucesso] = useState('')
@@ -27,7 +28,7 @@ export default function ModalGerarRecibo({ empresa, cliente, atendimento, emailC
     setGerando('baixar')
     try {
       const blob = await pdf(
-        <ReciboPDF empresa={empresa} cliente={cliente} atendimento={atendimento} />
+        <ReciboPDF empresa={empresa} cliente={cliente} atendimento={atendimento} reembolsos={reembolsos} />
       ).toBlob()
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -47,7 +48,7 @@ export default function ModalGerarRecibo({ empresa, cliente, atendimento, emailC
     setGerando('email')
     try {
       const blob = await pdf(
-        <ReciboPDF empresa={empresa} cliente={cliente} atendimento={atendimento} />
+        <ReciboPDF empresa={empresa} cliente={cliente} atendimento={atendimento} reembolsos={reembolsos} />
       ).toBlob()
       const base64 = await new Promise<string>((res, rej) => {
         const r = new FileReader()
@@ -74,11 +75,13 @@ export default function ModalGerarRecibo({ empresa, cliente, atendimento, emailC
     } finally { setGerando(null) }
   }
 
-  const valor = atendimento.valor_recebido ?? atendimento.valor
+  const valorCorrida = atendimento.valor_recebido ?? atendimento.valor
+  const totalReemb = reembolsos.reduce((s, r) => s + Number(r.valor || 0), 0)
+  const valor = valorCorrida + totalReemb
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center" style={{ background: 'rgba(0,0,0,0.4)' }} onClick={onFechar}>
-      <div className="w-full max-w-lg bg-white rounded-t-2xl p-5 flex flex-col gap-3" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-[70] flex items-end justify-center" style={{ background: 'rgba(0,0,0,0.4)' }} onClick={onFechar}>
+      <div className="w-full max-w-lg bg-white rounded-t-2xl p-5 pb-24 flex flex-col gap-3" style={{ maxHeight: '92dvh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between">
           <p className="text-base font-bold text-gray-800">🧾 Recibo de pagamento</p>
           <button onClick={onFechar} className="text-gray-400 text-xl leading-none">✕</button>
