@@ -147,14 +147,9 @@ export default function MotoristasPage() {
             setErro('Percentual de repasse deve estar entre 0 e 100')
             return
           }
-        } else if (form.modo_repasse === 'valor_fixo') {
-          const raw = form.valor_fixo_repasse.replace(',', '.').trim()
-          valorFixoNum = raw ? parseFloat(raw) : null
-          if (valorFixoNum !== null && (isNaN(valorFixoNum) || valorFixoNum < 0)) {
-            setErro('Valor fixo de repasse deve ser um número positivo')
-            return
-          }
         }
+        // modo=valor_fixo (valor combinado por corrida) nao guarda valor default —
+        // gestor digita a cada atendimento. Nada a validar aqui.
 
         const { error } = await supabase
           .from('motoristas_empresa')
@@ -471,7 +466,7 @@ export default function MotoristasPage() {
                 className="campo-input">
                 <option value="">Sem repasse (motorista funcionário)</option>
                 <option value="percentual">% Porcentagem do valor da corrida</option>
-                <option value="valor_fixo">R$ Valor fixo por corrida</option>
+                <option value="valor_fixo">R$ Valor combinado por corrida</option>
               </select>
             </Campo>
 
@@ -492,20 +487,16 @@ export default function MotoristasPage() {
             )}
 
             {form.modo_repasse === 'valor_fixo' && (
-              <Campo label="Valor fixo por corrida (R$)">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-500">R$</span>
-                  <input type="number" min={0} step={0.01}
-                    value={form.valor_fixo_repasse}
-                    onChange={e => setForm(f => ({ ...f, valor_fixo_repasse: e.target.value }))}
-                    placeholder="Ex: 120"
-                    className="campo-input flex-1" />
-                </div>
-                <p className="text-[10px] text-gray-400 mt-1">
-                  Motorista recebe SEMPRE esse valor por corrida, independente do valor
-                  cobrado do cliente. Auto-preenche ao atribuir.
+              <div className="rounded-xl p-3" style={{ background: '#FEF9E7', border: '1px solid #FAC775' }}>
+                <p className="text-xs font-semibold mb-1" style={{ color: '#854F0B' }}>
+                  💡 Sobre "Valor combinado por corrida"
                 </p>
-              </Campo>
+                <p className="text-[11px]" style={{ color: '#854F0B' }}>
+                  Cada corrida terá seu valor de repasse próprio (combinado com o motorista
+                  no momento). Você digita esse valor a cada atendimento. Nada é salvo aqui
+                  como padrão — evita erros de cobrar/repassar valor errado.
+                </p>
+              </div>
             )}
 
             {/* Lista repetível de veículos — motorista pode ter mais de um

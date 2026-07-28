@@ -3202,8 +3202,10 @@ export default function AgendamentosPage() {
                   const mot = motoristasOpcoes.find(m => m.id === id)
                   const valorNum = parseFloat(form.preco?.replace(',', '.') || '0')
                   // Auto-calcula repasse respeitando o MODO do motorista:
-                  //   - percentual: valor da corrida * percentual / 100
-                  //   - valor_fixo: valor fixo direto (independe do preco)
+                  //   - percentual: valor da corrida * percentual / 100 (auto)
+                  //   - valor_fixo (= "valor combinado"): NAO auto-preenche. Gestor
+                  //     digita cada atendimento porque cada corrida tem valor combinado
+                  //     unico com o motorista. Zero risco de repassar valor errado.
                   //   - sem repasse (funcionario): fica em branco
                   // So preenche se campo estiver vazio (nao sobrescreve edicao manual).
                   let repasseAuto = form.valor_repasse_motorista
@@ -3212,9 +3214,8 @@ export default function AgendamentosPage() {
                     const modo = mot.modo_repasse ?? (mot.percentual_repasse ? 'percentual' : null)
                     if (modo === 'percentual' && mot.percentual_repasse && valorNum > 0) {
                       repasseAuto = (valorNum * mot.percentual_repasse / 100).toFixed(2)
-                    } else if (modo === 'valor_fixo' && mot.valor_fixo_repasse) {
-                      repasseAuto = mot.valor_fixo_repasse.toFixed(2)
                     }
+                    // modo=valor_fixo: nao auto-preenche (gestor digita)
                   }
                   setForm(f => ({ ...f, motorista_id: id, valor_repasse_motorista: repasseAuto }))
                 }}
@@ -3223,7 +3224,7 @@ export default function AgendamentosPage() {
                 {motoristasOpcoes.map(m => {
                   const modo = m.modo_repasse ?? (m.percentual_repasse ? 'percentual' : null)
                   const info = modo === 'percentual' && m.percentual_repasse ? ` · ${m.percentual_repasse}% repasse`
-                    : modo === 'valor_fixo' && m.valor_fixo_repasse ? ` · R$ ${Number(m.valor_fixo_repasse).toFixed(2).replace('.', ',')} fixo`
+                    : modo === 'valor_fixo' ? ` · valor combinado`
                     : ''
                   return <option key={m.id} value={m.id}>{m.nome}{info}</option>
                 })}
