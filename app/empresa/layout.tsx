@@ -261,10 +261,10 @@ export default function EmpresaLayout({ children }: { children: React.ReactNode 
 // todo mundo tem acesso completo, a única diferença é o período de pagamento.
 // Reflete o pricing atual: mensal R$127, semestral R$97/mês, anual R$77/mês.
 const PLANOS_TRIAL = [
-  {
+ {
     id: 'mensal' as const,
     nome: 'Mensal',
-    preco: 127,
+    preco: 97.90,
     precoLabel: '/mês',
     subtitulo: 'Pague mês a mês, sem compromisso',
     destaque: false,
@@ -275,9 +275,9 @@ const PLANOS_TRIAL = [
   {
     id: 'anual' as const,
     nome: 'Anual',
-    preco: 924,
+    preco: 815,
     precoLabel: '/ano',
-    subtitulo: 'equivale a R$ 77/mês · economia de 39%',
+    subtitulo: 'equivale a R$ 67,90/mês · economia de 31%',
     destaque: true,
     badge: 'MAIS ESCOLHIDO' as string | null,
     badgeStyle: { bg: '#FAC775', text: '#7C3E00' } as { bg: string; text: string } | undefined,
@@ -286,9 +286,9 @@ const PLANOS_TRIAL = [
   {
     id: 'semestral' as const,
     nome: 'Semestral',
-    preco: 582,
+    preco: 479,
     precoLabel: '/semestre',
-    subtitulo: 'equivale a R$ 97/mês · economia de 24%',
+    subtitulo: 'equivale a R$ 79,90/mês · economia de 18%',
     destaque: false,
     badge: 'MELHOR CUSTO-BENEFÍCIO' as string | null,
     badgeStyle: { bg: '#E1F5EE', text: '#085041' } as { bg: string; text: string } | undefined,
