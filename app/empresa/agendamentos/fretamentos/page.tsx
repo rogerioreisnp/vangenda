@@ -31,6 +31,8 @@ type MotoristaOpcao = {
   placa: string | null
   cor: string | null
   percentual_repasse: number | null
+  modo_repasse: 'percentual' | 'valor_fixo' | null
+  valor_fixo_repasse: number | null
 }
 
 type Corrida = {
@@ -540,7 +542,7 @@ export default function AgendamentosPage() {
         .order('created_at'),
       supabase
         .from('motoristas_empresa')
-        .select('id, nome, user_id, telefone, veiculo, placa, cor, percentual_repasse')
+        .select('id, nome, user_id, telefone, veiculo, placa, cor, percentual_repasse, modo_repasse, valor_fixo_repasse')
         .eq('empresa_id', gestor.empresa_id)
         .eq('status', 'ativo')
         .order('nome'),
@@ -3199,20 +3201,32 @@ export default function AgendamentosPage() {
                   const id = e.target.value
                   const mot = motoristasOpcoes.find(m => m.id === id)
                   const valorNum = parseFloat(form.preco?.replace(',', '.') || '0')
-                  // Auto-calcula repasse do percentual padrao do motorista, so se
-                  // o campo estiver vazio (nao sobrescreve edicao manual do gestor).
-                  const repasseAuto = (!form.valor_repasse_motorista && mot?.percentual_repasse && valorNum > 0)
-                    ? (valorNum * mot.percentual_repasse / 100).toFixed(2)
-                    : form.valor_repasse_motorista
+                  // Auto-calcula repasse respeitando o MODO do motorista:
+                  //   - percentual: valor da corrida * percentual / 100
+                  //   - valor_fixo: valor fixo direto (independe do preco)
+                  //   - sem repasse (funcionario): fica em branco
+                  // So preenche se campo estiver vazio (nao sobrescreve edicao manual).
+                  let repasseAuto = form.valor_repasse_motorista
+                  if (!form.valor_repasse_motorista && mot) {
+                    // Inferir modo pra motoristas legados que so tem percentual_repasse
+                    const modo = mot.modo_repasse ?? (mot.percentual_repasse ? 'percentual' : null)
+                    if (modo === 'percentual' && mot.percentual_repasse && valorNum > 0) {
+                      repasseAuto = (valorNum * mot.percentual_repasse / 100).toFixed(2)
+                    } else if (modo === 'valor_fixo' && mot.valor_fixo_repasse) {
+                      repasseAuto = mot.valor_fixo_repasse.toFixed(2)
+                    }
+                  }
                   setForm(f => ({ ...f, motorista_id: id, valor_repasse_motorista: repasseAuto }))
                 }}
                 className="campo-input">
                 <option value="">A definir</option>
-                {motoristasOpcoes.map(m => (
-                  <option key={m.id} value={m.id}>
-                    {m.nome}{m.percentual_repasse ? ` · ${m.percentual_repasse}% repasse` : ''}
-                  </option>
-                ))}
+                {motoristasOpcoes.map(m => {
+                  const modo = m.modo_repasse ?? (m.percentual_repasse ? 'percentual' : null)
+                  const info = modo === 'percentual' && m.percentual_repasse ? ` · ${m.percentual_repasse}% repasse`
+                    : modo === 'valor_fixo' && m.valor_fixo_repasse ? ` · R$ ${Number(m.valor_fixo_repasse).toFixed(2).replace('.', ',')} fixo`
+                    : ''
+                  return <option key={m.id} value={m.id}>{m.nome}{info}</option>
+                })}
               </select>
             </Campo>
 
