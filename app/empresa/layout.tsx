@@ -270,7 +270,7 @@ const PLANOS_TRIAL = [
     destaque: false,
     badge: null as string | null,
     badgeStyle: undefined as { bg: string; text: string } | undefined,
-    kiwifyUrl: 'https://pay.kiwify.com.br/EsShhQI',
+    kiwifyUrl: 'https://pay.kiwify.com.br/pdGfyFE',
   },
   {
     id: 'anual' as const,
@@ -281,7 +281,7 @@ const PLANOS_TRIAL = [
     destaque: true,
     badge: 'MAIS ESCOLHIDO' as string | null,
     badgeStyle: { bg: '#FAC775', text: '#7C3E00' } as { bg: string; text: string } | undefined,
-    kiwifyUrl: 'https://pay.kiwify.com.br/9VEuUrk',
+    kiwifyUrl: 'https://pay.kiwify.com.br/lGg1DcH',
   },
   {
     id: 'semestral' as const,
@@ -292,7 +292,7 @@ const PLANOS_TRIAL = [
     destaque: false,
     badge: 'MELHOR CUSTO-BENEFÍCIO' as string | null,
     badgeStyle: { bg: '#E1F5EE', text: '#085041' } as { bg: string; text: string } | undefined,
-    kiwifyUrl: 'https://pay.kiwify.com.br/B7F8FFO',
+    kiwifyUrl: 'https://pay.kiwify.com.br/8Jg0zNg',
   },
 ]
 
