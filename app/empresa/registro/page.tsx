@@ -22,7 +22,7 @@ const PLANOS_PERIODO: PlanoPeriodo[] = [
   {
     id: 'mensal',
     nome: 'Mensal',
-    preco: 97,90
+    preco: 97.90,
     precoLabel: '/mês',
     subtitulo: 'Pague mês a mês, sem compromisso',
     destaque: false,
