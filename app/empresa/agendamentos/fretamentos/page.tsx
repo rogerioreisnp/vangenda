@@ -1300,7 +1300,22 @@ export default function AgendamentosPage() {
     if (!motorista) return
     const telFmt = formatarTelefoneWhatsApp(motorista.telefone)
     if (!telFmt) { alert(`Motorista ${motorista.nome} não tem telefone cadastrado.`); return }
-    const msg = montarMsgDetalhada(c, motoristaId, etapa)
+    let msg = montarMsgDetalhada(c, motoristaId, etapa)
+    // Pra o MOTORISTA (e nao pro cliente), incluir o valor de repasse dele
+    // logo antes da assinatura — motorista precisa saber quanto vai receber.
+    // Insere ANTES do bloco de assinatura (que comeca com \n\n*Nome Empresa*).
+    const repasse = Number(c.valor_repasse_motorista) || 0
+    if (repasse > 0) {
+      const valorFmt = repasse.toFixed(2).replace('.', ',')
+      const linhaRepasse = `\n\n💰 *Seu repasse:* R$ ${valorFmt}`
+      // Se tiver assinatura no final, insere antes dela; senao adiciona no fim
+      const idxAssinatura = msg.lastIndexOf('\n\n*')
+      if (idxAssinatura > 0) {
+        msg = msg.slice(0, idxAssinatura) + linhaRepasse + msg.slice(idxAssinatura)
+      } else {
+        msg += linhaRepasse
+      }
+    }
     window.open(`https://wa.me/${telFmt}?text=${encodeURIComponent(msg)}`, '_blank')
   }
 

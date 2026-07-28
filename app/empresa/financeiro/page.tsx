@@ -22,6 +22,7 @@ type CorridaFin = {
   data_pagamento: string | null
   numero_reserva: string | null
   motoristas_empresa: { nome: string; veiculo: string | null; placa: string | null } | null
+  valor_repasse_motorista: number | null
 }
 
 type Despesa = {
@@ -233,7 +234,7 @@ export default function FinanceiroPage() {
     // decisão de 2026-07-16 (Smart Car style).
 
     const { inicio, fim } = intervalo()
-    const selectCorrida = 'id, origem, destino, data_hora, valor, status, cliente_nome, motorista_id, valor_recebido, status_pagamento, data_pagamento, numero_reserva, motoristas_empresa(nome, veiculo, placa)'
+    const selectCorrida = 'id, origem, destino, data_hora, valor, status, cliente_nome, motorista_id, valor_recebido, status_pagamento, data_pagamento, numero_reserva, valor_repasse_motorista, motoristas_empresa(nome, veiculo, placa)'
 
     const [{ data: corr }, { data: desp }, { data: recebidas }, { data: aReceber }] = await Promise.all([
       // Corridas concluídas no período (atividade/operação, não é a conta de receita)
@@ -383,7 +384,13 @@ export default function FinanceiroPage() {
   const totalValorConcluidas = corridasConcluidas.reduce((s, c) => s + Number(c.valor), 0)
   const totalAReceber = corridasAReceber.reduce((s, c) => s + (Number(c.valor) - Number(c.valor_recebido || 0)), 0)
   const totalDesp     = despesas.reduce((s, d) => s + Number(d.valor), 0)
-  const lucro         = totalRec - totalDesp
+  // Repasses pagos a motoristas parceiros das corridas RECEBIDAS no periodo —
+  // reduzem o lucro real do gestor. Sem isso, o "lucro" fica inflado porque
+  // ignora o que o gestor efetivamente repassou pros motoristas agregados.
+  const totalRepasseMotoristas = corridasRecebidasPeriodo.reduce(
+    (s, c) => s + Number((c as any).valor_repasse_motorista || 0), 0
+  )
+  const lucro         = totalRec - totalDesp - totalRepasseMotoristas
   const motMap        = Object.fromEntries(motoristas.map(m => [m.id, m]))
 
   /* ── Agrupar por veículo ── */
@@ -536,15 +543,39 @@ export default function FinanceiroPage() {
                 </p>
               </div>
 
-              {/* Lucro — destaque */}
+              {/* Lucro liquido — destaque com breakdown transparente. Cliente do
+                  Parana pediu 2026-07-28: mostrar que o lucro real ja desconta
+                  o repasse aos motoristas parceiros (senao ficava inflado). */}
               <div className="col-span-2 rounded-2xl p-4 border"
                 style={{
                   background:   lucro >= 0 ? '#E1F5EE' : '#FCEBEB',
                   borderColor:  lucro >= 0 ? '#9FE1CB' : '#FECACA',
                 }}>
                 <p className="text-xs mb-2" style={{ color: lucro >= 0 ? '#085041' : '#A32D2D' }}>
-                  {lucro >= 0 ? '📈' : '📉'} Lucro real
+                  {lucro >= 0 ? '📈' : '📉'} Lucro líquido
                 </p>
+                {/* Breakdown so aparece quando ha repasses ou despesas pra
+                    somar (evita ruido em empresas simples que so tem receita) */}
+                {(totalRepasseMotoristas > 0 || totalDesp > 0) && (
+                  <div className="text-[11px] mb-2" style={{ color: lucro >= 0 ? '#085041' : '#A32D2D' }}>
+                    <div className="flex justify-between">
+                      <span>Receita</span>
+                      <span>{fmt(totalRec)}</span>
+                    </div>
+                    {totalRepasseMotoristas > 0 && (
+                      <div className="flex justify-between">
+                        <span>(-) Repasse motoristas</span>
+                        <span>{fmt(totalRepasseMotoristas)}</span>
+                      </div>
+                    )}
+                    {totalDesp > 0 && (
+                      <div className="flex justify-between">
+                        <span>(-) Despesas</span>
+                        <span>{fmt(totalDesp)}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
                 <p className="text-2xl font-bold" style={{ color: lucro >= 0 ? '#0F6E56' : '#A32D2D' }}>
                   {lucro < 0 ? '-' : ''}{fmt(lucro)}
                 </p>

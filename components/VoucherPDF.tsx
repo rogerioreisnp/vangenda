@@ -190,7 +190,7 @@ export function VoucherPDF({ empresa, cliente, atendimento }: VoucherProps) {
         <View style={{ marginBottom: 4 }}>
           <Text style={{ ...s.label, marginBottom: 2 }}>Cliente: <Text style={s.valor}>{cliente.nome}</Text></Text>
           {cliente.endereco_linha && <Text style={s.valor}>{cliente.endereco_linha}</Text>}
-          {cliente.telefone && <Text style={s.valor}>📞 {cliente.telefone}</Text>}
+          {cliente.telefone && <Text style={s.valor}>Tel: {cliente.telefone}</Text>}
           {cliente.email && <Text style={s.valor}>{cliente.email}</Text>}
         </View>
 
@@ -316,11 +316,14 @@ export function VoucherPDF({ empresa, cliente, atendimento }: VoucherProps) {
             )}
           </View>
           <View style={s.rodapeCol}>
-            {empresa.email_comercial && <Text style={s.rodapeLinha}>✉ {empresa.email_comercial}</Text>}
-            {empresa.telefone && <Text style={s.rodapeLinha}>☎ {empresa.telefone}</Text>}
-            {empresa.whatsapp_comercial && <Text style={s.rodapeLinha}>📱 {empresa.whatsapp_comercial}</Text>}
-            {empresa.instagram && <Text style={s.rodapeLinha}>📸 @{empresa.instagram.replace(/^@/, '')}</Text>}
-            {empresa.site && <Text style={s.rodapeLinha}>🌐 {empresa.site}</Text>}
+            {/* Sem emoji no rodape — Helvetica do react-pdf nao renderiza
+                todos os pictogramas (aparece como = ou < antes do texto).
+                Labels em texto simples ficam mais formais e nunca quebram. */}
+            {empresa.email_comercial && <Text style={s.rodapeLinha}>Email: {empresa.email_comercial}</Text>}
+            {empresa.telefone && <Text style={s.rodapeLinha}>Tel: {empresa.telefone}</Text>}
+            {empresa.whatsapp_comercial && <Text style={s.rodapeLinha}>WhatsApp: {empresa.whatsapp_comercial}</Text>}
+            {empresa.instagram && <Text style={s.rodapeLinha}>Instagram: @{empresa.instagram.replace(/^@/, '')}</Text>}
+            {empresa.site && <Text style={s.rodapeLinha}>Site: {empresa.site}</Text>}
           </View>
         </View>
       </Page>
