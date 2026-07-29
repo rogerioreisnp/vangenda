@@ -174,6 +174,19 @@ export default function FinanceiroPage() {
   const [salvando, setSalvando]     = useState(false)
   const [erro, setErro]             = useState('')
 
+  /* ── Filtros das listagens (client-side sobre dados ja carregados) ──
+     Nao alteram nenhuma query: filtram em memoria o que ja veio do banco.
+     Isso garante zero risco de quebrar o carregamento e resposta instantanea.
+     Os totais do RESUMO continuam sempre do periodo inteiro (visao geral);
+     so os cabecalhos das listagens refletem o filtro aplicado. */
+  const [filtroRecMotorista, setFiltroRecMotorista] = useState('')
+  const [filtroRecCliente, setFiltroRecCliente]     = useState('')
+  const [filtroDespCategoria, setFiltroDespCategoria] = useState('')
+  const [filtroDespMotorista, setFiltroDespMotorista] = useState('')
+  const [filtroDespVeiculo, setFiltroDespVeiculo]     = useState('')
+  const [filtroDespForma, setFiltroDespForma]         = useState('')
+  const [filtroDespReembolso, setFiltroDespReembolso] = useState<'todas' | 'a_cobrar' | 'reembolsadas'>('todas')
+
   useEffect(() => { inicializar() }, [])
   useEffect(() => {
     if (empresaId && tipoOperacao && tipoOperacao !== 'rota_fixa') carregar(empresaId)
@@ -393,6 +406,39 @@ export default function FinanceiroPage() {
   const lucro         = totalRec - totalDesp - totalRepasseMotoristas
   const motMap        = Object.fromEntries(motoristas.map(m => [m.id, m]))
 
+  /* ── Listas filtradas (so pras ABAS de listagem; resumo usa os totais
+        cheios do periodo acima). Filtro vazio ('') = sem restricao. ── */
+  const passaFiltroRec = (motoristaId: string | null, clienteNome: string | null) => {
+    if (filtroRecMotorista && motoristaId !== filtroRecMotorista) return false
+    if (filtroRecCliente && !(clienteNome || '').toLowerCase().includes(filtroRecCliente.toLowerCase())) return false
+    return true
+  }
+  const corridasRecebidasFiltradas = corridasRecebidasPeriodo.filter(c => passaFiltroRec(c.motorista_id, c.cliente_nome))
+  const corridasAReceberFiltradas  = corridasAReceber.filter(c => passaFiltroRec(c.motorista_id, c.cliente_nome))
+  const receitasManuaisFiltradas   = receitasManuais.filter(r => passaFiltroRec(r.motorista_id, r.descricao))
+  const totalRecCorridasFiltrado = corridasRecebidasFiltradas.reduce((s, c) => s + Number(c.valor), 0)
+  const totalAReceberFiltrado    = corridasAReceberFiltradas.reduce((s, c) => s + (Number(c.valor) - Number(c.valor_recebido || 0)), 0)
+  const totalRecManualFiltrado   = receitasManuaisFiltradas.reduce((s, r) => s + Number(r.valor), 0)
+
+  const despesasFiltradas = despesas.filter(d => {
+    if (filtroDespCategoria && d.categoria !== filtroDespCategoria) return false
+    if (filtroDespMotorista && d.motorista_id !== filtroDespMotorista) return false
+    if (filtroDespVeiculo && (d.veiculo || '') !== filtroDespVeiculo) return false
+    if (filtroDespForma && d.forma_pagamento !== filtroDespForma) return false
+    if (filtroDespReembolso === 'a_cobrar'     && !(d.reembolsavel && !d.reembolsado_em)) return false
+    if (filtroDespReembolso === 'reembolsadas' && !(d.reembolsavel && d.reembolsado_em))  return false
+    return true
+  })
+  const totalDespFiltrado = despesasFiltradas.reduce((s, d) => s + Number(d.valor), 0)
+
+  // Opcoes dos dropdowns — derivadas dos dados reais do periodo, entao so
+  // aparece o que de fato existe (nao polui com opcao que retorna vazio).
+  const categoriasComDespesa = Array.from(new Set(despesas.map(d => d.categoria).filter(Boolean)))
+  const veiculosComDespesa   = Array.from(new Set(despesas.map(d => d.veiculo).filter(Boolean))) as string[]
+  const formasComDespesa     = Array.from(new Set(despesas.map(d => d.forma_pagamento).filter(Boolean))) as string[]
+  const temFiltroDesp = !!(filtroDespCategoria || filtroDespMotorista || filtroDespVeiculo || filtroDespForma || filtroDespReembolso !== 'todas')
+  const temFiltroRec  = !!(filtroRecMotorista || filtroRecCliente)
+
   /* ── Agrupar por veículo ── */
   type VItem = { key: string; nome: string; veiculo: string; receita: number; despesa: number; qtd: number }
   const vMap = new Map<string, VItem>()
@@ -597,23 +643,50 @@ export default function FinanceiroPage() {
               + Adicionar receita
             </button>
 
+            {/* Filtros da listagem — client-side, nao refazem query */}
+            <div className="bg-white rounded-2xl p-3 border border-gray-100 flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">🔍 Filtrar</p>
+                {temFiltroRec && (
+                  <button onClick={() => { setFiltroRecMotorista(''); setFiltroRecCliente('') }}
+                    className="text-[11px] font-medium underline" style={{ color: '#A32D2D' }}>
+                    limpar filtros
+                  </button>
+                )}
+              </div>
+              <input value={filtroRecCliente} onChange={e => setFiltroRecCliente(e.target.value)}
+                placeholder="Buscar por cliente..."
+                className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600" />
+              {motoristas.length > 0 && (
+                <select value={filtroRecMotorista} onChange={e => setFiltroRecMotorista(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm outline-none bg-white focus:border-green-600">
+                  <option value="">Todos os motoristas</option>
+                  {motoristas.map(m => (
+                    <option key={m.id} value={m.id}>🚗 {m.nome}{m.veiculo ? ` · ${m.veiculo}` : ''}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+
             {/* Recebidas no período (o que efetivamente virou dinheiro) */}
             <div>
               <div className="flex justify-between items-center mb-2">
                 <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#0F6E56' }}>
-                  ✅ Recebidas no período · {corridasRecebidasPeriodo.length}
+                  ✅ Recebidas no período · {corridasRecebidasFiltradas.length}
                 </p>
-                {corridasRecebidasPeriodo.length > 0 && (
-                  <p className="text-sm font-bold" style={{ color: '#0F6E56' }}>{fmt(totalRecCorridas)}</p>
+                {corridasRecebidasFiltradas.length > 0 && (
+                  <p className="text-sm font-bold" style={{ color: '#0F6E56' }}>{fmt(totalRecCorridasFiltrado)}</p>
                 )}
               </div>
-              {corridasRecebidasPeriodo.length === 0 ? (
+              {corridasRecebidasFiltradas.length === 0 ? (
                 <div className="text-center py-6">
-                  <p className="text-sm text-gray-400">Nenhum atendimento recebido no período</p>
+                  <p className="text-sm text-gray-400">
+                    {temFiltroRec ? 'Nenhum atendimento recebido com esse filtro' : 'Nenhum atendimento recebido no período'}
+                  </p>
                 </div>
               ) : (
                 <div className="flex flex-col gap-2">
-                  {corridasRecebidasPeriodo.map(c => {
+                  {corridasRecebidasFiltradas.map(c => {
                     const mot = c.motoristas_empresa as any
                     return (
                       <div key={c.id} className="bg-white rounded-2xl p-3 border border-gray-100">
@@ -638,19 +711,21 @@ export default function FinanceiroPage() {
             <div>
               <div className="flex justify-between items-center mb-2">
                 <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#1D4ED8' }}>
-                  🕐 A receber · {corridasAReceber.length}
+                  🕐 A receber · {corridasAReceberFiltradas.length}
                 </p>
-                {corridasAReceber.length > 0 && (
-                  <p className="text-sm font-bold" style={{ color: '#1D4ED8' }}>{fmt(totalAReceber)}</p>
+                {corridasAReceberFiltradas.length > 0 && (
+                  <p className="text-sm font-bold" style={{ color: '#1D4ED8' }}>{fmt(totalAReceberFiltrado)}</p>
                 )}
               </div>
-              {corridasAReceber.length === 0 ? (
+              {corridasAReceberFiltradas.length === 0 ? (
                 <div className="text-center py-6">
-                  <p className="text-sm text-gray-400">Nenhum atendimento concluído pendente de recebimento</p>
+                  <p className="text-sm text-gray-400">
+                    {temFiltroRec ? 'Nenhum pendente com esse filtro' : 'Nenhum atendimento concluído pendente de recebimento'}
+                  </p>
                 </div>
               ) : (
                 <div className="flex flex-col gap-2">
-                  {corridasAReceber.map(c => {
+                  {corridasAReceberFiltradas.map(c => {
                     const mot = c.motoristas_empresa as any
                     return (
                       <div key={c.id} className="rounded-2xl p-3 border" style={{ background: '#EFF6FF', borderColor: '#BFDBFE' }}>
@@ -675,19 +750,21 @@ export default function FinanceiroPage() {
             <div>
               <div className="flex justify-between items-center mb-2">
                 <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#0F6E56' }}>
-                  ➕ Lançadas manualmente · {receitasManuais.length}
+                  ➕ Lançadas manualmente · {receitasManuaisFiltradas.length}
                 </p>
-                {receitasManuais.length > 0 && (
-                  <p className="text-sm font-bold" style={{ color: '#0F6E56' }}>{fmt(totalRecManual)}</p>
+                {receitasManuaisFiltradas.length > 0 && (
+                  <p className="text-sm font-bold" style={{ color: '#0F6E56' }}>{fmt(totalRecManualFiltrado)}</p>
                 )}
               </div>
-              {receitasManuais.length === 0 ? (
+              {receitasManuaisFiltradas.length === 0 ? (
                 <div className="text-center py-6">
-                  <p className="text-sm text-gray-400">Nenhuma receita lançada manualmente no período</p>
+                  <p className="text-sm text-gray-400">
+                    {temFiltroRec ? 'Nenhuma receita manual com esse filtro' : 'Nenhuma receita lançada manualmente no período'}
+                  </p>
                 </div>
               ) : (
                 <div className="flex flex-col gap-2">
-                  {receitasManuais.map(r => {
+                  {receitasManuaisFiltradas.map(r => {
                     const cat = catReceitaMap[r.categoria] ?? { label: r.categoria, emoji: '➕' }
                     const m = r.motorista_id ? motMap[r.motorista_id] : undefined
                     return (
@@ -739,10 +816,13 @@ export default function FinanceiroPage() {
           <div>
             <div className="flex justify-between items-center mb-3">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                {despesas.length} despesa{despesas.length !== 1 ? 's' : ''}
+                {despesasFiltradas.length} despesa{despesasFiltradas.length !== 1 ? 's' : ''}
+                {temFiltroDesp && despesas.length !== despesasFiltradas.length && (
+                  <span className="normal-case font-normal"> de {despesas.length}</span>
+                )}
               </p>
-              {despesas.length > 0 && (
-                <p className="text-sm font-bold" style={{ color: '#A32D2D' }}>{fmt(totalDesp)}</p>
+              {despesasFiltradas.length > 0 && (
+                <p className="text-sm font-bold" style={{ color: '#A32D2D' }}>{fmt(totalDespFiltrado)}</p>
               )}
             </div>
             <button onClick={() => abrirNova('despesa')}
@@ -750,14 +830,119 @@ export default function FinanceiroPage() {
               style={{ background: '#1D9E75', color: '#fff' }}>
               + Adicionar despesa
             </button>
-            {despesas.length === 0 ? (
+
+            {/* Filtros da listagem — client-side, nao refazem query.
+                Dropdowns so listam valores que existem no periodo. */}
+            {despesas.length > 0 && (
+              <div className="bg-white rounded-2xl p-3 border border-gray-100 flex flex-col gap-2 mb-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">🔍 Filtrar</p>
+                  {temFiltroDesp && (
+                    <button onClick={() => {
+                      setFiltroDespCategoria(''); setFiltroDespMotorista('')
+                      setFiltroDespVeiculo(''); setFiltroDespForma(''); setFiltroDespReembolso('todas')
+                    }}
+                      className="text-[11px] font-medium underline" style={{ color: '#A32D2D' }}>
+                      limpar filtros
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  {categoriasComDespesa.length > 1 && (
+                    <select value={filtroDespCategoria} onChange={e => setFiltroDespCategoria(e.target.value)}
+                      className="px-2 py-2 rounded-xl border border-gray-200 text-xs outline-none bg-white focus:border-green-600">
+                      <option value="">Todas categorias</option>
+                      {categoriasComDespesa.map(cv => {
+                        const c = catMap[cv]
+                        return <option key={cv} value={cv}>{c ? `${c.emoji} ${c.label}` : cv}</option>
+                      })}
+                    </select>
+                  )}
+                  {motoristas.length > 0 && (
+                    <select value={filtroDespMotorista} onChange={e => setFiltroDespMotorista(e.target.value)}
+                      className="px-2 py-2 rounded-xl border border-gray-200 text-xs outline-none bg-white focus:border-green-600">
+                      <option value="">Todos motoristas</option>
+                      {motoristas.map(m => <option key={m.id} value={m.id}>🚗 {m.nome}</option>)}
+                    </select>
+                  )}
+                  {veiculosComDespesa.length > 1 && (
+                    <select value={filtroDespVeiculo} onChange={e => setFiltroDespVeiculo(e.target.value)}
+                      className="px-2 py-2 rounded-xl border border-gray-200 text-xs outline-none bg-white focus:border-green-600">
+                      <option value="">Todos veículos</option>
+                      {veiculosComDespesa.map(v => <option key={v} value={v}>🚙 {v}</option>)}
+                    </select>
+                  )}
+                  {formasComDespesa.length > 1 && (
+                    <select value={filtroDespForma} onChange={e => setFiltroDespForma(e.target.value)}
+                      className="px-2 py-2 rounded-xl border border-gray-200 text-xs outline-none bg-white focus:border-green-600">
+                      <option value="">Todas formas pgto</option>
+                      {formasComDespesa.map(f => (
+                        <option key={f} value={f}>{FORMA_PAGAMENTO_LABEL[f] ?? f}</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+
+                {/* Toggle de reembolso — so aparece se a empresa usa reembolsaveis */}
+                {despesas.some(d => d.reembolsavel) && (
+                  <div className="flex gap-1.5">
+                    {([
+                      { id: 'todas' as const,        label: 'Todas' },
+                      { id: 'a_cobrar' as const,     label: '🟡 A cobrar' },
+                      { id: 'reembolsadas' as const, label: '🟢 Reembolsadas' },
+                    ]).map(f => (
+                      <button key={f.id} onClick={() => setFiltroDespReembolso(f.id)}
+                        className="flex-1 py-1.5 rounded-lg text-[11px] font-semibold transition-all"
+                        style={filtroDespReembolso === f.id
+                          ? { background: '#0F6E56', color: '#fff' }
+                          : { background: '#f3f4f6', color: '#6b7280' }}>
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Totalizador por categoria — so quando ha mais de uma categoria
+                no resultado filtrado. Ajuda o gestor a ver onde o dinheiro foi. */}
+            {despesasFiltradas.length > 1 && (() => {
+              const porCat = new Map<string, number>()
+              despesasFiltradas.forEach(d => {
+                porCat.set(d.categoria, (porCat.get(d.categoria) || 0) + Number(d.valor))
+              })
+              if (porCat.size < 2) return null
+              const linhas = Array.from(porCat.entries()).sort((a, b) => b[1] - a[1])
+              return (
+                <div className="rounded-2xl p-3 mb-3" style={{ background: '#FCEBEB', border: '1px solid #F5BCBC' }}>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide mb-1.5" style={{ color: '#A32D2D' }}>
+                    Total por categoria
+                  </p>
+                  {linhas.map(([cv, total]) => {
+                    const c = catMap[cv]
+                    const pct = totalDespFiltrado > 0 ? (total / totalDespFiltrado) * 100 : 0
+                    return (
+                      <div key={cv} className="flex items-center justify-between text-xs py-0.5" style={{ color: '#A32D2D' }}>
+                        <span>{c ? `${c.emoji} ${c.label}` : cv}</span>
+                        <span className="font-semibold">{fmt(total)} <span className="font-normal opacity-60">({pct.toFixed(0)}%)</span></span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })()}
+
+            {despesasFiltradas.length === 0 ? (
               <div className="text-center py-8">
                 <p className="text-3xl mb-2">📭</p>
-                <p className="text-sm text-gray-400">Nenhuma despesa no período</p>
+                <p className="text-sm text-gray-400">
+                  {temFiltroDesp ? 'Nenhuma despesa com esse filtro' : 'Nenhuma despesa no período'}
+                </p>
               </div>
             ) : (
               <div className="flex flex-col gap-2">
-                {despesas.map(d => {
+                {despesasFiltradas.map(d => {
                   const cat = catMap[d.categoria] ?? { label: d.categoria, emoji: '📦' }
                   const m = d.motorista_id ? motMap[d.motorista_id] : undefined
                   return (
@@ -1204,6 +1389,10 @@ function FinanceiroRotaFixa({ empresaId }: { empresaId: string }) {
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState<null | 'receita' | 'despesa'>(null)
   const [editando, setEditando] = useState<LancamentoEmpresa | null>(null)
+  /* Filtros das listagens (client-side, nao refazem query) */
+  const [filtroCategoriaRF, setFiltroCategoriaRF] = useState('')
+  const [filtroFormaRF, setFiltroFormaRF]         = useState('')
+  const [buscaEncomendaRF, setBuscaEncomendaRF]   = useState('')
 
   useEffect(() => { carregar() }, [filtro, mes, dataInicioCustom, dataFimCustom])
 
@@ -1297,6 +1486,23 @@ function FinanceiroRotaFixa({ empresaId }: { empresaId: string }) {
   const totalReceitas = totalReceitasManuais + totalReceitasAgendamentos + totalReceitasEncomendas
   const totalDespesas = despesas.reduce((s, d) => s + Number(d.valor), 0)
   const lucro = totalReceitas - totalDespesas
+
+  /* ── Listas filtradas (so pras listagens; os cards de topo continuam
+        mostrando os totais cheios do periodo). ── */
+  const despesasFiltradasRF = despesas.filter(d => {
+    if (filtroCategoriaRF && d.categoria !== filtroCategoriaRF) return false
+    if (filtroFormaRF && d.forma_pagamento !== filtroFormaRF) return false
+    return true
+  })
+  const totalDespesasFiltradasRF = despesasFiltradasRF.reduce((s, d) => s + Number(d.valor), 0)
+  const encomendasFiltradasRF = receitasEncomendas.filter(e =>
+    !buscaEncomendaRF || (e.nome || '').toLowerCase().includes(buscaEncomendaRF.toLowerCase())
+  )
+  const totalEncomendasFiltradasRF = encomendasFiltradasRF.reduce((s, e) => s + Number(e.valor), 0)
+  // Opcoes derivadas do que existe no periodo
+  const categoriasComDespesaRF = Array.from(new Set(despesas.map(d => d.categoria).filter(Boolean)))
+  const formasComDespesaRF     = Array.from(new Set(despesas.map(d => d.forma_pagamento).filter(Boolean))) as string[]
+  const temFiltroRF = !!(filtroCategoriaRF || filtroFormaRF)
 
   const filtros: { key: FiltroRF; label: string }[] = [
     { key: 'hoje',   label: 'Hoje'    },
@@ -1422,11 +1628,21 @@ function FinanceiroRotaFixa({ empresaId }: { empresaId: string }) {
             {receitasEncomendas.length > 0 && (
               <div className="mb-5">
                 <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">📦 Encomendas pagas</p>
-                  <p className="text-xs font-semibold" style={{ color: '#0F6E56' }}>+ R$ {totalReceitasEncomendas.toFixed(2).replace('.', ',')}</p>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    📦 Encomendas pagas · {encomendasFiltradasRF.length}
+                  </p>
+                  <p className="text-xs font-semibold" style={{ color: '#0F6E56' }}>+ R$ {totalEncomendasFiltradasRF.toFixed(2).replace('.', ',')}</p>
                 </div>
+                {/* Busca por nome — util quando o motorista fez muitas entregas */}
+                {receitasEncomendas.length > 5 && (
+                  <input value={buscaEncomendaRF} onChange={e => setBuscaEncomendaRF(e.target.value)}
+                    placeholder="🔍 Buscar encomenda por nome..."
+                    className="w-full px-3 py-2 mb-2 rounded-xl border border-gray-200 text-sm outline-none bg-white focus:border-green-600" />
+                )}
                 <div className="bg-white rounded-2xl overflow-hidden border border-gray-100">
-                  {receitasEncomendas.slice(0, 20).map(e => {
+                  {encomendasFiltradasRF.length === 0 ? (
+                    <p className="text-center text-sm text-gray-400 py-4">Nenhuma encomenda com esse nome</p>
+                  ) : encomendasFiltradasRF.slice(0, 20).map(e => {
                     const data = e.data_pago ?? e.criado_em.slice(0, 10)
                     return (
                       <div key={e.id} className="flex items-center px-4 py-3 border-b border-gray-50 last:border-0 gap-2">
@@ -1441,8 +1657,8 @@ function FinanceiroRotaFixa({ empresaId }: { empresaId: string }) {
                       </div>
                     )
                   })}
-                  {receitasEncomendas.length > 20 && (
-                    <p className="text-center text-xs text-gray-400 py-2">+ {receitasEncomendas.length - 20} encomendas</p>
+                  {encomendasFiltradasRF.length > 20 && (
+                    <p className="text-center text-xs text-gray-400 py-2">+ {encomendasFiltradasRF.length - 20} encomendas</p>
                   )}
                 </div>
               </div>
@@ -1487,12 +1703,92 @@ function FinanceiroRotaFixa({ empresaId }: { empresaId: string }) {
             </div>
 
             <div className="mb-5">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Despesas</p>
-              {despesas.length === 0 ? (
-                <div className="text-center py-4 text-gray-400 text-sm bg-white rounded-2xl border border-gray-100">Nenhuma despesa registrada</div>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  Despesas · {despesasFiltradasRF.length}
+                  {temFiltroRF && despesas.length !== despesasFiltradasRF.length && (
+                    <span className="normal-case font-normal"> de {despesas.length}</span>
+                  )}
+                </p>
+                {despesasFiltradasRF.length > 0 && (
+                  <p className="text-xs font-semibold" style={{ color: '#A32D2D' }}>
+                    - R$ {totalDespesasFiltradasRF.toFixed(2).replace('.', ',')}
+                  </p>
+                )}
+              </div>
+
+              {/* Filtros — client-side, dropdowns so listam o que existe */}
+              {despesas.length > 0 && (categoriasComDespesaRF.length > 1 || formasComDespesaRF.length > 1) && (
+                <div className="bg-white rounded-2xl p-3 border border-gray-100 flex flex-col gap-2 mb-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">🔍 Filtrar</p>
+                    {temFiltroRF && (
+                      <button onClick={() => { setFiltroCategoriaRF(''); setFiltroFormaRF('') }}
+                        className="text-[11px] font-medium underline" style={{ color: '#A32D2D' }}>
+                        limpar filtros
+                      </button>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {categoriasComDespesaRF.length > 1 && (
+                      <select value={filtroCategoriaRF} onChange={e => setFiltroCategoriaRF(e.target.value)}
+                        className="px-2 py-2 rounded-xl border border-gray-200 text-xs outline-none bg-white focus:border-green-600">
+                        <option value="">Todas categorias</option>
+                        {categoriasComDespesaRF.map(cv => {
+                          const c = categoriasDespesaRF.find(x => x.value === cv)
+                          return <option key={cv} value={cv}>{c ? `${c.emoji} ${c.label}` : cv}</option>
+                        })}
+                      </select>
+                    )}
+                    {formasComDespesaRF.length > 1 && (
+                      <select value={filtroFormaRF} onChange={e => setFiltroFormaRF(e.target.value)}
+                        className="px-2 py-2 rounded-xl border border-gray-200 text-xs outline-none bg-white focus:border-green-600">
+                        <option value="">Todas formas pgto</option>
+                        {formasComDespesaRF.map(f => (
+                          <option key={f} value={f}>{FORMA_PAGAMENTO_LABEL[f] ?? f}</option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Total por categoria — visao rapida de onde o dinheiro foi */}
+              {despesasFiltradasRF.length > 1 && (() => {
+                const porCat = new Map<string, number>()
+                despesasFiltradasRF.forEach(d => {
+                  porCat.set(d.categoria, (porCat.get(d.categoria) || 0) + Number(d.valor))
+                })
+                if (porCat.size < 2) return null
+                const linhas = Array.from(porCat.entries()).sort((a, b) => b[1] - a[1])
+                return (
+                  <div className="rounded-2xl p-3 mb-2" style={{ background: '#FCEBEB', border: '1px solid #F5BCBC' }}>
+                    <p className="text-[11px] font-semibold uppercase tracking-wide mb-1.5" style={{ color: '#A32D2D' }}>
+                      Total por categoria
+                    </p>
+                    {linhas.map(([cv, total]) => {
+                      const c = categoriasDespesaRF.find(x => x.value === cv)
+                      const pct = totalDespesasFiltradasRF > 0 ? (total / totalDespesasFiltradasRF) * 100 : 0
+                      return (
+                        <div key={cv} className="flex items-center justify-between text-xs py-0.5" style={{ color: '#A32D2D' }}>
+                          <span>{c ? `${c.emoji} ${c.label}` : cv}</span>
+                          <span className="font-semibold">
+                            R$ {total.toFixed(2).replace('.', ',')} <span className="font-normal opacity-60">({pct.toFixed(0)}%)</span>
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              })()}
+
+              {despesasFiltradasRF.length === 0 ? (
+                <div className="text-center py-4 text-gray-400 text-sm bg-white rounded-2xl border border-gray-100">
+                  {temFiltroRF ? 'Nenhuma despesa com esse filtro' : 'Nenhuma despesa registrada'}
+                </div>
               ) : (
                 <div className="bg-white rounded-2xl overflow-hidden border border-gray-100">
-                  {despesas.map(d => {
+                  {despesasFiltradasRF.map(d => {
                     const cat = categoriasDespesaRF.find(c => c.value === d.categoria)
                     return (
                       <div key={d.id} className="flex items-center px-4 py-3 border-b border-gray-50 last:border-0 gap-2">
