@@ -257,7 +257,10 @@ export default function TransferSlugPage({ params }: { params: { slug: string } 
         <h1 className="text-xl font-bold text-white">{empresa.nome}</h1>
         <p className="text-sm mt-1" style={{ color: 'rgba(255,255,255,0.85)' }}>✈️ Solicitar Transfer</p>
         {empresa.descricao && (
-          <p className="text-sm mt-1.5 leading-snug" style={{ color: 'rgba(255,255,255,0.8)' }}>
+          // whitespace-pre-line preserva as quebras de linha que o gestor
+          // digitou em Configuracoes — sem isso o HTML colapsa tudo numa
+          // linha so, "embolando" o texto (case AAJP Transportes 2026-07-29).
+          <p className="text-sm mt-1.5 leading-snug whitespace-pre-line" style={{ color: 'rgba(255,255,255,0.8)' }}>
             {empresa.descricao}
           </p>
         )}

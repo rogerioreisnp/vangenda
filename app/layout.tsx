@@ -19,8 +19,15 @@ export const metadata: Metadata = {
   },
 }
 
+// width/initialScale precisam ser explicitos: ao exportar `viewport` com
+// so themeColor, o Next.js deixa de gerar a tag <meta name="viewport"> padrao
+// (width=device-width, initial-scale=1), fazendo o navegador mobile abrir
+// com zoom/escala arbitraria — o app parecia "destabilizado" ao entrar ou
+// trocar de tela (relato AAJP Transportes 2026-07-29).
 export const viewport: Viewport = {
   themeColor: '#04342C',
+  width: 'device-width',
+  initialScale: 1,
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -662,7 +662,9 @@ export default function AgendamentoPublico({
         )}
         <h1 className="text-xl font-bold" style={{ color: '#fff' }}>{empresa.nome}</h1>
         {empresa.descricao && (
-          <p className="text-sm mt-1.5 leading-snug" style={{ color: 'rgba(255,255,255,0.85)' }}>
+          // whitespace-pre-line preserva quebras de linha digitadas em
+          // Configuracoes — mesmo fix aplicado no /transfer/[slug].
+          <p className="text-sm mt-1.5 leading-snug whitespace-pre-line" style={{ color: 'rgba(255,255,255,0.85)' }}>
             {empresa.descricao}
           </p>
         )}

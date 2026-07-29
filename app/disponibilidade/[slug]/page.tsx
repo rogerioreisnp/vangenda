@@ -85,21 +85,30 @@ export default async function DisponibilidadePage({ params }: { params: { slug: 
         <div className="max-w-lg mx-auto">
           <div className="flex items-center gap-3">
             {empresa.logo_url && (
+              // object-contain (nao object-cover) preserva a proporcao real da
+              // logo — importante pra wordmarks retangulares (texto largo tipo
+              // "AAJP TRANSPORTES"), que ficavam cortados dentro do quadrado
+              // fixo anterior. Fundo branco arredondado da acabamento quando a
+              // logo tem fundo transparente.
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={empresa.logo_url} alt={empresa.nome} className="w-12 h-12 rounded-xl object-cover flex-shrink-0" />
+              <img src={empresa.logo_url} alt={empresa.nome}
+                className="h-12 max-w-[120px] object-contain rounded-xl flex-shrink-0 bg-white p-1" />
             )}
             <div className="min-w-0">
               <p className="text-lg font-bold" style={{ color: '#fff' }}>{empresa.nome}</p>
               {empresa.descricao && (
-                <p className="text-xs mt-0.5" style={{ color: '#9FE1CB' }}>{empresa.descricao}</p>
+                <p className="text-xs mt-0.5 whitespace-pre-line" style={{ color: '#9FE1CB' }}>{empresa.descricao}</p>
               )}
             </div>
           </div>
           <p className="text-sm mt-4 font-semibold" style={{ color: '#E1F5EE' }}>
             📅 Disponibilidade — próximos 30 dias
           </p>
+          {/* Agenda informativa, nao mais rotulo de "ocupado/bloqueado" —
+              empresas com mais de um veiculo podem atender varios clientes
+              no mesmo horario. Pedido do Rogerio 2026-07-29. */}
           <p className="text-xs mt-1" style={{ color: '#9FE1CB' }}>
-            Horários abaixo já estão ocupados. Fale conosco para encaixar sua reserva.
+            Confira os atendimentos já confirmados e fale conosco para agendar o seu.
           </p>
         </div>
       </div>
@@ -142,8 +151,11 @@ export default async function DisponibilidadePage({ params }: { params: { slug: 
                           <p className="text-sm font-semibold text-gray-800">{hora}{extra}</p>
                           <p className="text-xs text-gray-500">{tipoTxt}</p>
                         </div>
-                        <span className="text-[10px] font-semibold px-2 py-1 rounded-full" style={{ background: '#FCEBEB', color: '#A32D2D' }}>
-                          Ocupado
+                        {/* "Confirmado" em vez de "Ocupado" — empresa pode ter
+                            varios veiculos e atender outros clientes no mesmo
+                            horario, entao "ocupado" sugeria bloqueio errado. */}
+                        <span className="text-[10px] font-semibold px-2 py-1 rounded-full" style={{ background: '#E1F5EE', color: '#085041' }}>
+                          Confirmado
                         </span>
                       </div>
                     )
