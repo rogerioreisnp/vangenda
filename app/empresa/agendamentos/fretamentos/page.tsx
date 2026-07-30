@@ -902,6 +902,9 @@ export default function AgendamentosPage() {
           camposComuns.tipo_servico as string | null,
         )
       }
+      // Reagenda o lembrete sempre que editar — horario ou motorista podem
+      // ter mudado, e o lembrete antigo apontaria pro dado errado.
+      agendarLembrete(corridaEditando.id)
 
       // Se editando um par, atualiza os campos compartilhados na corrida de volta
       // + os campos especificos da volta (origem, destino, data, hora, valor,
@@ -990,6 +993,9 @@ export default function AgendamentosPage() {
           idaInserida.tipo_servico as string | null,
         )
       }
+      // Agenda lembrete pra cada registro criado (ida e, se houver, volta —
+      // sao atendimentos em horarios diferentes, cada um merece seu aviso).
+      ;(inseridos || []).forEach((reg: any) => { if (reg?.id) agendarLembrete(reg.id) })
 
       if (form.rota_id === 'manual') {
         setRotaManualParaSalvar({ origem: form.origem.trim(), destino: form.destino.trim(), preco })
@@ -1027,6 +1033,19 @@ export default function AgendamentosPage() {
     }).catch(e => console.error('notificar-motorista falhou:', e))
   }
 
+  // Agenda/reagenda o lembrete pre-atendimento (X min antes, configurado em
+  // Configuracoes da empresa). Chamar SEMPRE que a corrida for criada ou
+  // editada — a rota cancela o lembrete antigo antes de criar o novo, entao
+  // mudanca de horario/motorista/cancelamento fica consistente sozinha.
+  // Fire-and-forget: lembrete e conveniencia, nao pode travar o salvar.
+  function agendarLembrete(corridaId: string) {
+    fetch('/api/agendar-lembrete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ corrida_id: corridaId }),
+    }).catch(e => console.error('agendar-lembrete falhou:', e))
+  }
+
   // Atribui/troca motorista na ficha aberta, salvando na hora + notificando
   // o novo motorista via push. Fluxo: gestor abre ficha, muda motorista no
   // seletor inline, clica em Salvar sem precisar entrar em ✏️ Editar nem
@@ -1061,6 +1080,8 @@ export default function AgendamentosPage() {
         novoMotoristaId, c.id, c.origem, c.destino, c.data_hora, c.tipo_servico,
       )
     }
+    // Trocou o motorista: reagenda o lembrete pro novo (e cancela o do antigo).
+    agendarLembrete(c.id)
     setConfirmandoFicha(false)
   }
 
@@ -1069,6 +1090,9 @@ export default function AgendamentosPage() {
       await supabase.from('corridas_empresa').update({ status: 'cancelada' }).eq('id', id)
     }
     setCorridas(prev => prev.map(c => ids.includes(c.id) ? { ...c, status: 'cancelada' } : c))
+    // Cancela os lembretes agendados — sem isso o motorista receberia aviso
+    // de um atendimento que nao existe mais.
+    ids.forEach(id => agendarLembrete(id))
   }
 
   // Adiciona um trajeto na corrida aberta na ficha, salvando na hora no

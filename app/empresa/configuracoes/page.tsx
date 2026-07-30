@@ -40,6 +40,8 @@ type Empresa = {
   banco_tipo_conta: string | null
   banco_titular_nome: string | null
   banco_titular_documento: string | null
+  // Minutos de antecedencia do lembrete pre-atendimento (0 = desativado)
+  minutos_antes_lembrete: number | null
 }
 
 const PLANO_LABEL: Record<string, string> = { starter: 'Starter', pro: 'Pro', fleet: 'Fleet' }
@@ -80,7 +82,7 @@ export default function ConfiguracoesEmpresaPage() {
 
     const { data: emp } = await supabase
       .from('empresas')
-      .select('id, nome, telefone, tipo_operacao, plano, status, cnpj, email_comercial, cidade, estado, qtd_veiculos, descricao, chave_pix, tipo_chave_pix, instagram, whatsapp_comercial, cor_destaque, logo_url, trial_fim, slug, transfer_numero_inicio, mensagem_confirmacao, mensagem_confirmacao_transfer, endereco_rua, endereco_numero, endereco_bairro, endereco_cep, inscricao_estadual, site, banco_nome, banco_agencia, banco_conta, banco_tipo_conta, banco_titular_nome, banco_titular_documento')
+      .select('id, nome, telefone, tipo_operacao, plano, status, cnpj, email_comercial, cidade, estado, qtd_veiculos, descricao, chave_pix, tipo_chave_pix, instagram, whatsapp_comercial, cor_destaque, logo_url, trial_fim, slug, transfer_numero_inicio, mensagem_confirmacao, mensagem_confirmacao_transfer, endereco_rua, endereco_numero, endereco_bairro, endereco_cep, inscricao_estadual, site, banco_nome, banco_agencia, banco_conta, banco_tipo_conta, banco_titular_nome, banco_titular_documento, minutos_antes_lembrete')
       .eq('id', gestor.empresa_id)
       .single()
 
@@ -165,6 +167,7 @@ export default function ConfiguracoesEmpresaPage() {
         banco_tipo_conta:       empresa.banco_tipo_conta               || null,
         banco_titular_nome:     empresa.banco_titular_nome?.trim()     || null,
         banco_titular_documento: empresa.banco_titular_documento?.trim() || null,
+        minutos_antes_lembrete: empresa.minutos_antes_lembrete ?? 60,
       })
       .eq('id', empresa.id)
 
@@ -633,6 +636,29 @@ export default function ConfiguracoesEmpresaPage() {
               </p>
             </Campo>
           </div>
+        </Secao>
+
+        <Secao titulo="🔔 Lembrete antes do atendimento">
+          <Campo label="Avisar o motorista com quanta antecedência?">
+            <select
+              value={String(empresa?.minutos_antes_lembrete ?? 60)}
+              onChange={e => setEmpresa(emp => emp ? { ...emp, minutos_antes_lembrete: parseInt(e.target.value) } : emp)}
+              className="campo-input"
+            >
+              <option value="0">Não enviar lembrete</option>
+              <option value="30">30 minutos antes</option>
+              <option value="60">1 hora antes</option>
+              <option value="90">1h30 antes</option>
+              <option value="120">2 horas antes</option>
+              <option value="180">3 horas antes</option>
+              <option value="240">4 horas antes</option>
+            </select>
+            <p className="text-xs mt-2 leading-relaxed" style={{ color: '#6B7280' }}>
+              ℹ️ O motorista atribuído recebe uma notificação nesse intervalo antes de
+              cada atendimento. Escolha considerando o deslocamento típico da sua região.
+              Se o horário do atendimento mudar, o lembrete é reajustado automaticamente.
+            </p>
+          </Campo>
         </Secao>
 
         {erro && (
