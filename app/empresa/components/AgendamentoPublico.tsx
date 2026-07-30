@@ -111,6 +111,7 @@ export default function AgendamentoPublico({
     cep_retorno_desembarque: '',
     referencia_retorno_desembarque: '',
     quantidade_bagagem: 0,
+    quantidade_passageiros: 1,
   })
   const [rotaSelecionada, setRotaSelecionada] = useState<Rota | null>(null)
   const [rotaManual, setRotaManual] = useState(false)
@@ -382,6 +383,10 @@ export default function AgendamentoPublico({
         setErro('Não há vagas disponíveis para esta rota nesta data e horário.')
         return
       }
+      if (form.quantidade_passageiros > vagasDisponiveis) {
+        setErro(`Só há ${vagasDisponiveis} vaga${vagasDisponiveis !== 1 ? 's' : ''} disponível${vagasDisponiveis !== 1 ? 'is' : ''} neste horário.`)
+        return
+      }
     }
 
     setSalvando(true)
@@ -522,13 +527,17 @@ export default function AgendamentoPublico({
       ? Number(rotaSelecionada.preco ?? 0)
       : (valorTrechoRF ?? 0)
 
-    const { error } = await supabase.from('corridas_empresa').insert({
+    // Um registro por passageiro — mesmo padrao do app individual
+    // (/agendar/[slug]). Precisa ser assim para o RPC count_vagas_ocupadas
+    // (que conta linhas) refletir corretamente quantas vagas a familia ocupa.
+    const qtd = Math.max(1, form.quantidade_passageiros || 1)
+    const registros = Array.from({ length: qtd }, (_, i) => ({
       empresa_id: empresa.id,
       rota_id: rotaSelecionada!.id,
       origem: origemSave,
       destino: destinoSave,
       data_hora: `${form.data}T${form.horario}:00`,
-      cliente_nome: form.nome.trim(),
+      cliente_nome: qtd > 1 ? `${form.nome.trim()} (${i + 1}/${qtd})` : form.nome.trim(),
       cliente_telefone: form.telefone.trim(),
       email_solicitante: form.email.trim() || null,
       valor: valorSave,
@@ -550,7 +559,9 @@ export default function AgendamentoPublico({
       cep_desembarque: form.cep_desembarque.trim() || null,
       referencia_desembarque: form.referencia_desembarque.trim() || null,
       quantidade_bagagem: form.quantidade_bagagem || 0,
-    })
+    }))
+
+    const { error } = await supabase.from('corridas_empresa').insert(registros)
 
     if (error) {
       setSalvando(false)
@@ -590,7 +601,7 @@ export default function AgendamentoPublico({
 
   function resetForm() {
     setEtapa('form')
-    setForm({ rota_id: '', data: '', horario: '', nome: '', telefone: '', email: '', observacoes: '', rua: '', numero: '', bairro: '', municipio: '', cep: '', referencia: '', rua_desembarque: '', numero_desembarque: '', bairro_desembarque: '', municipio_desembarque: '', cep_desembarque: '', referencia_desembarque: '', rua_retorno_embarque: '', numero_retorno_embarque: '', bairro_retorno_embarque: '', municipio_retorno_embarque: '', cep_retorno_embarque: '', referencia_retorno_embarque: '', rua_retorno_desembarque: '', numero_retorno_desembarque: '', bairro_retorno_desembarque: '', municipio_retorno_desembarque: '', cep_retorno_desembarque: '', referencia_retorno_desembarque: '', quantidade_bagagem: 0 })
+    setForm({ rota_id: '', data: '', horario: '', nome: '', telefone: '', email: '', observacoes: '', rua: '', numero: '', bairro: '', municipio: '', cep: '', referencia: '', rua_desembarque: '', numero_desembarque: '', bairro_desembarque: '', municipio_desembarque: '', cep_desembarque: '', referencia_desembarque: '', rua_retorno_embarque: '', numero_retorno_embarque: '', bairro_retorno_embarque: '', municipio_retorno_embarque: '', cep_retorno_embarque: '', referencia_retorno_embarque: '', rua_retorno_desembarque: '', numero_retorno_desembarque: '', bairro_retorno_desembarque: '', municipio_retorno_desembarque: '', cep_retorno_desembarque: '', referencia_retorno_desembarque: '', quantidade_bagagem: 0, quantidade_passageiros: 1 })
     setRotaSelecionada(null)
     setRotaManual(false)
     setOrigemManual('')
@@ -616,8 +627,11 @@ export default function AgendamentoPublico({
     setErro('')
   }
 
-  const valorParaPix = empresa.tipo_operacao === 'rota_fixa'
+  const valorUnitarioRF = empresa.tipo_operacao === 'rota_fixa'
     ? (rotaSelecionada?.modo_endereco === 'livre' ? Number(rotaSelecionada.preco ?? 0) : (valorTrechoRF ?? 0))
+    : 0
+  const valorParaPix = empresa.tipo_operacao === 'rota_fixa'
+    ? valorUnitarioRF * Math.max(1, form.quantidade_passageiros || 1)
     : (rotaManual ? 0 : Number(rotaSelecionada?.preco ?? 0))
   const pixPayload = chavePix && rotaSelecionada && valorParaPix > 0
     ? gerarPayloadPix(chavePix, empresa.nome, valorParaPix)
@@ -770,17 +784,6 @@ export default function AgendamentoPublico({
                     </Campo>
                   </div>
 
-                  {valorTrechoRF !== null && (
-                    <div className="rounded-xl px-4 py-3" style={{ background: '#f0f0ec' }}>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm font-medium text-gray-600">Valor do trecho</span>
-                        <span className="text-xl font-bold" style={{ color: cor }}>
-                          R$ {valorTrechoRF.toFixed(2).replace('.', ',')}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-
                   {embarque && desembarque && valorTrechoRF === null && (
                     <div className="rounded-xl px-4 py-3 border" style={{ background: '#FCEBEB', borderColor: '#F5BCBC' }}>
                       <p className="text-xs text-center" style={{ color: '#A32D2D' }}>Trecho não disponível para esta rota.</p>
@@ -797,17 +800,6 @@ export default function AgendamentoPublico({
                       🛣️ Rota <strong>{rotaSelecionada.origem} → {rotaSelecionada.destino}</strong>. Preencha seu endereço de embarque e desembarque nos campos abaixo.
                     </p>
                   </div>
-
-                  {Number(rotaSelecionada.preco) > 0 && (
-                    <div className="rounded-xl px-4 py-3" style={{ background: '#f0f0ec' }}>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm font-medium text-gray-600">Valor da rota</span>
-                        <span className="text-xl font-bold" style={{ color: cor }}>
-                          R$ {Number(rotaSelecionada.preco).toFixed(2).replace('.', ',')}
-                        </span>
-                      </div>
-                    </div>
-                  )}
                 </>
               )}
 
@@ -905,6 +897,73 @@ export default function AgendamentoPublico({
                     </p>
                   )}
                 </div>
+              )}
+
+              {/* Quantidade de passageiros (rota_fixa) — permite agendar pra
+                  familia inteira numa unica solicitacao. Cada passageiro
+                  vira uma linha propria em corridas_empresa. */}
+              {empresa.tipo_operacao === 'rota_fixa' && rotaSelecionada && (
+                <Campo label="Quantidade de passageiros">
+                  <div className="flex items-center gap-3">
+                    <button type="button"
+                      onClick={() => setForm(f => ({ ...f, quantidade_passageiros: Math.max(1, f.quantidade_passageiros - 1) }))}
+                      className="w-10 h-10 rounded-xl text-xl font-bold border border-gray-200 flex items-center justify-center"
+                      style={{ background: '#f0f0ec', color: cor }}>
+                      −
+                    </button>
+                    <div className="flex-1 text-center">
+                      <span className="text-2xl font-bold text-gray-800">{form.quantidade_passageiros}</span>
+                      <p className="text-xs text-gray-400">
+                        {form.quantidade_passageiros === 1 ? 'passageiro' : 'passageiros'}
+                      </p>
+                    </div>
+                    <button type="button"
+                      onClick={() => setForm(f => ({
+                        ...f,
+                        quantidade_passageiros: vagasDisponiveis !== null
+                          ? Math.min(vagasDisponiveis, f.quantidade_passageiros + 1)
+                          : f.quantidade_passageiros + 1,
+                      }))}
+                      className="w-10 h-10 rounded-xl text-xl font-bold border border-gray-200 flex items-center justify-center"
+                      style={{ background: cor, color: '#fff' }}>
+                      +
+                    </button>
+                  </div>
+                  {vagasDisponiveis !== null && form.quantidade_passageiros >= vagasDisponiveis && vagasDisponiveis > 0 && (
+                    <p className="text-xs text-gray-400 mt-1 text-center">
+                      Máx. {vagasDisponiveis} vaga{vagasDisponiveis !== 1 ? 's' : ''} disponíve{vagasDisponiveis !== 1 ? 'is' : 'l'}
+                    </p>
+                  )}
+                  {valorUnitarioRF > 0 && (
+                    <div className="rounded-xl px-4 py-3 mt-2" style={{ background: '#f0f0ec' }}>
+                      {form.quantidade_passageiros > 1 ? (
+                        <>
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="text-xs text-gray-500">Valor por passageiro</span>
+                            <span className="text-sm font-semibold text-gray-700">
+                              R$ {valorUnitarioRF.toFixed(2).replace('.', ',')}
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center border-t pt-2" style={{ borderColor: '#e5e7eb' }}>
+                            <span className="text-sm font-medium text-gray-600">
+                              Total ({form.quantidade_passageiros} passageiros)
+                            </span>
+                            <span className="text-xl font-bold" style={{ color: cor }}>
+                              R$ {(valorUnitarioRF * form.quantidade_passageiros).toFixed(2).replace('.', ',')}
+                            </span>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium text-gray-600">Valor</span>
+                          <span className="text-xl font-bold" style={{ color: cor }}>
+                            R$ {valorUnitarioRF.toFixed(2).replace('.', ',')}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </Campo>
               )}
 
               {/* Horário livre (transfer) */}
@@ -1467,7 +1526,7 @@ export default function AgendamentoPublico({
 
             <button
               onClick={confirmar}
-              disabled={salvando || (empresa.tipo_operacao === 'rota_fixa' && vagasDisponiveis === 0)}
+              disabled={salvando || (empresa.tipo_operacao === 'rota_fixa' && (vagasDisponiveis === 0 || (vagasDisponiveis !== null && form.quantidade_passageiros > vagasDisponiveis)))}
               className="w-full py-4 rounded-2xl text-white text-base font-bold disabled:opacity-40"
               style={{ background: cor }}
             >
@@ -1475,6 +1534,8 @@ export default function AgendamentoPublico({
                 ? 'Enviando...'
                 : empresa.tipo_operacao === 'rota_fixa' && vagasDisponiveis === 0
                 ? '🚫 Sem vagas neste horário'
+                : empresa.tipo_operacao === 'rota_fixa' && vagasDisponiveis !== null && form.quantidade_passageiros > vagasDisponiveis
+                ? `🚫 Só ${vagasDisponiveis} vaga${vagasDisponiveis !== 1 ? 's' : ''} disponível`
                 : empresa.tipo_operacao !== 'rota_fixa'
                 ? '✓ Enviar solicitação'
                 : '✓ Confirmar agendamento'}
@@ -1553,6 +1614,9 @@ export default function AgendamentoPublico({
                     </p>
                   )}
                   <p className="text-xs text-gray-600">👤 {form.nome}</p>
+                  {empresa.tipo_operacao === 'rota_fixa' && form.quantidade_passageiros > 1 && (
+                    <p className="text-xs font-semibold text-gray-600">👥 {form.quantidade_passageiros} passageiros</p>
+                  )}
                 </div>
               )}
             </div>
@@ -1630,6 +1694,9 @@ export default function AgendamentoPublico({
                       <p className="text-sm text-gray-700">
                         📅 {form.data.slice(8, 10)}/{form.data.slice(5, 7)}/{form.data.slice(0, 4)} às {form.horario}
                       </p>
+                    )}
+                    {empresa.tipo_operacao === 'rota_fixa' && form.quantidade_passageiros > 1 && (
+                      <p className="text-sm text-gray-700">👥 {form.quantidade_passageiros} passageiros</p>
                     )}
                     <p className="text-sm font-semibold" style={{ color: cor }}>
                       💰 R$ {valorParaPix.toFixed(2).replace('.', ',')}
