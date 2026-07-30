@@ -1209,9 +1209,22 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
     msg += `\n📅 *Data/Hora:*\n${data} às ${hora} (${dia})`
     msg += `\n\n👤 *Passageiros:*\n${passageiros}`
     if (telefones) msg += `\n📞 *Telefones:*\n${telefones}`
+
     msg += `\n\n📍 *Origem:*\n${c.origem}`
-    msg += `\n📍 *Destino:*\n${c.destino}`
-    if (c.numero_voo) msg += `\n✈️ *Voo:*\n${c.numero_voo}`
+    const enderecoEmbarque = [c.rua, c.numero].filter(Boolean).join(', ')
+    const bairroEmbarque = [c.bairro, c.municipio].filter(Boolean).join(' - ')
+    if (enderecoEmbarque) msg += `\n${enderecoEmbarque}`
+    if (bairroEmbarque) msg += `\n${bairroEmbarque}`
+    if (c.referencia) msg += `\n📌 ${c.referencia}`
+
+    msg += `\n\n📍 *Destino:*\n${c.destino}`
+    const enderecoDesembarque = [c.rua_desembarque, c.numero_desembarque].filter(Boolean).join(', ')
+    const bairroDesembarque = [c.bairro_desembarque, c.municipio_desembarque].filter(Boolean).join(' - ')
+    if (enderecoDesembarque) msg += `\n${enderecoDesembarque}`
+    if (bairroDesembarque) msg += `\n${bairroDesembarque}`
+    if (c.referencia_desembarque) msg += `\n📌 ${c.referencia_desembarque}`
+
+    if (c.numero_voo) msg += `\n\n✈️ *Voo:*\n${c.numero_voo}`
     if (motorista) {
       msg += `\n\n🚗 *Motorista:*\n${motorista.nome}`
       if (motorista.veiculo) msg += `\n🚙 *Carro:*\n${motorista.veiculo}${motorista.cor ? ` - ${motorista.cor}` : ''}`
