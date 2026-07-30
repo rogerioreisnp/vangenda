@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import NotificacoesStatusMotorista from '@/components/NotificacoesStatusMotorista'
 
 export default function MotoristaConfig() {
   const router = useRouter()
@@ -11,6 +12,7 @@ export default function MotoristaConfig() {
   const [placa, setPlaca] = useState('')
   const [empresaNome, setEmpresaNome] = useState('')
   const [motEmpresaId, setMotEmpresaId] = useState<string | null>(null)
+  const [userId, setUserId] = useState<string | null>(null)
   const [email, setEmail] = useState('')
   const [salvando, setSalvando] = useState(false)
   const [mensagem, setMensagem] = useState<string | null>(null)
@@ -28,6 +30,7 @@ export default function MotoristaConfig() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
     setEmail(user.email || '')
+    setUserId(user.id)
 
     const { data: motEmp } = await supabase
       .from('motoristas_empresa')
@@ -146,6 +149,9 @@ export default function MotoristaConfig() {
             </p>
           )}
         </div>
+
+        {/* Status de notificações push */}
+        {userId && <NotificacoesStatusMotorista motoristaId={userId} />}
 
         {/* Trocar senha */}
         <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-3">
