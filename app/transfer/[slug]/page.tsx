@@ -89,6 +89,40 @@ export default function TransferSlugPage({ params }: { params: { slug: string } 
     })
   }, [])
 
+  // Fase B do autocomplete de clientes recorrentes — dispara so quando o
+  // telefone atinge 10+ digitos (numero completo), com debounce de 600ms
+  // pra nao bater na API a cada tecla. Busca roda no servidor (rota
+  // /api/transfer/buscar-cliente) por seguranca — ver comentario la.
+  // So preenche nome/origem/destino se ainda estiverem vazios, pra nao
+  // atropelar o que a pessoa ja digitou.
+  useEffect(() => {
+    const digitos = form.telefone.replace(/\D/g, '')
+    if (digitos.length < 10) return
+    if (form.nome.trim() && form.origem.trim() && form.destino.trim()) return
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch('/api/transfer/buscar-cliente', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ slug: params.slug, telefone: form.telefone }),
+        })
+        const data = await res.json()
+        if (data?.encontrado) {
+          setForm(f => ({
+            ...f,
+            nome: f.nome.trim() ? f.nome : (data.nome || f.nome),
+            origem: (f.origem.trim() || rotaSelecionada) ? f.origem : (data.origem || f.origem),
+            destino: (f.destino.trim() || rotaSelecionada) ? f.destino : (data.destino || f.destino),
+          }))
+        }
+      } catch {
+        // Falha silenciosa — autocomplete e conveniencia, nao pode travar o form
+      }
+    }, 600)
+    return () => clearTimeout(timer)
+  }, [form.telefone, params.slug])
+
   // Injeta o manifest dinâmico da empresa (start_url/scope específicos deste
   // link) para o navegador oferecer instalação do PWA. iOS Safari ignora
   // blob URLs — precisamos apontar para a rota /api.
