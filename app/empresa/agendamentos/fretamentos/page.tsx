@@ -3529,9 +3529,45 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
             )}
 
             <Campo label="Nome do solicitante *">
+              {/* Autocomplete nativo (datalist) sobre os clientes ja cadastrados —
+                  digitar 2-3 letras ja sugere. Se o nome digitado bater exatamente
+                  com um cliente da lista, autopreenche telefone/email/cliente_id
+                  igual ao dropdown "Cliente cadastrado" acima, sem precisar abrir
+                  outro campo. Pedido do Rogerio 2026-07-29: reduzir redigitacao
+                  pra quem tem trabalho recorrente com os mesmos clientes. */}
               <input value={form.cliente_nome}
-                onChange={e => setForm(f => ({ ...f, cliente_nome: e.target.value }))}
+                onChange={e => {
+                  const nome = e.target.value
+                  const match = clientesOpcoes.find(c => c.label === nome)
+                  setForm(f => {
+                    const next = {
+                      ...f,
+                      cliente_nome: nome,
+                      cliente_id: match ? match.id : (nome === f.cliente_nome ? f.cliente_id : ''),
+                      cliente_telefone: match?.telefone ? match.telefone : f.cliente_telefone,
+                      email_solicitante: match?.email ? match.email : f.email_solicitante,
+                    }
+                    // Autopreenche endereco de embarque do cliente cadastrado —
+                    // so quando o campo ainda esta vazio, pra nao sobrescrever
+                    // edicao manual do gestor num atendimento pontual diferente.
+                    const raw = match?.raw
+                    if (raw && !f.rua && (raw.endereco_rua || raw.endereco_bairro)) {
+                      next.rua = raw.endereco_rua || ''
+                      next.numero = raw.endereco_numero || ''
+                      next.bairro = raw.endereco_bairro || ''
+                      next.municipio = raw.endereco_cidade || ''
+                      next.cep = raw.endereco_cep || ''
+                    }
+                    return next
+                  })
+                }}
+                list="lista-clientes-solicitante"
                 placeholder="Nome completo" className="campo-input" />
+              {clientesOpcoes.length > 0 && (
+                <datalist id="lista-clientes-solicitante">
+                  {clientesOpcoes.map(c => <option key={c.id} value={c.label} />)}
+                </datalist>
+              )}
             </Campo>
 
             <Campo label="Telefone do solicitante">
