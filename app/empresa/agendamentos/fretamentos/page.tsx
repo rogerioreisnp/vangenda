@@ -1185,7 +1185,7 @@ export default function AgendamentosPage() {
     return { id: motoristaId, nome: j.nome ?? '', veiculo: j.veiculo ?? null, placa: j.placa ?? null, cor: j.cor ?? null, telefone: j.telefone ?? null, user_id: null }
   }
 
-  function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'volta'): string {
+function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'volta'): string {
     const motorista = motoristaInfo(c, motoristaId)
     const data = `${c.data_hora.slice(8,10)}/${c.data_hora.slice(5,7)}/${c.data_hora.slice(0,4)}`
     const hora = c.data_hora.slice(11,16)
@@ -1206,24 +1206,24 @@ export default function AgendamentosPage() {
 
     const rotulo = etapa === 'ida' ? ' (IDA)' : etapa === 'volta' ? ' (VOLTA)' : ''
     let msg = `Olá, tudo bem?\n\nSegue a confirmação do Transfer${rotulo}: ${num}`
-    msg += `\n📅 *Data/Hora:* ${data} às ${hora} (${dia})`
-    msg += `\n\n👤 *Passageiros:* ${passageiros}`
-    if (telefones) msg += `\n📞 *Telefones:* ${telefones}`
-    msg += `\n\n📍 *Origem:* ${c.origem}`
-    msg += `\n📍 *Destino:* ${c.destino}`
-    if (c.numero_voo) msg += `\n✈️ *Voo:* ${c.numero_voo}`
+    msg += `\n📅 *Data/Hora:*\n${data} às ${hora} (${dia})`
+    msg += `\n\n👤 *Passageiros:*\n${passageiros}`
+    if (telefones) msg += `\n📞 *Telefones:*\n${telefones}`
+    msg += `\n\n📍 *Origem:*\n${c.origem}`
+    msg += `\n📍 *Destino:*\n${c.destino}`
+    if (c.numero_voo) msg += `\n✈️ *Voo:*\n${c.numero_voo}`
     if (motorista) {
-      msg += `\n\n🚗 *Motorista:* ${motorista.nome}`
-      if (motorista.veiculo) msg += `\n🚙 *Carro:* ${motorista.veiculo}${motorista.cor ? ` - ${motorista.cor}` : ''}`
+      msg += `\n\n🚗 *Motorista:*\n${motorista.nome}`
+      if (motorista.veiculo) msg += `\n🚙 *Carro:*\n${motorista.veiculo}${motorista.cor ? ` - ${motorista.cor}` : ''}`
       if (motorista.placa) msg += `\n🔢 *Placa:* ${motorista.placa}`
-      if (motorista.telefone) msg += `\n📞 *Tel motorista:* ${motorista.telefone}`
+      if (motorista.telefone) msg += `\n📞 *Tel motorista:*\n${motorista.telefone}`
     }
     if (c.retorno_data) {
       const retData = `${c.retorno_data.slice(8,10)}/${c.retorno_data.slice(5,7)}/${c.retorno_data.slice(0,4)}`
-      msg += `\n\n🔄 *Retorno:* ${retData}${c.retorno_horario ? ` às ${c.retorno_horario.slice(0,5)}` : ''}`
+      msg += `\n\n🔄 *Retorno:*\n${retData}${c.retorno_horario ? ` às ${c.retorno_horario.slice(0,5)}` : ''}`
       if (c.retorno_origem) msg += `\n📍 ${c.retorno_origem} → ${c.retorno_destino}`
     }
-    if (c.observacoes) msg += `\n\n📝 *Obs:* ${c.observacoes}`
+    if (c.observacoes) msg += `\n\n📝 *Obs:*\n${c.observacoes}`
     const ass = montarAssinatura()
     if (ass) msg += `\n\n${ass}`
     return msg
