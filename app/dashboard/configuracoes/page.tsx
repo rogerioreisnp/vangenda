@@ -898,7 +898,7 @@ export default function ConfiguracoesPage() {
       <style jsx>{`
         .campo-input {
           width: 100%; padding: 10px 12px; border-radius: 12px;
-          border: 1px solid #e5e7eb; font-size: 14px; color: #222;
+          border: 1px solid #e5e7eb; font-size: 16px; color: #222;
           background: #fff; outline: none;
         }
         .campo-input:focus { border-color: #1D9E75; }
