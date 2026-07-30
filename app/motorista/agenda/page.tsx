@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { dataHoraBrasilia } from '@/lib/data-hora'
 
 type Corrida = {
   id: string
@@ -220,7 +221,7 @@ function CorridaCard({ c }: { c: Corrida }) {
   const st = STATUS_META[c.status] ?? { bg: '#F3F4F6', text: '#6B7280', label: c.status }
   const tp = c.tipo_servico ? TIPO_META[c.tipo_servico] : null
   const passageiro = c.passageiro1_nome || c.cliente_nome || 'Sem nome'
-  const data = new Date(c.data_hora)
+  const data = dataHoraBrasilia(c.data_hora)
   const dataFmt = format(data, "dd 'de' MMM · HH:mm", { locale: ptBR })
 
   return (
@@ -249,7 +250,7 @@ function CorridaCard({ c }: { c: Corrida }) {
       <p className="text-xs text-gray-500">👤 {passageiro}</p>
       {c.data_hora_termino && (
         <p className="text-[10px] text-gray-400">
-          Término previsto: {format(new Date(c.data_hora_termino), 'HH:mm', { locale: ptBR })}
+          Término previsto: {format(dataHoraBrasilia(c.data_hora_termino), 'HH:mm', { locale: ptBR })}
         </p>
       )}
     </Link>

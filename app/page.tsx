@@ -187,40 +187,25 @@ export default function LoginPage() {
           </>
         ) : (
           <>
-            {/* Tabs */}
+            {/* Tabs — "Criar conta" leva direto pro registro empresarial:
+                o app individual nao e mais divulgado (decisao Rogerio, 2026-07-30). */}
             <div className="flex bg-gray-100 rounded-xl p-1 mb-6">
-              {(['login', 'cadastro'] as const).map((m) => (
-                <button key={m} onClick={() => trocarModo(m)}
-                  className="flex-1 py-2 rounded-lg text-sm font-medium transition-all"
-                  style={{
-                    background: modo === m ? '#0F6E56' : 'transparent',
-                    color: modo === m ? '#fff' : '#888',
-                  }}>
-                  {m === 'login' ? 'Entrar' : 'Criar conta'}
-                </button>
-              ))}
+              <button onClick={() => trocarModo('login')}
+                className="flex-1 py-2 rounded-lg text-sm font-medium transition-all"
+                style={{
+                  background: modo === 'login' ? '#0F6E56' : 'transparent',
+                  color: modo === 'login' ? '#fff' : '#888',
+                }}>
+                Entrar
+              </button>
+              <a href="/empresa/registro"
+                className="flex-1 py-2 rounded-lg text-sm font-medium transition-all text-center"
+                style={{ background: 'transparent', color: '#888' }}>
+                Criar conta
+              </a>
             </div>
 
             <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-              {modo === 'cadastro' && (
-                <>
-                  <div>
-                    <label className="text-xs font-medium text-gray-500 mb-1 block">Seu nome</label>
-                    <input required value={form.nome} onChange={e => { setForm(f => ({ ...f, nome: e.target.value })); setErros(er => ({ ...er, nome: '' })) }}
-                      placeholder="Ex: Cláudio Silva"
-                      className={`w-full px-3 py-2.5 rounded-xl border text-sm outline-none focus:border-green-600 ${erros.nome ? 'border-red-400' : 'border-gray-200'}`} />
-                    {erros.nome && <p className="text-xs text-red-600 mt-1">{erros.nome}</p>}
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-gray-500 mb-1 block">Telefone / WhatsApp</label>
-                    <input required value={form.telefone} onChange={e => { setForm(f => ({ ...f, telefone: e.target.value })); setErros(er => ({ ...er, telefone: '' })) }}
-                      placeholder="(95) 99999-9999" type="tel"
-                      className={`w-full px-3 py-2.5 rounded-xl border text-sm outline-none focus:border-green-600 ${erros.telefone ? 'border-red-400' : 'border-gray-200'}`} />
-                    {erros.telefone && <p className="text-xs text-red-600 mt-1">{erros.telefone}</p>}
-                  </div>
-                </>
-              )}
-
               <div>
                 <label className="text-xs font-medium text-gray-500 mb-1 block">E-mail</label>
                 <input required value={form.email} onChange={e => { setForm(f => ({ ...f, email: e.target.value })); setErros(er => ({ ...er, email: '' })) }}

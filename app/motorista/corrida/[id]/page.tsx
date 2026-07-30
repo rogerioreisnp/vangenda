@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { formatarTelefoneWhatsApp } from '@/lib/telefone'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { dataHoraBrasilia } from '@/lib/data-hora'
 
 type PassageiroExtra = {
   nome: string; telefone: string; numero_voo?: string | null
@@ -205,11 +206,11 @@ export default function CorridaFicha({ params }: { params: { id: string } }) {
           )}
           <p className="text-sm text-gray-600 mt-1">
             {ehDispose ? '▶️ Início: ' : '📅 '}
-            {format(new Date(c.data_hora), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+            {format(dataHoraBrasilia(c.data_hora), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
           </p>
           {c.data_hora_termino && (
             <p className="text-sm text-gray-600">
-              ⏹️ Término previsto: {format(new Date(c.data_hora_termino), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+              ⏹️ Término previsto: {format(dataHoraBrasilia(c.data_hora_termino), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
             </p>
           )}
           {c.numero_voo && (

@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { dataHoraBrasilia } from '@/lib/data-hora'
 
 /**
  * Agenda (ou reagenda/cancela) o lembrete pre-atendimento no OneSignal.
@@ -24,23 +25,6 @@ import { NextRequest, NextResponse } from 'next/server'
 export const dynamic = 'force-dynamic'
 
 const ONESIGNAL_URL = 'https://onesignal.com/api/v1/notifications'
-
-/**
- * Converte o data_hora do banco em Date confiavel.
- *
- * Parte das corridas foi gravada SEM indicador de fuso (ex:
- * "2026-07-31T06:45:00"). Se deixassemos o JS interpretar, o servidor
- * (UTC na Vercel) leria como 06:45 UTC = 03:45 no Brasil — o lembrete
- * sairia 3h adiantado. Como toda a base de clientes e brasileira,
- * assumimos America/Sao_Paulo (-03:00) quando o fuso nao vem explicito.
- * Strings que JA trazem fuso (Z ou +/-hh:mm) sao respeitadas como estao.
- */
-function parseDataHora(valor: string): Date {
-  const temFuso = /(?:Z|[+-]\d{2}:?\d{2})$/.test(valor.trim())
-  if (temFuso) return new Date(valor)
-  const normalizado = valor.trim().replace(' ', 'T')
-  return new Date(`${normalizado}-03:00`)
-}
 
 async function cancelarLembrete(notificationId: string, appId: string, apiKey: string) {
   try {
@@ -108,7 +92,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, agendado: false, motivo: 'lembrete desativado na empresa' })
     }
 
-    const inicio = parseDataHora(c.data_hora)
+    const inicio = dataHoraBrasilia(c.data_hora)
     const quandoAvisar = new Date(inicio.getTime() - minutos * 60 * 1000)
     if (quandoAvisar.getTime() <= Date.now()) {
       return NextResponse.json({ ok: true, agendado: false, motivo: 'horário do lembrete já passou' })

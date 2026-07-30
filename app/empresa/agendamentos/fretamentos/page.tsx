@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { formatarTelefoneWhatsApp } from '@/lib/telefone'
 import ModalListaPassageirosPDF from '@/components/ModalListaPassageirosPDF'
+import { dataHoraBrasilia } from '@/lib/data-hora'
 
 // Modal do voucher usa @react-pdf/renderer no client — SSR pode explodir por
 // causa de font/canvas. Carregar dinamicamente sem SSR resolve.
@@ -2824,7 +2825,7 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                 Modelo 100% manual (decisão 2026-07-16) não muda status sozinho,
                 então se o motorista rodou e ninguém clicou Iniciar, o card
                 deixa isso claro. */}
-            {corridaFicha.status === 'confirmada' && new Date(corridaFicha.data_hora) < new Date() && (
+            {corridaFicha.status === 'confirmada' && dataHoraBrasilia(corridaFicha.data_hora) < new Date() && (
               <div className="rounded-xl px-4 py-3 border" style={{ background: '#FFF7ED', borderColor: '#FED7AA' }}>
                 <p className="text-xs" style={{ color: '#9A3412' }}>
                   ⏰ O horário deste atendimento já passou e ele ainda está como <strong>Confirmado</strong>. Se o motorista já saiu, toque em <strong>▶️ Iniciar atendimento</strong> abaixo (com o KM inicial). Se ainda não rolou, edite o horário.
