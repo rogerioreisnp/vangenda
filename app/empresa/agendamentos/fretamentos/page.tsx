@@ -1891,14 +1891,21 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
         </button>
 
         {/* Compartilhar disponibilidade — link publico, sem PII/valor, so
-            horarios + tipo. Cliente consulta antes de perguntar. */}
-        {empresaSlug && (
+            horarios + tipo. Cliente consulta antes de perguntar.
+            So pra transfer/turismo: /disponibilidade/[slug] recusa empresa
+            rota_fixa de proposito (pagina foi feita so pro Julimar/transfer),
+            entao nao faz sentido oferecer o botao pra quem cai em "Empresa
+            nao encontrada" ao abrir o link (caso Nordeste, 2026-07-31). */}
+        {empresaSlug && tipoOperacao !== 'rota_fixa' && (
           <button
             onClick={() => {
               const url = `${window.location.origin}/disponibilidade/${empresaSlug}`
               const msg = `Consulte minha disponibilidade dos próximos 30 dias: ${url}`
               if (navigator.share) {
-                navigator.share({ title: 'Disponibilidade', url, text: msg }).catch(() => {})
+                // So "text" — varios apps de compartilhamento (WhatsApp Android
+                // incluso) concatenam text + url quando os dois sao passados,
+                // duplicando o link na mensagem final. text ja tem o link embutido.
+                navigator.share({ title: 'Disponibilidade', text: msg }).catch(() => {})
               } else {
                 navigator.clipboard.writeText(url).then(() => alert('Link copiado! Cole no WhatsApp do cliente.'))
               }
