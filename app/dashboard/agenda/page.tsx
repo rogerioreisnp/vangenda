@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, isSameDay, isSameMonth, addMonths, subMonths } from 'date-fns'
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, isSameDay, isSameMonth, addMonths, subMonths, subDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import Link from 'next/link'
 import ModalNovaEncomenda from '@/components/ModalNovaEncomenda'
@@ -90,6 +90,18 @@ export default function AgendaPage() {
   const [gestorUserIds, setGestorUserIds] = useState<string[]>([])
   const [empresaReady, setEmpresaReady] = useState(false)
   const [rotaSelecionada, setRotaSelecionada] = useState('')
+
+  // Busca por período — mesma ideia dos filtros do transfer (presets +
+  // periodo personalizado), mas dentro da propria tela de calendario, sem
+  // criar pagina nova. Pedido Rogerio 2026-07-31: cliente rota_fixa queria
+  // buscar passageiro/periodo (ex: dia 1 ao 30) igual ja existe no transfer.
+  const [buscaAberta, setBuscaAberta] = useState(false)
+  const [buscaNome, setBuscaNome] = useState('')
+  const [buscaPreset, setBuscaPreset] = useState<'mes_atual' | 'ultimos_7' | 'ultimos_30' | 'personalizado'>('mes_atual')
+  const [buscaInicio, setBuscaInicio] = useState(format(startOfMonth(new Date()), 'yyyy-MM-dd'))
+  const [buscaFim, setBuscaFim] = useState(format(new Date(), 'yyyy-MM-dd'))
+  const [buscaResultados, setBuscaResultados] = useState<Agendamento[] | null>(null)
+  const [buscaLoading, setBuscaLoading] = useState(false)
 
   useEffect(() => { detectarEmpresa().then(() => setEmpresaReady(true)) }, [])
   useEffect(() => { if (empresaReady) carregarMes() }, [empresaReady, mesAtual, rotaSelecionada])
@@ -236,6 +248,97 @@ export default function AgendaPage() {
     if (mot?.nome) setNomeMotorista(mot.nome)
 
     setLoading(false)
+  }
+
+  // Busca todos os passageiros (agendamentos + corridas_empresa) num periodo
+  // arbitrario, sem ficar preso ao mes do calendario — mesmo mapeamento ja
+  // usado em carregarMes, so que com inicio/fim escolhidos pelo gestor.
+  async function executarBusca() {
+    setBuscaLoading(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setBuscaLoading(false); return }
+
+    const hojeIso = format(new Date(), 'yyyy-MM-dd')
+    let inicio = buscaInicio
+    let fim = buscaFim
+    if (buscaPreset === 'mes_atual') {
+      inicio = format(startOfMonth(new Date()), 'yyyy-MM-dd')
+      fim = hojeIso
+    } else if (buscaPreset === 'ultimos_7') {
+      inicio = format(subDays(new Date(), 6), 'yyyy-MM-dd')
+      fim = hojeIso
+    } else if (buscaPreset === 'ultimos_30') {
+      inicio = format(subDays(new Date(), 29), 'yyyy-MM-dd')
+      fim = hojeIso
+    }
+
+    const idParaBuscar = empresaCtx?.gestorUserId ?? user.id
+    const empresaId = empresaCtx?.empresaId
+
+    let agsData: any[] = []
+    if (isGestor) {
+      if (gestorUserIds.length > 0) {
+        let q = supabase.from('agendamentos').select('*')
+          .in('motorista_id', gestorUserIds)
+          .gte('data_viagem', inicio).lte('data_viagem', fim).neq('status', 'cancelado')
+        if (rotaSelecionada) q = q.eq('rota_id', rotaSelecionada)
+        const { data } = await q
+        agsData = data || []
+      }
+    } else {
+      let q = supabase.from('agendamentos').select('*')
+        .eq('motorista_id', idParaBuscar)
+        .gte('data_viagem', inicio).lte('data_viagem', fim).neq('status', 'cancelado')
+      if (empresaCtx?.motEmpresaId && rotaSelecionada) q = q.eq('rota_id', rotaSelecionada)
+      const { data } = await q
+      agsData = data || []
+    }
+
+    let corrData: any[] = []
+    if (empresaId) {
+      let cq = supabase.from('corridas_empresa')
+        .select('id, rota_id, origem, destino, data_hora, cliente_nome, cliente_telefone, valor, status, forma_pagamento')
+        .eq('empresa_id', empresaId)
+        .gte('data_hora', `${inicio}T00:00:00`)
+        .lte('data_hora', `${fim}T23:59:59`)
+        .neq('status', 'cancelada')
+      if (rotaSelecionada) cq = cq.eq('rota_id', rotaSelecionada)
+      const { data: cd } = await cq
+      corrData = cd || []
+    }
+
+    const corrMapped: Agendamento[] = corrData.reduce((acc: Agendamento[], c: any) => {
+      if (!c.data_hora || !c.cliente_nome) return acc
+      const horaStr = c.data_hora.slice(11, 16)
+      const rotaEmp = rotasEmpresa.find(r => r.id === c.rota_id)
+      const turno: 'ida' | 'volta' = rotaEmp?.horario_volta?.slice(0, 5) === horaStr ? 'volta' : 'ida'
+      acc.push({
+        id: c.id,
+        nome_passageiro: c.cliente_nome,
+        parada_origem: c.origem || rotaEmp?.origem || '',
+        parada_destino: c.destino || rotaEmp?.destino || '',
+        turno,
+        valor: Number(c.valor) || 0,
+        status: (c.status === 'confirmada' ? 'confirmado' : 'agendado') as 'agendado' | 'confirmado' | 'cancelado',
+        data_viagem: c.data_hora.slice(0, 10),
+        telefone_passageiro: c.cliente_telefone ?? undefined,
+        forma_pagamento: c.forma_pagamento ?? undefined,
+        _source: 'corrida_empresa' as const,
+      })
+      return acc
+    }, [])
+
+    const termo = buscaNome.trim().toLowerCase()
+    const todos = [...agsData, ...corrMapped]
+      .filter(a => !termo
+        || a.nome_passageiro?.toLowerCase().includes(termo)
+        || a.telefone_passageiro?.toLowerCase().includes(termo))
+      .sort((a, b) => a.data_viagem === b.data_viagem
+        ? 0
+        : a.data_viagem < b.data_viagem ? -1 : 1)
+
+    setBuscaResultados(todos)
+    setBuscaLoading(false)
   }
 
   async function carregarEncomendasDoDia(data: Date) {
@@ -447,6 +550,108 @@ export default function AgendaPage() {
       </div>
 
       <div className="px-4 py-4">
+        {/* Busca por período — mesma ideia dos filtros do transfer (nome +
+            presets de periodo), sem sair da tela de calendario. Fica acima
+            da visao do dia e nao mexe em nada dela. */}
+        <div className="bg-white rounded-2xl border border-gray-100 p-3 mb-4">
+          <button onClick={() => setBuscaAberta(v => !v)}
+            className="w-full flex items-center justify-between">
+            <span className="text-sm font-semibold text-gray-700">🔍 Buscar por nome ou período</span>
+            <span className="text-xs text-gray-400">{buscaAberta ? 'Fechar ▲' : 'Abrir ▼'}</span>
+          </button>
+
+          {buscaAberta && (
+            <div className="mt-3 flex flex-col gap-2">
+              <input value={buscaNome} onChange={e => setBuscaNome(e.target.value)}
+                placeholder="Nome ou telefone do passageiro"
+                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600" />
+
+              <div className="grid grid-cols-2 gap-2">
+                {([
+                  { key: 'mes_atual', label: 'Este mês' },
+                  { key: 'ultimos_7', label: 'Últimos 7 dias' },
+                  { key: 'ultimos_30', label: 'Últimos 30 dias' },
+                  { key: 'personalizado', label: '📅 Personalizado' },
+                ] as const).map(p => (
+                  <button key={p.key} onClick={() => setBuscaPreset(p.key)}
+                    className="py-2 rounded-xl text-xs font-medium border transition-all"
+                    style={buscaPreset === p.key
+                      ? { background: '#0F6E56', color: '#fff', borderColor: '#0F6E56' }
+                      : { background: '#fff', color: '#666', borderColor: '#e5e7eb' }}>
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+
+              {buscaPreset === 'personalizado' && (
+                <div className="grid grid-cols-2 gap-2">
+                  <input type="date" value={buscaInicio} onChange={e => setBuscaInicio(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600" />
+                  <input type="date" value={buscaFim} onChange={e => setBuscaFim(e.target.value)}
+                    min={buscaInicio}
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600" />
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <button onClick={executarBusca} disabled={buscaLoading}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40"
+                  style={{ background: '#1D9E75', color: '#fff' }}>
+                  {buscaLoading ? 'Buscando...' : 'Buscar'}
+                </button>
+                {buscaResultados !== null && (
+                  <button onClick={() => setBuscaResultados(null)}
+                    className="py-2.5 px-4 rounded-xl text-sm font-semibold border"
+                    style={{ background: '#fff', color: '#666', borderColor: '#e5e7eb' }}>
+                    ✕ Limpar
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {buscaResultados !== null && (
+          <div className="mb-4">
+            <div className="flex justify-between items-center mb-2">
+              <p className="text-sm font-semibold text-gray-700">
+                {buscaResultados.length} resultado{buscaResultados.length !== 1 ? 's' : ''}
+              </p>
+              {buscaResultados.length > 0 && (
+                <p className="text-sm font-bold" style={{ color: '#0F6E56' }}>
+                  R$ {buscaResultados.reduce((s, a) => s + (Number(a.valor) || 0), 0).toFixed(2).replace('.', ',')}
+                </p>
+              )}
+            </div>
+            {buscaResultados.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-3xl mb-2">🔎</p>
+                <p className="text-gray-400 text-sm">Nada encontrado nesse período</p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {buscaResultados.map(a => (
+                  <button key={a.id} onClick={() => setAgendamentoDetalhe(a)}
+                    className="w-full text-left bg-white rounded-2xl p-3 border border-gray-100 active:opacity-75">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-800 truncate">{a.nome_passageiro}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {a.data_viagem.slice(8, 10)}/{a.data_viagem.slice(5, 7)} · {a.turno === 'ida' ? '↑ Ida' : '↓ Volta'} · {a.parada_origem} → {a.parada_destino}
+                        </p>
+                      </div>
+                      <p className="text-sm font-bold flex-shrink-0" style={{ color: '#0F6E56' }}>
+                        R$ {Number(a.valor).toFixed(2).replace('.', ',')}
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="border-t border-gray-100 my-4" />
+          </div>
+        )}
+
         {isAmanha && (
           <div style={{ background: '#FAEEDA', borderColor: '#FAC775' }}
             className="border rounded-xl p-3 flex gap-3 mb-4">
