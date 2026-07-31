@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { format, startOfMonth, endOfMonth, subDays, startOfDay, endOfDay, addMonths, subMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -153,13 +154,20 @@ const categoriasDespesaRF = [
   { value: 'outros',        label: 'Outros',           emoji: '📦' },
 ]
 
+const ABAS_VALIDAS: Aba[] = ['resumo', 'receitas', 'despesas', 'veiculo']
+
 export default function FinanceiroPage() {
+  const searchParams = useSearchParams()
+  const abaInicial = ABAS_VALIDAS.includes(searchParams.get('aba') as Aba)
+    ? (searchParams.get('aba') as Aba)
+    : 'resumo'
+
   const [empresaId, setEmpresaId]   = useState<string | null>(null)
   const [tipoOperacao, setTipoOperacao] = useState<string | null>(null)
   const [periodo, setPeriodo]       = useState<Periodo>('mes_atual')
   const [dataInicioPersonalizada, setDataInicioPersonalizada] = useState(format(new Date(), 'yyyy-MM-dd'))
   const [dataFimPersonalizada, setDataFimPersonalizada]       = useState(format(new Date(), 'yyyy-MM-dd'))
-  const [aba, setAba]               = useState<Aba>('resumo')
+  const [aba, setAba]               = useState<Aba>(abaInicial)
   const [corridas, setCorridas]     = useState<CorridaFin[]>([])
   const [corridasRecebidasPeriodo, setCorridasRecebidasPeriodo] = useState<CorridaFin[]>([])
   const [corridasAReceberTotal, setCorridasAReceberTotal] = useState<CorridaFin[]>([])

@@ -673,19 +673,19 @@ export default function EmpresaPage() {
           )}
         </div>
 
-        {/* Atalhos rápidos */}
+        {/* Atalhos rápidos — cada item aqui e algo que NAO esta a 1 toque no
+            menu inferior (Painel/Agendamentos/Motoristas/Financeiro/Rotas/
+            Config ja cobrem isso). Duplicar o menu inferior aqui so ocupa
+            espaço sem agregar — decisao 2026-07-31 (Rogerio). "A receber"
+            e uma ACAO (visao filtrada), nao so um atalho pro mesmo menu. */}
         <div>
           <p className="text-sm font-semibold text-gray-700 mb-2">Atalhos rápidos</p>
           <div className="grid grid-cols-2 gap-2">
             {[
               { emoji: '📋', label: 'Novo atendimento', href: '/empresa/agendamentos/fretamentos?nova=1' },
-              { emoji: '💰', label: 'Financeiro', href: '/empresa/financeiro' },
+              { emoji: '🕐', label: 'A receber', href: '/empresa/financeiro?aba=receitas' },
               { emoji: '📇', label: 'Clientes', href: '/empresa/clientes' },
               { emoji: '📊', label: 'Relatórios', href: '/empresa/relatorios' },
-              { emoji: '🚗', label: 'Motoristas', href: '/empresa/motoristas' },
-              // "Operar rota" so aparece pra rota_fixa — pro transfer nao existe
-              // rota fixa pra operar, jogava o gestor pro app individual e causava
-              // confusao (caso Julimar 2026-07-26).
             ].map(item => (
               <Link key={item.href} href={item.href}
                 className="bg-white rounded-2xl flex flex-col items-center justify-center py-4 gap-1.5 active:opacity-75"
