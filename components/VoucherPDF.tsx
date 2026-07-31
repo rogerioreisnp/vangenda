@@ -70,6 +70,10 @@ export type VoucherAtendimento = {
   descricao_servico?: string | null // narrativa longa (ex: "Me pegar no hotel...")
   trajetos?: { origem?: string | null; destino?: string | null }[] | null
   valor: number
+  // Corridas ida-volta sao gravadas como 2 linhas separadas em
+  // corridas_empresa. Quando presente, o voucher mostra a volta tambem
+  // (antes so gerava o voucher da ida, mesmo pra reservas ida-volta).
+  volta?: { origem: string; destino: string; data_hora: string; valor?: number | null } | null
 }
 
 export type VoucherProps = {
@@ -160,6 +164,9 @@ export function VoucherPDF({ empresa, cliente, atendimento }: VoucherProps) {
   const cidadeEmissao = empresa.cidade || ''
   const passageiros = atendimento.passageiros_nomes?.filter(Boolean) || []
   const trajetos = (atendimento.trajetos || []).filter(t => t?.origem || t?.destino)
+  const volta = atendimento.volta
+  const valorVolta = volta?.valor ?? 0
+  const valorTotal = atendimento.valor + valorVolta
 
   return (
     <Document>
@@ -195,7 +202,9 @@ export function VoucherPDF({ empresa, cliente, atendimento }: VoucherProps) {
         </View>
 
         {/* Informacoes basicas */}
-        <View style={s.faixa}><Text style={s.faixaTitulo}>Informações básicas</Text></View>
+        <View style={s.faixa}>
+          <Text style={s.faixaTitulo}>Informações básicas{volta ? ' — Ida' : ''}</Text>
+        </View>
         <View style={s.bloco2col}>
           <View style={s.coluna}>
             <Text style={s.label}>Origem</Text>
@@ -247,10 +256,36 @@ export function VoucherPDF({ empresa, cliente, atendimento }: VoucherProps) {
           </View>
         )}
 
+        {/* Volta — reservas ida-volta sao 2 corridas separadas no banco;
+            quando ha uma volta vinculada, mostra aqui pra sair no mesmo
+            voucher (antes o voucher so trazia a ida). */}
+        {volta && (
+          <>
+            <View style={s.faixa}><Text style={s.faixaTitulo}>Informações básicas — Volta</Text></View>
+            <View style={s.bloco2col}>
+              <View style={s.coluna}>
+                <Text style={s.label}>Origem</Text>
+                <Text style={s.valor}>{volta.origem}</Text>
+              </View>
+              <View style={s.coluna}>
+                <Text style={s.label}>Destino</Text>
+                <Text style={s.valor}>{volta.destino}</Text>
+              </View>
+            </View>
+            <View style={s.servicoLinha}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ ...s.valor, marginTop: 2 }}>Data {fmtData(volta.data_hora)}</Text>
+                <Text style={s.valor}>Horário {fmtHora(volta.data_hora)}h</Text>
+              </View>
+              {volta.valor != null && <Text style={s.valor}>R$ {fmtBRL(volta.valor)}</Text>}
+            </View>
+          </>
+        )}
+
         {/* Total */}
         <View style={s.totalLinha}>
           <Text style={s.totalLabel}>Total</Text>
-          <Text style={s.totalValor}>R$ {fmtBRL(atendimento.valor)}</Text>
+          <Text style={s.totalValor}>R$ {fmtBRL(valorTotal)}</Text>
         </View>
 
         {/* Pagamento */}

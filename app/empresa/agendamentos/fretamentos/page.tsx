@@ -2292,6 +2292,12 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
               descricao_servico: null,
               trajetos: (c.trajetos as any) || null,
               valor: Number(c.valor) || 0,
+              volta: voltaDaFicha && voltaDaFicha.id !== c.id ? {
+                origem: voltaDaFicha.origem,
+                destino: voltaDaFicha.destino,
+                data_hora: voltaDaFicha.data_hora,
+                valor: Number(voltaDaFicha.valor) || 0,
+              } : null,
             }}
             emailCliente={c.email_solicitante}
             onFechar={() => setVoucherAberto(null)}
