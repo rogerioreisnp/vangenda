@@ -990,9 +990,11 @@ export default function FinanceiroPage() {
                             if (!c) return null
                             const num = c.numero_reserva || `#${c.id.slice(-5).toUpperCase()}`
                             return (
-                              <p className="text-xs" style={{ color: '#0F6E56' }}>
-                                🔗 Atendimento {num} · {c.origem} → {c.destino}
-                              </p>
+                              <Link href={`/empresa/agendamentos/fretamentos?ficha=${c.id}`}
+                                className="text-xs underline block"
+                                style={{ color: '#0F6E56' }}>
+                                🔗 Atendimento {num} · {c.cliente_nome} · {c.origem} → {c.destino}
+                              </Link>
                             )
                           })()}
                           {/* Badge de reembolso: amarelo = a cobrar, verde = paga */}

@@ -472,7 +472,9 @@ export default function AgendamentosPage() {
     const corrida = corridas.find(c => c.id === fichaId)
     if (corrida) {
       fichaAutoAberta.current = true
-      setCorridaFicha(corrida)
+      // abrirFicha (nao setCorridaFicha direto) pra parear com a volta se o
+      // id linkado for uma volta — mesmo comportamento de clicar na lista.
+      abrirFicha(corrida)
       setModalFichaAberto(true)
     }
   }, [corridas, searchParams])
