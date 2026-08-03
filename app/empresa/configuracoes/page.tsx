@@ -42,6 +42,9 @@ type Empresa = {
   banco_titular_documento: string | null
   // Minutos de antecedencia do lembrete pre-atendimento (0 = desativado)
   minutos_antes_lembrete: number | null
+  // Horas apos o atendimento pra alertar pagamento Pix/Dinheiro/Cartao ainda
+  // pendente (0 = desativado)
+  horas_apos_atendimento_cobranca: number | null
 }
 
 const PLANO_LABEL: Record<string, string> = { starter: 'Starter', pro: 'Pro', fleet: 'Fleet' }
@@ -82,7 +85,7 @@ export default function ConfiguracoesEmpresaPage() {
 
     const { data: emp } = await supabase
       .from('empresas')
-      .select('id, nome, telefone, tipo_operacao, plano, status, cnpj, email_comercial, cidade, estado, qtd_veiculos, descricao, chave_pix, tipo_chave_pix, instagram, whatsapp_comercial, cor_destaque, logo_url, trial_fim, slug, transfer_numero_inicio, mensagem_confirmacao, mensagem_confirmacao_transfer, endereco_rua, endereco_numero, endereco_bairro, endereco_cep, inscricao_estadual, site, banco_nome, banco_agencia, banco_conta, banco_tipo_conta, banco_titular_nome, banco_titular_documento, minutos_antes_lembrete')
+      .select('id, nome, telefone, tipo_operacao, plano, status, cnpj, email_comercial, cidade, estado, qtd_veiculos, descricao, chave_pix, tipo_chave_pix, instagram, whatsapp_comercial, cor_destaque, logo_url, trial_fim, slug, transfer_numero_inicio, mensagem_confirmacao, mensagem_confirmacao_transfer, endereco_rua, endereco_numero, endereco_bairro, endereco_cep, inscricao_estadual, site, banco_nome, banco_agencia, banco_conta, banco_tipo_conta, banco_titular_nome, banco_titular_documento, minutos_antes_lembrete, horas_apos_atendimento_cobranca')
       .eq('id', gestor.empresa_id)
       .single()
 
@@ -168,6 +171,7 @@ export default function ConfiguracoesEmpresaPage() {
         banco_titular_nome:     empresa.banco_titular_nome?.trim()     || null,
         banco_titular_documento: empresa.banco_titular_documento?.trim() || null,
         minutos_antes_lembrete: empresa.minutos_antes_lembrete ?? 60,
+        horas_apos_atendimento_cobranca: empresa.horas_apos_atendimento_cobranca ?? 24,
       })
       .eq('id', empresa.id)
 
@@ -657,6 +661,30 @@ export default function ConfiguracoesEmpresaPage() {
               ℹ️ O motorista atribuído recebe uma notificação nesse intervalo antes de
               cada atendimento. Escolha considerando o deslocamento típico da sua região.
               Se o horário do atendimento mudar, o lembrete é reajustado automaticamente.
+            </p>
+          </Campo>
+        </Secao>
+
+        <Secao titulo="💰 Alerta de pagamento pendente (Pix/Dinheiro/Cartão)">
+          <Campo label="Avisar quantas horas depois do atendimento?">
+            <select
+              value={String(empresa?.horas_apos_atendimento_cobranca ?? 24)}
+              onChange={e => setEmpresa(emp => emp ? { ...emp, horas_apos_atendimento_cobranca: parseInt(e.target.value) } : emp)}
+              className="campo-input"
+            >
+              <option value="0">Não enviar alerta</option>
+              <option value="12">12 horas depois</option>
+              <option value="24">24 horas depois</option>
+              <option value="48">48 horas depois</option>
+              <option value="72">72 horas depois</option>
+            </select>
+            <p className="text-xs mt-2 leading-relaxed" style={{ color: '#6B7280' }}>
+              ℹ️ Pagamentos em Pix, Dinheiro ou Cartão não têm data de vencimento (são
+              esperados no dia do atendimento). Se continuarem sem confirmação de
+              recebimento depois desse prazo, você recebe um aviso — útil pra pegar
+              casos em que o motorista ainda não repassou ou o cliente não pagou.
+              Avisa uma única vez por atendimento. Faturado continua com o alerta
+              de vencimento próprio, configurado por atendimento.
             </p>
           </Campo>
         </Secao>

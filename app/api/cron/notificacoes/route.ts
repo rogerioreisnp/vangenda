@@ -4,9 +4,16 @@ import { NextRequest, NextResponse } from 'next/server'
 /**
  * Cron diario de alertas pro GESTOR (transfer). Roda 1x por dia.
  *
- * Dois alertas (pedido de clientes via Rogerio, 2026-07-30):
- *   Item 3 — pagamentos que vencem HOJE: lembra o gestor de dar baixa
- *   Item 4 — pagamentos VENCIDOS: avisa que continua sem receber
+ * Tres alertas:
+ *   Item 3 — pagamentos que vencem HOJE (so Faturado): lembra o gestor de dar baixa
+ *   Item 4 — pagamentos VENCIDOS (so Faturado): avisa que continua sem receber
+ *   Item 5 — Pix/Dinheiro/Cartao ainda pendentes X horas apos o atendimento
+ *            (pedido Rogerio 2026-08-01): esses nao tem "data de vencimento"
+ *            como o Faturado — sao esperados no proprio dia. Se o motorista
+ *            nao repassar pro gestor ou o cliente nao pagar, ninguem era
+ *            avisado. X e configuravel por empresa (empresas.
+ *            horas_apos_atendimento_cobranca, default 24h, 0 = desativado).
+ *            Dispara UMA vez so (marca alerta_pagamento_imediato_enviado_em).
  *
  * Decisoes de design:
  *   - AGRUPA por empresa: gestor com 5 pagamentos vencendo recebe UMA
@@ -39,6 +46,8 @@ type CorridaAlerta = {
   valor: number | null
   valor_recebido: number | null
   data_prevista_pagamento: string | null
+  data_hora?: string
+  forma_pagamento?: string | null
 }
 
 function fmtBRL(n: number): string {
@@ -83,7 +92,8 @@ export async function GET(req: NextRequest) {
   )
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://vangenda.vercel.app'
-  const hoje = new Date().toISOString().slice(0, 10)
+  const agoraDate = new Date()
+  const hoje = agoraDate.toISOString().slice(0, 10)
   const cols = 'id, empresa_id, cliente_nome, valor, valor_recebido, data_prevista_pagamento'
 
   // ── Item 3: vencem HOJE e ainda nao foram alertadas ──────────────────
@@ -106,25 +116,57 @@ export async function GET(req: NextRequest) {
     .is('alerta_atraso_enviado_em', null)
     .limit(500)
 
+  // ── Item 5: Pix/Dinheiro/Cartao pendentes ha mais de X horas ─────────
+  // Sem data de vencimento (diferente do Faturado) — a referencia e a
+  // propria data_hora do atendimento. Janela de 45 dias pra tras evita
+  // varrer o historico inteiro toda vez; corridas mais antigas que isso
+  // ja deveriam ter sido resolvidas ou canceladas manualmente.
+  const janela45dias = new Date(agoraDate.getTime() - 45 * 24 * 60 * 60 * 1000).toISOString()
+  const { data: pendentesImediato } = await supabase
+    .from('corridas_empresa')
+    .select(`${cols}, data_hora, forma_pagamento`)
+    .in('forma_pagamento', ['pix', 'dinheiro', 'cartao'])
+    .neq('status_pagamento', 'recebido')
+    .neq('status', 'cancelada')
+    .lt('data_hora', agoraDate.toISOString())
+    .gte('data_hora', janela45dias)
+    .is('alerta_pagamento_imediato_enviado_em', null)
+    .limit(500)
+
   // Resolve gestores das empresas envolvidas (1 query pra todas)
   const empresaIds = Array.from(new Set([
     ...(vencemHoje || []).map(c => c.empresa_id),
     ...(vencidas || []).map(c => c.empresa_id),
+    ...(pendentesImediato || []).map((c: any) => c.empresa_id),
   ]))
   if (empresaIds.length === 0) {
-    return NextResponse.json({ ok: true, vencem_hoje: 0, vencidas: 0, msg: 'Nada a notificar' })
+    return NextResponse.json({ ok: true, vencem_hoje: 0, vencidas: 0, pendentes_imediato: 0, msg: 'Nada a notificar' })
   }
 
-  const { data: gestores } = await supabase
-    .from('gestores')
-    .select('user_id, empresa_id')
-    .in('empresa_id', empresaIds)
+  const [{ data: gestores }, { data: empresasConfig }] = await Promise.all([
+    supabase.from('gestores').select('user_id, empresa_id').in('empresa_id', empresaIds),
+    supabase.from('empresas').select('id, horas_apos_atendimento_cobranca').in('id', empresaIds),
+  ])
 
   const gestorPorEmpresa: Record<string, string> = {}
   ;(gestores || []).forEach(g => {
     if (g.empresa_id && g.user_id && !gestorPorEmpresa[g.empresa_id]) {
       gestorPorEmpresa[g.empresa_id] = g.user_id
     }
+  })
+
+  const horasPorEmpresa: Record<string, number> = {}
+  ;(empresasConfig || []).forEach((e: any) => {
+    horasPorEmpresa[e.id] = e.horas_apos_atendimento_cobranca ?? 24
+  })
+
+  // Filtra so quem ja passou do prazo configurado da propria empresa
+  // (0 = alerta desativado pra essa empresa).
+  const pendentesFiltrados = (pendentesImediato || []).filter((c: any) => {
+    const horas = horasPorEmpresa[c.empresa_id] ?? 24
+    if (horas <= 0) return false
+    const limiteMs = new Date(c.data_hora).getTime() + horas * 60 * 60 * 1000
+    return limiteMs <= agoraDate.getTime()
   })
 
   // Agrupa corridas por empresa — uma notificacao resumida por gestor
@@ -175,6 +217,26 @@ export async function GET(req: NextRequest) {
     idsAlertaAtraso.push(...lista.map(c => c.id))
   }
 
+  // Dispara item 5 — dispara so 1x (marca alerta_pagamento_imediato_enviado_em)
+  const idsAlertaImediato: string[] = []
+  const FORMA_LABEL: Record<string, string> = { pix: 'Pix', dinheiro: 'Dinheiro', cartao: 'Cartão' }
+  for (const [empresaId, lista] of Object.entries(agrupar(pendentesFiltrados as CorridaAlerta[]))) {
+    const gestorUserId = gestorPorEmpresa[empresaId]
+    if (!gestorUserId) continue
+    const total = lista.reduce((s, c) => s + saldo(c), 0)
+    const horas = horasPorEmpresa[empresaId] ?? 24
+    const formaLabel = FORMA_LABEL[(lista[0] as any).forma_pagamento] || 'Pagamento'
+    const titulo = lista.length === 1
+      ? `💰 ${formaLabel} pendente há ${horas}h+`
+      : `💰 ${lista.length} pagamentos pendentes há ${horas}h+`
+    const corpo = lista.length === 1
+      ? `${lista[0].cliente_nome || 'Cliente'} · R$ ${fmtBRL(total)} — confirme se o motorista já repassou ou dê baixa.`
+      : `Total de R$ ${fmtBRL(total)} sem confirmação de recebimento. Toque para revisar.`
+    const r = await enviarPush(gestorUserId, titulo, corpo, `${appUrl}/empresa/financeiro`)
+    resultados.push({ tipo: 'pendente_imediato', empresaId, qtd: lista.length, onesignal: r })
+    idsAlertaImediato.push(...lista.map(c => c.id))
+  }
+
   // Marca como alertadas — evita repetir o mesmo aviso amanha
   const agora = new Date().toISOString()
   if (idsAlertaPagamento.length > 0) {
@@ -187,10 +249,16 @@ export async function GET(req: NextRequest) {
       .update({ alerta_atraso_enviado_em: agora })
       .in('id', idsAlertaAtraso)
   }
+  if (idsAlertaImediato.length > 0) {
+    await supabase.from('corridas_empresa')
+      .update({ alerta_pagamento_imediato_enviado_em: agora })
+      .in('id', idsAlertaImediato)
+  }
 
   console.log('[cron-notificacoes]', {
     vencem_hoje: idsAlertaPagamento.length,
     vencidas: idsAlertaAtraso.length,
+    pendentes_imediato: idsAlertaImediato.length,
     empresas: Object.keys(gestorPorEmpresa).length,
   })
 
@@ -198,6 +266,7 @@ export async function GET(req: NextRequest) {
     ok: true,
     vencem_hoje: idsAlertaPagamento.length,
     vencidas: idsAlertaAtraso.length,
+    pendentes_imediato: idsAlertaImediato.length,
     detalhes: resultados,
   })
 }
