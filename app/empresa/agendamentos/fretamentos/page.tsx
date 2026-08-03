@@ -2407,9 +2407,14 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
               <div className="flex items-center justify-between gap-2">
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Viagem</p>
                 {corridaFicha.tipo_servico !== 'fretamento' && corridaFicha.tipo_servico !== 'excursao' && (() => {
-                  const idsAcao = voltaDaFicha ? [corridaFicha.id, voltaDaFicha.id] : [corridaFicha.id]
+                  // Acao aqui e SO da ida — ida e volta sao linhas separadas
+                  // em corridas_empresa e agora tratadas de forma independente
+                  // (antes cancelar/excluir aqui derrubava as duas juntas, sem
+                  // jeito de mexer so na volta quando o cliente cancelava so
+                  // ela). Pedido Rogerio 2026-07-31.
+                  const idsAcao = [corridaFicha.id]
                   const statusFicha = corridaFicha.status
-                  const eCancelada = statusFicha === 'cancelada' || (voltaDaFicha && voltaDaFicha.status === 'cancelada')
+                  const eCancelada = statusFicha === 'cancelada'
                   const eConcluida = statusFicha === 'concluida'
                   return (
                     <div className="flex items-center gap-2 flex-shrink-0">
@@ -2428,15 +2433,17 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                       {!eCancelada && !eConcluida && (
                         <button
                           onClick={async () => {
-                            if (!confirm('Cancelar este agendamento? Os dados ficam salvos e você pode reativar depois.')) return
+                            const msg = voltaDaFicha
+                              ? 'Cancelar apenas a IDA? A volta continua como está — cancele ela separadamente se for o caso.'
+                              : 'Cancelar este agendamento? Os dados ficam salvos e você pode reativar depois.'
+                            if (!confirm(msg)) return
                             await cancelarCorrida(idsAcao)
                             setCorridaFicha(prev => prev ? { ...prev, status: 'cancelada' } : prev)
-                            setVoltaDaFicha(prev => prev ? { ...prev, status: 'cancelada' } : prev)
                           }}
-                          title="Cancelar (mantém os dados)"
+                          title={voltaDaFicha ? 'Cancelar só a ida' : 'Cancelar (mantém os dados)'}
                           className="px-2.5 py-1 rounded-lg text-[10px] font-medium"
                           style={{ background: '#FCEBEB', color: '#A32D2D' }}>
-                          ❌ Cancelar
+                          ❌ Cancelar{voltaDaFicha ? ' ida' : ''}
                         </button>
                       )}
                       {(eCancelada || eConcluida) && (
@@ -2445,7 +2452,6 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                             const alvo = eConcluida ? 'em_andamento' : 'pendente'
                             await reativarCorrida(idsAcao, alvo)
                             setCorridaFicha(prev => prev ? { ...prev, status: alvo } : prev)
-                            setVoltaDaFicha(prev => prev ? { ...prev, status: alvo } : prev)
                           }}
                           title={eConcluida ? 'Voltar para Em andamento' : 'Reativar agendamento'}
                           className="px-2.5 py-1 rounded-lg text-[10px] font-medium"
@@ -2455,14 +2461,17 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                       )}
                       <button
                         onClick={async () => {
-                          if (!confirm('Apagar definitivamente este agendamento? Os dados serão perdidos.')) return
+                          const msg = voltaDaFicha
+                            ? 'Apagar definitivamente a IDA? A volta continua salva separadamente. Os dados da ida serão perdidos.'
+                            : 'Apagar definitivamente este agendamento? Os dados serão perdidos.'
+                          if (!confirm(msg)) return
                           for (const id of idsAcao) {
                             await supabase.from('corridas_empresa').delete().eq('id', id)
                           }
                           setCorridas(prev => prev.filter(c => !idsAcao.includes(c.id)))
                           setModalFichaAberto(false)
                         }}
-                        title="Excluir definitivamente"
+                        title={voltaDaFicha ? 'Excluir só a ida' : 'Excluir definitivamente'}
                         className="px-2.5 py-1 rounded-lg text-[10px] font-medium"
                         style={{ background: '#FCEBEB', color: '#A32D2D' }}>
                         🗑️
@@ -2619,15 +2628,65 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
               )}
             </div>
 
-            {/* Volta (quando o agendamento foi feito como ida-e-volta) */}
-            {voltaDaFicha && (
+            {/* Volta (quando o agendamento foi feito como ida-e-volta) —
+                botoes proprios pra cancelar/reativar/excluir SO a volta, sem
+                mexer na ida. Antes so dava pra agir nas duas juntas (topo da
+                ficha), o que travava o gestor quando so a volta era
+                cancelada pelo cliente. Pedido Rogerio 2026-07-31. */}
+            {voltaDaFicha && (() => {
+              const vCancelada = voltaDaFicha.status === 'cancelada'
+              const vConcluida = voltaDaFicha.status === 'concluida'
+              const podeAgir = corridaFicha.tipo_servico !== 'fretamento' && corridaFicha.tipo_servico !== 'excursao'
+              return (
               <div className="rounded-2xl p-4 border" style={{ background: '#EEEDFE', borderColor: '#AFA9EC' }}>
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#3C3489' }}>🔁 Volta</p>
-                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
-                    style={{ background: STATUS_COR[voltaDaFicha.status]?.bg ?? '#FEF3C7', color: STATUS_COR[voltaDaFicha.status]?.text ?? '#92400E' }}>
-                    {STATUS_COR[voltaDaFicha.status]?.label ?? voltaDaFicha.status}
-                  </span>
+                <div className="flex items-center justify-between mb-2 gap-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide flex-shrink-0" style={{ color: '#3C3489' }}>🔁 Volta</p>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                      style={{ background: STATUS_COR[voltaDaFicha.status]?.bg ?? '#FEF3C7', color: STATUS_COR[voltaDaFicha.status]?.text ?? '#92400E' }}>
+                      {STATUS_COR[voltaDaFicha.status]?.label ?? voltaDaFicha.status}
+                    </span>
+                    {podeAgir && !vCancelada && !vConcluida && (
+                      <button
+                        onClick={async () => {
+                          if (!confirm('Cancelar apenas a VOLTA? A ida continua como está. Os dados ficam salvos e você pode reativar depois.')) return
+                          await cancelarCorrida([voltaDaFicha.id])
+                          setVoltaDaFicha(prev => prev ? { ...prev, status: 'cancelada' } : prev)
+                        }}
+                        title="Cancelar só a volta"
+                        className="px-2 py-1 rounded-lg text-[10px] font-medium"
+                        style={{ background: '#FCEBEB', color: '#A32D2D' }}>
+                        ❌
+                      </button>
+                    )}
+                    {podeAgir && (vCancelada || vConcluida) && (
+                      <button
+                        onClick={async () => {
+                          const alvo = vConcluida ? 'em_andamento' : 'pendente'
+                          await reativarCorrida([voltaDaFicha.id], alvo)
+                          setVoltaDaFicha(prev => prev ? { ...prev, status: alvo } : prev)
+                        }}
+                        title={vConcluida ? 'Voltar para Em andamento' : 'Reativar volta'}
+                        className="px-2 py-1 rounded-lg text-[10px] font-medium"
+                        style={{ background: '#fff', color: '#3C3489' }}>
+                        ↩️
+                      </button>
+                    )}
+                    {podeAgir && (
+                      <button
+                        onClick={async () => {
+                          if (!confirm('Apagar definitivamente a VOLTA? A ida continua salva separadamente. Os dados da volta serão perdidos.')) return
+                          await supabase.from('corridas_empresa').delete().eq('id', voltaDaFicha.id)
+                          setCorridas(prev => prev.filter(c => c.id !== voltaDaFicha.id))
+                          setVoltaDaFicha(null)
+                        }}
+                        title="Excluir só a volta"
+                        className="px-2 py-1 rounded-lg text-[10px] font-medium"
+                        style={{ background: '#FCEBEB', color: '#A32D2D' }}>
+                        🗑️
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <p className="text-sm font-bold text-gray-800">{voltaDaFicha.origem} → {voltaDaFicha.destino}</p>
                 <p className="text-sm text-gray-600 mt-1">
@@ -2642,7 +2701,8 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                   <p className="text-xs text-gray-500 mt-2">📝 {voltaDaFicha.observacoes}</p>
                 )}
               </div>
-            )}
+              )
+            })()}
 
             {/* Responsável pela solicitação */}
             <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-2">
