@@ -404,6 +404,12 @@ export default function AgendamentosPage() {
   const [rotasOpcoes, setRotasOpcoes] = useState<RotaOpcao[]>([])
   const [motoristasOpcoes, setMotoristasOpcoes] = useState<MotoristaOpcao[]>([])
   const [clientesOpcoes, setClientesOpcoes] = useState<Array<{ id: string; tipo: 'pj'|'pf'; label: string; telefone: string | null; email: string | null; raw: any }>>([])
+  // Enderecos ja usados por esse telefone em atendimentos anteriores (ordenados
+  // por frequencia) — evita redigitar embarque/desembarque de clientes
+  // recorrentes (pedido Rogerio/Julimar 2026-08-01, "operacao escola": mesmo
+  // passageiro, endereco de embarque e desembarque diferentes e as vezes
+  // invertidos). Mesma tabela ja usada no link publico.
+  const [enderecosClienteForm, setEnderecosClienteForm] = useState<string[]>([])
   const [tipoOperacao, setTipoOperacao] = useState<string>('transfer')
   const [corridas, setCorridas] = useState<Corrida[]>([])
   const [loading, setLoading] = useState(true)
@@ -625,6 +631,7 @@ export default function AgendamentosPage() {
     setCorridaEditando(null)
     setVoltaIdEditando(null)
     setForm(FORM_VAZIO)
+    setEnderecosClienteForm([])
     setErro('')
     setModalAberto(true)
   }
@@ -699,6 +706,8 @@ export default function AgendamentosPage() {
       valor_repasse_motorista: c.valor_repasse_motorista != null ? String(c.valor_repasse_motorista) : '',
       observacoes: c.observacoes || '',
     })
+    setEnderecosClienteForm([])
+    if (c.cliente_telefone) carregarEnderecosCliente(c.cliente_telefone)
     setErro('')
     setModalAberto(true)
   }
@@ -722,6 +731,47 @@ export default function AgendamentosPage() {
         preco: String(rota.preco),
       }))
     }
+  }
+
+  // Busca enderecos ja usados por esse telefone (mesma tabela enderecos_clientes
+  // do link publico), ordenados por frequencia — pra sugerir no form interno.
+  async function carregarEnderecosCliente(telefone: string) {
+    const tel = telefone.trim()
+    if (!tel || !empresaId) { setEnderecosClienteForm([]); return }
+    const { data } = await supabase
+      .from('enderecos_clientes')
+      .select('endereco')
+      .eq('empresa_id', empresaId)
+      .eq('telefone', tel)
+      .order('contador', { ascending: false })
+      .limit(6)
+    setEnderecosClienteForm((data || []).map(r => r.endereco))
+  }
+
+  // Grava/atualiza o contador de uso de um endereco pra esse telefone —
+  // mesma logica do salvarEndereco() do link publico (AgendamentoPublico.tsx).
+  async function salvarEnderecoCliente(telefone: string, endereco: string) {
+    const tel = telefone.trim()
+    const end = endereco.trim()
+    if (!tel || !end || !empresaId) return
+    try {
+      const { data: existing } = await supabase
+        .from('enderecos_clientes')
+        .select('id, contador')
+        .eq('empresa_id', empresaId)
+        .eq('telefone', tel)
+        .eq('endereco', end)
+        .maybeSingle()
+      if (existing) {
+        await supabase.from('enderecos_clientes')
+          .update({ contador: (existing.contador || 1) + 1 })
+          .eq('id', existing.id)
+      } else {
+        await supabase.from('enderecos_clientes').insert({
+          empresa_id: empresaId, telefone: tel, endereco: end, contador: 1,
+        })
+      }
+    } catch {}
   }
 
   async function salvar() {
@@ -1002,6 +1052,19 @@ export default function AgendamentosPage() {
 
       if (form.rota_id === 'manual') {
         setRotaManualParaSalvar({ origem: form.origem.trim(), destino: form.destino.trim(), preco })
+      }
+    }
+
+    // Guarda os enderecos usados pra esse telefone — proxima vez que esse
+    // cliente for selecionado, aparecem como sugestao rapida (embarque e
+    // desembarque, inclusive invertidos, sem precisar duplicar cadastro).
+    const telSalvar = form.cliente_telefone.trim()
+    if (telSalvar) {
+      await salvarEnderecoCliente(telSalvar, form.origem)
+      await salvarEnderecoCliente(telSalvar, form.destino)
+      if (form.ida_volta) {
+        if (form.origem_volta.trim()) await salvarEnderecoCliente(telSalvar, form.origem_volta)
+        if (form.destino_volta.trim()) await salvarEnderecoCliente(telSalvar, form.destino_volta)
       }
     }
 
@@ -3423,6 +3486,32 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                 />
               </Campo>
 
+              {/* Enderecos ja usados por esse cliente (embarque/desembarque
+                  de vezes anteriores) — toque preenche Origem se estiver
+                  vazia, senao Destino. Evita redigitar pra quem tem cliente
+                  recorrente (ex: "operacao escola", mesmo passageiro com
+                  embarque/desembarque as vezes invertidos). */}
+              {enderecosClienteForm.length > 0 && (
+                <div className="mb-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide mb-1" style={{ color: '#0C447C' }}>
+                    📍 Endereços salvos desse cliente (toque pra usar)
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {enderecosClienteForm.map((end, i) => (
+                      <button key={i} type="button"
+                        onClick={() => setForm(f => f.origem.trim()
+                          ? { ...f, destino: end }
+                          : { ...f, origem: end })}
+                        className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium border text-left"
+                        style={{ background: '#fff', color: '#0C447C', borderColor: '#B9D6F2', maxWidth: '220px' }}
+                        title={end}>
+                        {end.length > 34 ? end.slice(0, 34) + '…' : end}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-2">
                 <Campo label={form.tipo_servico === 'diaria' || form.tipo_servico === 'city_tour' ? 'Data de início *' : 'Data *'}>
                   <input type="date" value={form.data}
@@ -3613,6 +3702,8 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                       cliente_telefone: c?.telefone ? c.telefone : f.cliente_telefone,
                       email_solicitante: c?.email ? c.email : f.email_solicitante,
                     }))
+                    if (c?.telefone) carregarEnderecosCliente(c.telefone)
+                    else setEnderecosClienteForm([])
                   }}
                   className="campo-input">
                   <option value="">— Cliente avulso (digitar manualmente) —</option>
@@ -3660,6 +3751,7 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                     }
                     return next
                   })
+                  if (match?.telefone) carregarEnderecosCliente(match.telefone)
                 }}
                 list="lista-clientes-solicitante"
                 placeholder="Nome completo" className="campo-input" />
@@ -3673,6 +3765,7 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
             <Campo label="Telefone do solicitante">
               <input value={form.cliente_telefone}
                 onChange={e => setForm(f => ({ ...f, cliente_telefone: e.target.value }))}
+                onBlur={e => carregarEnderecosCliente(e.target.value)}
                 placeholder="(11) 99999-9999 ou +1 555 123 4567" className="campo-input" />
               <p className="text-[10px] text-gray-400 mt-1">Aceita número internacional. Para fora do Brasil, comece com + e o código do país (ex: +1, +351).</p>
             </Campo>
