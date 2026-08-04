@@ -91,6 +91,7 @@ export default function RotasPage() {
   const [novaParadaRF, setNovaParadaRF] = useState('')
   const [draggingIdxRF, setDraggingIdxRF] = useState<number | null>(null)
   const [salvandoRF, setSalvandoRF] = useState(false)
+  const [duplicandoRF, setDuplicandoRF] = useState<string | null>(null)
   const [erroRF, setErroRF] = useState('')
   const dragIdxRF = useRef<number | null>(null)
 
@@ -358,6 +359,64 @@ export default function RotasPage() {
     setRotasRF(prev => prev.filter(r => r.id !== id))
   }
 
+  // Duplica a rota com todas as paradas e precos. Pedido do Alexandre (Recife,
+  // 2026-08-04): ele monta rotas quase identicas e refazer a lista de trechos
+  // na mao dava muito trabalho. Nasce inativa pro gestor revisar antes de
+  // publicar — evita rota pela metade aparecendo no link publico.
+  async function duplicarRF(r: RotaRF) {
+    if (!empresaId || duplicandoRF) return
+    setDuplicandoRF(r.id)
+    const { data: nova, error } = await supabase
+      .from('rotas_empresa')
+      .insert({
+        empresa_id: empresaId,
+        nome: `${r.nome || 'Sem nome'} (cópia)`,
+        horario_ida: r.horario_ida,
+        horario_volta: r.horario_volta,
+        capacidade: r.capacidade,
+        motorista_id: r.motorista_id,
+        veiculo_placa: r.veiculo_placa,
+        ativa: false,
+        dias_semana: r.dias_semana,
+        modo_endereco: r.modo_endereco,
+        preco: r.preco,
+        origem: r.origem,
+        destino: r.destino,
+      })
+      .select('id')
+      .single()
+
+    if (error || !nova) {
+      setDuplicandoRF(null)
+      alert('Erro ao duplicar a rota: ' + (error?.message || ''))
+      return
+    }
+
+    // Copia os trechos e precos. Se falhar, a rota nova fica sem trechos —
+    // avisa em vez de deixar o gestor descobrir sozinho depois.
+    const { data: trechos } = await supabase
+      .from('paradas_empresa')
+      .select('nome, ordem, preco')
+      .eq('rota_id', r.id)
+      .order('ordem')
+
+    if (trechos && trechos.length > 0) {
+      const { error: erroP } = await supabase.from('paradas_empresa').insert(
+        trechos.map(t => ({
+          rota_id: nova.id,
+          empresa_id: empresaId,
+          nome: t.nome,
+          ordem: t.ordem,
+          preco: t.preco,
+        }))
+      )
+      if (erroP) alert('Rota duplicada, mas os trechos não vieram junto: ' + erroP.message)
+    }
+
+    setDuplicandoRF(null)
+    carregarDados()
+  }
+
   function gerarPrecosRF(pars: string[], base?: PrecoRF[]) {
     const baseRef = base ?? precosRF
     const novos: PrecoRF[] = []
@@ -507,14 +566,23 @@ export default function RotasPage() {
                         {mot && <p className="text-xs text-gray-400 mt-0.5">🚗 {mot.nome}</p>}
                         {r.veiculo_placa && <p className="text-xs text-gray-400">{r.veiculo_placa}</p>}
                       </div>
+                      {/* Excluir por ultimo e separado — e a acao
+                          irreversivel, nao pode ficar vizinha das que se
+                          clica sem pensar. */}
                       <div className="flex gap-2 flex-shrink-0">
                         <button onClick={() => abrirEditarRF(r)}
                           className="px-3 py-1.5 rounded-lg text-xs font-medium"
                           style={{ background: '#E1F5EE', color: '#0F6E56' }}>
                           Editar
                         </button>
+                        <button onClick={() => duplicarRF(r)}
+                          disabled={duplicandoRF !== null}
+                          className="px-3 py-1.5 rounded-lg text-xs font-medium disabled:opacity-40"
+                          style={{ background: '#E6F1FB', color: '#0C447C' }}>
+                          {duplicandoRF === r.id ? 'Copiando…' : 'Duplicar'}
+                        </button>
                         <button onClick={() => excluirRF(r.id)}
-                          className="px-3 py-1.5 rounded-lg text-xs font-medium"
+                          className="px-3 py-1.5 rounded-lg text-xs font-medium ml-1"
                           style={{ background: '#FCEBEB', color: '#A32D2D' }}>
                           Excluir
                         </button>

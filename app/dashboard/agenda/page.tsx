@@ -85,7 +85,7 @@ export default function AgendaPage() {
   // gestorUserId = user.id do dono da empresa. Populado quando eh motorista
   // funcionario, pra redirecionar SELECTs e INSERTs. Individual/gestor nao usa.
   const [empresaCtx, setEmpresaCtx] = useState<{ empresaId: string; motEmpresaId?: string; gestorUserId?: string } | null | undefined>(undefined)
-  const [rotasEmpresa, setRotasEmpresa] = useState<{ id: string; nome: string | null; origem: string | null; destino: string | null; horario_ida: string | null; horario_volta: string | null; modo_endereco: 'paradas' | 'livre' | null; preco: number | null; motorista_id?: string | null }[]>([])
+  const [rotasEmpresa, setRotasEmpresa] = useState<{ id: string; nome: string | null; origem: string | null; destino: string | null; horario_ida: string | null; horario_volta: string | null; modo_endereco: 'paradas' | 'livre' | null; preco: number | null; capacidade?: number | null; motorista_id?: string | null }[]>([])
   const [isGestor, setIsGestor] = useState(false)
   const [gestorUserIds, setGestorUserIds] = useState<string[]>([])
   const [empresaReady, setEmpresaReady] = useState(false)
@@ -385,7 +385,7 @@ export default function AgendaPage() {
       setNomeMotorista(gestorRow.nome || '')
       setEmpresaCtx({ empresaId: gestorRow.empresa_id })
       const { data: rts } = await supabase
-        .from('rotas_empresa').select('id, nome, origem, destino, ativa, horario_ida, horario_volta, modo_endereco, preco')
+        .from('rotas_empresa').select('id, nome, origem, destino, ativa, horario_ida, horario_volta, modo_endereco, preco, capacidade')
         .eq('empresa_id', gestorRow.empresa_id).order('created_at', { ascending: true })
       setRotasEmpresa((rts || []).filter(r => r.ativa !== false))
       const { data: motsEmp } = await supabase
@@ -419,7 +419,7 @@ export default function AgendaPage() {
       setEmpresaCtx({ empresaId: motEmp.empresa_id, motEmpresaId: motEmp.id, gestorUserId: gestorUid })
       const { data: rts } = await supabase
         .from('rotas_empresa')
-        .select('id, nome, origem, destino, ativa, horario_ida, horario_volta, modo_endereco, preco, motorista_id')
+        .select('id, nome, origem, destino, ativa, horario_ida, horario_volta, modo_endereco, preco, capacidade, motorista_id')
         .eq('empresa_id', motEmp.empresa_id)
         .order('created_at', { ascending: true })
       const rotasAtivas = (rts || []).filter(r => r.ativa !== false)
@@ -1478,7 +1478,7 @@ function DetalhePassageiro({ p, onVoltar, onAtualizar, horarioIda, horarioVolta 
 function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSalvo }: {
   data: Date, rotas: any[],
   empresaCtx: { empresaId: string; motEmpresaId?: string; gestorUserId?: string } | null,
-  rotasEmpresa: { id: string; nome: string | null; origem: string | null; destino: string | null; horario_ida?: string | null; horario_volta?: string | null; modo_endereco?: 'paradas' | 'livre' | null; preco?: number | null; motorista_id?: string | null }[],
+  rotasEmpresa: { id: string; nome: string | null; origem: string | null; destino: string | null; horario_ida?: string | null; horario_volta?: string | null; modo_endereco?: 'paradas' | 'livre' | null; preco?: number | null; capacidade?: number | null; motorista_id?: string | null }[],
   onFechar: () => void, onSalvo: () => void
 }) {
   const [paradas, setParadas] = useState<any[]>([])
@@ -1557,9 +1557,13 @@ function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSa
     carregarClientes()
   }, [form.rota_id])
 
+  // Recalcula a lotacao sempre que muda turno, dia ou rota — nos DOIS
+  // contextos. A empresa depende de rotaEmpresaId/horarios, o individual de
+  // form.rota_id.
   useEffect(() => {
-    if (!empresaCtx && form.rota_id) carregarVagas()
-  }, [form.turno, form.data_viagem])
+    if (empresaCtx) { carregarVagas(); return }
+    if (form.rota_id) carregarVagas()
+  }, [form.turno, form.data_viagem, rotaEmpresaId, horarioIda, horarioVolta])
 
   useEffect(() => {
     if (empresaCtx && rotaEmpresaId) carregarParadasEmpresa(rotaEmpresaId)
@@ -1585,7 +1589,27 @@ function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSa
   }, [paradasEmpresa])
 
   async function carregarVagas() {
-    if (empresaCtx || !form.rota_id) return
+    // Empresa (rota_fixa): usa a RPC, que soma os passageiros das DUAS origens
+    // — os que o gestor cadastra aqui (tabela agendamentos) e os que chegam
+    // pelo link publico (corridas_empresa). Ate 2026-08-04 esta funcao saia
+    // fora quando havia empresaCtx, entao o gestor nao via lotacao nenhuma e
+    // conseguia lotar a van sem o sistema avisar (bug relatado pelo Elson/CE:
+    // "nao consegue encerrar os agendamentos mesmo depois que preenchem as
+    // vagas" — nao encerrava porque a capacidade simplesmente nao existia
+    // deste lado).
+    if (empresaCtx) {
+      const horario = form.turno === 'ida' ? horarioIda : horarioVolta
+      if (!rotaEmpresaId || !form.data_viagem || !horario) { setVagasOcupadas(0); return }
+      const { data: ocupadas, error } = await supabase.rpc('count_vagas_ocupadas', {
+        p_rota_id: rotaEmpresaId,
+        p_data: form.data_viagem,
+        p_horario: horario,
+      })
+      if (error) console.error('[vagas] falha ao contar:', error.message)
+      setVagasOcupadas(Number(ocupadas) || 0)
+      return
+    }
+    if (!form.rota_id) return
     const { count } = await supabase
       .from('agendamentos')
       .select('*', { count: 'exact', head: true })
@@ -1690,10 +1714,21 @@ function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSa
     : []
 
   const rotaAtual = rotas.find(r => r.id === form.rota_id)
-  const capacidade = rotaAtual?.capacidade || 15
+  // Empresa le a capacidade da rota_empresa; individual, da rota dele.
+  const capacidadeConfigurada = empresaCtx
+    ? (rotaEmpAtual?.capacidade ?? null)
+    : (rotaAtual?.capacidade ?? null)
+  const capacidade = capacidadeConfigurada || 15
   const vagasDisponiveis = Math.max(0, capacidade - vagasOcupadas)
 
-  const excedeCapacidade = !empresaCtx && !!form.rota_id && form.quantidade > vagasDisponiveis
+  // Na empresa so bloqueia quando a capacidade FOI cadastrada — rota sem
+  // capacidade definida continua sem limite (nao inventamos um teto de 15
+  // pra quem tem onibus de 40 e nunca preencheu o campo). No individual,
+  // mantem o comportamento antigo com fallback de 15.
+  const temControleVagas = empresaCtx
+    ? (!!rotaEmpresaId && capacidadeConfigurada != null)
+    : !!form.rota_id
+  const excedeCapacidade = temControleVagas && form.quantidade > vagasDisponiveis
   const ehModoLivre = rotaEmpAtual?.modo_endereco === 'livre'
   // No modo livre: origem/destino vêm do endereço estruturado (rua/bairro).
   // Valor é preenchido automaticamente com o preço da rota.
@@ -1875,17 +1910,17 @@ function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSa
               <span className="text-2xl font-bold text-gray-800">{form.quantidade}</span>
               <p className="text-xs text-gray-400">{form.quantidade === 1 ? 'passageiro' : 'passageiros'}</p>
             </div>
-            <button onClick={() => setForm(f => ({ ...f, quantidade: empresaCtx || !form.rota_id ? f.quantidade + 1 : Math.min(vagasDisponiveis, f.quantidade + 1) }))}
-              disabled={!empresaCtx && !!form.rota_id && form.quantidade >= vagasDisponiveis}
+            <button onClick={() => setForm(f => ({ ...f, quantidade: temControleVagas ? Math.min(vagasDisponiveis, f.quantidade + 1) : f.quantidade + 1 }))}
+              disabled={temControleVagas && form.quantidade >= vagasDisponiveis}
               className="w-10 h-10 rounded-xl text-xl font-bold border border-gray-200 flex items-center justify-center disabled:opacity-40"
               style={{ background: '#0F6E56', color: '#fff' }}>
               +
             </button>
           </div>
-          {!empresaCtx && !!form.rota_id && vagasDisponiveis > 0 && (
-            <p className="text-xs text-gray-400 mt-1 text-center">{vagasDisponiveis} vaga{vagasDisponiveis !== 1 ? 's' : ''} disponível{vagasDisponiveis !== 1 ? 'is' : ''}</p>
+          {temControleVagas && vagasDisponiveis > 0 && (
+            <p className="text-xs text-gray-400 mt-1 text-center">{vagasDisponiveis} vaga{vagasDisponiveis !== 1 ? 's' : ''} disponível{vagasDisponiveis !== 1 ? 'is' : ''} ({vagasOcupadas}/{capacidade})</p>
           )}
-          {!empresaCtx && !!form.rota_id && vagasDisponiveis === 0 && (
+          {temControleVagas && vagasDisponiveis === 0 && (
             <p className="text-xs text-red-500 mt-1 text-center">Turno completo ({vagasOcupadas}/{capacidade}) — nenhuma vaga disponível</p>
           )}
         </Campo>
