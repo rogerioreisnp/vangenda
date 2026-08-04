@@ -41,6 +41,7 @@ type RotaRF = {
   preco: number | null
   origem: string | null
   destino: string | null
+  oferece_porta?: boolean | null
 }
 
 type PrecoRF = {
@@ -62,6 +63,7 @@ type FormRotaRF = {
   preco: string
   origem: string
   destino: string
+  oferece_porta: boolean
 }
 
 export default function RotasPage() {
@@ -85,6 +87,7 @@ export default function RotasPage() {
     capacidade: '15', motorista_id: '', veiculo_placa: '',
     ativa: true, dias_semana: [1, 2, 3, 4, 5],
     modo_endereco: 'paradas', preco: '', origem: '', destino: '',
+    oferece_porta: false,
   })
   const [paradasRF, setParadasRF] = useState<string[]>([])
   const [precosRF, setPrecosRF] = useState<PrecoRF[]>([])
@@ -119,7 +122,7 @@ export default function RotasPage() {
         .single(),
       supabase
         .from('rotas_empresa')
-        .select('id, origem, destino, distancia_km, preco, motorista_id, veiculo_placa, nome, horario_ida, horario_volta, capacidade, ativa, dias_semana, modo_endereco')
+        .select('id, origem, destino, distancia_km, preco, motorista_id, veiculo_placa, nome, horario_ida, horario_volta, capacidade, ativa, dias_semana, modo_endereco, oferece_porta')
         .eq('empresa_id', gestor.empresa_id)
         .order('created_at'),
       supabase
@@ -225,7 +228,7 @@ export default function RotasPage() {
 
   function abrirAdicionarRF() {
     setRotaRFEditando(null)
-    setFormRF({ nome: '', horario_ida: '05:00', horario_volta: '14:00', capacidade: '15', motorista_id: '', veiculo_placa: '', ativa: true, dias_semana: [1, 2, 3, 4, 5], modo_endereco: 'paradas', preco: '', origem: '', destino: '' })
+    setFormRF({ nome: '', horario_ida: '05:00', horario_volta: '14:00', capacidade: '15', motorista_id: '', veiculo_placa: '', ativa: true, dias_semana: [1, 2, 3, 4, 5], modo_endereco: 'paradas', preco: '', origem: '', destino: '', oferece_porta: false })
     setParadasRF([])
     setPrecosRF([])
     setNovaParadaRF('')
@@ -248,6 +251,7 @@ export default function RotasPage() {
       preco: r.preco != null ? String(r.preco) : '',
       origem: r.origem || '',
       destino: r.destino || '',
+      oferece_porta: !!r.oferece_porta,
     })
     const { data: trechos } = await supabase
       .from('paradas_empresa')
@@ -306,6 +310,7 @@ export default function RotasPage() {
       preco: formRF.modo_endereco === 'livre' ? (parseFloat(formRF.preco) || 0) : null,
       origem: formRF.modo_endereco === 'livre' ? formRF.origem.trim() : null,
       destino: formRF.modo_endereco === 'livre' ? formRF.destino.trim() : null,
+      oferece_porta: formRF.oferece_porta,
     }
 
     let rotaId: string
@@ -382,6 +387,7 @@ export default function RotasPage() {
         preco: r.preco,
         origem: r.origem,
         destino: r.destino,
+        oferece_porta: !!r.oferece_porta,
       })
       .select('id')
       .single()
@@ -706,6 +712,31 @@ export default function RotasPage() {
                     ))}
                   </div>
                 </div>
+
+                {/* Serviço de porta — pedido do Alexandre (Recife, 2026-08-04).
+                    Sem isso ele era obrigado a duplicar a rota pra cada
+                    modalidade, e a lotação da van era contada separado em
+                    cada cópia (van de 4 aceitando 12 reservas). */}
+                {formRF.modo_endereco === 'paradas' && (
+                  <div className="rounded-xl p-3 flex flex-col gap-2" style={{ background: '#F0FDF4', border: '1px solid #BBF7D0' }}>
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs font-semibold" style={{ color: '#166534' }}>🏠 Buscar / deixar na porta</p>
+                      <button type="button"
+                        onClick={() => setFormRF(f => ({ ...f, oferece_porta: !f.oferece_porta }))}
+                        className="relative w-11 h-6 rounded-full transition-colors flex-shrink-0"
+                        style={{ background: formRF.oferece_porta ? '#1D9E75' : '#e5e7eb' }}>
+                        <div className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all"
+                          style={{ left: formRF.oferece_porta ? '22px' : '2px' }} />
+                      </button>
+                    </div>
+                    <p className="text-xs text-gray-500 leading-snug">
+                      Ligando isso, o passageiro escolhe no agendamento se quer ser
+                      <strong> buscado em casa</strong>, <strong>deixado em casa</strong> ou
+                      <strong> os dois</strong> — tudo dentro desta mesma rota, com a mesma van
+                      e a mesma lotação. O preço continua vindo do trecho.
+                    </p>
+                  </div>
+                )}
 
                 {/* Campos exclusivos do modo livre: origem/destino texto + preço da rota */}
                 {formRF.modo_endereco === 'livre' && (

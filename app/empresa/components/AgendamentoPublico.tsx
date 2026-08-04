@@ -57,7 +57,18 @@ type Rota = {
   dias_semana: number[] | null
   capacidade: number | null
   modo_endereco: 'paradas' | 'livre' | null
+  oferece_porta?: boolean | null
 }
+
+// Modalidades de embarque/desembarque do rota fixa. A rota so mostra a
+// escolha quando o gestor liga "oferece_porta" — quem faz so ponto a ponto
+// nao ve nada disso (pedido Alexandre/Recife 2026-08-04).
+const MODALIDADES_PORTA = [
+  { value: 'rota',        label: '🚏 Embarco e desembarco no ponto', desc: 'Você vai até o ponto e desce no ponto' },
+  { value: 'buscar',      label: '🏠 Buscar em casa',                desc: 'A van te busca no seu endereço e deixa no ponto' },
+  { value: 'deixar',      label: '🏁 Deixar em casa',                desc: 'Você embarca no ponto e a van te deixa no seu endereço' },
+  { value: 'porta_porta', label: '🏠🏁 Porta a porta',               desc: 'A van te busca e te deixa no endereço' },
+] as const
 
 const NOMES_DIAS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 const NOMES_DIAS_COMPLETOS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
@@ -112,6 +123,7 @@ export default function AgendamentoPublico({
     referencia_retorno_desembarque: '',
     quantidade_bagagem: 0,
     quantidade_passageiros: 1,
+    modalidade_embarque: 'rota' as 'rota' | 'buscar' | 'deixar' | 'porta_porta',
   })
   const [rotaSelecionada, setRotaSelecionada] = useState<Rota | null>(null)
   const [rotaManual, setRotaManual] = useState(false)
@@ -185,7 +197,7 @@ export default function AgendamentoPublico({
   async function carregarRotas() {
     const { data } = await supabase
       .from('rotas_empresa')
-      .select('id, nome, origem, destino, preco, horario_ida, horario_volta, dias_semana, capacidade, modo_endereco')
+      .select('id, nome, origem, destino, preco, horario_ida, horario_volta, dias_semana, capacidade, modo_endereco, oferece_porta')
       .eq('empresa_id', empresa.id)
       .order('created_at')
     if (data) setRotas(data)
@@ -349,6 +361,17 @@ export default function AgendamentoPublico({
       }
       if (valorTrechoRF === null) {
         setErro('Trecho não disponível para esta rota'); return
+      }
+      // Escolheu ser buscado/deixado em casa? Então o endereço deixa de ser
+      // opcional — sem ele o motorista não tem onde ir.
+      const m = form.modalidade_embarque
+      const embPreenchido = (form.rua + form.bairro + form.municipio + form.referencia).trim()
+      const desPreenchido = (form.rua_desembarque + form.bairro_desembarque + form.municipio_desembarque + form.referencia_desembarque).trim()
+      if ((m === 'buscar' || m === 'porta_porta') && !embPreenchido) {
+        setErro('Você escolheu ser buscado em casa — informe o endereço de embarque abaixo.'); return
+      }
+      if ((m === 'deixar' || m === 'porta_porta') && !desPreenchido) {
+        setErro('Você escolheu ser deixado em casa — informe o endereço de desembarque abaixo.'); return
       }
     }
     // Rota_fixa modo 'livre': exige endereço estruturado do passageiro (rua ou bairro)
@@ -559,6 +582,7 @@ export default function AgendamentoPublico({
       cep_desembarque: form.cep_desembarque.trim() || null,
       referencia_desembarque: form.referencia_desembarque.trim() || null,
       quantidade_bagagem: form.quantidade_bagagem || 0,
+      modalidade_embarque: form.modalidade_embarque,
     }))
 
     const { error } = await supabase.from('corridas_empresa').insert(registros)
@@ -601,7 +625,7 @@ export default function AgendamentoPublico({
 
   function resetForm() {
     setEtapa('form')
-    setForm({ rota_id: '', data: '', horario: '', nome: '', telefone: '', email: '', observacoes: '', rua: '', numero: '', bairro: '', municipio: '', cep: '', referencia: '', rua_desembarque: '', numero_desembarque: '', bairro_desembarque: '', municipio_desembarque: '', cep_desembarque: '', referencia_desembarque: '', rua_retorno_embarque: '', numero_retorno_embarque: '', bairro_retorno_embarque: '', municipio_retorno_embarque: '', cep_retorno_embarque: '', referencia_retorno_embarque: '', rua_retorno_desembarque: '', numero_retorno_desembarque: '', bairro_retorno_desembarque: '', municipio_retorno_desembarque: '', cep_retorno_desembarque: '', referencia_retorno_desembarque: '', quantidade_bagagem: 0, quantidade_passageiros: 1 })
+    setForm({ rota_id: '', data: '', horario: '', nome: '', telefone: '', email: '', observacoes: '', rua: '', numero: '', bairro: '', municipio: '', cep: '', referencia: '', rua_desembarque: '', numero_desembarque: '', bairro_desembarque: '', municipio_desembarque: '', cep_desembarque: '', referencia_desembarque: '', rua_retorno_embarque: '', numero_retorno_embarque: '', bairro_retorno_embarque: '', municipio_retorno_embarque: '', cep_retorno_embarque: '', referencia_retorno_embarque: '', rua_retorno_desembarque: '', numero_retorno_desembarque: '', bairro_retorno_desembarque: '', municipio_retorno_desembarque: '', cep_retorno_desembarque: '', referencia_retorno_desembarque: '', quantidade_bagagem: 0, quantidade_passageiros: 1, modalidade_embarque: 'rota' })
     setRotaSelecionada(null)
     setRotaManual(false)
     setOrigemManual('')
@@ -783,6 +807,36 @@ export default function AgendamentoPublico({
                       </select>
                     </Campo>
                   </div>
+
+                  {/* Modalidade de porta — so aparece se a rota oferece.
+                      Uma rota so, uma van so, uma lotacao so. */}
+                  {rotaSelecionada.oferece_porta && (
+                    <Campo label="Como você quer ser atendido? *">
+                      <div className="flex flex-col gap-1.5">
+                        {MODALIDADES_PORTA.map(m => {
+                          const sel = form.modalidade_embarque === m.value
+                          return (
+                            <button key={m.value} type="button"
+                              onClick={() => setForm(f => ({ ...f, modalidade_embarque: m.value }))}
+                              className="w-full text-left px-3 py-2.5 rounded-xl border transition-all"
+                              style={sel
+                                ? { background: cor, color: '#fff', borderColor: cor }
+                                : { background: '#fff', color: '#374151', borderColor: '#e5e7eb' }}>
+                              <p className="text-sm font-semibold">{m.label}</p>
+                              <p className="text-[11px] mt-0.5" style={{ color: sel ? 'rgba(255,255,255,0.85)' : '#9ca3af' }}>
+                                {m.desc}
+                              </p>
+                            </button>
+                          )
+                        })}
+                      </div>
+                      {form.modalidade_embarque !== 'rota' && (
+                        <p className="text-[11px] mt-1.5" style={{ color: '#9A3412' }}>
+                          ⬇️ Preencha o endereço nos campos mais abaixo para o motorista te encontrar.
+                        </p>
+                      )}
+                    </Campo>
+                  )}
 
                   {embarque && desembarque && valorTrechoRF === null && (
                     <div className="rounded-xl px-4 py-3 border" style={{ background: '#FCEBEB', borderColor: '#F5BCBC' }}>

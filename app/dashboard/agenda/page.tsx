@@ -32,7 +32,16 @@ type Agendamento = {
   referencia_desembarque?: string
   quantidade_bagagem?: number | null
   ordem?: number | null
+  modalidade_embarque?: string | null
   _source?: 'corrida_empresa'
+}
+
+// Etiqueta curta do serviço contratado — o motorista precisa saber, olhando
+// o card, se busca/deixa o passageiro em casa (Alexandre/Recife 2026-08-04).
+const MODALIDADE_LABEL: Record<string, string> = {
+  buscar:      '🏠 Buscar em casa',
+  deixar:      '🏁 Deixar em casa',
+  porta_porta: '🏠🏁 Porta a porta',
 }
 
 type Encomenda = {
@@ -139,7 +148,7 @@ export default function AgendaPage() {
       let corrData: any[] = []
       if (empresaId) {
         let cq = supabase.from('corridas_empresa')
-          .select('id, rota_id, origem, destino, data_hora, cliente_nome, cliente_telefone, valor, status, forma_pagamento')
+          .select('id, rota_id, origem, destino, data_hora, cliente_nome, cliente_telefone, valor, status, forma_pagamento, modalidade_embarque')
           .eq('empresa_id', empresaId)
           .gte('data_hora', `${inicio}T00:00:00`)
           .lte('data_hora', `${fim}T23:59:59`)
@@ -166,6 +175,7 @@ export default function AgendaPage() {
           data_viagem: c.data_hora.slice(0, 10),
           telefone_passageiro: c.cliente_telefone ?? undefined,
           forma_pagamento: c.forma_pagamento ?? undefined,
+        modalidade_embarque: c.modalidade_embarque ?? null,
           _source: 'corrida_empresa' as const,
         })
         return acc
@@ -207,7 +217,7 @@ export default function AgendaPage() {
     let corrDataMot: any[] = []
     if (empresaCtx?.motEmpresaId && empresaCtx.empresaId) {
       let cq = supabase.from('corridas_empresa')
-        .select('id, rota_id, origem, destino, data_hora, cliente_nome, cliente_telefone, valor, status, forma_pagamento')
+        .select('id, rota_id, origem, destino, data_hora, cliente_nome, cliente_telefone, valor, status, forma_pagamento, modalidade_embarque')
         .eq('empresa_id', empresaCtx.empresaId)
         .gte('data_hora', `${inicio}T00:00:00`)
         .lte('data_hora', `${fim}T23:59:59`)
@@ -232,6 +242,7 @@ export default function AgendaPage() {
         data_viagem: c.data_hora.slice(0, 10),
         telefone_passageiro: c.cliente_telefone ?? undefined,
         forma_pagamento: c.forma_pagamento ?? undefined,
+        modalidade_embarque: c.modalidade_embarque ?? null,
         _source: 'corrida_empresa' as const,
       })
       return acc
@@ -297,7 +308,7 @@ export default function AgendaPage() {
     let corrData: any[] = []
     if (empresaId) {
       let cq = supabase.from('corridas_empresa')
-        .select('id, rota_id, origem, destino, data_hora, cliente_nome, cliente_telefone, valor, status, forma_pagamento')
+        .select('id, rota_id, origem, destino, data_hora, cliente_nome, cliente_telefone, valor, status, forma_pagamento, modalidade_embarque')
         .eq('empresa_id', empresaId)
         .gte('data_hora', `${inicio}T00:00:00`)
         .lte('data_hora', `${fim}T23:59:59`)
@@ -323,6 +334,7 @@ export default function AgendaPage() {
         data_viagem: c.data_hora.slice(0, 10),
         telefone_passageiro: c.cliente_telefone ?? undefined,
         forma_pagamento: c.forma_pagamento ?? undefined,
+        modalidade_embarque: c.modalidade_embarque ?? null,
         _source: 'corrida_empresa' as const,
       })
       return acc
@@ -944,6 +956,12 @@ function CardPassageiro({ p, onVerDetalhe, onGripTouchStart }: {
         )}
         {!p.telefone_passageiro && !!p.quantidade_bagagem && (
           <p className="text-xs text-gray-400">🧳 {p.quantidade_bagagem}</p>
+        )}
+        {p.modalidade_embarque && MODALIDADE_LABEL[p.modalidade_embarque] && (
+          <span className="inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded-full mt-1"
+            style={{ background: '#F0FDF4', color: '#166534' }}>
+            {MODALIDADE_LABEL[p.modalidade_embarque]}
+          </span>
         )}
       </div>
       <div className="text-right flex-shrink-0">
