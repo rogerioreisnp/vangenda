@@ -738,13 +738,14 @@ export default function AgendamentosPage() {
   async function carregarEnderecosCliente(telefone: string) {
     const tel = telefone.trim()
     if (!tel || !empresaId) { setEnderecosClienteForm([]); return }
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('enderecos_clientes')
       .select('endereco')
       .eq('empresa_id', empresaId)
       .eq('telefone', tel)
       .order('contador', { ascending: false })
       .limit(6)
+    if (error) console.error('[enderecos-cliente] falha ao carregar:', error.message)
     setEnderecosClienteForm((data || []).map(r => r.endereco))
   }
 
@@ -755,23 +756,28 @@ export default function AgendamentosPage() {
     const end = endereco.trim()
     if (!tel || !end || !empresaId) return
     try {
-      const { data: existing } = await supabase
+      const { data: existing, error: errSel } = await supabase
         .from('enderecos_clientes')
         .select('id, contador')
         .eq('empresa_id', empresaId)
         .eq('telefone', tel)
         .eq('endereco', end)
         .maybeSingle()
+      if (errSel) { console.error('[enderecos-cliente] falha ao consultar:', errSel.message); return }
       if (existing) {
-        await supabase.from('enderecos_clientes')
+        const { error: errUpd } = await supabase.from('enderecos_clientes')
           .update({ contador: (existing.contador || 1) + 1 })
           .eq('id', existing.id)
+        if (errUpd) console.error('[enderecos-cliente] falha ao atualizar:', errUpd.message)
       } else {
-        await supabase.from('enderecos_clientes').insert({
+        const { error: errIns } = await supabase.from('enderecos_clientes').insert({
           empresa_id: empresaId, telefone: tel, endereco: end, contador: 1,
         })
+        if (errIns) console.error('[enderecos-cliente] falha ao gravar:', errIns.message)
       }
-    } catch {}
+    } catch (e) {
+      console.error('[enderecos-cliente] erro inesperado:', e)
+    }
   }
 
   async function salvar() {
