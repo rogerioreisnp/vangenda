@@ -142,6 +142,11 @@ const categoriasReceitaRF = [
 ]
 
 const categoriasDespesaRF = [
+  // Mao de obra — sem essas categorias o gestor nao tinha onde lancar o que
+  // paga a motorista/cobrador, e o lucro saia inflado (caso Elson/CE,
+  // 2026-08-04: paga a equipe por DIARIA e precisava saber o lucro real).
+  { value: 'repasse_motorista', label: 'Repasse / diária motorista', emoji: '🚐' },
+  { value: 'equipe',            label: 'Equipe (cobrador, auxiliar)', emoji: '👥' },
   { value: 'combustivel',   label: 'Combustível',      emoji: '⛽' },
   { value: 'manutencao',    label: 'Manutenção',       emoji: '🔧' },
   { value: 'pedagio',       label: 'Pedágio',          emoji: '🛣️' },
@@ -153,6 +158,10 @@ const categoriasDespesaRF = [
   { value: 'contas',        label: 'Contas',           emoji: '🧾' },
   { value: 'outros',        label: 'Outros',           emoji: '📦' },
 ]
+
+// Categorias que representam mao de obra — separadas no breakdown do lucro
+// liquido pro gestor enxergar quanto foi pra equipe vs custo de veiculo.
+const CATEGORIAS_MAO_DE_OBRA_RF = ['repasse_motorista', 'equipe']
 
 const ABAS_VALIDAS: Aba[] = ['resumo', 'receitas', 'despesas', 'veiculo']
 
@@ -1388,6 +1397,20 @@ type ReceitaEncomenda = {
   forma_pagamento: string | null
 }
 
+// Atendimentos que vivem em corridas_empresa e ate agora NAO entravam no
+// financeiro do rota fixa: fretamento, excursao e as reservas vindas do link
+// publico. O gestor via esse dinheiro na agenda mas nunca no caixa.
+type ReceitaCorridaRF = {
+  id: string
+  origem: string
+  destino: string
+  data_hora: string
+  valor: number
+  cliente_nome: string | null
+  tipo_servico: string | null
+  valor_repasse_motorista: number | null
+}
+
 function FinanceiroRotaFixa({ empresaId }: { empresaId: string }) {
   const [filtro, setFiltro] = useState<FiltroRF>('mes')
   const [mes, setMes] = useState(new Date())
@@ -1396,6 +1419,7 @@ function FinanceiroRotaFixa({ empresaId }: { empresaId: string }) {
   const [lancamentos, setLancamentos] = useState<LancamentoEmpresa[]>([])
   const [receitasAgendamentos, setReceitasAgendamentos] = useState<ReceitaAgendamento[]>([])
   const [receitasEncomendas, setReceitasEncomendas] = useState<ReceitaEncomenda[]>([])
+  const [receitasCorridas, setReceitasCorridas] = useState<ReceitaCorridaRF[]>([])
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState<null | 'receita' | 'despesa'>(null)
   const [editando, setEditando] = useState<LancamentoEmpresa | null>(null)
@@ -1429,7 +1453,7 @@ function FinanceiroRotaFixa({ empresaId }: { empresaId: string }) {
       .eq('empresa_id', empresaId)
     const userIds = (mots ?? []).map(m => m.user_id).filter(Boolean) as string[]
 
-    const [{ data: cobrancas, error: errCobr }, { data: agends }, { data: encs }] = await Promise.all([
+    const [{ data: cobrancas, error: errCobr }, { data: agends }, { data: encs }, { data: corrs, error: errCorr }] = await Promise.all([
       supabase
         .from('cobrancas_empresa')
         .select('id, tipo, categoria, observacao, valor, data, created_at, quilometragem, forma_pagamento, cartao_banco, cartao_final')
@@ -1456,9 +1480,21 @@ function FinanceiroRotaFixa({ empresaId }: { empresaId: string }) {
             .in('motorista_id', userIds)
             .eq('pago', true)
         : Promise.resolve({ data: [] as ReceitaEncomenda[] }),
+      // Fretamento/excursao criados pelo gestor + reservas do link publico.
+      // Ficavam de fora do caixa do rota fixa ate 2026-08-04 — o gestor via na
+      // agenda mas nao no financeiro, entao o lucro nascia incompleto.
+      supabase
+        .from('corridas_empresa')
+        .select('id, origem, destino, data_hora, valor, cliente_nome, tipo_servico, valor_repasse_motorista')
+        .eq('empresa_id', empresaId)
+        .neq('status', 'cancelada')
+        .gte('data_hora', `${inicio}T00:00:00`)
+        .lte('data_hora', `${fim}T23:59:59`)
+        .order('data_hora', { ascending: false }),
     ])
 
     if (errCobr) console.error('[RF] Erro na query cobrancas:', errCobr.message)
+    if (errCorr) console.error('[RF] Erro na query corridas:', errCorr.message)
 
     const todos = (cobrancas as LancamentoEmpresa[]) ?? []
     const filtrados = todos
@@ -1479,6 +1515,7 @@ function FinanceiroRotaFixa({ empresaId }: { empresaId: string }) {
       return d >= inicio && d <= fim
     })
     setReceitasEncomendas(encsFiltradas)
+    setReceitasCorridas((corrs as ReceitaCorridaRF[]) ?? [])
     setLoading(false)
   }
 
@@ -1493,9 +1530,23 @@ function FinanceiroRotaFixa({ empresaId }: { empresaId: string }) {
   const totalReceitasManuais = receitasManuais.reduce((s, r) => s + Number(r.valor), 0)
   const totalReceitasAgendamentos = receitasAgendamentos.reduce((s, r) => s + Number(r.valor), 0)
   const totalReceitasEncomendas = receitasEncomendas.reduce((s, e) => s + Number(e.valor), 0)
-  const totalReceitas = totalReceitasManuais + totalReceitasAgendamentos + totalReceitasEncomendas
+  const totalReceitasCorridas = receitasCorridas.reduce((s, c) => s + Number(c.valor || 0), 0)
+  const totalReceitas = totalReceitasManuais + totalReceitasAgendamentos + totalReceitasEncomendas + totalReceitasCorridas
   const totalDespesas = despesas.reduce((s, d) => s + Number(d.valor), 0)
-  const lucro = totalReceitas - totalDespesas
+  // Repasse gravado no proprio atendimento (fretamento/excursao com motorista
+  // parceiro) — mesmo desconto que o transfer ja faz. Diaria de motorista/
+  // cobrador o gestor lanca como despesa nas categorias de mao de obra.
+  const totalRepasseCorridas = receitasCorridas.reduce(
+    (s, c) => s + Number(c.valor_repasse_motorista || 0), 0
+  )
+  // Quebra das despesas entre mao de obra e custo operacional — o gestor
+  // precisa enxergar quanto foi pra equipe (pedido Elson/CE, dizimista:
+  // "preciso saber o que sobrou pra mim").
+  const totalMaoDeObra = despesas
+    .filter(d => CATEGORIAS_MAO_DE_OBRA_RF.includes(d.categoria))
+    .reduce((s, d) => s + Number(d.valor), 0) + totalRepasseCorridas
+  const totalOperacional = totalDespesas - (totalMaoDeObra - totalRepasseCorridas)
+  const lucro = totalReceitas - totalDespesas - totalRepasseCorridas
 
   /* ── Listas filtradas (so pras listagens; os cards de topo continuam
         mostrando os totais cheios do periodo). ── */
@@ -1580,7 +1631,7 @@ function FinanceiroRotaFixa({ empresaId }: { empresaId: string }) {
             <p style={{ color: '#FAC775' }} className="text-base font-bold mt-0.5">R$ {totalDespesas.toFixed(0)}</p>
           </div>
           <div style={{ background: lucro >= 0 ? '#085041' : '#6B1A1A' }} className="rounded-xl p-3">
-            <p style={{ color: '#5DCAA5' }} className="text-[10px]">Lucro</p>
+            <p style={{ color: '#5DCAA5' }} className="text-[10px]">Lucro líquido</p>
             <p style={{ color: lucro >= 0 ? '#E1F5EE' : '#FAC775' }} className="text-base font-bold mt-0.5">R$ {lucro.toFixed(0)}</p>
           </div>
         </div>
@@ -1604,6 +1655,83 @@ function FinanceiroRotaFixa({ empresaId }: { empresaId: string }) {
           <p className="text-center text-gray-400 text-sm py-10">Carregando...</p>
         ) : (
           <>
+            {/* Conta aberta do lucro liquido — o gestor precisa VER a conta,
+                nao confiar num numero seco (pedido Elson/CE 2026-08-04:
+                dizimista, precisa saber exatamente o que sobrou pra ele). */}
+            {(totalReceitas > 0 || totalDespesas > 0) && (
+              <div className="rounded-2xl p-4 border mb-5"
+                style={{
+                  background:  lucro >= 0 ? '#E1F5EE' : '#FCEBEB',
+                  borderColor: lucro >= 0 ? '#9FE1CB' : '#FECACA',
+                }}>
+                <p className="text-xs mb-2" style={{ color: lucro >= 0 ? '#085041' : '#A32D2D' }}>
+                  {lucro >= 0 ? '📈' : '📉'} Como chegamos no seu lucro
+                </p>
+                <div className="text-[11px] mb-2 flex flex-col gap-0.5"
+                  style={{ color: lucro >= 0 ? '#085041' : '#A32D2D' }}>
+                  <div className="flex justify-between">
+                    <span>Tudo que entrou</span>
+                    <span>R$ {totalReceitas.toFixed(2).replace('.', ',')}</span>
+                  </div>
+                  {totalMaoDeObra > 0 && (
+                    <div className="flex justify-between">
+                      <span>(-) Motorista e equipe</span>
+                      <span>R$ {totalMaoDeObra.toFixed(2).replace('.', ',')}</span>
+                    </div>
+                  )}
+                  {totalOperacional > 0 && (
+                    <div className="flex justify-between">
+                      <span>(-) Custos de operação</span>
+                      <span>R$ {totalOperacional.toFixed(2).replace('.', ',')}</span>
+                    </div>
+                  )}
+                </div>
+                <div className="pt-2 border-t" style={{ borderColor: lucro >= 0 ? '#9FE1CB' : '#FECACA' }}>
+                  <p className="text-[11px]" style={{ color: lucro >= 0 ? '#085041' : '#A32D2D' }}>
+                    Sobrou pra você
+                  </p>
+                  <p className="text-2xl font-bold" style={{ color: lucro >= 0 ? '#0F6E56' : '#A32D2D' }}>
+                    {lucro < 0 ? '-' : ''}R$ {Math.abs(lucro).toFixed(2).replace('.', ',')}
+                  </p>
+                </div>
+                {totalMaoDeObra === 0 && (
+                  <p className="text-[10px] mt-2 leading-snug" style={{ color: lucro >= 0 ? '#0F6E56' : '#A32D2D' }}>
+                    💡 Paga motorista ou cobrador? Lance em <strong>+ Despesa</strong> nas categorias
+                    “Repasse / diária motorista” ou “Equipe” — aí esse valor entra na conta.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Fretamentos, excursões e reservas do link público */}
+            {receitasCorridas.length > 0 && (
+              <div className="mb-5">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">🚌 Fretamentos e reservas</p>
+                  <p className="text-xs font-semibold" style={{ color: '#0F6E56' }}>+ R$ {totalReceitasCorridas.toFixed(2).replace('.', ',')}</p>
+                </div>
+                <div className="bg-white rounded-2xl overflow-hidden border border-gray-100">
+                  {receitasCorridas.slice(0, 20).map(c => (
+                    <Link key={c.id} href={`/empresa/agendamentos/fretamentos?ficha=${c.id}`}
+                      className="flex items-center px-4 py-3 border-b border-gray-50 last:border-0 gap-2 active:opacity-75">
+                      <span className="text-xl mr-1">
+                        {c.tipo_servico === 'excursao' ? '🗺️' : c.tipo_servico === 'fretamento' ? '🚌' : '🛣️'}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-800 truncate">{c.cliente_nome || 'Sem nome'}</p>
+                        <p className="text-xs text-gray-400 truncate">
+                          {c.data_hora.slice(8, 10)}/{c.data_hora.slice(5, 7)} · {c.origem} → {c.destino}
+                        </p>
+                      </div>
+                      <p className="text-sm font-bold flex-shrink-0" style={{ color: '#0F6E56' }}>
+                        R$ {Number(c.valor).toFixed(2).replace('.', ',')}
+                      </p>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Viagens realizadas (agendamentos dos motoristas da empresa) */}
             {receitasAgendamentos.length > 0 && (
               <div className="mb-5">
