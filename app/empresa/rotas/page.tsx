@@ -852,7 +852,7 @@ export default function RotasPage() {
                     <p className="text-xs text-gray-500 leading-snug">
                       Ligando isso, o passageiro escolhe no agendamento se quer ser
                       <strong> buscado em casa</strong>, <strong>deixado em casa</strong> ou
-                      <strong> os dois</strong> — tudo dentro desta mesma rota, com a mesma van
+                      <strong> os dois</strong> — tudo dentro desta mesma rota, com o mesmo veículo
                       e a mesma lotação.
                     </p>
                     {formRF.oferece_porta && (

@@ -75,10 +75,10 @@ type SaidaRota = {
 }
 
 const MODALIDADES_PORTA = [
-  { value: 'rota',        label: '🚏 Embarco e desembarco no ponto', desc: 'Você vai até o ponto e desce no ponto' },
-  { value: 'buscar',      label: '🏠 Buscar em casa',                desc: 'A van te busca no seu endereço e deixa no ponto' },
-  { value: 'deixar',      label: '🏁 Deixar em casa',                desc: 'Você embarca no ponto e a van te deixa no seu endereço' },
-  { value: 'porta_porta', label: '🏠🏁 Porta a porta',               desc: 'A van te busca e te deixa no endereço' },
+  { value: 'rota',        label: '📍 Ponto de Encontro',      desc: 'Embarque e desembarque nos pontos oficiais da rota' },
+  { value: 'buscar',      label: '🏠 Buscar no meu Endereço', desc: 'Buscamos você no endereço informado e o desembarque será no ponto oficial' },
+  { value: 'deixar',      label: '🚩 Deixar no meu Endereço', desc: 'Embarque no ponto oficial e desembarque no endereço informado' },
+  { value: 'porta_porta', label: '🚐 Serviço Porta a Porta',  desc: 'Buscamos e deixamos você no endereço informado. Mais comodidade durante toda a viagem' },
 ] as const
 
 const NOMES_DIAS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
@@ -1016,7 +1016,7 @@ export default function AgendamentoPublico({
                   como o Alexandre sugeriu. Marcar aqui faz os campos de
                   endereço aparecerem e recalcula o valor na hora. */}
               {empresa.tipo_operacao === 'rota_fixa' && rotaSelecionada?.oferece_porta && rotaSelecionada.modo_endereco !== 'livre' && (
-                <Campo label="Como você quer ser atendido? *">
+                <Campo label="Como será seu embarque e desembarque? *">
                   <div className="flex flex-col gap-1.5">
                     {MODALIDADES_PORTA.map(m => {
                       const sel = form.modalidade_embarque === m.value
@@ -1024,6 +1024,11 @@ export default function AgendamentoPublico({
                         : m.value === 'deixar' ? acrescimoDeixar
                         : m.value === 'porta_porta' ? acrescimoBuscar + acrescimoDeixar
                         : 0
+                      // Mostra o valor final (base + acrescimo) em vez de so o
+                      // acrescimo, pra passageiro nao precisar fazer conta
+                      // (sugestao Alexandre/Recife). So da pra saber o valor
+                      // final depois que o trecho foi escolhido.
+                      const valorFinal = valorTrechoRF !== null ? valorTrechoRF + extra : null
                       return (
                         <button key={m.value} type="button"
                           onClick={() => setForm(f => ({ ...f, modalidade_embarque: m.value }))}
@@ -1037,7 +1042,12 @@ export default function AgendamentoPublico({
                               {m.desc}
                             </p>
                           </div>
-                          {extra > 0 && (
+                          {valorFinal !== null ? (
+                            <span className="text-xs font-bold flex-shrink-0 text-right"
+                              style={{ color: sel ? '#fff' : cor }}>
+                              Valor final<br />R$ {valorFinal.toFixed(2).replace('.', ',')}
+                            </span>
+                          ) : extra > 0 && (
                             <span className="text-xs font-bold flex-shrink-0"
                               style={{ color: sel ? '#fff' : cor }}>
                               +R$ {extra.toFixed(2).replace('.', ',')}
@@ -1047,6 +1057,10 @@ export default function AgendamentoPublico({
                       )
                     })}
                   </div>
+                  <p className="text-[11px] text-gray-400 mt-1.5 leading-snug">
+                    📌 O serviço de busca e/ou entrega em domicílio está sujeito à
+                    cobertura da nossa área de atendimento.
+                  </p>
                 </Campo>
               )}
 
