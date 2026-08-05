@@ -65,6 +65,15 @@ type Rota = {
 // Modalidades de embarque/desembarque do rota fixa. A rota so mostra a
 // escolha quando o gestor liga "oferece_porta" — quem faz so ponto a ponto
 // nao ve nada disso (pedido Alexandre/Recife 2026-08-04).
+// Uma saida da rota. Mesma rota pode ter varias no dia, cada uma com seu
+// motorista e lotacao — o passageiro escolhe qual quer.
+type SaidaRota = {
+  id: string
+  horario: string
+  sentido: 'ida' | 'volta'
+  capacidade: number | null
+}
+
 const MODALIDADES_PORTA = [
   { value: 'rota',        label: '🚏 Embarco e desembarco no ponto', desc: 'Você vai até o ponto e desce no ponto' },
   { value: 'buscar',      label: '🏠 Buscar em casa',                desc: 'A van te busca no seu endereço e deixa no ponto' },
@@ -166,6 +175,8 @@ export default function AgendamentoPublico({
   const [retornoOrigem, setRetornoOrigem] = useState('')
   const [retornoDestino, setRetornoDestino] = useState('')
   const [turnoRF, setTurnoRF] = useState<'ida' | 'volta'>('ida')
+  const [saidasRota, setSaidasRota] = useState<SaidaRota[]>([])
+  const [saidaId, setSaidaId] = useState<string>('')
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
   const [chavePix, setChavePix] = useState<string | null>(null)
@@ -278,6 +289,30 @@ export default function AgendamentoPublico({
     const rota = rotas.find(r => r.id === rotaId) || null
     setRotaSelecionada(rota)
     setTurnoRF('ida')
+    setSaidasRota([])
+    setSaidaId('')
+
+    // Saidas cadastradas nesta rota — o passageiro escolhe entre elas.
+    if (rotaId && empresa.tipo_operacao === 'rota_fixa') {
+      const { data: sds } = await supabase
+        .from('horarios_rota')
+        .select('id, horario, sentido, capacidade')
+        .eq('rota_id', rotaId)
+        .eq('ativo', true)
+        .order('horario')
+      const lista = (sds || []).map(s => ({
+        id: s.id as string,
+        horario: (s.horario as string).slice(0, 5),
+        sentido: s.sentido as 'ida' | 'volta',
+        capacidade: s.capacidade as number | null,
+      }))
+      setSaidasRota(lista)
+      const primeiraIda = lista.find(s => s.sentido === 'ida') ?? lista[0]
+      if (primeiraIda) {
+        setSaidaId(primeiraIda.id)
+        setTurnoRF(primeiraIda.sentido)
+      }
+    }
     // Para rota_fixa, o horário vem automaticamente da rota
     const horaInicial = rota?.horario_ida?.slice(0, 5) ?? ''
     setForm(f => ({ ...f, rota_id: rotaId, horario: horaInicial }))
@@ -305,12 +340,19 @@ export default function AgendamentoPublico({
     }
   }
 
-  // Sincroniza form.horario quando o turno muda (só rota_fixa)
+  // Sincroniza form.horario com a SAÍDA escolhida. Rota sem saídas
+  // cadastradas cai no comportamento antigo (horário fixo da rota).
   useEffect(() => {
     if (empresa.tipo_operacao !== 'rota_fixa' || !rotaSelecionada) return
+    const saida = saidasRota.find(s => s.id === saidaId)
+    if (saida) {
+      setForm(f => ({ ...f, horario: saida.horario }))
+      setTurnoRF(saida.sentido)
+      return
+    }
     const hora = turnoRF === 'ida' ? rotaSelecionada.horario_ida : rotaSelecionada.horario_volta
     setForm(f => ({ ...f, horario: hora?.slice(0, 5) ?? '' }))
-  }, [turnoRF, rotaSelecionada])
+  }, [turnoRF, rotaSelecionada, saidaId, saidasRota])
 
   useEffect(() => {
     if (!embarque || !desembarque || empresa.tipo_operacao !== 'rota_fixa') return
@@ -325,6 +367,18 @@ export default function AgendamentoPublico({
       setVagasDisponiveis(null)
       return
     }
+    // Com saída escolhida, a lotação é DAQUELA saída (contagem exata pelo
+    // vínculo). Sem saída cadastrada, cai na contagem antiga por horário.
+    const saida = saidasRota.find(s => s.id === saidaId)
+    if (saida) {
+      supabase
+        .rpc('count_vagas_saida', { p_horario_id: saida.id, p_data: form.data })
+        .then(({ data: ocupadas }) => {
+          const cap = saida.capacidade ?? rotaSelecionada.capacidade ?? 0
+          setVagasDisponiveis(Math.max(0, cap - (Number(ocupadas) || 0)))
+        })
+      return
+    }
     supabase
       .rpc('count_vagas_ocupadas', {
         p_rota_id: rotaSelecionada.id,
@@ -335,7 +389,7 @@ export default function AgendamentoPublico({
         const cap = rotaSelecionada.capacidade ?? 0
         setVagasDisponiveis(Math.max(0, cap - (ocupadas || 0)))
       })
-  }, [rotaSelecionada, form.data, form.horario, empresa.tipo_operacao])
+  }, [rotaSelecionada, form.data, form.horario, empresa.tipo_operacao, saidaId, saidasRota])
 
   // Validação de dia da semana para rota_fixa
   // Força conversão para number para evitar mismatch string vs number vindo do Postgres
@@ -396,14 +450,22 @@ export default function AgendamentoPublico({
     }
     if (!rotaManual && !rotaSelecionada) return
 
-    // Verificar vagas disponíveis para rota_fixa (RPC bypassa RLS para anon)
-    if (empresa.tipo_operacao === 'rota_fixa' && rotaSelecionada?.capacidade) {
-      const { data: ocupadas } = await supabase.rpc('count_vagas_ocupadas', {
-        p_rota_id: rotaSelecionada.id,
-        p_data: form.data,
-        p_horario: form.horario,
-      })
-      const vagasDisponiveis = rotaSelecionada.capacidade - (ocupadas || 0)
+    // Verificar vagas disponíveis para rota_fixa (RPC bypassa RLS para anon).
+    // Com saída escolhida, confere a lotação DAQUELA saída.
+    const saidaEscolhida = saidasRota.find(s => s.id === saidaId)
+    const capacidadeAlvo = saidaEscolhida
+      ? (saidaEscolhida.capacidade ?? rotaSelecionada?.capacidade ?? 0)
+      : (rotaSelecionada?.capacidade ?? 0)
+
+    if (empresa.tipo_operacao === 'rota_fixa' && capacidadeAlvo > 0) {
+      const { data: ocupadas } = saidaEscolhida
+        ? await supabase.rpc('count_vagas_saida', { p_horario_id: saidaEscolhida.id, p_data: form.data })
+        : await supabase.rpc('count_vagas_ocupadas', {
+            p_rota_id: rotaSelecionada!.id,
+            p_data: form.data,
+            p_horario: form.horario,
+          })
+      const vagasDisponiveis = capacidadeAlvo - (Number(ocupadas) || 0)
       if (vagasDisponiveis <= 0) {
         setErro('Não há vagas disponíveis para esta rota nesta data e horário.')
         return
@@ -584,6 +646,7 @@ export default function AgendamentoPublico({
       referencia_desembarque: form.referencia_desembarque.trim() || null,
       quantidade_bagagem: form.quantidade_bagagem || 0,
       modalidade_embarque: form.modalidade_embarque,
+      horario_rota_id: saidaId || null,
     }))
 
     const { error } = await supabase.from('corridas_empresa').insert(registros)
@@ -643,6 +706,8 @@ export default function AgendamentoPublico({
     setRetornoOrigem('')
     setRetornoDestino('')
     setTurnoRF('ida')
+    setSaidasRota([])
+    setSaidaId('')
     setEmbarque('')
     setDesembarque('')
     setValorTrechoRF(null)
@@ -895,8 +960,35 @@ export default function AgendamentoPublico({
                 </div>
               )}
 
-              {/* Turno (rota_fixa) — horário fixo da rota */}
-              {empresa.tipo_operacao === 'rota_fixa' && rotaSelecionada && (
+              {/* Saídas da rota — o passageiro escolhe o horário que quer.
+                  Mesma rota pode ter várias saídas no dia. Rota sem saídas
+                  cadastradas cai nos botões antigos de Ida/Volta. */}
+              {empresa.tipo_operacao === 'rota_fixa' && rotaSelecionada && saidasRota.length > 0 && (
+                <Campo label="Escolha o horário da sua viagem *">
+                  <div className="flex flex-col gap-1.5">
+                    {saidasRota.map(s => {
+                      const sel = saidaId === s.id
+                      return (
+                        <button key={s.id} type="button" onClick={() => setSaidaId(s.id)}
+                          className="w-full px-3 py-2.5 rounded-xl border transition-all flex items-center gap-2 text-left"
+                          style={sel
+                            ? { background: cor, color: '#fff', borderColor: cor }
+                            : { background: '#fff', color: '#374151', borderColor: '#e5e7eb' }}>
+                          <span className="text-base font-bold flex-shrink-0">{s.horario}h</span>
+                          <span className="text-xs flex-1"
+                            style={{ color: sel ? 'rgba(255,255,255,0.85)' : '#9ca3af' }}>
+                            {s.sentido === 'ida' ? '↑ Ida' : '↓ Volta'}
+                          </span>
+                          {sel && <span className="text-xs font-semibold flex-shrink-0">✓</span>}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </Campo>
+              )}
+
+              {/* Turno (rota_fixa) — fallback pra rota sem saídas cadastradas */}
+              {empresa.tipo_operacao === 'rota_fixa' && rotaSelecionada && saidasRota.length === 0 && (
                 <Campo label="Turno *">
                   <div className="grid grid-cols-2 gap-2">
                     {(['ida', 'volta'] as const).map(t => {

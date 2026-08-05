@@ -46,6 +46,16 @@ type RotaRF = {
   acrescimo_deixar?: number | null
 }
 
+// Uma saida da rota. Mesma rota pode ter varias — cada uma com seu horario,
+// motorista e lotacao. Ver supabase/migrations/horarios_rota.sql.
+type SaidaRF = {
+  id?: string
+  horario: string
+  sentido: 'ida' | 'volta'
+  motorista_id: string
+  capacidade: string
+}
+
 type PrecoRF = {
   origem: string
   destino: string
@@ -99,6 +109,7 @@ export default function RotasPage() {
   const [draggingIdxRF, setDraggingIdxRF] = useState<number | null>(null)
   const [salvandoRF, setSalvandoRF] = useState(false)
   const [duplicandoRF, setDuplicandoRF] = useState<string | null>(null)
+  const [saidasRF, setSaidasRF] = useState<SaidaRF[]>([])
   const [erroRF, setErroRF] = useState('')
   const dragIdxRF = useRef<number | null>(null)
 
@@ -235,6 +246,10 @@ export default function RotasPage() {
     setFormRF({ nome: '', horario_ida: '05:00', horario_volta: '14:00', capacidade: '15', motorista_id: '', veiculo_placa: '', ativa: true, dias_semana: [1, 2, 3, 4, 5], modo_endereco: 'paradas', preco: '', origem: '', destino: '', oferece_porta: false, acrescimo_buscar: '', acrescimo_deixar: '' })
     setParadasRF([])
     setPrecosRF([])
+    setSaidasRF([
+      { horario: '05:00', sentido: 'ida', motorista_id: '', capacidade: '' },
+      { horario: '14:00', sentido: 'volta', motorista_id: '', capacidade: '' },
+    ])
     setNovaParadaRF('')
     setErroRF('')
     setModalRFAberto(true)
@@ -259,6 +274,20 @@ export default function RotasPage() {
       acrescimo_buscar: Number(r.acrescimo_buscar) > 0 ? String(r.acrescimo_buscar) : '',
       acrescimo_deixar: Number(r.acrescimo_deixar) > 0 ? String(r.acrescimo_deixar) : '',
     })
+    const { data: saidas } = await supabase
+      .from('horarios_rota')
+      .select('id, horario, sentido, motorista_id, capacidade')
+      .eq('rota_id', r.id)
+      .order('sentido')
+      .order('horario')
+    setSaidasRF((saidas || []).map(s => ({
+      id: s.id,
+      horario: (s.horario as string)?.slice(0, 5) || '',
+      sentido: s.sentido as 'ida' | 'volta',
+      motorista_id: s.motorista_id || '',
+      capacidade: s.capacidade != null ? String(s.capacidade) : '',
+    })))
+
     const { data: trechos } = await supabase
       .from('paradas_empresa')
       .select('nome, ordem, preco')
@@ -301,10 +330,17 @@ export default function RotasPage() {
     setSalvandoRF(true)
     setErroRF('')
 
+    // horario_ida/horario_volta da rota passam a espelhar a PRIMEIRA saida de
+    // cada sentido. Varias telas antigas (agenda, contagem legada de vagas)
+    // ainda leem esses campos — mantendo em dia, nada quebra enquanto o
+    // sistema migra pras saidas.
+    const idasOrd = saidasRF.filter(s => s.sentido === 'ida' && s.horario).sort((a, b) => a.horario.localeCompare(b.horario))
+    const voltasOrd = saidasRF.filter(s => s.sentido === 'volta' && s.horario).sort((a, b) => a.horario.localeCompare(b.horario))
+
     const payload = {
       nome: formRF.nome.trim(),
-      horario_ida: formRF.horario_ida || null,
-      horario_volta: formRF.horario_volta || null,
+      horario_ida: idasOrd[0]?.horario || formRF.horario_ida || null,
+      horario_volta: voltasOrd[0]?.horario || formRF.horario_volta || null,
       capacidade: parseInt(formRF.capacidade) || null,
       motorista_id: formRF.motorista_id || null,
       veiculo_placa: formRF.veiculo_placa.trim() || null,
@@ -340,6 +376,30 @@ export default function RotasPage() {
       const { data, error } = await supabase.from('rotas_empresa').insert({ ...payload, empresa_id: empresaId }).select('id').single()
       if (error || !data) { setErroRF('Erro ao criar rota: ' + (error?.message || '')); setSalvandoRF(false); return }
       rotaId = data.id
+    }
+
+    // Saidas da rota. Regravadas por completo a cada save — mas so as que
+    // sumiram sao apagadas, pra nao perder o vinculo das reservas que ja
+    // apontam pra uma saida existente (horario_rota_id).
+    const saidasValidas = saidasRF.filter(s => s.horario.trim())
+    const idsMantidos = saidasValidas.map(s => s.id).filter(Boolean) as string[]
+    let delSaidas = supabase.from('horarios_rota').delete().eq('rota_id', rotaId)
+    if (idsMantidos.length > 0) delSaidas = delSaidas.not('id', 'in', `(${idsMantidos.join(',')})`)
+    await delSaidas
+
+    for (const s of saidasValidas) {
+      const linha = {
+        rota_id: rotaId,
+        empresa_id: empresaId,
+        horario: s.horario,
+        sentido: s.sentido,
+        motorista_id: s.motorista_id || null,
+        capacidade: s.capacidade.trim() ? (parseInt(s.capacidade) || null) : null,
+      }
+      const { error: erroS } = s.id
+        ? await supabase.from('horarios_rota').update(linha).eq('id', s.id)
+        : await supabase.from('horarios_rota').insert(linha)
+      if (erroS) { setErroRF('Erro ao salvar as saídas: ' + erroS.message); setSalvandoRF(false); return }
     }
 
     // Só mexe em paradas_empresa se a rota está no modo 'paradas'. No modo
@@ -629,20 +689,72 @@ export default function RotasPage() {
                     placeholder="Ex: São Paulo → Campinas" className="campo-input" />
                 </Campo>
 
-                <div className="grid grid-cols-2 gap-2">
-                  <Campo label="Saída ida">
-                    <input type="time" value={formRF.horario_ida}
-                      onChange={e => setFormRF(f => ({ ...f, horario_ida: e.target.value }))}
-                      className="campo-input" />
-                  </Campo>
-                  <Campo label="Saída volta">
-                    <input type="time" value={formRF.horario_volta}
-                      onChange={e => setFormRF(f => ({ ...f, horario_volta: e.target.value }))}
-                      className="campo-input" />
-                  </Campo>
+                {/* Saídas da rota — o horário não é mais amarrado a um só.
+                    Mesma rota pode ter várias saídas no dia, cada uma com seu
+                    motorista e sua lotação. Pedido insistente da Emanuela
+                    (ASF/Recife): "o horário não pode estar amarrado". */}
+                <div className="rounded-xl p-3 flex flex-col gap-2" style={{ background: '#FFFBEB', border: '1px solid #FDE68A' }}>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold" style={{ color: '#92400E' }}>🕐 Saídas desta rota</p>
+                    <button type="button"
+                      onClick={() => setSaidasRF(prev => [...prev, { horario: '', sentido: 'ida', motorista_id: '', capacidade: '' }])}
+                      className="text-xs font-semibold px-2 py-1 rounded-lg"
+                      style={{ background: '#FDE68A', color: '#92400E' }}>
+                      + Adicionar saída
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-500 leading-snug">
+                    O passageiro escolhe entre estas saídas ao agendar. Cada uma tem lotação
+                    própria — pode ter motorista e veículo diferentes.
+                  </p>
+
+                  {saidasRF.length === 0 && (
+                    <p className="text-xs text-center py-2" style={{ color: '#A32D2D' }}>
+                      Nenhuma saída cadastrada — o passageiro não conseguirá agendar.
+                    </p>
+                  )}
+
+                  {saidasRF.map((s, i) => (
+                    <div key={i} className="rounded-xl p-2.5 flex flex-col gap-2" style={{ background: '#fff', border: '1px solid #FDE68A' }}>
+                      <div className="flex items-center gap-2">
+                        <input type="time" value={s.horario}
+                          onChange={e => setSaidasRF(prev => prev.map((x, ii) => ii === i ? { ...x, horario: e.target.value } : x))}
+                          className="campo-input" style={{ flex: 1 }} />
+                        <div className="flex gap-1 flex-shrink-0">
+                          {(['ida', 'volta'] as const).map(sd => (
+                            <button key={sd} type="button"
+                              onClick={() => setSaidasRF(prev => prev.map((x, ii) => ii === i ? { ...x, sentido: sd } : x))}
+                              className="px-2.5 py-2 rounded-lg text-xs font-semibold border"
+                              style={s.sentido === sd
+                                ? { background: '#0F6E56', color: '#fff', borderColor: '#0F6E56' }
+                                : { background: '#fff', color: '#9ca3af', borderColor: '#e5e7eb' }}>
+                              {sd === 'ida' ? '↑ Ida' : '↓ Volta'}
+                            </button>
+                          ))}
+                        </div>
+                        <button type="button"
+                          onClick={() => setSaidasRF(prev => prev.filter((_, ii) => ii !== i))}
+                          className="px-2 py-2 rounded-lg text-xs flex-shrink-0"
+                          style={{ background: '#FCEBEB', color: '#A32D2D' }}>✕</button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <select value={s.motorista_id}
+                          onChange={e => setSaidasRF(prev => prev.map((x, ii) => ii === i ? { ...x, motorista_id: e.target.value } : x))}
+                          className="campo-input">
+                          <option value="">Motorista a definir</option>
+                          {motoristasOpcoes.map(m => (
+                            <option key={m.id} value={m.id}>{m.nome}</option>
+                          ))}
+                        </select>
+                        <input type="number" min={1} value={s.capacidade}
+                          onChange={e => setSaidasRF(prev => prev.map((x, ii) => ii === i ? { ...x, capacidade: e.target.value } : x))}
+                          placeholder="Lugares" className="campo-input" />
+                      </div>
+                    </div>
+                  ))}
                 </div>
 
-                <Campo label="Capacidade (passageiros)">
+                <Campo label="Capacidade padrão (passageiros)">
                   <input type="number" value={formRF.capacidade}
                     onChange={e => setFormRF(f => ({ ...f, capacidade: e.target.value }))}
                     placeholder="Ex: 15" className="campo-input" min={1} />
