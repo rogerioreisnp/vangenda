@@ -37,6 +37,7 @@ type Corrida = {
   finalizado_em: string | null
   observacao_motorista: string | null
   anexo_motorista_url: string | null
+  veiculo_atribuido: string | null
   trajetos: string[] | null
   rua: string | null; numero: string | null; bairro: string | null
   municipio: string | null; cep: string | null; referencia: string | null
@@ -277,6 +278,9 @@ export default function CorridaFicha({ params }: { params: { id: string } }) {
           )}
           {c.numero_voo && (
             <p className="text-sm text-gray-600 mt-1">✈️ Voo: {c.numero_voo}</p>
+          )}
+          {c.veiculo_atribuido && (
+            <p className="text-sm text-gray-600 mt-1">🚐 Veículo: <strong>{c.veiculo_atribuido}</strong></p>
           )}
           {c.retorno_data && (
             <div className="mt-2 rounded-xl px-3 py-2" style={{ background: '#EEEDFE' }}>

@@ -34,6 +34,7 @@ type MotoristaOpcao = {
   percentual_repasse: number | null
   modo_repasse: 'percentual' | 'valor_fixo' | null
   valor_fixo_repasse: number | null
+  veiculos: { id: string; veiculo: string | null; placa: string | null; cor: string | null }[]
 }
 
 type Corrida = {
@@ -62,6 +63,7 @@ type Corrida = {
   observacoes: string | null
   observacao_motorista: string | null
   anexo_motorista_url: string | null
+  veiculo_atribuido: string | null
   motoristas_empresa: { nome: string } | null
   numero_voo: string | null
   nome_passageiro2: string | null
@@ -480,6 +482,12 @@ export default function AgendamentosPage() {
   // de motorista entre os dois trechos (dias diferentes, disponibilidade
   // diferente), então cada ponta precisa do próprio seletor.
   const [motoristaFichaVolta, setMotoristaFichaVolta] = useState('')
+  // Veiculo atribuido pro atendimento — pedido do Julimar 2026-08-05: cliente
+  // as vezes exige um veiculo especifico (ex: precisa ser numa van) e o
+  // motorista pode ter varios cadastrados. Guarda o texto (veiculo · cor ·
+  // placa), nao um id, pra virar snapshot historico da corrida.
+  const [veiculoFicha, setVeiculoFicha] = useState('')
+  const [veiculoFichaVolta, setVeiculoFichaVolta] = useState('')
   const [contactsApi, setContactsApi] = useState(false)
   const fichaAutoAberta = useRef(false)
   useEffect(() => { setContactsApi('contacts' in navigator) }, [])
@@ -547,7 +555,7 @@ export default function AgendamentosPage() {
     //   2. FUTURAS (data_hora >= agora e status != em_andamento) — asc
     //   3. PASSADAS (data_hora < agora e status != em_andamento) — desc
     const agoraISO = new Date().toISOString()
-    const colsCorridas = 'id, rota_id, cliente_id, origem, destino, data_hora, created_at, cliente_nome, cliente_telefone, email_solicitante, passageiro1_nome, passageiro1_telefone, valor, status, motorista_id, tipo_servico, forma_pagamento, status_pagamento, valor_recebido, data_pagamento, data_prevista_pagamento, valor_repasse_motorista, observacoes, motoristas_empresa(nome), numero_voo, nome_passageiro2, telefone_passageiro2, retorno_data, retorno_horario, retorno_origem, retorno_destino, numero_reserva, quantidade_bagagem, passageiros_adicionais, rua, numero, bairro, municipio, cep, referencia, rua_desembarque, numero_desembarque, bairro_desembarque, municipio_desembarque, cep_desembarque, referencia_desembarque, data_hora_termino, trajetos, km_inicial, km_final, iniciado_em, finalizado_em, observacao_motorista, anexo_motorista_url'
+    const colsCorridas = 'id, rota_id, cliente_id, origem, destino, data_hora, created_at, cliente_nome, cliente_telefone, email_solicitante, passageiro1_nome, passageiro1_telefone, valor, status, motorista_id, tipo_servico, forma_pagamento, status_pagamento, valor_recebido, data_pagamento, data_prevista_pagamento, valor_repasse_motorista, observacoes, motoristas_empresa(nome), numero_voo, nome_passageiro2, telefone_passageiro2, retorno_data, retorno_horario, retorno_origem, retorno_destino, numero_reserva, quantidade_bagagem, passageiros_adicionais, rua, numero, bairro, municipio, cep, referencia, rua_desembarque, numero_desembarque, bairro_desembarque, municipio_desembarque, cep_desembarque, referencia_desembarque, data_hora_termino, trajetos, km_inicial, km_final, iniciado_em, finalizado_em, observacao_motorista, anexo_motorista_url, veiculo_atribuido'
 
     const [{ data: empresa }, { data: rts }, { data: mots }, { data: clientesData }, { data: emAndamento }, { data: futuras }, { data: passadas }] = await Promise.all([
       supabase
@@ -562,7 +570,7 @@ export default function AgendamentosPage() {
         .order('created_at'),
       supabase
         .from('motoristas_empresa')
-        .select('id, nome, user_id, telefone, veiculo, placa, cor, percentual_repasse, modo_repasse, valor_fixo_repasse')
+        .select('id, nome, user_id, telefone, veiculo, placa, cor, percentual_repasse, modo_repasse, valor_fixo_repasse, veiculos_motorista(id, veiculo, placa, cor, ordem)')
         .eq('empresa_id', gestor.empresa_id)
         .eq('status', 'ativo')
         .order('nome'),
@@ -609,7 +617,12 @@ export default function AgendamentosPage() {
       setMensagemConfirmacaoTransfer((empresa as any).mensagem_confirmacao_transfer || null)
     }
     if (rts) setRotasOpcoes(rts)
-    if (mots) setMotoristasOpcoes(mots)
+    if (mots) {
+      setMotoristasOpcoes((mots as any[]).map(m => ({
+        ...m,
+        veiculos: (m.veiculos_motorista || []).slice().sort((a: any, b: any) => a.ordem - b.ordem),
+      })))
+    }
     if (clientesData) {
       setClientesOpcoes((clientesData as any[]).map(c => ({
         id: c.id,
@@ -1160,17 +1173,18 @@ export default function AgendamentosPage() {
   // o novo motorista via push. Fluxo: gestor abre ficha, muda motorista no
   // seletor inline, clica em Salvar sem precisar entrar em ✏️ Editar nem
   // "Iniciar corrida".
-  async function atribuirMotoristaInline(c: Corrida, novoMotoristaId: string) {
-    if (novoMotoristaId === (c.motorista_id ?? '')) return
+  async function atribuirMotoristaInline(c: Corrida, novoMotoristaId: string, novoVeiculo: string = '') {
+    if (novoMotoristaId === (c.motorista_id ?? '') && novoVeiculo === (c.veiculo_atribuido ?? '')) return
     setConfirmandoFicha(true)
     const motoristaNovo = motoristasOpcoes.find(m => m.id === novoMotoristaId) ?? null
     const motoristaMudou = !!novoMotoristaId && novoMotoristaId !== c.motorista_id
     await supabase.from('corridas_empresa')
-      .update({ motorista_id: novoMotoristaId || null })
+      .update({ motorista_id: novoMotoristaId || null, veiculo_atribuido: novoVeiculo || null })
       .eq('id', c.id)
     setCorridas(prev => prev.map(x => x.id === c.id ? {
       ...x,
       motorista_id: novoMotoristaId || null,
+      veiculo_atribuido: novoVeiculo || null,
       motoristas_empresa: motoristaNovo ? { nome: motoristaNovo.nome } : null,
     } : x))
     // Atualiza corridaFicha OU voltaDaFicha, dependendo de qual ponta foi
@@ -1178,11 +1192,13 @@ export default function AgendamentosPage() {
     setCorridaFicha(prev => prev && prev.id === c.id ? {
       ...prev,
       motorista_id: novoMotoristaId || null,
+      veiculo_atribuido: novoVeiculo || null,
       motoristas_empresa: motoristaNovo ? { nome: motoristaNovo.nome } : null,
     } : prev)
     setVoltaDaFicha(prev => prev && prev.id === c.id ? {
       ...prev,
       motorista_id: novoMotoristaId || null,
+      veiculo_atribuido: novoVeiculo || null,
       motoristas_empresa: motoristaNovo ? { nome: motoristaNovo.nome } : null,
     } : prev)
     if (motoristaMudou) {
@@ -1277,7 +1293,23 @@ export default function AgendamentosPage() {
     setVoltaDaFicha(voltaAtual)
     setMotoristaFicha(idaAtual.motorista_id ?? '')
     setMotoristaFichaVolta(voltaAtual?.motorista_id ?? '')
+    setVeiculoFicha(idaAtual.veiculo_atribuido ?? '')
+    setVeiculoFichaVolta(voltaAtual?.veiculo_atribuido ?? '')
     setModalFichaAberto(true)
+  }
+
+  // Lista de veiculos do motorista selecionado, pro gestor escolher qual vai
+  // ser usado NESTE atendimento. Usa os ate-5 cadastrados em
+  // veiculos_motorista; sem nenhum la, cai no veiculo/placa/cor "principal"
+  // (motoristas antigos que nunca abriram a tela de multiplos veiculos).
+  function veiculosDoMotorista(motoristaId: string): string[] {
+    const m = motoristasOpcoes.find(x => x.id === motoristaId)
+    if (!m) return []
+    if (m.veiculos && m.veiculos.length > 0) {
+      return m.veiculos.map(v => [v.veiculo, v.cor, v.placa].filter(Boolean).join(' · ')).filter(Boolean)
+    }
+    const legado = [m.veiculo, m.cor, m.placa].filter(Boolean).join(' · ')
+    return legado ? [legado] : []
   }
 
   function diaSemana(dataHora: string): string {
@@ -2967,19 +2999,35 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                   <>
                     <select
                       value={motoristaFicha}
-                      onChange={e => setMotoristaFicha(e.target.value)}
+                      onChange={e => { setMotoristaFicha(e.target.value); setVeiculoFicha('') }}
                       className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 bg-white outline-none">
                       <option value="">Selecione o motorista...</option>
                       {motoristasOpcoes.map(m => (
                         <option key={m.id} value={m.id}>{m.nome}</option>
                       ))}
                     </select>
+                    {/* Veiculo — so aparece quando o motorista escolhido tem
+                        algum cadastrado. Pedido do Julimar 2026-08-05:
+                        cliente as vezes exige um veiculo especifico (ex:
+                        precisa ser numa van) e o motorista pode ter varios. */}
+                    {motoristaFicha && veiculosDoMotorista(motoristaFicha).length > 0 && (
+                      <select
+                        value={veiculoFicha}
+                        onChange={e => setVeiculoFicha(e.target.value)}
+                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 bg-white outline-none">
+                        <option value="">Veículo a definir</option>
+                        {veiculosDoMotorista(motoristaFicha).map(v => (
+                          <option key={v} value={v}>🚐 {v}</option>
+                        ))}
+                      </select>
+                    )}
                     {/* Botão "Salvar motorista" aparece só quando o seletor
-                        mostra alguém diferente do motorista já salvo. Evita
-                        ruído quando o gestor abre a ficha sem intenção de mexer. */}
-                    {motoristaFicha !== (corridaFicha.motorista_id ?? '') && (
+                        mostra alguém diferente do motorista já salvo, ou o
+                        veiculo escolhido mudou. Evita ruído quando o gestor
+                        abre a ficha sem intenção de mexer. */}
+                    {(motoristaFicha !== (corridaFicha.motorista_id ?? '') || veiculoFicha !== (corridaFicha.veiculo_atribuido ?? '')) && (
                       <button
-                        onClick={() => atribuirMotoristaInline(corridaFicha, motoristaFicha)}
+                        onClick={() => atribuirMotoristaInline(corridaFicha, motoristaFicha, veiculoFicha)}
                         disabled={confirmandoFicha}
                         className="w-full py-2.5 rounded-xl text-xs font-semibold border disabled:opacity-40"
                         style={{ background: '#0F6E56', color: '#fff', borderColor: '#0F6E56' }}>
@@ -3289,7 +3337,7 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                       </p>
                       <select
                         value={motoristaFichaVolta}
-                        onChange={e => setMotoristaFichaVolta(e.target.value)}
+                        onChange={e => { setMotoristaFichaVolta(e.target.value); setVeiculoFichaVolta('') }}
                         className="w-full px-3 py-2.5 rounded-xl border text-sm text-gray-700 bg-white outline-none"
                         style={{ borderColor: '#AFA9EC' }}>
                         <option value="">Selecione o motorista...</option>
@@ -3297,9 +3345,21 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                           <option key={m.id} value={m.id}>{m.nome}</option>
                         ))}
                       </select>
-                      {motoristaFichaVolta !== (v.motorista_id ?? '') && (
+                      {motoristaFichaVolta && veiculosDoMotorista(motoristaFichaVolta).length > 0 && (
+                        <select
+                          value={veiculoFichaVolta}
+                          onChange={e => setVeiculoFichaVolta(e.target.value)}
+                          className="w-full px-3 py-2.5 rounded-xl border text-sm text-gray-700 bg-white outline-none"
+                          style={{ borderColor: '#AFA9EC' }}>
+                          <option value="">Veículo a definir</option>
+                          {veiculosDoMotorista(motoristaFichaVolta).map(v2 => (
+                            <option key={v2} value={v2}>🚐 {v2}</option>
+                          ))}
+                        </select>
+                      )}
+                      {(motoristaFichaVolta !== (v.motorista_id ?? '') || veiculoFichaVolta !== (v.veiculo_atribuido ?? '')) && (
                         <button
-                          onClick={() => atribuirMotoristaInline(v, motoristaFichaVolta)}
+                          onClick={() => atribuirMotoristaInline(v, motoristaFichaVolta, veiculoFichaVolta)}
                           disabled={confirmandoFicha}
                           className="w-full py-2.5 rounded-xl text-xs font-semibold border disabled:opacity-40"
                           style={{ background: '#3C3489', color: '#fff', borderColor: '#3C3489' }}>
