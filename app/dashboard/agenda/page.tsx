@@ -1564,6 +1564,12 @@ function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSa
   const [erroSalvar, setErroSalvar] = useState('')
   const [filtroCliente, setFiltroCliente] = useState('')
   const [vagasOcupadas, setVagasOcupadas] = useState(0)
+  // Saidas cadastradas na rota (horarios_rota) — mesma logica do link
+  // publico. Antes o gestor so via "Ida/Volta" com um horario fixo por
+  // sentido; se a rota tem varias saidas (caso da Emanuela/ASF), ele
+  // precisa escolher entre elas igual o passageiro escolhe (2026-08-05).
+  const [saidasRota, setSaidasRota] = useState<{ id: string; horario: string; sentido: 'ida' | 'volta'; capacidade: number | null }[]>([])
+  const [saidaId, setSaidaId] = useState('')
   const [contactsApi, setContactsApi] = useState(false)
   useEffect(() => { setContactsApi('contacts' in navigator) }, [])
   async function selecionarContato() {
@@ -1608,11 +1614,20 @@ function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSa
   useEffect(() => {
     if (empresaCtx) { carregarVagas(); return }
     if (form.rota_id) carregarVagas()
-  }, [form.turno, form.data_viagem, rotaEmpresaId, horarioIda, horarioVolta])
+  }, [form.turno, form.data_viagem, rotaEmpresaId, horarioIda, horarioVolta, saidaId, saidasRota])
 
   useEffect(() => {
-    if (empresaCtx && rotaEmpresaId) carregarParadasEmpresa(rotaEmpresaId)
+    if (empresaCtx && rotaEmpresaId) { carregarParadasEmpresa(rotaEmpresaId); carregarSaidas(rotaEmpresaId) }
   }, [rotaEmpresaId])
+
+  // Mantem form.turno sincronizado com o sentido da saida escolhida — o
+  // campo turno continua existindo (coluna antiga), so que agora reflete
+  // a saida de verdade em vez de um botao solto.
+  useEffect(() => {
+    if (!empresaCtx) return
+    const saida = saidasRota.find(s => s.id === saidaId)
+    if (saida) setForm(f => ({ ...f, turno: saida.sentido }))
+  }, [saidaId, saidasRota])
 
   useEffect(() => {
     if (rotasEmpresa.length > 0 && !rotaEmpresaId) {
@@ -1647,6 +1662,20 @@ function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSa
     // vagas" — nao encerrava porque a capacidade simplesmente nao existia
     // deste lado).
     if (empresaCtx) {
+      // Com saida escolhida, a lotacao e DAQUELA saida (contagem exata pelo
+      // vinculo horario_rota_id) — mesma RPC do link publico. Sem saida
+      // cadastrada, cai na contagem antiga por horario da rota.
+      const saida = saidasRota.find(s => s.id === saidaId)
+      if (saida) {
+        if (!form.data_viagem) { setVagasOcupadas(0); return }
+        const { data: ocupadas, error } = await supabase.rpc('count_vagas_saida', {
+          p_horario_id: saida.id,
+          p_data: form.data_viagem,
+        })
+        if (error) console.error('[vagas] falha ao contar:', error.message)
+        setVagasOcupadas(Number(ocupadas) || 0)
+        return
+      }
       const horario = form.turno === 'ida' ? horarioIda : horarioVolta
       if (!rotaEmpresaId || !form.data_viagem || !horario) { setVagasOcupadas(0); return }
       const { data: ocupadas, error } = await supabase.rpc('count_vagas_ocupadas', {
@@ -1682,6 +1711,27 @@ function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSa
       .select('id, nome, preco')
       .eq('rota_id', rotaId)
     if (data) setParadasEmpresa(data)
+  }
+
+  async function carregarSaidas(rotaId: string) {
+    setSaidasRota([])
+    setSaidaId('')
+    const { data, error } = await supabase
+      .from('horarios_rota')
+      .select('id, horario, sentido, capacidade')
+      .eq('rota_id', rotaId)
+      .eq('ativo', true)
+      .order('horario')
+    if (error) { console.error('[saidas] falha ao carregar:', error.message); return }
+    const lista = (data || []).map(s => ({
+      id: s.id as string,
+      horario: (s.horario as string).slice(0, 5),
+      sentido: s.sentido as 'ida' | 'volta',
+      capacidade: s.capacidade as number | null,
+    }))
+    setSaidasRota(lista)
+    const primeiraIda = lista.find(s => s.sentido === 'ida') ?? lista[0]
+    if (primeiraIda) setSaidaId(primeiraIda.id)
   }
 
   async function carregarClientes() {
@@ -1774,9 +1824,11 @@ function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSa
     : []
 
   const rotaAtual = rotas.find(r => r.id === form.rota_id)
-  // Empresa le a capacidade da rota_empresa; individual, da rota dele.
+  const saidaAtual = saidasRota.find(s => s.id === saidaId)
+  // Empresa le a capacidade da SAIDA escolhida (com fallback pra da rota,
+  // igual o link publico); individual, da rota dele.
   const capacidadeConfigurada = empresaCtx
-    ? (rotaEmpAtual?.capacidade ?? null)
+    ? (saidaAtual?.capacidade ?? rotaEmpAtual?.capacidade ?? null)
     : (rotaAtual?.capacidade ?? null)
   const capacidade = capacidadeConfigurada || 15
   const vagasDisponiveis = Math.max(0, capacidade - vagasOcupadas)
@@ -1845,6 +1897,7 @@ function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSa
       parada_origem: paradaOrigemFinal,
       parada_destino: paradaDestinoFinal,
       turno: form.turno,
+      horario_rota_id: empresaCtx ? (saidaId || null) : null,
       valor: parseFloat(valorFinal),
       forma_pagamento: form.forma_pagamento,
       fiado_pago: false,
@@ -1958,19 +2011,45 @@ function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSa
             className="campo-input" />
         </Campo>
 
-        <Campo label="Turno">
-          <div className="grid grid-cols-2 gap-2">
-            {(['ida', 'volta'] as const).map(t => (
-              <button key={t} onClick={() => setForm(f => ({ ...f, turno: t }))}
-                className="py-2.5 rounded-xl text-sm font-medium border transition-all"
-                style={form.turno === t
-                  ? { background: '#0F6E56', color: '#fff', borderColor: '#0F6E56' }
-                  : { background: '#fff', color: '#666', borderColor: '#e5e7eb' }}>
-                {t === 'ida' ? `↑ Ida (${horarioIda}h)` : `↓ Volta (${horarioVolta}h)`}
-              </button>
-            ))}
-          </div>
-        </Campo>
+        {/* Saidas cadastradas na rota (varios horarios por sentido) — mesma
+            escolha que o passageiro faz no link publico. Rota sem saidas
+            cadastradas cai no Turno antigo, de horario unico. */}
+        {empresaCtx && saidasRota.length > 0 ? (
+          <Campo label="Horário da saída *">
+            <div className="flex flex-col gap-1.5">
+              {saidasRota.map(s => {
+                const sel = saidaId === s.id
+                return (
+                  <button key={s.id} type="button" onClick={() => setSaidaId(s.id)}
+                    className="w-full px-3 py-2.5 rounded-xl border transition-all flex items-center gap-2 text-left"
+                    style={sel
+                      ? { background: '#0F6E56', color: '#fff', borderColor: '#0F6E56' }
+                      : { background: '#fff', color: '#374151', borderColor: '#e5e7eb' }}>
+                    <span className="text-base font-bold flex-shrink-0">{s.horario}h</span>
+                    <span className="text-xs flex-1" style={{ color: sel ? 'rgba(255,255,255,0.85)' : '#9ca3af' }}>
+                      {s.sentido === 'ida' ? '↑ Ida' : '↓ Volta'}
+                    </span>
+                    {sel && <span className="text-xs font-semibold flex-shrink-0">✓</span>}
+                  </button>
+                )
+              })}
+            </div>
+          </Campo>
+        ) : (
+          <Campo label="Turno">
+            <div className="grid grid-cols-2 gap-2">
+              {(['ida', 'volta'] as const).map(t => (
+                <button key={t} onClick={() => setForm(f => ({ ...f, turno: t }))}
+                  className="py-2.5 rounded-xl text-sm font-medium border transition-all"
+                  style={form.turno === t
+                    ? { background: '#0F6E56', color: '#fff', borderColor: '#0F6E56' }
+                    : { background: '#fff', color: '#666', borderColor: '#e5e7eb' }}>
+                  {t === 'ida' ? `↑ Ida (${horarioIda}h)` : `↓ Volta (${horarioVolta}h)`}
+                </button>
+              ))}
+            </div>
+          </Campo>
+        )}
 
         <Campo label="Quantidade de passageiros">
           <div className="flex items-center gap-3">
