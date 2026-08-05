@@ -17,7 +17,10 @@ const navItems = [
   { href: '/empresa/configuracoes', label: 'Config.', emoji: '⚙' },
 ]
 
-const PLANO_LABEL: Record<string, string> = { starter: 'Starter', pro: 'Pro', fleet: 'Fleet', business: 'Business' }
+// Os planos vendidos hoje sao Mensal, Semestral e Anual — mudam so o periodo
+// de cobranca, os recursos sao os mesmos. Os rotulos antigos (Starter/Pro/
+// Fleet) eram de quando havia niveis diferentes e nao existem mais.
+const PERIODO_LABEL: Record<string, string> = { mensal: 'Mensal', semestral: 'Semestral', anual: 'Anual' }
 const STATUS_LABEL: Record<string, string> = { trial: 'Trial', ativo: 'Ativo', inativo: 'Inativo' }
 
 export default function EmpresaLayout({ children }: { children: React.ReactNode }) {
@@ -28,7 +31,7 @@ export default function EmpresaLayout({ children }: { children: React.ReactNode 
   const [gestorUserId, setGestorUserId] = useState<string | null>(null)
   const [nomeGestor, setNomeGestor] = useState('')
   const [emailGestor, setEmailGestor] = useState('')
-  const [planoEmpresa, setPlanoEmpresa] = useState('')
+  const [periodoEmpresa, setPeriodoEmpresa] = useState('')
   const [statusEmpresa, setStatusEmpresa] = useState('')
   const [trialExpirado, setTrialExpirado] = useState(false)
   // Motivo do bloqueio — muda a mensagem exibida na TelaTrialExpirado.
@@ -61,12 +64,12 @@ export default function EmpresaLayout({ children }: { children: React.ReactNode 
 
     const { data: empresa } = await supabase
       .from('empresas')
-      .select('plano, status, trial_fim, tipo_operacao')
+      .select('periodo, status, trial_fim, tipo_operacao')
       .eq('id', gestor.empresa_id)
       .single()
 
     if (empresa) {
-      setPlanoEmpresa(empresa.plano || '')
+      setPeriodoEmpresa(empresa.periodo || '')
       setStatusEmpresa(empresa.status || '')
       setTipoOperacao(empresa.tipo_operacao || '')
       const agora = new Date()
@@ -181,15 +184,19 @@ export default function EmpresaLayout({ children }: { children: React.ReactNode 
               </div>
             </div>
 
-            {/* Badge do plano */}
-            {planoEmpresa && (
+            {/* Badge do plano — o período só é exibido quando a assinatura
+                está ativa. Em trial não há plano contratado ainda, e mostrar
+                um período aí seria informação inventada. */}
+            {statusEmpresa && (
               <div className="mt-2.5 flex items-center gap-1.5">
-                <span
-                  className="text-xs font-semibold px-2.5 py-1 rounded-full"
-                  style={badgeStyle}
-                >
-                  {PLANO_LABEL[planoEmpresa] || planoEmpresa}
-                </span>
+                {statusEmpresa === 'ativo' && periodoEmpresa && (
+                  <span
+                    className="text-xs font-semibold px-2.5 py-1 rounded-full"
+                    style={badgeStyle}
+                  >
+                    {PERIODO_LABEL[periodoEmpresa] || periodoEmpresa}
+                  </span>
+                )}
                 <span
                   className="text-xs font-medium px-2.5 py-1 rounded-full"
                   style={badgeStyle}

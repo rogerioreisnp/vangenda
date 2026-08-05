@@ -8,7 +8,7 @@ type Empresa = {
   nome: string
   telefone: string | null
   tipo_operacao: string
-  plano: string
+  periodo: string | null
   status: string
   cnpj: string | null
   email_comercial: string | null
@@ -47,7 +47,9 @@ type Empresa = {
   horas_apos_atendimento_cobranca: number | null
 }
 
-const PLANO_LABEL: Record<string, string> = { starter: 'Starter', pro: 'Pro', fleet: 'Fleet' }
+// Planos vendidos hoje: Mensal, Semestral e Anual (mudam só o período de
+// cobrança). Os rótulos antigos Starter/Pro/Fleet não existem mais.
+const PERIODO_LABEL: Record<string, string> = { mensal: 'Mensal', semestral: 'Semestral', anual: 'Anual' }
 const STATUS_LABEL: Record<string, string> = { trial: 'Trial', ativo: 'Ativo', inativo: 'Inativo' }
 
 export default function ConfiguracoesEmpresaPage() {
@@ -85,7 +87,7 @@ export default function ConfiguracoesEmpresaPage() {
 
     const { data: emp } = await supabase
       .from('empresas')
-      .select('id, nome, telefone, tipo_operacao, plano, status, cnpj, email_comercial, cidade, estado, qtd_veiculos, descricao, chave_pix, tipo_chave_pix, instagram, whatsapp_comercial, cor_destaque, logo_url, trial_fim, slug, transfer_numero_inicio, mensagem_confirmacao, mensagem_confirmacao_transfer, endereco_rua, endereco_numero, endereco_bairro, endereco_cep, inscricao_estadual, site, banco_nome, banco_agencia, banco_conta, banco_tipo_conta, banco_titular_nome, banco_titular_documento, minutos_antes_lembrete, horas_apos_atendimento_cobranca')
+      .select('id, nome, telefone, tipo_operacao, periodo, status, cnpj, email_comercial, cidade, estado, qtd_veiculos, descricao, chave_pix, tipo_chave_pix, instagram, whatsapp_comercial, cor_destaque, logo_url, trial_fim, slug, transfer_numero_inicio, mensagem_confirmacao, mensagem_confirmacao_transfer, endereco_rua, endereco_numero, endereco_bairro, endereco_cep, inscricao_estadual, site, banco_nome, banco_agencia, banco_conta, banco_tipo_conta, banco_titular_nome, banco_titular_documento, minutos_antes_lembrete, horas_apos_atendimento_cobranca')
       .eq('id', gestor.empresa_id)
       .single()
 
@@ -302,7 +304,9 @@ export default function ConfiguracoesEmpresaPage() {
               <div>
                 <p className="text-xs text-gray-400">Plano contratado</p>
                 <p className="text-sm font-semibold text-gray-800 mt-0.5">
-                  {PLANO_LABEL[empresa?.plano || ''] || empresa?.plano}
+                  {empresa?.status === 'ativo' && empresa?.periodo
+                    ? (PERIODO_LABEL[empresa.periodo] || empresa.periodo)
+                    : 'Nenhum — em avaliação'}
                 </p>
                 {empresa?.status === 'trial' && empresa?.trial_fim && (
                   <p className="text-xs mt-0.5" style={{ color: '#854F0B' }}>

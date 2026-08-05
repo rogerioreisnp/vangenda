@@ -40,7 +40,6 @@ const STATUS_COR: Record<string, { bg: string; text: string; label: string }> = 
   parcialmente_cancelada: { bg: '#FEF3C7', text: '#92400E', label: 'Parc. cancelada' },
 }
 
-const PLANO_LABEL: Record<string, string> = { starter: 'Starter', pro: 'Pro', fleet: 'Fleet' }
 const STATUS_EMPRESA_LABEL: Record<string, string> = { trial: 'Trial', ativo: 'Ativo', inativo: 'Inativo' }
 
 function statusParProxima(ida: ProximaCorrida, volta: ProximaCorrida): string {
@@ -122,7 +121,6 @@ export default function EmpresaPage() {
   const [nomeGestor, setNomeGestor] = useState<string | null>(null)
   const [gestorUserId, setGestorUserId] = useState<string | null>(null)
   const [nomeEmpresa, setNomeEmpresa] = useState<string | null>(null)
-  const [plano, setPlano] = useState('')
   const [statusEmpresa, setStatusEmpresa] = useState('')
 
   const [corridasHoje, setCorridasHoje] = useState(0)
@@ -166,13 +164,12 @@ export default function EmpresaPage() {
 
     const { data: empresa } = await supabase
       .from('empresas')
-      .select('nome, plano, status, tipo_operacao')
+      .select('nome, status, tipo_operacao')
       .eq('id', eid)
       .single()
 
     if (empresa) {
       setNomeEmpresa(empresa.nome)
-      setPlano(empresa.plano)
       setStatusEmpresa(empresa.status)
     }
 

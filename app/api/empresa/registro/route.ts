@@ -7,9 +7,13 @@ export async function POST(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
   try {
-    const { userId, nomeEmpresa, nomeGestor, email, telefone, tipoOperacao, plano } = await req.json()
+    const { userId, nomeEmpresa, nomeGestor, email, telefone, tipoOperacao } = await req.json()
 
-    if (!userId || !nomeEmpresa || !nomeGestor || !email || !plano) {
+    // `plano` deixou de ser exigido no cadastro (2026-08-05): quem entra pelo
+    // "iniciar teste gratis" nao escolhe plano nenhum, so testa. O que a
+    // pessoa contrata de fato — o periodo (mensal/semestral/anual) — e
+    // gravado na coluna `periodo` pelo webhook do Kiwify quando ela paga.
+    if (!userId || !nomeEmpresa || !nomeGestor || !email) {
       return NextResponse.json({ error: 'Dados incompletos' }, { status: 400 })
     }
 
@@ -28,7 +32,11 @@ export async function POST(req: NextRequest) {
         email:         email,
         telefone:      telefone,
         tipo_operacao: tipoOperacao,
-        plano,
+        // Coluna legada de "nivel" de plano (starter/pro/fleet), de quando os
+        // planos tinham recursos diferentes. Hoje todos tem os mesmos recursos
+        // — o que varia e so o periodo. Gravamos o nome do produto pra nao
+        // deixar um rotulo antigo que nao existe mais.
+        plano:         'empresarial',
         status:        'trial',
         trial_inicio:  new Date().toISOString(),
         trial_fim:     trialFim.toISOString().split('T')[0],
