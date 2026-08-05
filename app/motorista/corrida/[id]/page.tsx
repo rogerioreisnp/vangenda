@@ -28,6 +28,7 @@ type Corrida = {
   passageiro1_telefone: string | null
   numero_voo: string | null
   observacoes: string | null
+  anexo_observacoes_url: string | null
   status: string
   tipo_servico: string | null
   motorista_id: string | null
@@ -392,10 +393,16 @@ export default function CorridaFicha({ params }: { params: { id: string } }) {
           </div>
         )}
 
-        {c.observacoes && (
+        {(c.observacoes || c.anexo_observacoes_url) && (
           <div className="bg-white rounded-2xl p-4 border border-gray-100">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">📝 Observações</p>
-            <p className="text-sm text-gray-700 whitespace-pre-wrap">{c.observacoes}</p>
+            {c.observacoes && <p className="text-sm text-gray-700 whitespace-pre-wrap">{c.observacoes}</p>}
+            {c.anexo_observacoes_url && (
+              <a href={c.anexo_observacoes_url} target="_blank" rel="noopener noreferrer"
+                className="text-xs font-semibold mt-1 inline-block" style={{ color: '#0F6E56' }}>
+                📎 Ver anexo
+              </a>
+            )}
           </div>
         )}
 
