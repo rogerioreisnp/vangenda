@@ -126,7 +126,7 @@ export default function RotasPage() {
         .single(),
       supabase
         .from('rotas_empresa')
-        .select('id, origem, destino, distancia_km, preco, motorista_id, veiculo_placa, nome, horario_ida, horario_volta, capacidade, ativa, dias_semana, modo_endereco, oferece_porta')
+        .select('id, origem, destino, distancia_km, preco, motorista_id, veiculo_placa, nome, horario_ida, horario_volta, capacidade, ativa, dias_semana, modo_endereco, oferece_porta, acrescimo_buscar, acrescimo_deixar')
         .eq('empresa_id', gestor.empresa_id)
         .order('created_at'),
       supabase
