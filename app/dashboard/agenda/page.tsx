@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, isSameDay, isSameMonth, addMonths, subMonths, subDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import ModalNovaEncomenda from '@/components/ModalNovaEncomenda'
 import ModalNovoFretamento from '@/components/ModalNovoFretamento'
 
@@ -76,6 +77,7 @@ type Fretamento = {
 
 export default function AgendaPage() {
   console.log('AGENDA CARREGADA v2')
+  const router = useRouter()
   const hoje = new Date()
   const [mesAtual, setMesAtual] = useState(new Date())
   const [diaSelecionado, setDiaSelecionado] = useState(new Date())
@@ -393,6 +395,20 @@ export default function AgendaPage() {
     const { data: gestorRow } = await supabase
       .from('gestores').select('nome, empresa_id').eq('user_id', user.id).maybeSingle()
     if (gestorRow) {
+      // Esta tela (e o template de WhatsApp que ela usa, com {turno}/{valor})
+      // e feita SO pra rota_fixa. Empresa transfer/turismo tem sua propria
+      // tela em /empresa/agendamentos/fretamentos, com o template certo
+      // ({hora}, sem valor). Sem essa trava, quem chegasse aqui por link/
+      // favorito antigo (de antes do hub /empresa/agendamentos existir) via
+      // dado de corridas_empresa misturado como se fosse rota_fixa — foi o
+      // que aconteceu com um cliente transfer (AAJP), que recebeu confirmacao
+      // com "Ida" e valor em vez de horario. Mesmo guard ja usado no hub.
+      const { data: empresaRow } = await supabase
+        .from('empresas').select('tipo_operacao').eq('id', gestorRow.empresa_id).maybeSingle()
+      if (empresaRow?.tipo_operacao === 'transfer' || empresaRow?.tipo_operacao === 'turismo') {
+        router.replace('/empresa/agendamentos/fretamentos')
+        return
+      }
       setIsGestor(true)
       setNomeMotorista(gestorRow.nome || '')
       setEmpresaCtx({ empresaId: gestorRow.empresa_id })
@@ -418,6 +434,15 @@ export default function AgendaPage() {
       .eq('user_id', user.id)
       .maybeSingle()
     if (motEmp) {
+      // Mesma trava do bloco do gestor acima — motorista funcionario de
+      // transfer/turismo ja e mandado pra /motorista no login, mas isso nao
+      // impede acesso direto por link/favoritos antigos.
+      const { data: empresaRow } = await supabase
+        .from('empresas').select('tipo_operacao').eq('id', motEmp.empresa_id).maybeSingle()
+      if (empresaRow?.tipo_operacao === 'transfer' || empresaRow?.tipo_operacao === 'turismo') {
+        router.replace('/motorista')
+        return
+      }
       // Busca gestor da empresa - fallback seguro se falhar (continua vendo zero,
       // mas nao trava). Necessario pra redirecionar SELECTs/INSERTs pro dono,
       // ja que a Etapa A padronizou motorista_id = gestor em novos registros.
