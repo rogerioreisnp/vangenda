@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import ModalNovaEncomenda from '@/components/ModalNovaEncomenda'
 import ModalNovoFretamento from '@/components/ModalNovoFretamento'
+import { MODALIDADES_PORTA } from '@/app/empresa/components/AgendamentoPublico'
 
 type Agendamento = {
   id: string
@@ -96,7 +97,7 @@ export default function AgendaPage() {
   // gestorUserId = user.id do dono da empresa. Populado quando eh motorista
   // funcionario, pra redirecionar SELECTs e INSERTs. Individual/gestor nao usa.
   const [empresaCtx, setEmpresaCtx] = useState<{ empresaId: string; motEmpresaId?: string; gestorUserId?: string } | null | undefined>(undefined)
-  const [rotasEmpresa, setRotasEmpresa] = useState<{ id: string; nome: string | null; origem: string | null; destino: string | null; horario_ida: string | null; horario_volta: string | null; modo_endereco: 'paradas' | 'livre' | null; preco: number | null; capacidade?: number | null; motorista_id?: string | null }[]>([])
+  const [rotasEmpresa, setRotasEmpresa] = useState<{ id: string; nome: string | null; origem: string | null; destino: string | null; horario_ida: string | null; horario_volta: string | null; modo_endereco: 'paradas' | 'livre' | null; preco: number | null; capacidade?: number | null; motorista_id?: string | null; oferece_porta?: boolean | null; acrescimo_buscar?: number | null; acrescimo_deixar?: number | null }[]>([])
   const [isGestor, setIsGestor] = useState(false)
   const [gestorUserIds, setGestorUserIds] = useState<string[]>([])
   const [empresaReady, setEmpresaReady] = useState(false)
@@ -413,7 +414,7 @@ export default function AgendaPage() {
       setNomeMotorista(gestorRow.nome || '')
       setEmpresaCtx({ empresaId: gestorRow.empresa_id })
       const { data: rts } = await supabase
-        .from('rotas_empresa').select('id, nome, origem, destino, ativa, horario_ida, horario_volta, modo_endereco, preco, capacidade')
+        .from('rotas_empresa').select('id, nome, origem, destino, ativa, horario_ida, horario_volta, modo_endereco, preco, capacidade, oferece_porta, acrescimo_buscar, acrescimo_deixar')
         .eq('empresa_id', gestorRow.empresa_id).order('created_at', { ascending: true })
       setRotasEmpresa((rts || []).filter(r => r.ativa !== false))
       const { data: motsEmp } = await supabase
@@ -456,7 +457,7 @@ export default function AgendaPage() {
       setEmpresaCtx({ empresaId: motEmp.empresa_id, motEmpresaId: motEmp.id, gestorUserId: gestorUid })
       const { data: rts } = await supabase
         .from('rotas_empresa')
-        .select('id, nome, origem, destino, ativa, horario_ida, horario_volta, modo_endereco, preco, capacidade, motorista_id')
+        .select('id, nome, origem, destino, ativa, horario_ida, horario_volta, modo_endereco, preco, capacidade, motorista_id, oferece_porta, acrescimo_buscar, acrescimo_deixar')
         .eq('empresa_id', motEmp.empresa_id)
         .order('created_at', { ascending: true })
       const rotasAtivas = (rts || []).filter(r => r.ativa !== false)
@@ -1521,7 +1522,7 @@ function DetalhePassageiro({ p, onVoltar, onAtualizar, horarioIda, horarioVolta 
 function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSalvo }: {
   data: Date, rotas: any[],
   empresaCtx: { empresaId: string; motEmpresaId?: string; gestorUserId?: string } | null,
-  rotasEmpresa: { id: string; nome: string | null; origem: string | null; destino: string | null; horario_ida?: string | null; horario_volta?: string | null; modo_endereco?: 'paradas' | 'livre' | null; preco?: number | null; capacidade?: number | null; motorista_id?: string | null }[],
+  rotasEmpresa: { id: string; nome: string | null; origem: string | null; destino: string | null; horario_ida?: string | null; horario_volta?: string | null; modo_endereco?: 'paradas' | 'livre' | null; preco?: number | null; capacidade?: number | null; motorista_id?: string | null; oferece_porta?: boolean | null; acrescimo_buscar?: number | null; acrescimo_deixar?: number | null }[],
   onFechar: () => void, onSalvo: () => void
 }) {
   const [paradas, setParadas] = useState<any[]>([])
@@ -1556,6 +1557,7 @@ function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSa
     municipio_desembarque: '',
     cep_desembarque: '',
     referencia_desembarque: '',
+    modalidade_embarque: 'rota' as 'rota' | 'buscar' | 'deixar' | 'porta_porta',
   })
   const [valorAuto, setValorAuto] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
@@ -1630,6 +1632,10 @@ function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSa
   useEffect(() => {
     if (empresaCtx && paradasEmpresa.length > 0 && form.parada_origem && form.parada_destino) calcularValor()
   }, [paradasEmpresa])
+
+  useEffect(() => {
+    if (empresaCtx && form.parada_origem && form.parada_destino) calcularValor()
+  }, [form.modalidade_embarque])
 
   async function carregarVagas() {
     // Empresa (rota_fixa): usa a RPC, que soma os passageiros das DUAS origens
@@ -1720,8 +1726,19 @@ function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSa
         p => p.nome === `${form.parada_origem} → ${form.parada_destino}`
       )
       if (trecho?.preco != null) {
-        setValorAuto(trecho.preco)
-        setForm(f => ({ ...f, valor: String(trecho.preco) }))
+        // Soma o acrescimo do servico de porta (buscar/deixar/porta a porta),
+        // igual ao link publico — o gestor tambem precisa ver o valor certo
+        // quando cadastra o passageiro que ligou (pedido Julimar 2026-08-05).
+        const acrescimoBuscar = Number(rotaEmpAtual?.acrescimo_buscar ?? 0)
+        const acrescimoDeixar = Number(rotaEmpAtual?.acrescimo_deixar ?? 0)
+        const acrescimoPorta = !rotaEmpAtual?.oferece_porta ? 0
+          : form.modalidade_embarque === 'buscar' ? acrescimoBuscar
+          : form.modalidade_embarque === 'deixar' ? acrescimoDeixar
+          : form.modalidade_embarque === 'porta_porta' ? acrescimoBuscar + acrescimoDeixar
+          : 0
+        const precoComPorta = trecho.preco + acrescimoPorta
+        setValorAuto(precoComPorta)
+        setForm(f => ({ ...f, valor: String(precoComPorta) }))
       } else {
         setValorAuto(null)
       }
@@ -1791,7 +1808,19 @@ function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSa
   const valorFinal = ehModoLivre && rotaEmpAtual?.preco != null && !form.valor
     ? String(rotaEmpAtual.preco)
     : form.valor
-  const podeSalvar = !saving && !!form.nome_passageiro && !!paradaOrigemFinal && !!paradaDestinoFinal && !!valorFinal && form.quantidade > 0 && !excedeCapacidade
+  // Servico de porta (buscar/deixar/porta a porta) — mesma logica do link
+  // publico, agora tambem disponivel pro gestor cadastrar quem liga em vez
+  // de usar o link (pedido Julimar 2026-08-05: "por onde for realizado o
+  // agendamento precisa dos campos corretos").
+  const usaPorta = !!rotaEmpAtual?.oferece_porta && !ehModoLivre
+  const mEmbarque = form.modalidade_embarque
+  const embPreenchido = (form.rua + form.bairro + form.municipio + form.referencia).trim()
+  const desPreenchido = (form.rua_desembarque + form.bairro_desembarque + form.municipio_desembarque + form.referencia_desembarque).trim()
+  const faltaEnderecoPorta = usaPorta && (
+    ((mEmbarque === 'buscar' || mEmbarque === 'porta_porta') && !embPreenchido) ||
+    ((mEmbarque === 'deixar' || mEmbarque === 'porta_porta') && !desPreenchido)
+  )
+  const podeSalvar = !saving && !!form.nome_passageiro && !!paradaOrigemFinal && !!paradaDestinoFinal && !!valorFinal && form.quantidade > 0 && !excedeCapacidade && !faltaEnderecoPorta
 
   function fechar() {
     localStorage.removeItem('vangenda_form_agendamento')
@@ -1833,6 +1862,7 @@ function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSa
       cep_desembarque: form.cep_desembarque || null,
       referencia_desembarque: form.referencia_desembarque || null,
       quantidade_bagagem: form.quantidade_bagagem || 0,
+      modalidade_embarque: usaPorta ? form.modalidade_embarque : null,
     }))
     const { error } = await supabase.from('agendamentos').insert(registros)
     setSaving(false)
@@ -2021,6 +2051,113 @@ function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSa
           </div>
         )}
 
+        {/* Servico de porta — mesma escolha que o passageiro faz no link
+            publico, agora tambem disponivel aqui pro gestor que atende por
+            telefone (pedido Julimar 2026-08-05). */}
+        {usaPorta && (
+          <Campo label="Como será o embarque e desembarque? *">
+            <div className="flex flex-col gap-1.5">
+              {MODALIDADES_PORTA.map(m => {
+                const sel = form.modalidade_embarque === m.value
+                const acrescimoBuscar = Number(rotaEmpAtual?.acrescimo_buscar ?? 0)
+                const acrescimoDeixar = Number(rotaEmpAtual?.acrescimo_deixar ?? 0)
+                const extra = m.value === 'buscar' ? acrescimoBuscar
+                  : m.value === 'deixar' ? acrescimoDeixar
+                  : m.value === 'porta_porta' ? acrescimoBuscar + acrescimoDeixar
+                  : 0
+                return (
+                  <button key={m.value} type="button"
+                    onClick={() => setForm(f => ({ ...f, modalidade_embarque: m.value }))}
+                    className="w-full text-left px-3 py-2.5 rounded-xl border transition-all flex items-center gap-2"
+                    style={sel
+                      ? { background: '#0F6E56', color: '#fff', borderColor: '#0F6E56' }
+                      : { background: '#fff', color: '#374151', borderColor: '#e5e7eb' }}>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold">{m.label}</p>
+                      <p className="text-[11px] mt-0.5" style={{ color: sel ? 'rgba(255,255,255,0.85)' : '#9ca3af' }}>
+                        {m.desc}
+                      </p>
+                    </div>
+                    {extra > 0 && (
+                      <span className="text-xs font-bold flex-shrink-0" style={{ color: sel ? '#fff' : '#0F6E56' }}>
+                        +R$ {extra.toFixed(2).replace('.', ',')}
+                      </span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          </Campo>
+        )}
+
+        {usaPorta && (mEmbarque === 'buscar' || mEmbarque === 'porta_porta') && (
+          <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-3">
+            <p className="text-sm font-semibold text-gray-700">📍 Endereço de embarque <span className="text-xs font-normal" style={{ color: '#A32D2D' }}>(obrigatório)</span></p>
+            <div style={{ display: 'grid', gridTemplateColumns: '70% 30%', gap: '8px' }}>
+              <Campo label="Rua / Logradouro">
+                <input value={form.rua} onChange={e => setForm(f => ({ ...f, rua: e.target.value }))}
+                  placeholder="Ex: Rua das Flores" className="campo-input" />
+              </Campo>
+              <Campo label="Número">
+                <input value={form.numero} onChange={e => setForm(f => ({ ...f, numero: e.target.value }))}
+                  placeholder="123" className="campo-input" />
+              </Campo>
+            </div>
+            <Campo label="Bairro">
+              <input value={form.bairro} onChange={e => setForm(f => ({ ...f, bairro: e.target.value }))}
+                placeholder="Ex: Centro" className="campo-input" />
+            </Campo>
+            <div className="grid grid-cols-2 gap-2">
+              <Campo label="Município">
+                <input value={form.municipio} onChange={e => setForm(f => ({ ...f, municipio: e.target.value }))}
+                  placeholder="Ex: São Paulo" className="campo-input" />
+              </Campo>
+              <Campo label="CEP">
+                <input value={form.cep} onChange={e => setForm(f => ({ ...f, cep: e.target.value }))}
+                  placeholder="00000-000" className="campo-input" />
+              </Campo>
+            </div>
+            <Campo label="Ponto de referência">
+              <input value={form.referencia} onChange={e => setForm(f => ({ ...f, referencia: e.target.value }))}
+                placeholder="Ex: Próximo ao mercado Boa Ideia" className="campo-input" />
+            </Campo>
+          </div>
+        )}
+
+        {usaPorta && (mEmbarque === 'deixar' || mEmbarque === 'porta_porta') && (
+          <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-3">
+            <p className="text-sm font-semibold text-gray-700">🏁 Endereço de desembarque <span className="text-xs font-normal" style={{ color: '#A32D2D' }}>(obrigatório)</span></p>
+            <div style={{ display: 'grid', gridTemplateColumns: '70% 30%', gap: '8px' }}>
+              <Campo label="Rua / Logradouro">
+                <input value={form.rua_desembarque} onChange={e => setForm(f => ({ ...f, rua_desembarque: e.target.value }))}
+                  placeholder="Ex: Rua das Palmeiras" className="campo-input" />
+              </Campo>
+              <Campo label="Número">
+                <input value={form.numero_desembarque} onChange={e => setForm(f => ({ ...f, numero_desembarque: e.target.value }))}
+                  placeholder="456" className="campo-input" />
+              </Campo>
+            </div>
+            <Campo label="Bairro">
+              <input value={form.bairro_desembarque} onChange={e => setForm(f => ({ ...f, bairro_desembarque: e.target.value }))}
+                placeholder="Ex: Vila Nova" className="campo-input" />
+            </Campo>
+            <div className="grid grid-cols-2 gap-2">
+              <Campo label="Município">
+                <input value={form.municipio_desembarque} onChange={e => setForm(f => ({ ...f, municipio_desembarque: e.target.value }))}
+                  placeholder="Ex: São Paulo" className="campo-input" />
+              </Campo>
+              <Campo label="CEP">
+                <input value={form.cep_desembarque} onChange={e => setForm(f => ({ ...f, cep_desembarque: e.target.value }))}
+                  placeholder="00000-000" className="campo-input" />
+              </Campo>
+            </div>
+            <Campo label="Ponto de referência">
+              <input value={form.referencia_desembarque} onChange={e => setForm(f => ({ ...f, referencia_desembarque: e.target.value }))}
+                placeholder="Ex: Em frente à padaria" className="campo-input" />
+            </Campo>
+          </div>
+        )}
+
         <Campo label={valorAuto ? '✓ Valor automático da tabela' : 'Valor da passagem'}>
           <div className="flex gap-2">
             <span className="flex items-center px-3 rounded-l-xl border border-r-0 border-gray-200 bg-white text-gray-400 text-sm">R$</span>
@@ -2112,6 +2249,11 @@ function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSa
       </div>
 
       <div style={{ padding: '8px 16px 80px', background: 'white', borderTop: '1px solid #e5e7eb' }}>
+        {faltaEnderecoPorta && (
+          <p className="text-xs text-red-600 bg-red-50 rounded-xl px-3 py-2 mb-2">
+            Informe o endereço {mEmbarque === 'deixar' ? 'de desembarque' : mEmbarque === 'porta_porta' ? 'de embarque e de desembarque' : 'de embarque'} pra salvar.
+          </p>
+        )}
         {erroSalvar && (
           <p className="text-xs text-red-600 bg-red-50 rounded-xl px-3 py-2 mb-2">{erroSalvar}</p>
         )}

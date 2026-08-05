@@ -74,7 +74,7 @@ type SaidaRota = {
   capacidade: number | null
 }
 
-const MODALIDADES_PORTA = [
+export const MODALIDADES_PORTA = [
   { value: 'rota',        label: '📍 Ponto de Encontro',      desc: 'Embarque e desembarque nos pontos oficiais da rota' },
   { value: 'buscar',      label: '🏠 Buscar no meu Endereço', desc: 'Buscamos você no endereço informado e o desembarque será no ponto oficial' },
   { value: 'deixar',      label: '🚩 Deixar no meu Endereço', desc: 'Embarque no ponto oficial e desembarque no endereço informado' },

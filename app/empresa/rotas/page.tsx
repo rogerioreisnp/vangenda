@@ -758,6 +758,10 @@ export default function RotasPage() {
                   <input type="number" value={formRF.capacidade}
                     onChange={e => setFormRF(f => ({ ...f, capacidade: e.target.value }))}
                     placeholder="Ex: 15" className="campo-input" min={1} />
+                  <p className="text-xs text-gray-400 mt-1 leading-snug">
+                    Usada só quando uma saída (acima) não tiver "Lugares" preenchido.
+                    Deixe em branco lá pra herdar este valor.
+                  </p>
                 </Campo>
 
                 <Campo label="Motorista">
