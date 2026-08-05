@@ -60,6 +60,8 @@ type Corrida = {
   data_prevista_pagamento: string | null
   valor_repasse_motorista: number | null
   observacoes: string | null
+  observacao_motorista: string | null
+  anexo_motorista_url: string | null
   motoristas_empresa: { nome: string } | null
   numero_voo: string | null
   nome_passageiro2: string | null
@@ -545,7 +547,7 @@ export default function AgendamentosPage() {
     //   2. FUTURAS (data_hora >= agora e status != em_andamento) — asc
     //   3. PASSADAS (data_hora < agora e status != em_andamento) — desc
     const agoraISO = new Date().toISOString()
-    const colsCorridas = 'id, rota_id, cliente_id, origem, destino, data_hora, created_at, cliente_nome, cliente_telefone, email_solicitante, passageiro1_nome, passageiro1_telefone, valor, status, motorista_id, tipo_servico, forma_pagamento, status_pagamento, valor_recebido, data_pagamento, data_prevista_pagamento, valor_repasse_motorista, observacoes, motoristas_empresa(nome), numero_voo, nome_passageiro2, telefone_passageiro2, retorno_data, retorno_horario, retorno_origem, retorno_destino, numero_reserva, quantidade_bagagem, passageiros_adicionais, rua, numero, bairro, municipio, cep, referencia, rua_desembarque, numero_desembarque, bairro_desembarque, municipio_desembarque, cep_desembarque, referencia_desembarque, data_hora_termino, trajetos, km_inicial, km_final, iniciado_em, finalizado_em'
+    const colsCorridas = 'id, rota_id, cliente_id, origem, destino, data_hora, created_at, cliente_nome, cliente_telefone, email_solicitante, passageiro1_nome, passageiro1_telefone, valor, status, motorista_id, tipo_servico, forma_pagamento, status_pagamento, valor_recebido, data_pagamento, data_prevista_pagamento, valor_repasse_motorista, observacoes, motoristas_empresa(nome), numero_voo, nome_passageiro2, telefone_passageiro2, retorno_data, retorno_horario, retorno_origem, retorno_destino, numero_reserva, quantidade_bagagem, passageiros_adicionais, rua, numero, bairro, municipio, cep, referencia, rua_desembarque, numero_desembarque, bairro_desembarque, municipio_desembarque, cep_desembarque, referencia_desembarque, data_hora_termino, trajetos, km_inicial, km_final, iniciado_em, finalizado_em, observacao_motorista, anexo_motorista_url'
 
     const [{ data: empresa }, { data: rts }, { data: mots }, { data: clientesData }, { data: emAndamento }, { data: futuras }, { data: passadas }] = await Promise.all([
       supabase
@@ -2930,6 +2932,24 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
               <div className="bg-white rounded-2xl p-4 border border-gray-100">
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Observações</p>
                 <p className="text-sm text-gray-700 leading-relaxed">{corridaFicha.observacoes}</p>
+              </div>
+            )}
+
+            {/* Observacao que o MOTORISTA escreveu no app dele (separada da
+                observacoes acima, que e do gestor) — ex: pedido de reembolso
+                com nota anexada (Julimar, 2026-08-05). */}
+            {(corridaFicha.observacao_motorista || corridaFicha.anexo_motorista_url) && (
+              <div className="bg-white rounded-2xl p-4 border border-gray-100">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">🧾 Observação do motorista</p>
+                {corridaFicha.observacao_motorista && (
+                  <p className="text-sm text-gray-700 leading-relaxed">{corridaFicha.observacao_motorista}</p>
+                )}
+                {corridaFicha.anexo_motorista_url && (
+                  <a href={corridaFicha.anexo_motorista_url} target="_blank" rel="noopener noreferrer"
+                    className="text-xs font-semibold mt-1 inline-block" style={{ color: '#0F6E56' }}>
+                    📎 Ver anexo
+                  </a>
+                )}
               </div>
             )}
 

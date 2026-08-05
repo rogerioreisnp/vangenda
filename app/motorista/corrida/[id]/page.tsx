@@ -35,6 +35,8 @@ type Corrida = {
   km_final: number | null
   iniciado_em: string | null
   finalizado_em: string | null
+  observacao_motorista: string | null
+  anexo_motorista_url: string | null
   trajetos: string[] | null
   rua: string | null; numero: string | null; bairro: string | null
   municipio: string | null; cep: string | null; referencia: string | null
@@ -70,6 +72,15 @@ export default function CorridaFicha({ params }: { params: { id: string } }) {
   // ajustar tudo manualmente.
   const [erroAcao, setErroAcao] = useState<string | null>(null)
 
+  // Observacao do motorista (separada da observacoes do gestor) + anexo —
+  // pedido do Julimar 2026-08-05: motorista quer poder avisar de algo (ex:
+  // pagou estacionamento, precisa de reembolso) e anexar a nota.
+  const [observacaoMotorista, setObservacaoMotorista] = useState('')
+  const [anexoFile, setAnexoFile] = useState<File | null>(null)
+  const [salvandoObs, setSalvandoObs] = useState(false)
+  const [erroObs, setErroObs] = useState<string | null>(null)
+  const [obsSalva, setObsSalva] = useState(false)
+
   useEffect(() => { carregar() }, [params.id])
 
   async function carregar() {
@@ -84,7 +95,10 @@ export default function CorridaFicha({ params }: { params: { id: string } }) {
       .select('*')
       .eq('id', params.id)
       .maybeSingle()
-    if (data) setC(data as Corrida)
+    if (data) {
+      setC(data as Corrida)
+      setObservacaoMotorista((data as Corrida).observacao_motorista || '')
+    }
     setLoading(false)
   }
 
@@ -149,6 +163,42 @@ export default function CorridaFicha({ params }: { params: { id: string } }) {
     }
     setC({ ...c, trajetos: novos })
     setNovoTrajeto('')
+  }
+
+  async function salvarObservacaoMotorista() {
+    if (!c) return
+    setSalvandoObs(true)
+    setErroObs(null)
+    setObsSalva(false)
+    let anexoUrl = c.anexo_motorista_url
+    if (anexoFile) {
+      const ext = anexoFile.name.split('.').pop()?.toLowerCase() || 'jpg'
+      const path = `${c.id}/${Date.now()}.${ext}`
+      const { error: errUp } = await supabase.storage
+        .from('anexos-motorista')
+        .upload(path, anexoFile, { contentType: anexoFile.type, upsert: false })
+      if (errUp) {
+        setSalvandoObs(false)
+        setErroObs(`Erro ao enviar o anexo: ${errUp.message}`)
+        return
+      }
+      const { data: pub } = supabase.storage.from('anexos-motorista').getPublicUrl(path)
+      anexoUrl = pub.publicUrl
+    }
+    const { data, error } = await supabase.from('corridas_empresa')
+      .update({ observacao_motorista: observacaoMotorista.trim() || null, anexo_motorista_url: anexoUrl })
+      .eq('id', c.id)
+      .select('id')
+    setSalvandoObs(false)
+    if (error) { setErroObs(`Erro ao salvar: ${error.message}`); return }
+    if (!data || data.length === 0) {
+      setErroObs('Sem permissão pra salvar nesta corrida.')
+      return
+    }
+    setC({ ...c, observacao_motorista: observacaoMotorista.trim() || null, anexo_motorista_url: anexoUrl })
+    setAnexoFile(null)
+    setObsSalva(true)
+    setTimeout(() => setObsSalva(false), 3000)
   }
 
   if (loading) {
@@ -342,6 +392,52 @@ export default function CorridaFicha({ params }: { params: { id: string } }) {
           <div className="bg-white rounded-2xl p-4 border border-gray-100">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">📝 Observações</p>
             <p className="text-sm text-gray-700 whitespace-pre-wrap">{c.observacoes}</p>
+          </div>
+        )}
+
+        {/* Observacao do motorista + anexo — separado da observacoes do
+            gestor acima. Uso tipico: "paguei estacionamento, preciso de
+            reembolso" + foto da notinha (pedido Julimar 2026-08-05). Só
+            quem está atribuído pode editar; outros veem em modo leitura. */}
+        {eDele ? (
+          <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-2">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">🧾 Sua observação pro gestor</p>
+            <p className="text-xs text-gray-400 -mt-1">
+              Ex: "Paguei R$ 15 de estacionamento, preciso de reembolso" — anexe a nota se tiver.
+            </p>
+            <textarea value={observacaoMotorista} onChange={e => setObservacaoMotorista(e.target.value)}
+              placeholder="Escreva aqui sua observação..."
+              className="campo-input" rows={3} style={{ resize: 'vertical' }} />
+            {c.anexo_motorista_url && !anexoFile && (
+              <a href={c.anexo_motorista_url} target="_blank" rel="noopener noreferrer"
+                className="text-xs font-semibold" style={{ color: '#0F6E56' }}>
+                📎 Ver anexo enviado
+              </a>
+            )}
+            <label className="flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-semibold border cursor-pointer"
+              style={{ background: '#f9fafb', color: '#374151', borderColor: '#e5e7eb' }}>
+              📎 {anexoFile ? anexoFile.name : c.anexo_motorista_url ? 'Trocar anexo (foto ou PDF)' : 'Anexar foto ou PDF'}
+              <input type="file" accept="image/*,.pdf" className="hidden"
+                onChange={e => setAnexoFile(e.target.files?.[0] || null)} />
+            </label>
+            {erroObs && <p className="text-xs" style={{ color: '#DC2626' }}>⚠️ {erroObs}</p>}
+            {obsSalva && <p className="text-xs font-semibold" style={{ color: '#0F6E56' }}>✓ Salvo!</p>}
+            <button onClick={salvarObservacaoMotorista} disabled={salvandoObs}
+              className="w-full py-3 rounded-xl text-sm font-semibold disabled:opacity-40"
+              style={{ background: '#0F6E56', color: '#fff' }}>
+              {salvandoObs ? 'Salvando…' : '✓ Salvar observação'}
+            </button>
+          </div>
+        ) : (c.observacao_motorista || c.anexo_motorista_url) && (
+          <div className="bg-white rounded-2xl p-4 border border-gray-100">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">🧾 Observação do motorista</p>
+            {c.observacao_motorista && <p className="text-sm text-gray-700 whitespace-pre-wrap">{c.observacao_motorista}</p>}
+            {c.anexo_motorista_url && (
+              <a href={c.anexo_motorista_url} target="_blank" rel="noopener noreferrer"
+                className="text-xs font-semibold mt-1 inline-block" style={{ color: '#0F6E56' }}>
+                📎 Ver anexo
+              </a>
+            )}
           </div>
         )}
 
