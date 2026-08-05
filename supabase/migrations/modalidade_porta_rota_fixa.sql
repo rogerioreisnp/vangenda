@@ -40,4 +40,15 @@ ALTER TABLE agendamentos
 -- NULL = 'rota' na leitura. Nao preenchemos as linhas antigas de proposito:
 -- toda reserva que existe hoje e ponto a ponto, e NULL ja significa isso.
 
+-- Acrescimo do servico de porta (Alexandre, 2026-08-04: "quando ele faz essa
+-- funcao o sistema ja recalcula o valor"). Valor fixo por rota, somado ao
+-- preco do trecho:
+--   buscar      -> preco do trecho + acrescimo_buscar
+--   deixar      -> preco do trecho + acrescimo_deixar
+--   porta_porta -> preco do trecho + acrescimo_buscar + acrescimo_deixar
+-- Zero = servico de porta sem custo extra (comportamento de ate agora).
+ALTER TABLE rotas_empresa
+  ADD COLUMN IF NOT EXISTS acrescimo_buscar NUMERIC(10,2) NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS acrescimo_deixar NUMERIC(10,2) NOT NULL DEFAULT 0;
+
 NOTIFY pgrst, 'reload schema';

@@ -58,6 +58,8 @@ type Rota = {
   capacidade: number | null
   modo_endereco: 'paradas' | 'livre' | null
   oferece_porta?: boolean | null
+  acrescimo_buscar?: number | null
+  acrescimo_deixar?: number | null
 }
 
 // Modalidades de embarque/desembarque do rota fixa. A rota so mostra a
@@ -197,7 +199,7 @@ export default function AgendamentoPublico({
   async function carregarRotas() {
     const { data } = await supabase
       .from('rotas_empresa')
-      .select('id, nome, origem, destino, preco, horario_ida, horario_volta, dias_semana, capacidade, modo_endereco, oferece_porta')
+      .select('id, nome, origem, destino, preco, horario_ida, horario_volta, dias_semana, capacidade, modo_endereco, oferece_porta, acrescimo_buscar, acrescimo_deixar')
       .eq('empresa_id', empresa.id)
       .order('created_at')
     if (data) setRotas(data)
@@ -546,9 +548,8 @@ export default function AgendamentoPublico({
     // ── Caminho rota_fixa: salva em corridas_empresa ─────────────────────────
     // Modo 'paradas': valor vem do trecho (paradas_empresa)
     // Modo 'livre': valor vem da rota inteira (rotas_empresa.preco)
-    const valorSave = rotaSelecionada?.modo_endereco === 'livre'
-      ? Number(rotaSelecionada.preco ?? 0)
-      : (valorTrechoRF ?? 0)
+    // Ja inclui o acrescimo do servico de porta, quando houver.
+    const valorSave = valorUnitarioRF
 
     // Um registro por passageiro — mesmo padrao do app individual
     // (/agendar/[slug]). Precisa ser assim para o RPC count_vagas_ocupadas
@@ -651,8 +652,20 @@ export default function AgendamentoPublico({
     setErro('')
   }
 
+  // Acrescimo do servico de porta, configurado na rota. Somado ao trecho —
+  // "quando ele faz essa funcao o sistema ja recalcula o valor" (Alexandre).
+  const acrescimoBuscar = Number(rotaSelecionada?.acrescimo_buscar ?? 0)
+  const acrescimoDeixar = Number(rotaSelecionada?.acrescimo_deixar ?? 0)
+  const acrescimoPorta = !rotaSelecionada?.oferece_porta ? 0
+    : form.modalidade_embarque === 'buscar' ? acrescimoBuscar
+    : form.modalidade_embarque === 'deixar' ? acrescimoDeixar
+    : form.modalidade_embarque === 'porta_porta' ? acrescimoBuscar + acrescimoDeixar
+    : 0
+
   const valorUnitarioRF = empresa.tipo_operacao === 'rota_fixa'
-    ? (rotaSelecionada?.modo_endereco === 'livre' ? Number(rotaSelecionada.preco ?? 0) : (valorTrechoRF ?? 0))
+    ? (rotaSelecionada?.modo_endereco === 'livre'
+        ? Number(rotaSelecionada.preco ?? 0)
+        : (valorTrechoRF ?? 0) + acrescimoPorta)
     : 0
   const valorParaPix = empresa.tipo_operacao === 'rota_fixa'
     ? valorUnitarioRF * Math.max(1, form.quantidade_passageiros || 1)
@@ -808,36 +821,6 @@ export default function AgendamentoPublico({
                     </Campo>
                   </div>
 
-                  {/* Modalidade de porta — so aparece se a rota oferece.
-                      Uma rota so, uma van so, uma lotacao so. */}
-                  {rotaSelecionada.oferece_porta && (
-                    <Campo label="Como você quer ser atendido? *">
-                      <div className="flex flex-col gap-1.5">
-                        {MODALIDADES_PORTA.map(m => {
-                          const sel = form.modalidade_embarque === m.value
-                          return (
-                            <button key={m.value} type="button"
-                              onClick={() => setForm(f => ({ ...f, modalidade_embarque: m.value }))}
-                              className="w-full text-left px-3 py-2.5 rounded-xl border transition-all"
-                              style={sel
-                                ? { background: cor, color: '#fff', borderColor: cor }
-                                : { background: '#fff', color: '#374151', borderColor: '#e5e7eb' }}>
-                              <p className="text-sm font-semibold">{m.label}</p>
-                              <p className="text-[11px] mt-0.5" style={{ color: sel ? 'rgba(255,255,255,0.85)' : '#9ca3af' }}>
-                                {m.desc}
-                              </p>
-                            </button>
-                          )
-                        })}
-                      </div>
-                      {form.modalidade_embarque !== 'rota' && (
-                        <p className="text-[11px] mt-1.5" style={{ color: '#9A3412' }}>
-                          ⬇️ Preencha o endereço nos campos mais abaixo para o motorista te encontrar.
-                        </p>
-                      )}
-                    </Campo>
-                  )}
-
                   {embarque && desembarque && valorTrechoRF === null && (
                     <div className="rounded-xl px-4 py-3 border" style={{ background: '#FCEBEB', borderColor: '#F5BCBC' }}>
                       <p className="text-xs text-center" style={{ color: '#A32D2D' }}>Trecho não disponível para esta rota.</p>
@@ -928,6 +911,44 @@ export default function AgendamentoPublico({
                           {hora && (
                             <span className="block text-xs mt-0.5 opacity-80">
                               {hora.slice(0, 5)}h
+                            </span>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </Campo>
+              )}
+
+              {/* Modalidade de porta — logo abaixo dos horários de ida/volta,
+                  como o Alexandre sugeriu. Marcar aqui faz os campos de
+                  endereço aparecerem e recalcula o valor na hora. */}
+              {empresa.tipo_operacao === 'rota_fixa' && rotaSelecionada?.oferece_porta && rotaSelecionada.modo_endereco !== 'livre' && (
+                <Campo label="Como você quer ser atendido? *">
+                  <div className="flex flex-col gap-1.5">
+                    {MODALIDADES_PORTA.map(m => {
+                      const sel = form.modalidade_embarque === m.value
+                      const extra = m.value === 'buscar' ? acrescimoBuscar
+                        : m.value === 'deixar' ? acrescimoDeixar
+                        : m.value === 'porta_porta' ? acrescimoBuscar + acrescimoDeixar
+                        : 0
+                      return (
+                        <button key={m.value} type="button"
+                          onClick={() => setForm(f => ({ ...f, modalidade_embarque: m.value }))}
+                          className="w-full text-left px-3 py-2.5 rounded-xl border transition-all flex items-center gap-2"
+                          style={sel
+                            ? { background: cor, color: '#fff', borderColor: cor }
+                            : { background: '#fff', color: '#374151', borderColor: '#e5e7eb' }}>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold">{m.label}</p>
+                            <p className="text-[11px] mt-0.5" style={{ color: sel ? 'rgba(255,255,255,0.85)' : '#9ca3af' }}>
+                              {m.desc}
+                            </p>
+                          </div>
+                          {extra > 0 && (
+                            <span className="text-xs font-bold flex-shrink-0"
+                              style={{ color: sel ? '#fff' : cor }}>
+                              +R$ {extra.toFixed(2).replace('.', ',')}
                             </span>
                           )}
                         </button>
@@ -1401,11 +1422,24 @@ export default function AgendamentoPublico({
               </div>
             )}
 
-            {/* Endereço detalhado embarque + desembarque (rota fixa) */}
-            {empresa.tipo_operacao === 'rota_fixa' && (
+            {/* Endereço detalhado embarque + desembarque (rota fixa).
+                Quando a rota oferece serviço de porta, o bloco de endereço só
+                aparece na ponta que o passageiro marcou — e aí deixa de ser
+                opcional. Rota sem serviço de porta segue como sempre foi:
+                os dois blocos visíveis e opcionais. */}
+            {empresa.tipo_operacao === 'rota_fixa' && (() => {
+              const usaPorta = !!rotaSelecionada?.oferece_porta && rotaSelecionada.modo_endereco !== 'livre'
+              const m = form.modalidade_embarque
+              const mostrarEmbarque    = !usaPorta || m === 'buscar' || m === 'porta_porta'
+              const mostrarDesembarque = !usaPorta || m === 'deixar' || m === 'porta_porta'
+              const rotuloOpcional = usaPorta
+                ? <span className="text-xs font-normal" style={{ color: '#A32D2D' }}>(obrigatório)</span>
+                : <span className="text-xs font-normal text-gray-400">(opcional)</span>
+              return (
               <>
+                {mostrarEmbarque && (
                 <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-3">
-                  <p className="text-sm font-semibold text-gray-700">📍 Endereço de embarque <span className="text-xs font-normal text-gray-400">(opcional)</span></p>
+                  <p className="text-sm font-semibold text-gray-700">📍 Endereço de embarque {rotuloOpcional}</p>
                   <div style={{ display: 'grid', gridTemplateColumns: '70% 30%', gap: '8px' }}>
                     <Campo label="Rua / Logradouro">
                       <input value={form.rua} onChange={e => setForm(f => ({ ...f, rua: e.target.value }))}
@@ -1435,9 +1469,11 @@ export default function AgendamentoPublico({
                       placeholder="Ex: Próximo ao mercado Boa Ideia" className="campo-input" />
                   </Campo>
                 </div>
+                )}
 
+                {mostrarDesembarque && (
                 <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-3">
-                  <p className="text-sm font-semibold text-gray-700">🏁 Endereço de desembarque <span className="text-xs font-normal text-gray-400">(opcional)</span></p>
+                  <p className="text-sm font-semibold text-gray-700">🏁 Endereço de desembarque {rotuloOpcional}</p>
                   <div style={{ display: 'grid', gridTemplateColumns: '70% 30%', gap: '8px' }}>
                     <Campo label="Rua / Logradouro">
                       <input value={form.rua_desembarque} onChange={e => setForm(f => ({ ...f, rua_desembarque: e.target.value }))}
@@ -1467,8 +1503,10 @@ export default function AgendamentoPublico({
                       placeholder="Ex: Em frente à padaria" className="campo-input" />
                   </Campo>
                 </div>
+                )}
               </>
-            )}
+              )
+            })()}
 
             <div className="bg-white rounded-2xl p-4 border border-gray-100">
               <Campo label="Quantidade de bagagem">

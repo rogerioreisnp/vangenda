@@ -42,6 +42,8 @@ type RotaRF = {
   origem: string | null
   destino: string | null
   oferece_porta?: boolean | null
+  acrescimo_buscar?: number | null
+  acrescimo_deixar?: number | null
 }
 
 type PrecoRF = {
@@ -64,6 +66,8 @@ type FormRotaRF = {
   origem: string
   destino: string
   oferece_porta: boolean
+  acrescimo_buscar: string
+  acrescimo_deixar: string
 }
 
 export default function RotasPage() {
@@ -87,7 +91,7 @@ export default function RotasPage() {
     capacidade: '15', motorista_id: '', veiculo_placa: '',
     ativa: true, dias_semana: [1, 2, 3, 4, 5],
     modo_endereco: 'paradas', preco: '', origem: '', destino: '',
-    oferece_porta: false,
+    oferece_porta: false, acrescimo_buscar: '', acrescimo_deixar: '',
   })
   const [paradasRF, setParadasRF] = useState<string[]>([])
   const [precosRF, setPrecosRF] = useState<PrecoRF[]>([])
@@ -228,7 +232,7 @@ export default function RotasPage() {
 
   function abrirAdicionarRF() {
     setRotaRFEditando(null)
-    setFormRF({ nome: '', horario_ida: '05:00', horario_volta: '14:00', capacidade: '15', motorista_id: '', veiculo_placa: '', ativa: true, dias_semana: [1, 2, 3, 4, 5], modo_endereco: 'paradas', preco: '', origem: '', destino: '', oferece_porta: false })
+    setFormRF({ nome: '', horario_ida: '05:00', horario_volta: '14:00', capacidade: '15', motorista_id: '', veiculo_placa: '', ativa: true, dias_semana: [1, 2, 3, 4, 5], modo_endereco: 'paradas', preco: '', origem: '', destino: '', oferece_porta: false, acrescimo_buscar: '', acrescimo_deixar: '' })
     setParadasRF([])
     setPrecosRF([])
     setNovaParadaRF('')
@@ -252,6 +256,8 @@ export default function RotasPage() {
       origem: r.origem || '',
       destino: r.destino || '',
       oferece_porta: !!r.oferece_porta,
+      acrescimo_buscar: Number(r.acrescimo_buscar) > 0 ? String(r.acrescimo_buscar) : '',
+      acrescimo_deixar: Number(r.acrescimo_deixar) > 0 ? String(r.acrescimo_deixar) : '',
     })
     const { data: trechos } = await supabase
       .from('paradas_empresa')
@@ -311,6 +317,8 @@ export default function RotasPage() {
       origem: formRF.modo_endereco === 'livre' ? formRF.origem.trim() : null,
       destino: formRF.modo_endereco === 'livre' ? formRF.destino.trim() : null,
       oferece_porta: formRF.oferece_porta,
+      acrescimo_buscar: formRF.oferece_porta ? (parseFloat(formRF.acrescimo_buscar.replace(',', '.')) || 0) : 0,
+      acrescimo_deixar: formRF.oferece_porta ? (parseFloat(formRF.acrescimo_deixar.replace(',', '.')) || 0) : 0,
     }
 
     let rotaId: string
@@ -733,7 +741,45 @@ export default function RotasPage() {
                       Ligando isso, o passageiro escolhe no agendamento se quer ser
                       <strong> buscado em casa</strong>, <strong>deixado em casa</strong> ou
                       <strong> os dois</strong> — tudo dentro desta mesma rota, com a mesma van
-                      e a mesma lotação. O preço continua vindo do trecho.
+                      e a mesma lotação.
+                    </p>
+                    {formRF.oferece_porta && (
+                      <div className="flex flex-col gap-2 mt-1">
+                        <p className="text-xs font-semibold" style={{ color: '#166534' }}>
+                          Quanto cobra a mais por esse serviço?
+                        </p>
+                        <div className="grid grid-cols-2 gap-2">
+                          <Campo label="🏠 Buscar em casa (+R$)">
+                            <input type="number" step="0.01" min={0}
+                              value={formRF.acrescimo_buscar}
+                              onChange={e => setFormRF(f => ({ ...f, acrescimo_buscar: e.target.value }))}
+                              placeholder="0,00" className="campo-input" />
+                          </Campo>
+                          <Campo label="🏁 Deixar em casa (+R$)">
+                            <input type="number" step="0.01" min={0}
+                              value={formRF.acrescimo_deixar}
+                              onChange={e => setFormRF(f => ({ ...f, acrescimo_deixar: e.target.value }))}
+                              placeholder="0,00" className="campo-input" />
+                          </Campo>
+                        </div>
+                        <p className="text-xs text-gray-500 leading-snug">
+                          Somado ao preço do trecho. Quem escolher <strong>porta a porta</strong> paga
+                          os dois. Deixe em branco se o serviço de porta não custa a mais.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Modo livre ja e endereco digitado pelo passageiro, entao o
+                    servico de porta nao acrescenta nada ali. Explica pra
+                    ninguem ficar procurando a chave que nao existe nesse modo. */}
+                {formRF.modo_endereco === 'livre' && (
+                  <div className="rounded-xl p-3" style={{ background: '#F9FAFB', border: '1px solid #e5e7eb' }}>
+                    <p className="text-xs text-gray-500 leading-snug">
+                      ℹ️ O serviço de <strong>buscar / deixar na porta</strong> fica disponível no modo
+                      <strong> Paradas fixas</strong>. Aqui no modo livre o passageiro já digita o
+                      endereço dele direto, então a opção não é necessária.
                     </p>
                   </div>
                 )}
