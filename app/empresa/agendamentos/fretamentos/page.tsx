@@ -79,6 +79,8 @@ type Corrida = {
   trajetos: string[] | null
   km_inicial: number | null
   km_final: number | null
+  iniciado_em: string | null
+  finalizado_em: string | null
   numero_reserva: number | null
   quantidade_bagagem: number | null
   passageiros_adicionais: Array<{
@@ -295,6 +297,13 @@ const TIPO_META: Record<string, TipoMeta> = {
 }
 function tipoMeta(tipo: string | null): TipoMeta {
   return TIPO_META[tipo ?? ''] ?? { badge: tipo ?? 'Serviço', bg: '#F3F4F6', text: '#6B7280', clienteLabel: 'Cliente' }
+}
+
+// Formata iniciado_em/finalizado_em (timestamptz gravado com new Date().
+// toISOString(), UTC de verdade — nao tem o bug de fuso do data_hora
+// agendado) no horario de Brasilia, sem precisar de date-fns nesse arquivo.
+function horaLocal(iso: string): string {
+  return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' })
 }
 
 function podeAbrirFichaTransfer(c: { tipo_servico: string | null; status: string }): boolean {
@@ -536,7 +545,7 @@ export default function AgendamentosPage() {
     //   2. FUTURAS (data_hora >= agora e status != em_andamento) — asc
     //   3. PASSADAS (data_hora < agora e status != em_andamento) — desc
     const agoraISO = new Date().toISOString()
-    const colsCorridas = 'id, rota_id, cliente_id, origem, destino, data_hora, created_at, cliente_nome, cliente_telefone, email_solicitante, passageiro1_nome, passageiro1_telefone, valor, status, motorista_id, tipo_servico, forma_pagamento, status_pagamento, valor_recebido, data_pagamento, data_prevista_pagamento, valor_repasse_motorista, observacoes, motoristas_empresa(nome), numero_voo, nome_passageiro2, telefone_passageiro2, retorno_data, retorno_horario, retorno_origem, retorno_destino, numero_reserva, quantidade_bagagem, passageiros_adicionais, rua, numero, bairro, municipio, cep, referencia, rua_desembarque, numero_desembarque, bairro_desembarque, municipio_desembarque, cep_desembarque, referencia_desembarque, data_hora_termino, trajetos, km_inicial, km_final'
+    const colsCorridas = 'id, rota_id, cliente_id, origem, destino, data_hora, created_at, cliente_nome, cliente_telefone, email_solicitante, passageiro1_nome, passageiro1_telefone, valor, status, motorista_id, tipo_servico, forma_pagamento, status_pagamento, valor_recebido, data_pagamento, data_prevista_pagamento, valor_repasse_motorista, observacoes, motoristas_empresa(nome), numero_voo, nome_passageiro2, telefone_passageiro2, retorno_data, retorno_horario, retorno_origem, retorno_destino, numero_reserva, quantidade_bagagem, passageiros_adicionais, rua, numero, bairro, municipio, cep, referencia, rua_desembarque, numero_desembarque, bairro_desembarque, municipio_desembarque, cep_desembarque, referencia_desembarque, data_hora_termino, trajetos, km_inicial, km_final, iniciado_em, finalizado_em'
 
     const [{ data: empresa }, { data: rts }, { data: mots }, { data: clientesData }, { data: emAndamento }, { data: futuras }, { data: passadas }] = await Promise.all([
       supabase
@@ -1516,7 +1525,8 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
 
   async function marcarEmAndamento(c: Corrida, motoristaId: string, kmInicial: number | null) {
     setConfirmandoFicha(true)
-    const upd: Record<string, unknown> = { status: 'em_andamento' }
+    const agora = new Date().toISOString()
+    const upd: Record<string, unknown> = { status: 'em_andamento', iniciado_em: agora }
     if (motoristaId) upd.motorista_id = motoristaId
     if (kmInicial != null) upd.km_inicial = kmInicial
     const motorista = motoristasOpcoes.find(m => m.id === motoristaId) ?? null
@@ -1524,14 +1534,14 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
     // dispara push. Se ele já era o motorista, ignora.
     const motoristaFoiAtribuido = !!motoristaId && motoristaId !== c.motorista_id
     await supabase.from('corridas_empresa').update(upd).eq('id', c.id)
-    setCorridas(prev => prev.map(x => x.id === c.id ? { ...x, status: 'em_andamento', motorista_id: motoristaId || x.motorista_id, km_inicial: kmInicial ?? x.km_inicial, motoristas_empresa: motorista ? { nome: motorista.nome } : x.motoristas_empresa } : x))
+    setCorridas(prev => prev.map(x => x.id === c.id ? { ...x, status: 'em_andamento', motorista_id: motoristaId || x.motorista_id, km_inicial: kmInicial ?? x.km_inicial, iniciado_em: agora, motoristas_empresa: motorista ? { nome: motorista.nome } : x.motoristas_empresa } : x))
     // Atualiza corridaFicha OU voltaDaFicha dependendo de qual foi acionada.
     // Isso permite iniciar/finalizar ida e volta independentemente.
     setCorridaFicha(prev => prev && prev.id === c.id
-      ? { ...prev, status: 'em_andamento', motorista_id: motoristaId || prev.motorista_id, km_inicial: kmInicial ?? prev.km_inicial }
+      ? { ...prev, status: 'em_andamento', motorista_id: motoristaId || prev.motorista_id, km_inicial: kmInicial ?? prev.km_inicial, iniciado_em: agora }
       : prev)
     setVoltaDaFicha(prev => prev && prev.id === c.id
-      ? { ...prev, status: 'em_andamento', motorista_id: motoristaId || prev.motorista_id, km_inicial: kmInicial ?? prev.km_inicial }
+      ? { ...prev, status: 'em_andamento', motorista_id: motoristaId || prev.motorista_id, km_inicial: kmInicial ?? prev.km_inicial, iniciado_em: agora }
       : prev)
     if (motoristaFoiAtribuido) {
       notificarMotoristaAtribuido(
@@ -1551,18 +1561,19 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
 
   async function marcarConcluida(c: Corrida, kmFinal: number | null) {
     setConfirmandoFicha(true)
-    const upd: Record<string, unknown> = { status: 'concluida' }
+    const agora = new Date().toISOString()
+    const upd: Record<string, unknown> = { status: 'concluida', finalizado_em: agora }
     if (kmFinal != null) upd.km_final = kmFinal
     await supabase.from('corridas_empresa').update(upd).eq('id', c.id)
-    setCorridas(prev => prev.map(x => x.id === c.id ? { ...x, status: 'concluida', km_final: kmFinal ?? x.km_final } : x))
+    setCorridas(prev => prev.map(x => x.id === c.id ? { ...x, status: 'concluida', km_final: kmFinal ?? x.km_final, finalizado_em: agora } : x))
     // Atualiza corridaFicha OU voltaDaFicha dependendo de qual foi acionada.
     // Só finaliza a ponta específica — a outra ponta continua no status
     // atual até ser finalizada independentemente.
     setCorridaFicha(prev => prev && prev.id === c.id
-      ? { ...prev, status: 'concluida', km_final: kmFinal ?? prev.km_final }
+      ? { ...prev, status: 'concluida', km_final: kmFinal ?? prev.km_final, finalizado_em: agora }
       : prev)
     setVoltaDaFicha(prev => prev && prev.id === c.id
-      ? { ...prev, status: 'concluida', km_final: kmFinal ?? prev.km_final }
+      ? { ...prev, status: 'concluida', km_final: kmFinal ?? prev.km_final, finalizado_em: agora }
       : prev)
     setConfirmandoFicha(false)
   }
@@ -2673,8 +2684,14 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                   <div className="rounded-xl p-3 mt-1" style={{ background: '#EFF6FF', border: '1px solid #BFDBFE' }}>
                     <p className="text-xs font-semibold mb-1" style={{ color: '#1D4ED8' }}>🛞 Quilometragem</p>
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Inicial: <strong>{kmI != null ? String(kmI).replace('.', ',') : '—'}</strong></span>
-                      <span className="text-gray-600">Final: <strong>{kmF != null ? String(kmF).replace('.', ',') : '—'}</strong></span>
+                      <span className="text-gray-600">
+                        Inicial: <strong>{kmI != null ? String(kmI).replace('.', ',') : '—'}</strong>
+                        {corridaFicha.iniciado_em && <span className="text-xs text-gray-400"> ({horaLocal(corridaFicha.iniciado_em)}h)</span>}
+                      </span>
+                      <span className="text-gray-600">
+                        Final: <strong>{kmF != null ? String(kmF).replace('.', ',') : '—'}</strong>
+                        {corridaFicha.finalizado_em && <span className="text-xs text-gray-400"> ({horaLocal(corridaFicha.finalizado_em)}h)</span>}
+                      </span>
                     </div>
                     {total != null && (
                       <p className="text-sm font-bold mt-1" style={{ color: '#1D4ED8' }}>Total: {total.toFixed(1).replace('.', ',')} km</p>
@@ -3303,8 +3320,14 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                   {(v.km_inicial != null || v.km_final != null) && (
                     <div className="rounded-xl p-2 border" style={{ background: '#fff', borderColor: '#BFDBFE' }}>
                       <div className="flex justify-between text-xs">
-                        <span className="text-gray-600">KM Inicial: <strong>{v.km_inicial != null ? String(v.km_inicial).replace('.', ',') : '—'}</strong></span>
-                        <span className="text-gray-600">Final: <strong>{v.km_final != null ? String(v.km_final).replace('.', ',') : '—'}</strong></span>
+                        <span className="text-gray-600">
+                          KM Inicial: <strong>{v.km_inicial != null ? String(v.km_inicial).replace('.', ',') : '—'}</strong>
+                          {v.iniciado_em && <span className="text-gray-400"> ({horaLocal(v.iniciado_em)}h)</span>}
+                        </span>
+                        <span className="text-gray-600">
+                          Final: <strong>{v.km_final != null ? String(v.km_final).replace('.', ',') : '—'}</strong>
+                          {v.finalizado_em && <span className="text-gray-400"> ({horaLocal(v.finalizado_em)}h)</span>}
+                        </span>
                       </div>
                       {v.km_inicial != null && v.km_final != null && v.km_final >= v.km_inicial && (
                         <p className="text-xs font-bold mt-1" style={{ color: '#1D4ED8' }}>

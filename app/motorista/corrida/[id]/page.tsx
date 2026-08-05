@@ -33,6 +33,8 @@ type Corrida = {
   motorista_id: string | null
   km_inicial: number | null
   km_final: number | null
+  iniciado_em: string | null
+  finalizado_em: string | null
   trajetos: string[] | null
   rua: string | null; numero: string | null; bairro: string | null
   municipio: string | null; cep: string | null; referencia: string | null
@@ -96,8 +98,9 @@ export default function CorridaFicha({ params }: { params: { id: string } }) {
     if (isNaN(km) || km < 0) return
     setSalvando(true)
     setErroAcao(null)
+    const agora = new Date().toISOString()
     const { data, error } = await supabase.from('corridas_empresa')
-      .update({ status: 'em_andamento', km_inicial: km })
+      .update({ status: 'em_andamento', km_inicial: km, iniciado_em: agora })
       .eq('id', c.id)
       .select('id')
     setSalvando(false)
@@ -106,7 +109,7 @@ export default function CorridaFicha({ params }: { params: { id: string } }) {
       setErroAcao('Sem permissão pra iniciar esta corrida. Confirme com o gestor que ela está atribuída a você e que a migration RLS foi rodada.')
       return
     }
-    setC({ ...c, status: 'em_andamento', km_inicial: km })
+    setC({ ...c, status: 'em_andamento', km_inicial: km, iniciado_em: agora })
   }
 
   async function finalizarCorrida() {
@@ -116,8 +119,9 @@ export default function CorridaFicha({ params }: { params: { id: string } }) {
     if (c.km_inicial != null && km < c.km_inicial) return
     setSalvando(true)
     setErroAcao(null)
+    const agora = new Date().toISOString()
     const { data, error } = await supabase.from('corridas_empresa')
-      .update({ status: 'concluida', km_final: km })
+      .update({ status: 'concluida', km_final: km, finalizado_em: agora })
       .eq('id', c.id)
       .select('id')
     setSalvando(false)
@@ -126,7 +130,7 @@ export default function CorridaFicha({ params }: { params: { id: string } }) {
       setErroAcao('Sem permissão pra finalizar esta corrida. Confirme com o gestor que ela está atribuída a você.')
       return
     }
-    setC({ ...c, status: 'concluida', km_final: km })
+    setC({ ...c, status: 'concluida', km_final: km, finalizado_em: agora })
   }
 
   async function adicionarTrajeto() {
@@ -175,8 +179,16 @@ export default function CorridaFicha({ params }: { params: { id: string } }) {
 
   const st = STATUS_META[c.status] ?? { bg: '#F3F4F6', text: '#6B7280', label: c.status }
   const ehDispose = c.tipo_servico === 'diaria' || c.tipo_servico === 'city_tour'
+  // Passageiro 1 (quem viaja) e o Solicitante (quem contratou/pediu) sao
+  // pessoas diferentes quando o form tem os dois preenchidos. So cai no
+  // cliente_nome/cliente_telefone (dados do solicitante) quando NAO existe
+  // passageiro1_nome — reservas antigas, ou caso em que o solicitante e o
+  // proprio passageiro. Antes o telefone caia no fallback sozinho: nome do
+  // passageiro (Isabela) aparecia com o telefone do solicitante embaixo,
+  // como se fosse dela — reportado pelo Julimar, 2026-08-05.
+  const semPassageiroProprio = !c.passageiro1_nome
   const passageiro1 = c.passageiro1_nome || c.cliente_nome || 'Sem nome'
-  const tel1 = c.passageiro1_telefone || c.cliente_telefone
+  const tel1 = semPassageiroProprio ? c.cliente_telefone : c.passageiro1_telefone
 
   return (
     <div className="pb-6">
@@ -333,13 +345,23 @@ export default function CorridaFicha({ params }: { params: { id: string } }) {
           </div>
         )}
 
-        {/* KM inicial/final — bloco expostivo */}
+        {/* KM inicial/final — bloco expostivo. Horario junto do KM e o
+            horario REAL de quando o motorista apertou Iniciar/Finalizar
+            (iniciado_em/finalizado_em), diferente do horario agendado do
+            atendimento — reportado pelo Julimar, 2026-08-05: KM final
+            aparecia sem nenhum horario junto. */}
         {(c.km_inicial != null || c.km_final != null) && (
           <div className="rounded-2xl p-3" style={{ background: '#EFF6FF', border: '1px solid #BFDBFE' }}>
             <p className="text-xs font-semibold mb-1" style={{ color: '#1D4ED8' }}>🛞 Quilometragem</p>
             <div className="flex justify-between text-sm">
-              <span className="text-gray-600">Inicial: <strong>{c.km_inicial != null ? String(c.km_inicial).replace('.', ',') : '—'}</strong></span>
-              <span className="text-gray-600">Final: <strong>{c.km_final != null ? String(c.km_final).replace('.', ',') : '—'}</strong></span>
+              <span className="text-gray-600">
+                Inicial: <strong>{c.km_inicial != null ? String(c.km_inicial).replace('.', ',') : '—'}</strong>
+                {c.iniciado_em && <span className="text-xs text-gray-400"> ({format(new Date(c.iniciado_em), 'HH:mm')}h)</span>}
+              </span>
+              <span className="text-gray-600">
+                Final: <strong>{c.km_final != null ? String(c.km_final).replace('.', ',') : '—'}</strong>
+                {c.finalizado_em && <span className="text-xs text-gray-400"> ({format(new Date(c.finalizado_em), 'HH:mm')}h)</span>}
+              </span>
             </div>
             {c.km_inicial != null && c.km_final != null && c.km_final >= c.km_inicial && (
               <p className="text-sm font-bold mt-1" style={{ color: '#1D4ED8' }}>
