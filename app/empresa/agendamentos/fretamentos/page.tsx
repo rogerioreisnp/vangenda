@@ -700,6 +700,10 @@ export default function AgendamentosPage() {
     // Em ambos os casos, o gestor precisa poder editar os dados da volta.
     const volta = voltaId ? corridas.find(x => x.id === voltaId) : null
     const temRetornoLinkPublico = !volta && !!c.retorno_data
+    // Diaria/city tour nunca tem volta cobrada a parte. Cinto de seguranca
+    // pros registros que ficaram com retorno preenchido por causa do bug do
+    // toggle (ver o onChange do "Tipo de serviço").
+    const tipoSemVolta = c.tipo_servico === 'diaria' || c.tipo_servico === 'city_tour'
     setCorridaEditando(c)
     setVoltaIdEditando(voltaId ?? null)
     setForm({
@@ -709,7 +713,7 @@ export default function AgendamentosPage() {
       destino: c.destino,
       data: c.data_hora.slice(0, 10),
       horario: c.data_hora.slice(11, 16),
-      ida_volta: !!volta || temRetornoLinkPublico,
+      ida_volta: !tipoSemVolta && (!!volta || temRetornoLinkPublico),
       origem_volta: volta?.origem || c.retorno_origem || '',
       destino_volta: volta?.destino || c.retorno_destino || '',
       data_retorno: volta?.data_hora.slice(0, 10) || c.retorno_data || '',
@@ -3550,7 +3554,28 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
 
             <Campo label="Tipo de serviço">
               <select value={form.tipo_servico}
-                onChange={e => setForm(f => ({ ...f, tipo_servico: e.target.value }))}
+                onChange={e => setForm(f => {
+                  const tipo = e.target.value
+                  // Diaria e city tour tem valor UNICO — nao existe "volta"
+                  // cobrada a parte. O toggle "Ida e volta?" ja fica escondido
+                  // nesses tipos, mas o estado ficava ligado se o gestor
+                  // marcasse antes de trocar o tipo: sobravam os campos de
+                  // valor/endereco/observacao da volta e, pior, salvar criava
+                  // uma segunda corrida fantasma. Desliga junto com o tipo
+                  // (Julimar, 2026-08-05).
+                  if (tipo === 'diaria' || tipo === 'city_tour') {
+                    return {
+                      ...f, tipo_servico: tipo,
+                      ida_volta: false,
+                      origem_volta: '', destino_volta: '',
+                      data_retorno: '', horario_retorno: '',
+                      preco_volta: '', observacoes_volta: '',
+                      anexo_observacoes_volta_url: '',
+                      km_inicial_volta: '', km_final_volta: '',
+                    }
+                  }
+                  return { ...f, tipo_servico: tipo }
+                })}
                 className="campo-input">
                 {tipoOperacao === 'rota_fixa' ? (
                   <>
@@ -3933,7 +3958,16 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                     const next = {
                       ...f,
                       cliente_nome: nome,
-                      cliente_id: match ? match.id : (nome === f.cliente_nome ? f.cliente_id : ''),
+                      // NUNCA desvincula o cliente cadastrado por causa do que
+                      // foi digitado aqui. Sao coisas diferentes: em cima e a
+                      // EMPRESA que contrata (quem paga/recebe a nota), aqui e
+                      // a PESSOA que solicitou — podem divergir de proposito
+                      // (ex: empresa "Thirteen Executive", solicitante "Maria
+                      // do RH"). Antes, editar uma letra do nome jogava o
+                      // seletor de cima pra "Cliente avulso" e o vinculo se
+                      // perdia sem o gestor perceber (Julimar, 2026-08-05).
+                      // So o proprio seletor desvincula.
+                      cliente_id: match ? match.id : f.cliente_id,
                       cliente_telefone: match?.telefone ? match.telefone : f.cliente_telefone,
                       email_solicitante: match?.email ? match.email : f.email_solicitante,
                     }
