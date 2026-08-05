@@ -65,6 +65,9 @@ type Corrida = {
   observacao_motorista: string | null
   anexo_motorista_url: string | null
   veiculo_atribuido: string | null
+  // Vínculo explícito do par ida-volta. As duas linhas criadas juntas
+  // compartilham o mesmo par_id. Null em registros anteriores à migration.
+  par_id: string | null
   motoristas_empresa: { nome: string } | null
   numero_voo: string | null
   nome_passageiro2: string | null
@@ -349,19 +352,47 @@ function normalizeNome(s: string | null | undefined): string {
   return (s || '').trim().replace(/\s+/g, ' ').toLowerCase()
 }
 
+// Id compartilhado pelas duas linhas de um par ida-volta. crypto.randomUUID
+// existe em todo navegador atual, mas só em contexto seguro (https/localhost)
+// — o fallback evita quebrar o agendamento num ambiente sem isso.
+function novoParId(): string {
+  const c: any = typeof crypto !== 'undefined' ? crypto : null
+  if (c?.randomUUID) return c.randomUUID()
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, ch => {
+    const r = (Math.random() * 16) | 0
+    return (ch === 'x' ? r : (r & 0x3) | 0x8).toString(16)
+  })
+}
+
 // Janela pra agrupar par ida-volta: aumentada de 30s pra 5 minutos.
 // O insert cria os 2 registros na mesma transação, mas latência de rede
 // e commit do banco podem espaçar mais que 30s em cenários adversos —
 // nesse caso a volta ficava "solta" e sumia do card.
 const JANELA_PAR_MS = 5 * 60 * 1000
 
-// Decide se dois registros formam par ida-volta. Regras:
-// 1. Mesmo cliente_nome (normalizado — tolerante a case/espaços)
-// 2. created_at com diferença dentro da janela
-// 3. Se AMBOS tem cliente_telefone preenchido, precisam bater — evita
-//    juntar erroneamente dois clientes homônimos cadastrados em sequência
+// Decide se dois registros formam par ida-volta.
+//
+// Caminho principal: par_id. Quando o gestor marca "Ida e volta", as duas
+// linhas nascem com o mesmo par_id — o vínculo é um FATO gravado, não um
+// palpite. Só isso já resolve o caso do Julimar (2026-08-05): ele criou uma
+// Diária pra um dia e um Transfer pra outro, pro mesmo cliente, e o sistema
+// juntou os dois num card só porque a heurística abaixo batia em tudo.
+//
+// Caminho legado: registros criados antes do par_id existir. Aí ainda é
+// palpite — mesmo cliente, criados com pouco tempo de diferença, telefones
+// compatíveis — e agora também exige MESMO tipo de serviço, que é o que
+// separa a Diária do Transfer do exemplo acima.
 function saoParIdaVolta(a: Corrida, b: Corrida): boolean {
+  // Vínculo explícito manda: se os dois têm par_id, é ele quem decide.
+  if (a.par_id && b.par_id) return a.par_id === b.par_id
+  // Um tem vínculo e o outro não: o que tem par_id já pertence a outro par,
+  // então nunca casa por palpite com um avulso.
+  if (a.par_id || b.par_id) return false
+
   if (normalizeNome(a.cliente_nome) !== normalizeNome(b.cliente_nome)) return false
+  // Ida e volta são sempre o MESMO serviço contratado — uma Diária nunca é
+  // a volta de um Transfer.
+  if ((a.tipo_servico || 'transfer') !== (b.tipo_servico || 'transfer')) return false
   const dt = Math.abs(new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
   if (dt >= JANELA_PAR_MS) return false
   const telA = (a.cliente_telefone || '').trim()
@@ -565,7 +596,7 @@ export default function AgendamentosPage() {
     //   2. FUTURAS (data_hora >= agora e status != em_andamento) — asc
     //   3. PASSADAS (data_hora < agora e status != em_andamento) — desc
     const agoraISO = new Date().toISOString()
-    const colsCorridas = 'id, rota_id, cliente_id, origem, destino, data_hora, created_at, cliente_nome, cliente_telefone, email_solicitante, passageiro1_nome, passageiro1_telefone, valor, status, motorista_id, tipo_servico, forma_pagamento, status_pagamento, valor_recebido, data_pagamento, data_prevista_pagamento, valor_repasse_motorista, observacoes, motoristas_empresa(nome), numero_voo, nome_passageiro2, telefone_passageiro2, retorno_data, retorno_horario, retorno_origem, retorno_destino, numero_reserva, quantidade_bagagem, passageiros_adicionais, rua, numero, bairro, municipio, cep, referencia, rua_desembarque, numero_desembarque, bairro_desembarque, municipio_desembarque, cep_desembarque, referencia_desembarque, data_hora_termino, trajetos, km_inicial, km_final, iniciado_em, finalizado_em, observacao_motorista, anexo_motorista_url, veiculo_atribuido, anexo_observacoes_url'
+    const colsCorridas = 'id, rota_id, cliente_id, origem, destino, data_hora, created_at, cliente_nome, cliente_telefone, email_solicitante, passageiro1_nome, passageiro1_telefone, valor, status, motorista_id, tipo_servico, forma_pagamento, status_pagamento, valor_recebido, data_pagamento, data_prevista_pagamento, valor_repasse_motorista, observacoes, motoristas_empresa(nome), numero_voo, nome_passageiro2, telefone_passageiro2, retorno_data, retorno_horario, retorno_origem, retorno_destino, numero_reserva, quantidade_bagagem, passageiros_adicionais, rua, numero, bairro, municipio, cep, referencia, rua_desembarque, numero_desembarque, bairro_desembarque, municipio_desembarque, cep_desembarque, referencia_desembarque, data_hora_termino, trajetos, km_inicial, km_final, iniciado_em, finalizado_em, observacao_motorista, anexo_motorista_url, veiculo_atribuido, anexo_observacoes_url, par_id'
 
     const [{ data: empresa }, { data: rts }, { data: mots }, { data: clientesData }, { data: emAndamento }, { data: futuras }, { data: passadas }] = await Promise.all([
       supabase
@@ -1102,14 +1133,20 @@ export default function AgendamentosPage() {
       // O gestor promove pra concluida manualmente no botão "✓ Marcar como
       // Concluído" da ficha quando o serviço acabar.
       const base = { empresa_id: empresaId, status: 'confirmada', ...camposComuns }
+      // Par ida-volta ganha um id compartilhado — é o que amarra as duas
+      // linhas de verdade, em vez de deixar a tela adivinhar depois pelo
+      // horário em que foram criadas (ver saoParIdaVolta).
+      const criaPar = form.ida_volta && !!form.horario_retorno
+      const parId = criaPar ? novoParId() : null
       const registros: typeof base[] = [
-        { ...base, data_hora: `${form.data}T${form.horario}:00` } as any,
+        { ...base, par_id: parId, data_hora: `${form.data}T${form.horario}:00` } as any,
       ]
 
-      if (form.ida_volta && form.horario_retorno) {
+      if (criaPar) {
         const precoVolta = parseFloat(form.preco_volta)
         registros.push({
           ...base,
+          par_id: parId,
           data_hora: `${form.data_retorno || form.data}T${form.horario_retorno}:00`,
           origem: (form.origem_volta || form.destino).trim(),
           destino: (form.destino_volta || form.origem).trim(),
