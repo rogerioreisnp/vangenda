@@ -707,7 +707,8 @@ export default function AgendamentosPage() {
       observacoes: c.observacoes || '',
     })
     setEnderecosClienteForm([])
-    if (c.cliente_telefone) carregarEnderecosCliente(c.cliente_telefone)
+    const cliCad = c.cliente_id ? clientesOpcoes.find(x => x.id === c.cliente_id) : null
+    if (c.cliente_telefone || cliCad) carregarEnderecosCliente(c.cliente_telefone || '', cliCad?.raw)
     setErro('')
     setModalAberto(true)
   }
@@ -735,9 +736,30 @@ export default function AgendamentosPage() {
 
   // Busca enderecos ja usados por esse telefone (mesma tabela enderecos_clientes
   // do link publico), ordenados por frequencia — pra sugerir no form interno.
-  async function carregarEnderecosCliente(telefone: string) {
+  // Monta o endereco do CADASTRO do cliente numa linha so, no mesmo formato
+  // dos enderecos aprendidos — assim os dois aparecem juntos como sugestao.
+  function enderecoDoCadastro(raw: any): string {
+    if (!raw) return ''
+    const ruaNum = [raw.endereco_rua, raw.endereco_numero].filter(Boolean).join(', ')
+    const cidade = [raw.endereco_bairro, raw.endereco_cidade].filter(Boolean).join(' — ')
+    return [ruaNum, cidade].filter(Boolean).join(' · ')
+  }
+
+  // Sugestoes de endereco do cliente. Junta DUAS fontes:
+  //   1. O endereco do cadastro dele (Clientes) — disponivel ja no PRIMEIRO
+  //      atendimento, sem precisar "ensinar" nada ao sistema
+  //   2. Os enderecos aprendidos de atendimentos anteriores (enderecos_clientes)
+  // Antes so a fonte 2 existia aqui, entao cliente recem-cadastrado nao tinha
+  // sugestao nenhuma e o gestor digitava tudo na mao — reclamacao do Alexandre
+  // (AAJP, Curitiba, 2026-08-05): "eu faco o cadastro certinho e ainda tenho
+  // que colocar manual os enderecos".
+  async function carregarEnderecosCliente(telefone: string, clienteRaw?: any) {
     const tel = telefone.trim()
-    if (!tel || !empresaId) { setEnderecosClienteForm([]); return }
+    const doCadastro = enderecoDoCadastro(clienteRaw)
+    if (!tel || !empresaId) {
+      setEnderecosClienteForm(doCadastro ? [doCadastro] : [])
+      return
+    }
     const { data, error } = await supabase
       .from('enderecos_clientes')
       .select('endereco')
@@ -746,7 +768,12 @@ export default function AgendamentosPage() {
       .order('contador', { ascending: false })
       .limit(6)
     if (error) console.error('[enderecos-cliente] falha ao carregar:', error.message)
-    setEnderecosClienteForm((data || []).map(r => r.endereco))
+    const aprendidos = (data || []).map(r => r.endereco)
+    // Cadastro primeiro, sem repetir o que ja foi aprendido.
+    const lista = doCadastro
+      ? [doCadastro, ...aprendidos.filter(e => e !== doCadastro)]
+      : aprendidos
+    setEnderecosClienteForm(lista)
   }
 
   // Grava/atualiza o contador de uso de um endereco pra esse telefone —
@@ -3498,23 +3525,35 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                   recorrente (ex: "operacao escola", mesmo passageiro com
                   embarque/desembarque as vezes invertidos). */}
               {enderecosClienteForm.length > 0 && (
-                <div className="mb-2">
-                  <p className="text-[10px] font-semibold uppercase tracking-wide mb-1" style={{ color: '#0C447C' }}>
-                    📍 Endereços salvos desse cliente (toque pra usar)
+                <div className="mb-2 rounded-xl p-2.5" style={{ background: '#E6F1FB' }}>
+                  <p className="text-[11px] font-semibold mb-1.5" style={{ color: '#0C447C' }}>
+                    📍 Endereços deste cliente
                   </p>
-                  <div className="flex flex-wrap gap-1.5">
+                  <div className="flex flex-col gap-1.5">
                     {enderecosClienteForm.map((end, i) => (
-                      <button key={i} type="button"
-                        onClick={() => setForm(f => f.origem.trim()
-                          ? { ...f, destino: end }
-                          : { ...f, origem: end })}
-                        className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium border text-left"
-                        style={{ background: '#fff', color: '#0C447C', borderColor: '#B9D6F2', maxWidth: '220px' }}
-                        title={end}>
-                        {end.length > 34 ? end.slice(0, 34) + '…' : end}
-                      </button>
+                      <div key={i} className="flex items-center gap-1.5">
+                        <span className="text-[11px] flex-1 min-w-0 truncate" style={{ color: '#0C447C' }} title={end}>
+                          {end}
+                        </span>
+                        <button type="button"
+                          onClick={() => setForm(f => ({ ...f, origem: end }))}
+                          className="px-2 py-1 rounded-lg text-[10px] font-semibold flex-shrink-0"
+                          style={{ background: '#fff', color: '#0C447C', border: '1px solid #B9D6F2' }}>
+                          ← Origem
+                        </button>
+                        <button type="button"
+                          onClick={() => setForm(f => ({ ...f, destino: end }))}
+                          className="px-2 py-1 rounded-lg text-[10px] font-semibold flex-shrink-0"
+                          style={{ background: '#fff', color: '#0C447C', border: '1px solid #B9D6F2' }}>
+                          Destino →
+                        </button>
+                      </div>
                     ))}
                   </div>
+                  <p className="text-[10px] mt-1.5" style={{ color: '#4B7BAA' }}>
+                    Toque em <strong>Origem</strong> ou <strong>Destino</strong> pra preencher sem digitar.
+                    Endereços novos que você salvar entram nesta lista automaticamente.
+                  </p>
                 </div>
               )}
 
@@ -3708,7 +3747,9 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                       cliente_telefone: c?.telefone ? c.telefone : f.cliente_telefone,
                       email_solicitante: c?.email ? c.email : f.email_solicitante,
                     }))
-                    if (c?.telefone) carregarEnderecosCliente(c.telefone)
+                    // Passa o cadastro junto — o endereco dele vira sugestao
+                    // mesmo no primeiro atendimento, antes de haver historico.
+                    if (c) carregarEnderecosCliente(c.telefone || '', c.raw)
                     else setEnderecosClienteForm([])
                   }}
                   className="campo-input">
@@ -3757,7 +3798,7 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                     }
                     return next
                   })
-                  if (match?.telefone) carregarEnderecosCliente(match.telefone)
+                  if (match) carregarEnderecosCliente(match.telefone || '', match.raw)
                 }}
                 list="lista-clientes-solicitante"
                 placeholder="Nome completo" className="campo-input" />
@@ -3771,7 +3812,13 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
             <Campo label="Telefone do solicitante">
               <input value={form.cliente_telefone}
                 onChange={e => setForm(f => ({ ...f, cliente_telefone: e.target.value }))}
-                onBlur={e => carregarEnderecosCliente(e.target.value)}
+                onBlur={e => {
+                  // Mantem o endereco do cadastro na lista se ja houver
+                  // cliente selecionado — senao trocar o telefone apagaria
+                  // a sugestao que veio do cadastro dele.
+                  const cli = form.cliente_id ? clientesOpcoes.find(x => x.id === form.cliente_id) : null
+                  carregarEnderecosCliente(e.target.value, cli?.raw)
+                }}
                 placeholder="(11) 99999-9999 ou +1 555 123 4567" className="campo-input" />
               <p className="text-[10px] text-gray-400 mt-1">Aceita número internacional. Para fora do Brasil, comece com + e o código do país (ex: +1, +351).</p>
             </Campo>
