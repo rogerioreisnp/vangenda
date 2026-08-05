@@ -282,6 +282,20 @@ export default function ConfiguracoesPage() {
         .single()
       if (empresa?.slug) setEmpresaSlug(empresa.slug)
     }
+    // Vinculado a uma empresa? Rota é ativo da EMPRESA (rotas_empresa),
+    // definida pelo gestor. Aqui não criamos nem exibimos rota nenhuma.
+    //
+    // Antes, o motorista funcionário caía no else abaixo e o sistema criava
+    // sozinho uma "Minha Rota" na tabela `rotas` (do app individual). Ele
+    // cadastrava paradas e preços ali achando que estava configurando a rota
+    // da empresa — mas a agenda lê de `rotas_empresa`, então aquilo nunca
+    // aparecia em lugar nenhum. Caso relatado pela Emanuela (equipe do
+    // Alexandre / ASF, Recife — 2026-08-04).
+    if (empresaId) {
+      setLoading(false)
+      return
+    }
+
     const { data: rts } = await supabase.from('rotas').select('*').eq('motorista_id', user.id).limit(1).single()
     if (rts) {
       setRota(rts)
@@ -308,6 +322,19 @@ export default function ConfiguracoesPage() {
   }
 
   async function salvarRota() {
+    // Motorista de empresa não tem rota própria (o gestor define em
+    // rotas_empresa) — mas ainda precisa salvar perfil, Pix e dias de
+    // trabalho. Sem esse desvio, ele batia em "Nenhuma rota encontrada" e
+    // não conseguia salvar nada.
+    if (!rota && temEmpresa) {
+      setSaving(true)
+      setErroSalvar('')
+      await salvarPerfilMotorista()
+      setSaving(false)
+      setSavedMsg(true)
+      setTimeout(() => setSavedMsg(false), 2000)
+      return
+    }
     if (!rota) {
       setErroSalvar('Nenhuma rota encontrada. Recarregue a página e tente novamente.')
       return
@@ -359,23 +386,27 @@ export default function ConfiguracoesPage() {
       })))
     }
 
-    if (motorista) {
-      const motUpdate: any = {
-        pix_tipo: motorista.pix_tipo,
-        pix_chave: motorista.pix_chave,
-        pagamento_obrigatorio: motorista.pagamento_obrigatorio,
-        telefone: motorista.telefone?.trim() || null,
-        mensagem_confirmacao: motorista.mensagem_confirmacao?.trim() || null,
-      }
-      if (diasTrabalhoExiste.current) {
-        motUpdate.dias_trabalho = motorista.dias_trabalho ?? [1, 2, 3, 4, 5]
-      }
-      await supabase.from('motoristas').update(motUpdate).eq('id', motorista.id)
-    }
+    await salvarPerfilMotorista()
 
     setSaving(false)
     setSavedMsg(true)
     setTimeout(() => setSavedMsg(false), 2000)
+  }
+
+  // Perfil/Pix/dias de trabalho — vale pros dois casos (com e sem rota).
+  async function salvarPerfilMotorista() {
+    if (!motorista) return
+    const motUpdate: any = {
+      pix_tipo: motorista.pix_tipo,
+      pix_chave: motorista.pix_chave,
+      pagamento_obrigatorio: motorista.pagamento_obrigatorio,
+      telefone: motorista.telefone?.trim() || null,
+      mensagem_confirmacao: motorista.mensagem_confirmacao?.trim() || null,
+    }
+    if (diasTrabalhoExiste.current) {
+      motUpdate.dias_trabalho = motorista.dias_trabalho ?? [1, 2, 3, 4, 5]
+    }
+    await supabase.from('motoristas').update(motUpdate).eq('id', motorista.id)
   }
 
   function adicionarParada() {
@@ -730,6 +761,25 @@ export default function ConfiguracoesPage() {
           )}
         </Secao>
 
+        {/* Rota é ativo da EMPRESA — quem define trajeto, paradas e preços é o
+            gestor, em Rotas no painel dele. Motorista funcionário não configura
+            rota própria: antes ele até mexia aqui, mas ia tudo pra tabela do app
+            individual e não aparecia na agenda da empresa. */}
+        {temEmpresa ? (
+          <Secao titulo="🛣️ Rotas">
+            <div className="rounded-xl p-3" style={{ background: '#F0F9FF', border: '1px solid #BAE6FD' }}>
+              <p className="text-sm font-semibold" style={{ color: '#075985' }}>
+                As rotas são definidas pela empresa
+              </p>
+              <p className="text-xs text-gray-600 mt-1 leading-snug">
+                Trajeto, paradas, horários e preços ficam a cargo do gestor, no painel
+                da empresa. As rotas que ele cadastra aparecem pra você direto na
+                <strong> Agenda</strong> — não precisa configurar nada aqui.
+              </p>
+            </div>
+          </Secao>
+        ) : (
+        <>
         <Secao titulo="🛣️ Dados da rota">
           <div className="flex flex-col gap-3">
             <Campo label="Nome da rota">
@@ -868,6 +918,8 @@ export default function ConfiguracoesPage() {
             </div>
           )}
         </Secao>
+        </>
+        )}
 
         {erroSalvar && (
           <div className="rounded-xl px-4 py-3 text-sm border"
