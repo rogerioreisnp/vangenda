@@ -44,7 +44,14 @@ type RotaRF = {
   oferece_porta?: boolean | null
   acrescimo_buscar?: number | null
   acrescimo_deixar?: number | null
+  oferece_carro_fechado?: boolean | null
+  precos_carro_fechado?: FaixaCarroFechado[] | null
 }
+
+// Preço do carro fechado por tamanho de grupo. Carro fechado é veículo
+// exclusivo (nunca a van da grade), então tem preço próprio — e o preço
+// muda conforme os lugares, porque um grupo de 5 obriga o carro maior.
+type FaixaCarroFechado = { lugares: number; preco: number }
 
 // Uma saida da rota. Mesma rota pode ter varias — cada uma com seu horario,
 // motorista e lotacao. Ver supabase/migrations/horarios_rota.sql.
@@ -78,7 +85,12 @@ type FormRotaRF = {
   oferece_porta: boolean
   acrescimo_buscar: string
   acrescimo_deixar: string
+  oferece_carro_fechado: boolean
+  // Strings no form (input controlado), viram number só no save.
+  faixas_carro_fechado: { lugares: string; preco: string }[]
 }
+
+const FAIXA_CF_VAZIA = { lugares: '', preco: '' }
 
 export default function RotasPage() {
   const [empresaId, setEmpresaId] = useState<string | null>(null)
@@ -102,6 +114,7 @@ export default function RotasPage() {
     ativa: true, dias_semana: [1, 2, 3, 4, 5],
     modo_endereco: 'paradas', preco: '', origem: '', destino: '',
     oferece_porta: false, acrescimo_buscar: '', acrescimo_deixar: '',
+    oferece_carro_fechado: false, faixas_carro_fechado: [{ ...FAIXA_CF_VAZIA }],
   })
   const [paradasRF, setParadasRF] = useState<string[]>([])
   const [precosRF, setPrecosRF] = useState<PrecoRF[]>([])
@@ -137,7 +150,7 @@ export default function RotasPage() {
         .single(),
       supabase
         .from('rotas_empresa')
-        .select('id, origem, destino, distancia_km, preco, motorista_id, veiculo_placa, nome, horario_ida, horario_volta, capacidade, ativa, dias_semana, modo_endereco, oferece_porta, acrescimo_buscar, acrescimo_deixar')
+        .select('id, origem, destino, distancia_km, preco, motorista_id, veiculo_placa, nome, horario_ida, horario_volta, capacidade, ativa, dias_semana, modo_endereco, oferece_porta, acrescimo_buscar, acrescimo_deixar, oferece_carro_fechado, precos_carro_fechado')
         .eq('empresa_id', gestor.empresa_id)
         .order('created_at'),
       supabase
@@ -241,9 +254,28 @@ export default function RotasPage() {
 
   // ── rota_fixa functions ──
 
+  // Faixas de preço do carro fechado prontas pra gravar: descarta linha
+  // incompleta ou zerada, tira lugares repetidos (fica a última digitada) e
+  // ordena do menor grupo pro maior. A ordenação importa: na hora de cobrar,
+  // pegamos a PRIMEIRA faixa que comporta o grupo — grupo de 5 cai na de 6,
+  // não na de 4.
+  function faixasCarroFechadoValidas(): FaixaCarroFechado[] {
+    const porLugares = new Map<number, number>()
+    formRF.faixas_carro_fechado.forEach(f => {
+      const lugares = parseInt(f.lugares)
+      const preco = parseFloat(f.preco.replace(',', '.'))
+      if (!Number.isFinite(lugares) || lugares <= 0) return
+      if (!Number.isFinite(preco) || preco <= 0) return
+      porLugares.set(lugares, preco)
+    })
+    return Array.from(porLugares.entries())
+      .map(([lugares, preco]) => ({ lugares, preco }))
+      .sort((a, b) => a.lugares - b.lugares)
+  }
+
   function abrirAdicionarRF() {
     setRotaRFEditando(null)
-    setFormRF({ nome: '', horario_ida: '05:00', horario_volta: '14:00', capacidade: '15', motorista_id: '', veiculo_placa: '', ativa: true, dias_semana: [1, 2, 3, 4, 5], modo_endereco: 'paradas', preco: '', origem: '', destino: '', oferece_porta: false, acrescimo_buscar: '', acrescimo_deixar: '' })
+    setFormRF({ nome: '', horario_ida: '05:00', horario_volta: '14:00', capacidade: '15', motorista_id: '', veiculo_placa: '', ativa: true, dias_semana: [1, 2, 3, 4, 5], modo_endereco: 'paradas', preco: '', origem: '', destino: '', oferece_porta: false, acrescimo_buscar: '', acrescimo_deixar: '', oferece_carro_fechado: false, faixas_carro_fechado: [{ ...FAIXA_CF_VAZIA }] })
     setParadasRF([])
     setPrecosRF([])
     setSaidasRF([
@@ -273,6 +305,10 @@ export default function RotasPage() {
       oferece_porta: !!r.oferece_porta,
       acrescimo_buscar: Number(r.acrescimo_buscar) > 0 ? String(r.acrescimo_buscar) : '',
       acrescimo_deixar: Number(r.acrescimo_deixar) > 0 ? String(r.acrescimo_deixar) : '',
+      oferece_carro_fechado: !!r.oferece_carro_fechado,
+      faixas_carro_fechado: Array.isArray(r.precos_carro_fechado) && r.precos_carro_fechado.length > 0
+        ? r.precos_carro_fechado.map(f => ({ lugares: String(f.lugares ?? ''), preco: String(f.preco ?? '') }))
+        : [{ ...FAIXA_CF_VAZIA }],
     })
     const { data: saidas } = await supabase
       .from('horarios_rota')
@@ -355,6 +391,10 @@ export default function RotasPage() {
       oferece_porta: formRF.oferece_porta,
       acrescimo_buscar: formRF.oferece_porta ? (parseFloat(formRF.acrescimo_buscar.replace(',', '.')) || 0) : 0,
       acrescimo_deixar: formRF.oferece_porta ? (parseFloat(formRF.acrescimo_deixar.replace(',', '.')) || 0) : 0,
+      oferece_carro_fechado: formRF.oferece_carro_fechado,
+      // Só grava faixas completas e válidas, ordenadas do menor grupo pro
+      // maior — a leitura depois pega a primeira faixa que comporta o grupo.
+      precos_carro_fechado: formRF.oferece_carro_fechado ? faixasCarroFechadoValidas() : null,
     }
 
     let rotaId: string
@@ -456,6 +496,14 @@ export default function RotasPage() {
         origem: r.origem,
         destino: r.destino,
         oferece_porta: !!r.oferece_porta,
+        // Os acréscimos de porta não vinham na cópia — a rota duplicada
+        // nascia com o serviço ligado e preço zero, e o gestor só descobria
+        // quando alguém reservava de graça. Corrigido junto com o carro
+        // fechado, que tem o mesmo risco.
+        acrescimo_buscar: r.acrescimo_buscar ?? 0,
+        acrescimo_deixar: r.acrescimo_deixar ?? 0,
+        oferece_carro_fechado: !!r.oferece_carro_fechado,
+        precos_carro_fechado: r.precos_carro_fechado ?? null,
       })
       .select('id')
       .single()
@@ -886,6 +934,88 @@ export default function RotasPage() {
                     )}
                   </div>
                 )}
+
+                {/* Carro fechado — veiculo exclusivo, NUNCA a van da grade.
+                    Pedido do Alexandre/Emanuela (ASF, 2026-08-06). Fica fora
+                    do bloco de "paradas" de proposito: o preco e da rota
+                    inteira, nao do trecho, entao vale nos dois modos.
+                    Chave desligada por padrao — enquanto ninguem ligar, o
+                    link publico continua exatamente como e hoje. */}
+                <div className="rounded-xl p-3 flex flex-col gap-2" style={{ background: '#EEF2FF', border: '1px solid #C7D2FE' }}>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs font-semibold" style={{ color: '#3730A3' }}>🚘 Carro fechado</p>
+                    <button type="button"
+                      onClick={() => setFormRF(f => ({ ...f, oferece_carro_fechado: !f.oferece_carro_fechado }))}
+                      className="relative w-11 h-6 rounded-full transition-colors flex-shrink-0"
+                      style={{ background: formRF.oferece_carro_fechado ? '#4F46E5' : '#e5e7eb' }}>
+                      <div className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all"
+                        style={{ left: formRF.oferece_carro_fechado ? '22px' : '2px' }} />
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-500 leading-snug">
+                    O cliente contrata o <strong>veículo inteiro</strong> só pra ele, no horário que
+                    precisar. É um veículo <strong>à parte</strong>: não sai da rota nem ocupa lugar
+                    de quem já reservou.
+                  </p>
+
+                  {formRF.oferece_carro_fechado && (
+                    <div className="flex flex-col gap-2 mt-1">
+                      <p className="text-xs font-semibold" style={{ color: '#3730A3' }}>
+                        Quanto custa, conforme o tamanho do grupo?
+                      </p>
+
+                      {formRF.faixas_carro_fechado.map((faixa, i) => (
+                        <div key={i} className="flex items-end gap-2">
+                          <div style={{ width: '38%' }}>
+                            <Campo label="Até quantos lugares">
+                              <input type="number" min={1} value={faixa.lugares}
+                                onChange={e => setFormRF(f => ({
+                                  ...f,
+                                  faixas_carro_fechado: f.faixas_carro_fechado.map((x, ii) => ii === i ? { ...x, lugares: e.target.value } : x),
+                                }))}
+                                placeholder="Ex: 4" className="campo-input" />
+                            </Campo>
+                          </div>
+                          <div className="flex-1">
+                            <Campo label="Preço (R$)">
+                              <input type="number" step="0.01" min={0} value={faixa.preco}
+                                onChange={e => setFormRF(f => ({
+                                  ...f,
+                                  faixas_carro_fechado: f.faixas_carro_fechado.map((x, ii) => ii === i ? { ...x, preco: e.target.value } : x),
+                                }))}
+                                placeholder="0,00" className="campo-input" />
+                            </Campo>
+                          </div>
+                          {formRF.faixas_carro_fechado.length > 1 && (
+                            <button type="button"
+                              onClick={() => setFormRF(f => ({
+                                ...f,
+                                faixas_carro_fechado: f.faixas_carro_fechado.filter((_, ii) => ii !== i),
+                              }))}
+                              className="px-2 py-2 rounded-lg text-xs flex-shrink-0 mb-[1px]"
+                              style={{ background: '#FCEBEB', color: '#A32D2D' }}>✕</button>
+                          )}
+                        </div>
+                      ))}
+
+                      <button type="button"
+                        onClick={() => setFormRF(f => ({
+                          ...f,
+                          faixas_carro_fechado: [...f.faixas_carro_fechado, { ...FAIXA_CF_VAZIA }],
+                        }))}
+                        className="text-xs font-semibold px-2 py-1.5 rounded-lg self-start"
+                        style={{ background: '#E0E7FF', color: '#3730A3' }}>
+                        + Adicionar faixa
+                      </button>
+
+                      <p className="text-xs text-gray-500 leading-snug">
+                        Ex: <strong>até 4 lugares R$ 350</strong>, <strong>até 6 lugares R$ 500</strong>.
+                        O cliente informa quantas pessoas são e o sistema cobra a faixa dele. Grupo
+                        maior que a última faixa entra como pedido pra você cotar na mão.
+                      </p>
+                    </div>
+                  )}
+                </div>
 
                 {/* Modo livre ja e endereco digitado pelo passageiro, entao o
                     servico de porta nao acrescenta nada ali. Explica pra

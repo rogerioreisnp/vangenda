@@ -1715,7 +1715,7 @@ function FinanceiroRotaFixa({ empresaId }: { empresaId: string }) {
                     <Link key={c.id} href={`/empresa/agendamentos/fretamentos?ficha=${c.id}`}
                       className="flex items-center px-4 py-3 border-b border-gray-50 last:border-0 gap-2 active:opacity-75">
                       <span className="text-xl mr-1">
-                        {c.tipo_servico === 'excursao' ? '🗺️' : c.tipo_servico === 'fretamento' ? '🚌' : '🛣️'}
+                        {c.tipo_servico === 'excursao' ? '🗺️' : c.tipo_servico === 'fretamento' ? '🚌' : c.tipo_servico === 'carro_fechado' ? '🚘' : '🛣️'}
                       </span>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-800 truncate">{c.cliente_nome || 'Sem nome'}</p>

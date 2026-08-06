@@ -303,6 +303,7 @@ const TIPO_META: Record<string, TipoMeta> = {
   rota_fixa:  { badge: '🛣️ Rota Fixa',  bg: '#E1F5EE', text: '#085041', clienteLabel: 'Passageiro' },
   fretamento: { badge: '🚌 Fretamento', bg: '#FEF3C7', text: '#92400E', clienteLabel: 'Responsável' },
   excursao:   { badge: '🗺️ Excursão',   bg: '#EDE9FE', text: '#5B21B6', clienteLabel: 'Responsável' },
+  carro_fechado: { badge: '🚘 Carro fechado', bg: '#EEF2FF', text: '#3730A3', clienteLabel: 'Responsável' },
   transfer:   { badge: '🚗 Transfer',   bg: '#EFF6FF', text: '#1D4ED8', clienteLabel: 'Responsável' },
   city_tour:  { badge: '🏙️ City Tour',  bg: '#F0FDF4', text: '#166534', clienteLabel: 'Cliente'     },
   diaria:     { badge: '📆 Diária',     bg: '#FFEDD5', text: '#9A3412', clienteLabel: 'Cliente'     },
@@ -3618,6 +3619,9 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                   <>
                     <option value="fretamento">Fretamento</option>
                     <option value="excursao">Excursão</option>
+                    {/* Carro fechado: veículo exclusivo, fora da grade da rota
+                        (ASF/Recife, 2026-08-06). */}
+                    <option value="carro_fechado">Carro fechado</option>
                   </>
                 ) : (
                   <>
