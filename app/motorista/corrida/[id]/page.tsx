@@ -39,6 +39,11 @@ type Corrida = {
   observacao_motorista: string | null
   anexo_motorista_url: string | null
   veiculo_atribuido: string | null
+  // Prova de que a corrida chegou até o motorista. visto = ele abriu a
+  // ficha; confirmado = ele tocou no botão assumindo. O gestor não fica
+  // mais dependendo de "será que o push chegou?".
+  motorista_visto_em: string | null
+  motorista_confirmado_em: string | null
   trajetos: string[] | null
   rua: string | null; numero: string | null; bairro: string | null
   municipio: string | null; cep: string | null; referencia: string | null
@@ -82,6 +87,7 @@ export default function CorridaFicha({ params }: { params: { id: string } }) {
   const [salvandoObs, setSalvandoObs] = useState(false)
   const [erroObs, setErroObs] = useState<string | null>(null)
   const [obsSalva, setObsSalva] = useState(false)
+  const [confirmando, setConfirmando] = useState(false)
 
   useEffect(() => { carregar() }, [params.id])
 
@@ -98,10 +104,43 @@ export default function CorridaFicha({ params }: { params: { id: string } }) {
       .eq('id', params.id)
       .maybeSingle()
     if (data) {
-      setC(data as Corrida)
-      setObservacaoMotorista((data as Corrida).observacao_motorista || '')
+      const corrida = data as Corrida
+      setC(corrida)
+      setObservacaoMotorista(corrida.observacao_motorista || '')
+
+      // Carimba a primeira abertura da ficha — só na corrida dele e só uma
+      // vez. É o "abriu mas não confirmou" que o gestor precisa enxergar.
+      // Falha aqui não atrapalha nada: é sinal, não regra de negócio.
+      if (motEmp && corrida.motorista_id === motEmp.id && !corrida.motorista_visto_em) {
+        const agora = new Date().toISOString()
+        supabase.from('corridas_empresa')
+          .update({ motorista_visto_em: agora })
+          .eq('id', corrida.id)
+          .then(({ error }) => {
+            if (error) console.error('[visto] falha ao registrar:', error.message)
+            else setC(prev => prev ? { ...prev, motorista_visto_em: agora } : prev)
+          })
+      }
     }
     setLoading(false)
+  }
+
+  async function confirmarRecebimento() {
+    if (!c) return
+    setConfirmando(true)
+    setErroAcao(null)
+    const agora = new Date().toISOString()
+    const { data, error } = await supabase.from('corridas_empresa')
+      .update({ motorista_confirmado_em: agora })
+      .eq('id', c.id)
+      .select('id')
+    setConfirmando(false)
+    if (error) { setErroAcao(`Erro ao confirmar: ${error.message}`); return }
+    if (!data || data.length === 0) {
+      setErroAcao('Sem permissão pra confirmar esta corrida.')
+      return
+    }
+    setC({ ...c, motorista_confirmado_em: agora })
   }
 
   // Tratamento de erro sempre — sem isso, RLS bloqueando (motorista sem
@@ -256,6 +295,32 @@ export default function CorridaFicha({ params }: { params: { id: string } }) {
       </div>
 
       <div className="px-4 py-4 flex flex-col gap-3">
+
+        {/* Confirmação de recebimento — fica no topo porque é a primeira
+            coisa que o gestor espera. Enquanto não confirmar, ele vê
+            "aguardando" do lado dele e sabe que precisa ligar. Só aparece
+            em corrida ativa: confirmar depois de concluída não serve. */}
+        {eDele && c.status !== 'cancelada' && c.status !== 'concluida' && (
+          c.motorista_confirmado_em ? (
+            <div className="rounded-2xl px-4 py-3 border" style={{ background: '#E1F5EE', borderColor: '#9FE1CB' }}>
+              <p className="text-xs font-semibold" style={{ color: '#085041' }}>
+                ✓ Você confirmou esta corrida às {format(new Date(c.motorista_confirmado_em), 'HH:mm')}h
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-2xl p-3 flex flex-col gap-2" style={{ background: '#FFFBEB', border: '1px solid #FDE68A' }}>
+              <p className="text-xs" style={{ color: '#92400E' }}>
+                Avise que você recebeu esta corrida — assim o gestor não precisa
+                ligar pra saber se chegou.
+              </p>
+              <button onClick={confirmarRecebimento} disabled={confirmando}
+                className="w-full py-3 rounded-xl text-sm font-bold disabled:opacity-40"
+                style={{ background: '#0F6E56', color: '#fff' }}>
+                {confirmando ? 'Confirmando…' : '✓ Confirmar que recebi'}
+              </button>
+            </div>
+          )
+        )}
 
         {/* Rota */}
         <div className="bg-white rounded-2xl p-4 border border-gray-100">

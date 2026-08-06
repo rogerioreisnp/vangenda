@@ -60,6 +60,8 @@ export default function ConfiguracoesEmpresaPage() {
   const [logoErro, setLogoErro] = useState('')
   const [savedMsg, setSavedMsg] = useState(false)
   const [erro, setErro] = useState('')
+  const [reagendando, setReagendando] = useState(false)
+  const [reagendados, setReagendados] = useState<number | null>(null)
 
   const [linkCopiado, setLinkCopiado] = useState(false)
 
@@ -182,8 +184,49 @@ export default function ConfiguracoesEmpresaPage() {
     } else {
       setSavedMsg(true)
       setTimeout(() => setSavedMsg(false), 2000)
+      await reagendarLembretesPendentes()
     }
     setSaving(false)
+  }
+
+  // O aviso pro motorista é agendado UMA VEZ, no momento em que o atendimento
+  // é criado ou editado, com o valor que estiver valendo naquela hora. Sem
+  // isso aqui, mudar "avisar 1 hora antes" não mexia nos atendimentos que já
+  // existiam — eles seguiam disparando no tempo antigo, e o gestor jurava que
+  // tinha configurado 1h (caso relatado pelo Alexandre de Curitiba,
+  // 2026-08-06). Agora, ao salvar, os avisos futuros são refeitos com o
+  // valor novo.
+  async function reagendarLembretesPendentes() {
+    if (!empresa) return
+    setReagendando(true)
+    try {
+      const { data: futuras, error: errBusca } = await supabase
+        .from('corridas_empresa')
+        .select('id')
+        .eq('empresa_id', empresa.id)
+        .not('motorista_id', 'is', null)
+        .gte('data_hora', new Date().toISOString())
+        .not('status', 'in', '("cancelada","concluida")')
+        .limit(200)
+      if (errBusca) { console.error('[reagendar-lembretes]', errBusca.message); return }
+      const ids = (futuras || []).map(c => c.id)
+      // Em série pra não disparar 200 requisições de uma vez.
+      for (const id of ids) {
+        try {
+          await fetch('/api/agendar-lembrete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ corrida_id: id }),
+          })
+        } catch (e) {
+          console.error('[reagendar-lembretes] falhou em', id, e)
+        }
+      }
+      if (ids.length > 0) setReagendados(ids.length)
+      setTimeout(() => setReagendados(null), 4000)
+    } finally {
+      setReagendando(false)
+    }
   }
 
   if (loading) {
@@ -665,7 +708,19 @@ export default function ConfiguracoesEmpresaPage() {
               ℹ️ O motorista atribuído recebe uma notificação nesse intervalo antes de
               cada atendimento. Escolha considerando o deslocamento típico da sua região.
               Se o horário do atendimento mudar, o lembrete é reajustado automaticamente.
+              Ao salvar, os atendimentos futuros que já estão na agenda também passam a
+              usar o novo intervalo.
             </p>
+            {reagendando && (
+              <p className="text-xs mt-1 font-medium" style={{ color: '#854F0B' }}>
+                ⏳ Reajustando os lembretes dos atendimentos futuros...
+              </p>
+            )}
+            {reagendados !== null && reagendados > 0 && (
+              <p className="text-xs mt-1 font-medium" style={{ color: '#0F6E56' }}>
+                ✓ {reagendados} atendimento{reagendados !== 1 ? 's' : ''} futuro{reagendados !== 1 ? 's' : ''} reajustado{reagendados !== 1 ? 's' : ''} para o novo intervalo.
+              </p>
+            )}
           </Campo>
         </Secao>
 

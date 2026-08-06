@@ -68,6 +68,10 @@ type Corrida = {
   // Tamanho do grupo no carro fechado. Reserva normal da rota não usa: lá
   // cada passageiro é uma linha própria (é assim que a lotação é contada).
   quantidade_passageiros: number | null
+  // Prova de que a corrida chegou no motorista, sem depender de recibo de
+  // entrega do push: visto = abriu a ficha, confirmado = assumiu.
+  motorista_visto_em: string | null
+  motorista_confirmado_em: string | null
   // Vínculo explícito do par ida-volta. As duas linhas criadas juntas
   // compartilham o mesmo par_id. Null em registros anteriores à migration.
   par_id: string | null
@@ -601,7 +605,7 @@ export default function AgendamentosPage() {
     //   2. FUTURAS (data_hora >= agora e status != em_andamento) — asc
     //   3. PASSADAS (data_hora < agora e status != em_andamento) — desc
     const agoraISO = new Date().toISOString()
-    const colsCorridas = 'id, rota_id, cliente_id, origem, destino, data_hora, created_at, cliente_nome, cliente_telefone, email_solicitante, passageiro1_nome, passageiro1_telefone, valor, status, motorista_id, tipo_servico, forma_pagamento, status_pagamento, valor_recebido, data_pagamento, data_prevista_pagamento, valor_repasse_motorista, observacoes, motoristas_empresa(nome), numero_voo, nome_passageiro2, telefone_passageiro2, retorno_data, retorno_horario, retorno_origem, retorno_destino, numero_reserva, quantidade_bagagem, passageiros_adicionais, rua, numero, bairro, municipio, cep, referencia, rua_desembarque, numero_desembarque, bairro_desembarque, municipio_desembarque, cep_desembarque, referencia_desembarque, data_hora_termino, trajetos, km_inicial, km_final, iniciado_em, finalizado_em, observacao_motorista, anexo_motorista_url, veiculo_atribuido, anexo_observacoes_url, par_id, quantidade_passageiros'
+    const colsCorridas = 'id, rota_id, cliente_id, origem, destino, data_hora, created_at, cliente_nome, cliente_telefone, email_solicitante, passageiro1_nome, passageiro1_telefone, valor, status, motorista_id, tipo_servico, forma_pagamento, status_pagamento, valor_recebido, data_pagamento, data_prevista_pagamento, valor_repasse_motorista, observacoes, motoristas_empresa(nome), numero_voo, nome_passageiro2, telefone_passageiro2, retorno_data, retorno_horario, retorno_origem, retorno_destino, numero_reserva, quantidade_bagagem, passageiros_adicionais, rua, numero, bairro, municipio, cep, referencia, rua_desembarque, numero_desembarque, bairro_desembarque, municipio_desembarque, cep_desembarque, referencia_desembarque, data_hora_termino, trajetos, km_inicial, km_final, iniciado_em, finalizado_em, observacao_motorista, anexo_motorista_url, veiculo_atribuido, anexo_observacoes_url, par_id, quantidade_passageiros, motorista_visto_em, motorista_confirmado_em'
 
     const [{ data: empresa }, { data: rts }, { data: mots }, { data: clientesData }, { data: emAndamento }, { data: futuras }, { data: passadas }] = await Promise.all([
       supabase
@@ -1064,6 +1068,12 @@ export default function AgendamentosPage() {
       const motoristaMudou = !!camposComuns.motorista_id &&
         camposComuns.motorista_id !== corridaEditando.motorista_id
 
+      // Motorista novo começa sem confirmação — a do anterior não vale.
+      if (camposComuns.motorista_id !== corridaEditando.motorista_id) {
+        updateFields.motorista_visto_em = null
+        updateFields.motorista_confirmado_em = null
+      }
+
       const { error } = await supabase
         .from('corridas_empresa')
         .update(updateFields)
@@ -1259,13 +1269,22 @@ export default function AgendamentosPage() {
     setConfirmandoFicha(true)
     const motoristaNovo = motoristasOpcoes.find(m => m.id === novoMotoristaId) ?? null
     const motoristaMudou = !!novoMotoristaId && novoMotoristaId !== c.motorista_id
+    // Trocou de motorista? A confirmação do anterior não vale pro novo —
+    // senão o gestor veria "confirmado" de alguém que nem sabe da corrida.
+    const zeraConfirmacao = motoristaMudou || !novoMotoristaId
     await supabase.from('corridas_empresa')
-      .update({ motorista_id: novoMotoristaId || null, veiculo_atribuido: novoVeiculo || null })
+      .update({
+        motorista_id: novoMotoristaId || null,
+        veiculo_atribuido: novoVeiculo || null,
+        ...(zeraConfirmacao ? { motorista_visto_em: null, motorista_confirmado_em: null } : {}),
+      })
       .eq('id', c.id)
+    const limpezaLocal = zeraConfirmacao ? { motorista_visto_em: null, motorista_confirmado_em: null } : {}
     setCorridas(prev => prev.map(x => x.id === c.id ? {
       ...x,
       motorista_id: novoMotoristaId || null,
       veiculo_atribuido: novoVeiculo || null,
+      ...limpezaLocal,
       motoristas_empresa: motoristaNovo ? { nome: motoristaNovo.nome } : null,
     } : x))
     // Atualiza corridaFicha OU voltaDaFicha, dependendo de qual ponta foi
@@ -3095,6 +3114,35 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
                   {corridaFicha.status === 'em_andamento' ? '🚗 Motorista do atendimento' : 'Definir motorista'}
                 </p>
+
+                {/* Chegou até o motorista? Responde a pergunta que o gestor
+                    fazia ligando ("será que ele viu?"). Três estados, cada um
+                    com uma ação diferente da parte dele. */}
+                {corridaFicha.motorista_id && (
+                  corridaFicha.motorista_confirmado_em ? (
+                    <div className="rounded-xl px-3 py-2" style={{ background: '#E1F5EE', border: '1px solid #9FE1CB' }}>
+                      <p className="text-xs font-semibold" style={{ color: '#085041' }}>
+                        ✓ Motorista confirmou às {horaLocal(corridaFicha.motorista_confirmado_em)}h
+                      </p>
+                    </div>
+                  ) : corridaFicha.motorista_visto_em ? (
+                    <div className="rounded-xl px-3 py-2" style={{ background: '#FFFBEB', border: '1px solid #FDE68A' }}>
+                      <p className="text-xs font-semibold" style={{ color: '#92400E' }}>
+                        👁 Abriu a ficha às {horaLocal(corridaFicha.motorista_visto_em)}h, mas ainda não confirmou
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="rounded-xl px-3 py-2" style={{ background: '#FEF2F2', border: '1px solid #FECACA' }}>
+                      <p className="text-xs font-semibold" style={{ color: '#B91C1C' }}>
+                        ⏳ Motorista ainda não abriu esta corrida
+                      </p>
+                      <p className="text-[11px] mt-0.5" style={{ color: '#DC2626' }}>
+                        Se for pra hoje, vale confirmar por telefone.
+                      </p>
+                    </div>
+                  )
+                )}
+
                 {motoristasOpcoes.length === 0 ? (
                   <p className="text-xs text-gray-400">Nenhum motorista ativo cadastrado</p>
                 ) : (
