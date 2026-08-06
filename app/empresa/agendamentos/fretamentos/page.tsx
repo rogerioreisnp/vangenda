@@ -65,6 +65,9 @@ type Corrida = {
   observacao_motorista: string | null
   anexo_motorista_url: string | null
   veiculo_atribuido: string | null
+  // Tamanho do grupo no carro fechado. Reserva normal da rota não usa: lá
+  // cada passageiro é uma linha própria (é assim que a lotação é contada).
+  quantidade_passageiros: number | null
   // Vínculo explícito do par ida-volta. As duas linhas criadas juntas
   // compartilham o mesmo par_id. Null em registros anteriores à migration.
   par_id: string | null
@@ -597,7 +600,7 @@ export default function AgendamentosPage() {
     //   2. FUTURAS (data_hora >= agora e status != em_andamento) — asc
     //   3. PASSADAS (data_hora < agora e status != em_andamento) — desc
     const agoraISO = new Date().toISOString()
-    const colsCorridas = 'id, rota_id, cliente_id, origem, destino, data_hora, created_at, cliente_nome, cliente_telefone, email_solicitante, passageiro1_nome, passageiro1_telefone, valor, status, motorista_id, tipo_servico, forma_pagamento, status_pagamento, valor_recebido, data_pagamento, data_prevista_pagamento, valor_repasse_motorista, observacoes, motoristas_empresa(nome), numero_voo, nome_passageiro2, telefone_passageiro2, retorno_data, retorno_horario, retorno_origem, retorno_destino, numero_reserva, quantidade_bagagem, passageiros_adicionais, rua, numero, bairro, municipio, cep, referencia, rua_desembarque, numero_desembarque, bairro_desembarque, municipio_desembarque, cep_desembarque, referencia_desembarque, data_hora_termino, trajetos, km_inicial, km_final, iniciado_em, finalizado_em, observacao_motorista, anexo_motorista_url, veiculo_atribuido, anexo_observacoes_url, par_id'
+    const colsCorridas = 'id, rota_id, cliente_id, origem, destino, data_hora, created_at, cliente_nome, cliente_telefone, email_solicitante, passageiro1_nome, passageiro1_telefone, valor, status, motorista_id, tipo_servico, forma_pagamento, status_pagamento, valor_recebido, data_pagamento, data_prevista_pagamento, valor_repasse_motorista, observacoes, motoristas_empresa(nome), numero_voo, nome_passageiro2, telefone_passageiro2, retorno_data, retorno_horario, retorno_origem, retorno_destino, numero_reserva, quantidade_bagagem, passageiros_adicionais, rua, numero, bairro, municipio, cep, referencia, rua_desembarque, numero_desembarque, bairro_desembarque, municipio_desembarque, cep_desembarque, referencia_desembarque, data_hora_termino, trajetos, km_inicial, km_final, iniciado_em, finalizado_em, observacao_motorista, anexo_motorista_url, veiculo_atribuido, anexo_observacoes_url, par_id, quantidade_passageiros'
 
     const [{ data: empresa }, { data: rts }, { data: mots }, { data: clientesData }, { data: emAndamento }, { data: futuras }, { data: passadas }] = await Promise.all([
       supabase
@@ -2721,6 +2724,13 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                       {ehDispose ? '▶️ Início: ' : '📅 '}
                       {corridaFicha.data_hora.slice(8,10)}/{corridaFicha.data_hora.slice(5,7)}/{corridaFicha.data_hora.slice(0,4)} às {corridaFicha.data_hora.slice(11,16)}
                     </p>
+                    {/* Tamanho do grupo — sem isso o gestor não sabe qual
+                        veículo mandar no carro fechado. */}
+                    {corridaFicha.quantidade_passageiros != null && corridaFicha.quantidade_passageiros > 0 && (
+                      <p className="text-sm text-gray-600">
+                        👥 {corridaFicha.quantidade_passageiros} {corridaFicha.quantidade_passageiros === 1 ? 'pessoa' : 'pessoas'}
+                      </p>
+                    )}
                     {corridaFicha.data_hora_termino && (
                       <p className="text-sm text-gray-600">
                         ⏹️ Término: {corridaFicha.data_hora_termino.slice(8,10)}/{corridaFicha.data_hora_termino.slice(5,7)}/{corridaFicha.data_hora_termino.slice(0,4)} às {corridaFicha.data_hora_termino.slice(11,16)}
