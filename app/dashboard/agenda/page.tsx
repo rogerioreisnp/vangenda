@@ -35,6 +35,10 @@ type Agendamento = {
   quantidade_bagagem?: number | null
   ordem?: number | null
   modalidade_embarque?: string | null
+  // Pedido de horário fora da grade. NÃO é passageiro confirmado nem ocupa
+  // lugar — o gestor precisa ligar e fechar. Marcado na tela pra ninguém
+  // contar com ele como reserva.
+  pre_reserva?: boolean
   _source?: 'corrida_empresa'
 }
 
@@ -151,7 +155,7 @@ export default function AgendaPage() {
       let corrData: any[] = []
       if (empresaId) {
         let cq = supabase.from('corridas_empresa')
-          .select('id, rota_id, origem, destino, data_hora, cliente_nome, cliente_telefone, valor, status, forma_pagamento, modalidade_embarque')
+          .select('id, rota_id, origem, destino, data_hora, cliente_nome, cliente_telefone, valor, status, forma_pagamento, modalidade_embarque, tipo_servico')
           .eq('empresa_id', empresaId)
           .gte('data_hora', `${inicio}T00:00:00`)
           .lte('data_hora', `${fim}T23:59:59`)
@@ -179,6 +183,7 @@ export default function AgendaPage() {
           telefone_passageiro: c.cliente_telefone ?? undefined,
           forma_pagamento: c.forma_pagamento ?? undefined,
         modalidade_embarque: c.modalidade_embarque ?? null,
+          pre_reserva: c.tipo_servico === 'pre_reserva',
           _source: 'corrida_empresa' as const,
         })
         return acc
@@ -220,7 +225,7 @@ export default function AgendaPage() {
     let corrDataMot: any[] = []
     if (empresaCtx?.motEmpresaId && empresaCtx.empresaId) {
       let cq = supabase.from('corridas_empresa')
-        .select('id, rota_id, origem, destino, data_hora, cliente_nome, cliente_telefone, valor, status, forma_pagamento, modalidade_embarque')
+        .select('id, rota_id, origem, destino, data_hora, cliente_nome, cliente_telefone, valor, status, forma_pagamento, modalidade_embarque, tipo_servico')
         .eq('empresa_id', empresaCtx.empresaId)
         .gte('data_hora', `${inicio}T00:00:00`)
         .lte('data_hora', `${fim}T23:59:59`)
@@ -246,6 +251,7 @@ export default function AgendaPage() {
         telefone_passageiro: c.cliente_telefone ?? undefined,
         forma_pagamento: c.forma_pagamento ?? undefined,
         modalidade_embarque: c.modalidade_embarque ?? null,
+          pre_reserva: c.tipo_servico === 'pre_reserva',
         _source: 'corrida_empresa' as const,
       })
       return acc
@@ -311,7 +317,7 @@ export default function AgendaPage() {
     let corrData: any[] = []
     if (empresaId) {
       let cq = supabase.from('corridas_empresa')
-        .select('id, rota_id, origem, destino, data_hora, cliente_nome, cliente_telefone, valor, status, forma_pagamento, modalidade_embarque')
+        .select('id, rota_id, origem, destino, data_hora, cliente_nome, cliente_telefone, valor, status, forma_pagamento, modalidade_embarque, tipo_servico')
         .eq('empresa_id', empresaId)
         .gte('data_hora', `${inicio}T00:00:00`)
         .lte('data_hora', `${fim}T23:59:59`)
@@ -338,6 +344,7 @@ export default function AgendaPage() {
         telefone_passageiro: c.cliente_telefone ?? undefined,
         forma_pagamento: c.forma_pagamento ?? undefined,
         modalidade_embarque: c.modalidade_embarque ?? null,
+          pre_reserva: c.tipo_servico === 'pre_reserva',
         _source: 'corrida_empresa' as const,
       })
       return acc
@@ -989,14 +996,27 @@ function CardPassageiro({ p, onVerDetalhe, onGripTouchStart }: {
             {MODALIDADE_LABEL[p.modalidade_embarque]}
           </span>
         )}
+        {/* Pedido de horário fora da grade: não é passageiro confirmado.
+            Sem esse aviso o gestor contaria com ele como reserva. */}
+        {p.pre_reserva && (
+          <span className="inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded-full mt-1"
+            style={{ background: '#FEF3C7', color: '#92400E' }}>
+            ⏳ Pediu este horário — ligar para fechar
+          </span>
+        )}
       </div>
       <div className="text-right flex-shrink-0">
-        <p className="text-sm font-bold" style={{ color: '#1D9E75' }}>R$ {p.valor.toFixed(0)}</p>
+        {/* Pré-reserva não tem valor: é cotação, o gestor fecha o preço. */}
+        {!p.pre_reserva && (
+          <p className="text-sm font-bold" style={{ color: '#1D9E75' }}>R$ {p.valor.toFixed(0)}</p>
+        )}
         <span className="text-[10px] px-2 py-0.5 rounded-md font-medium"
-          style={p.status === 'confirmado'
+          style={p.pre_reserva
+            ? { background: '#FEF3C7', color: '#92400E' }
+            : p.status === 'confirmado'
             ? { background: '#E1F5EE', color: '#0F6E56' }
             : { background: '#f0f0f0', color: '#888' }}>
-          {p.status === 'confirmado' ? 'Confirmado' : 'Agendado'}
+          {p.pre_reserva ? 'Pedido' : p.status === 'confirmado' ? 'Confirmado' : 'Agendado'}
         </span>
       </div>
       <span className="text-gray-300 text-sm ml-1">›</span>

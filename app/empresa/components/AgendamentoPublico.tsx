@@ -195,6 +195,12 @@ export default function AgendamentoPublico({
   // É outro veículo, à parte da grade — por isso não escolhe saída, não
   // consulta lotação e o preço vem da faixa de lugares, não do trecho.
   const [carroFechado, setCarroFechado] = useState(false)
+  // Pré-reserva: quer um LUGAR na rota (compartilhado mesmo), só que num
+  // horário que não está na grade. "Solicitação de carro compartilhado em
+  // outro horário para uma pré reserva" (Emanuela, ASF). Não tem preço e não
+  // ocupa vaga — se juntar gente pedindo o mesmo horário, o gestor cria a
+  // saída e fecha com todo mundo.
+  const [preReserva, setPreReserva] = useState(false)
 
   useEffect(() => {
     document.title = `Agendar — ${empresa.nome}`
@@ -302,6 +308,7 @@ export default function AgendamentoPublico({
     // Cada rota tem sua própria configuração de carro fechado — trocar de
     // rota volta pra reserva normal.
     setCarroFechado(false)
+    setPreReserva(false)
 
     // Saidas cadastradas nesta rota — o passageiro escolhe entre elas.
     if (rotaId && empresa.tipo_operacao === 'rota_fixa') {
@@ -419,7 +426,7 @@ export default function AgendamentoPublico({
     if (!form.data) { setErro('Data é obrigatória'); return }
     // Dias de operação valem pra grade compartilhada. Carro fechado é veículo
     // à parte, sai no dia que o cliente precisar — por isso não trava aqui.
-    if (empresa.tipo_operacao === 'rota_fixa' && !carroFechado && !isDiaOperacao) {
+    if (empresa.tipo_operacao === 'rota_fixa' && !foraDaGrade && !isDiaOperacao) {
       setErro(`Esta rota não opera neste dia. Dias disponíveis: ${diasTexto}.`); return
     }
     if (!form.horario) { setErro('Horário é obrigatório'); return }
@@ -433,7 +440,7 @@ export default function AgendamentoPublico({
       }
       // No carro fechado o preço é da rota inteira (faixa de lugares), não do
       // trecho — então trecho sem tabela de preço não impede o pedido.
-      if (!carroFechado && valorTrechoRF === null) {
+      if (!foraDaGrade && valorTrechoRF === null) {
         setErro('Trecho não disponível para esta rota'); return
       }
       // Escolheu ser buscado/deixado em casa? Então o endereço deixa de ser
@@ -479,7 +486,7 @@ export default function AgendamentoPublico({
     // checagem aqui é o que impede um pedido de carro fechado de ser barrado
     // por "van lotada" — e a trava no banco impede o contrário, que ele coma
     // vaga de quem reservou (ver carro_fechado_link_publico.sql).
-    if (empresa.tipo_operacao === 'rota_fixa' && !carroFechado && capacidadeAlvo > 0) {
+    if (empresa.tipo_operacao === 'rota_fixa' && !foraDaGrade && capacidadeAlvo > 0) {
       const { data: ocupadas } = saidaEscolhida
         ? await supabase.rpc('count_vagas_saida', { p_horario_id: saidaEscolhida.id, p_data: form.data })
         : await supabase.rpc('count_vagas_ocupadas', {
@@ -642,7 +649,7 @@ export default function AgendamentoPublico({
     // quantidade_passageiros pro gestor saber qual carro mandar. Reserva
     // normal continua gerando uma linha por passageiro, que é como a lotação
     // é contada.
-    const qtd = carroFechado ? 1 : Math.max(1, form.quantidade_passageiros || 1)
+    const qtd = foraDaGrade ? 1 : Math.max(1, form.quantidade_passageiros || 1)
     const registros = Array.from({ length: qtd }, (_, i) => ({
       empresa_id: empresa.id,
       rota_id: rotaSelecionada!.id,
@@ -655,8 +662,10 @@ export default function AgendamentoPublico({
       valor: valorSave,
       status: 'pendente',
       motorista_id: null,
-      tipo_servico: carroFechado ? 'carro_fechado' : 'rota_fixa',
-      quantidade_passageiros: carroFechado ? grupoCarroFechado : null,
+      // 'pre_reserva' também é o que mantém o pedido fora da contagem de
+      // vaga: a trava no banco só soma 'rota_fixa' e NULL.
+      tipo_servico: carroFechado ? 'carro_fechado' : preReserva ? 'pre_reserva' : 'rota_fixa',
+      quantidade_passageiros: foraDaGrade ? grupoCarroFechado : null,
       forma_pagamento: 'a_definir',
       observacoes: form.observacoes.trim() || null,
       rua: form.rua.trim() || null,
@@ -674,7 +683,7 @@ export default function AgendamentoPublico({
       quantidade_bagagem: form.quantidade_bagagem || 0,
       modalidade_embarque: form.modalidade_embarque,
       // Carro fechado não pertence a saída nenhuma da grade.
-      horario_rota_id: carroFechado ? null : (saidaId || null),
+      horario_rota_id: foraDaGrade ? null : (saidaId || null),
     }))
 
     const { error } = await supabase.from('corridas_empresa').insert(registros)
@@ -701,7 +710,7 @@ export default function AgendamentoPublico({
     // Carro fechado não cai na tela de Pix: ainda não é reserva fechada, o
     // gestor precisa confirmar o veículo e o horário antes de cobrar. Mandar
     // pro pagamento aqui faria o cliente pagar por algo não confirmado.
-    if (carroFechado) {
+    if (foraDaGrade) {
       setSalvando(false)
       setEtapa('sucesso')
       return
@@ -746,6 +755,7 @@ export default function AgendamentoPublico({
     setSaidasRota([])
     setSaidaId('')
     setCarroFechado(false)
+    setPreReserva(false)
     setEmbarque('')
     setDesembarque('')
     setValorTrechoRF(null)
@@ -782,8 +792,17 @@ export default function AgendamentoPublico({
   const precoCarroFechado = faixaEscolhida ? Number(faixaEscolhida.preco) + acrescimoPorta : null
   const grupoAcimaDasFaixas = temCarroFechado && carroFechado && !faixaEscolhida
 
+  // Pedido fora da grade — carro fechado e pré-reserva compartilham as mesmas
+  // regras: o cliente diz o horário que quer (não escolhe saída), não passa
+  // por lotação nem por dia de operação, e nada disso vira reserva fechada.
+  const foraDaGrade = carroFechado || preReserva
+
   const valorUnitarioRF = empresa.tipo_operacao === 'rota_fixa'
-    ? (carroFechado
+    ? (preReserva
+        // Pré-reserva não tem preço: horário fora da grade pode ter custo
+        // diferente, e ninguém prometeu valor nenhum ainda.
+        ? 0
+        : carroFechado
         ? (precoCarroFechado ?? 0)
         : rotaSelecionada?.modo_endereco === 'livre'
         ? Number(rotaSelecionada.preco ?? 0)
@@ -1021,7 +1040,7 @@ export default function AgendamentoPublico({
                       const sel = carroFechado === op.v
                       return (
                         <button key={String(op.v)} type="button"
-                          onClick={() => setCarroFechado(op.v)}
+                          onClick={() => { setCarroFechado(op.v); setPreReserva(false) }}
                           className="w-full text-left px-3 py-2.5 rounded-xl border transition-all"
                           style={sel
                             ? { background: cor, color: '#fff', borderColor: cor }
@@ -1053,7 +1072,7 @@ export default function AgendamentoPublico({
 
               {/* Aviso de dia inválido — não vale pro carro fechado, que é
                   veículo à parte e sai em qualquer dia. */}
-              {empresa.tipo_operacao === 'rota_fixa' && rotaSelecionada && !carroFechado && form.data && !isDiaOperacao && (
+              {empresa.tipo_operacao === 'rota_fixa' && rotaSelecionada && !foraDaGrade && form.data && !isDiaOperacao && (
                 <div className="rounded-xl px-4 py-3 border" style={{ background: '#FCEBEB', borderColor: '#F5BCBC' }}>
                   <p className="text-sm font-semibold" style={{ color: '#A32D2D' }}>
                     🚫 Esta rota não opera neste dia
@@ -1067,7 +1086,7 @@ export default function AgendamentoPublico({
               {/* Saídas da rota — o passageiro escolhe o horário que quer.
                   Mesma rota pode ter várias saídas no dia. Rota sem saídas
                   cadastradas cai nos botões antigos de Ida/Volta. */}
-              {empresa.tipo_operacao === 'rota_fixa' && rotaSelecionada && !carroFechado && saidasRota.length > 0 && (
+              {empresa.tipo_operacao === 'rota_fixa' && rotaSelecionada && !foraDaGrade && saidasRota.length > 0 && (
                 <Campo label="Escolha o horário da sua viagem *">
                   <div className="flex flex-col gap-1.5">
                     {saidasRota.map(s => {
@@ -1088,11 +1107,51 @@ export default function AgendamentoPublico({
                       )
                     })}
                   </div>
+
+                  {/* Saída de emergência do cliente: fica logo abaixo da lista
+                      porque é exatamente aqui que ele desiste quando nenhum
+                      horário serve. Pedir aqui é melhor do que perder a
+                      viagem (Emanuela/ASF). */}
+                  <button type="button" onClick={() => { setPreReserva(true); setCarroFechado(false) }}
+                    className="w-full mt-2 px-3 py-2.5 rounded-xl border text-left"
+                    style={{ background: '#FFFBEB', borderColor: '#FDE68A' }}>
+                    <p className="text-xs font-semibold" style={{ color: '#92400E' }}>
+                      Nenhum destes horários serve?
+                    </p>
+                    <p className="text-[11px] mt-0.5" style={{ color: '#B45309' }}>
+                      Peça o horário que você precisa — a gente avalia e retorna →
+                    </p>
+                  </button>
                 </Campo>
               )}
 
+              {/* Pedido de horário fora da grade — some a lista de saídas e o
+                  cliente diz a hora que precisa. Sem preço: é cotação. */}
+              {preReserva && (
+                <div className="rounded-xl p-3 flex flex-col gap-2" style={{ background: '#FFFBEB', border: '1px solid #FDE68A' }}>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-semibold" style={{ color: '#92400E' }}>⏳ Pedido de outro horário</p>
+                    <button type="button" onClick={() => setPreReserva(false)}
+                      className="text-[11px] font-semibold px-2 py-1 rounded-lg"
+                      style={{ background: '#FDE68A', color: '#92400E' }}>
+                      ← Ver horários da rota
+                    </button>
+                  </div>
+                  <Campo label="Que horário você precisa? *">
+                    <input type="time" value={form.horario}
+                      onChange={e => setForm(f => ({ ...f, horario: e.target.value }))}
+                      className="campo-input" />
+                  </Campo>
+                  <p className="text-[11px] leading-snug" style={{ color: '#B45309' }}>
+                    Isto é um <strong>pedido</strong>, não uma reserva. Vamos verificar se
+                    conseguimos atender neste horário e entrar em contato com você. O valor
+                    é combinado na confirmação.
+                  </p>
+                </div>
+              )}
+
               {/* Turno (rota_fixa) — fallback pra rota sem saídas cadastradas */}
-              {empresa.tipo_operacao === 'rota_fixa' && rotaSelecionada && !carroFechado && saidasRota.length === 0 && (
+              {empresa.tipo_operacao === 'rota_fixa' && rotaSelecionada && !foraDaGrade && saidasRota.length === 0 && (
                 <Campo label="Turno *">
                   <div className="grid grid-cols-2 gap-2">
                     {(['ida', 'volta'] as const).map(t => {
@@ -1170,7 +1229,7 @@ export default function AgendamentoPublico({
 
               {/* Vagas disponíveis (rota_fixa) — carro fechado não disputa
                   lugar com ninguém, então lotação da van não se aplica. */}
-              {empresa.tipo_operacao === 'rota_fixa' && rotaSelecionada && !carroFechado && form.data && form.horario && vagasDisponiveis !== null && (
+              {empresa.tipo_operacao === 'rota_fixa' && rotaSelecionada && !foraDaGrade && form.data && form.horario && vagasDisponiveis !== null && (
                 <div className="rounded-xl px-4 py-3 border"
                   style={vagasDisponiveis === 0
                     ? { background: '#FCEBEB', borderColor: '#F5BCBC' }
@@ -1189,7 +1248,7 @@ export default function AgendamentoPublico({
                   familia inteira numa unica solicitacao. Cada passageiro
                   vira uma linha propria em corridas_empresa. */}
               {empresa.tipo_operacao === 'rota_fixa' && rotaSelecionada && (
-                <Campo label={carroFechado ? 'Quantas pessoas vão?' : 'Quantidade de passageiros'}>
+                <Campo label={foraDaGrade ? 'Quantas pessoas vão?' : 'Quantidade de passageiros'}>
                   <div className="flex items-center gap-3">
                     <button type="button"
                       onClick={() => setForm(f => ({ ...f, quantidade_passageiros: Math.max(1, f.quantidade_passageiros - 1) }))}
@@ -1208,7 +1267,7 @@ export default function AgendamentoPublico({
                         ...f,
                         // No carro fechado a lotação da van não limita nada —
                         // o que limita é a faixa de preço, avisada abaixo.
-                        quantidade_passageiros: (!carroFechado && vagasDisponiveis !== null)
+                        quantidade_passageiros: (!foraDaGrade && vagasDisponiveis !== null)
                           ? Math.min(vagasDisponiveis, f.quantidade_passageiros + 1)
                           : f.quantidade_passageiros + 1,
                       }))}
@@ -1860,12 +1919,14 @@ export default function AgendamentoPublico({
               onClick={confirmar}
               disabled={salvando
                 || (carroFechado && grupoAcimaDasFaixas)
-                || (empresa.tipo_operacao === 'rota_fixa' && !carroFechado && (vagasDisponiveis === 0 || (vagasDisponiveis !== null && form.quantidade_passageiros > vagasDisponiveis)))}
+                || (empresa.tipo_operacao === 'rota_fixa' && !foraDaGrade && (vagasDisponiveis === 0 || (vagasDisponiveis !== null && form.quantidade_passageiros > vagasDisponiveis)))}
               className="w-full py-4 rounded-2xl text-white text-base font-bold disabled:opacity-40"
               style={{ background: cor }}
             >
               {salvando
                 ? 'Enviando...'
+                : preReserva
+                ? '✓ Enviar pedido de horário'
                 : carroFechado
                 ? (grupoAcimaDasFaixas ? '💬 Fale com a gente pelo WhatsApp' : '✓ Enviar pedido de carro fechado')
                 : empresa.tipo_operacao === 'rota_fixa' && vagasDisponiveis === 0
@@ -2006,12 +2067,14 @@ export default function AgendamentoPublico({
                   pode dizer "confirmado", senão o cliente aparece no dia
                   achando que tem veículo garantido. */}
               <p className="text-lg font-bold text-gray-800 mb-2">
-                {carroFechado ? 'Pedido enviado!'
+                {foraDaGrade ? 'Pedido enviado!'
                   : empresa.tipo_operacao !== 'rota_fixa' ? 'Solicitação enviada!'
                   : 'Agendamento confirmado!'}
               </p>
               <p className="text-sm text-gray-500 leading-relaxed">
-                {carroFechado
+                {preReserva
+                  ? <>A equipe da <span className="font-semibold">{empresa.nome}</span> vai verificar se consegue atender no horário que você pediu e entrar em contato com o valor. <span className="font-semibold">Seu lugar ainda não está reservado.</span></>
+                  : carroFechado
                   ? <>A equipe da <span className="font-semibold">{empresa.nome}</span> vai conferir a disponibilidade do veículo no horário que você pediu e entrar em contato para confirmar. <span className="font-semibold">Seu pedido ainda não está confirmado.</span></>
                   : empresa.tipo_operacao !== 'rota_fixa'
                   ? <>Em breve você receberá a confirmação da <span className="font-semibold">{empresa.nome}</span>.</>
