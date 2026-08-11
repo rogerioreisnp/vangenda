@@ -152,6 +152,7 @@ export function ReciboPDF({ empresa, cliente, atendimento, reembolsos = [] }: Re
         <View style={s.faixa}><Text style={s.faixaTitulo}>Recebido de</Text></View>
         <View style={s.linha}>
           <Text style={s.valor}>{cliente.nome}</Text>
+          {cliente.solicitante && <Text style={s.valor}>Solicitante: {cliente.solicitante}</Text>}
           {cliente.endereco_linha && <Text style={s.valor}>{cliente.endereco_linha}</Text>}
           {cliente.telefone && <Text style={s.valor}>Tel: {cliente.telefone}</Text>}
         </View>

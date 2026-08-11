@@ -320,6 +320,20 @@ function tipoMeta(tipo: string | null): TipoMeta {
   return TIPO_META[tipo ?? ''] ?? { badge: tipo ?? 'Serviço', bg: '#F3F4F6', text: '#6B7280', clienteLabel: 'Cliente' }
 }
 
+// Nome que vai no voucher/recibo: a EMPRESA/PESSOA cadastrada como cliente
+// (quem paga), nunca o solicitante que ligou pedindo a corrida — são papéis
+// diferentes e podem ser pessoas diferentes (ex: empresa "Thirteen
+// Executive", solicitante "Maria do RH"). Cliente relatou 2026-08-11: o
+// recibo saiu no nome de quem pediu a corrida, não no nome de quem pagou.
+// Sem cliente cadastrado (atendimento avulso), cai no nome do solicitante
+// mesmo — é a única informação que existe.
+function nomeParaDocumento(cli: any, nomeSolicitante: string): { nome: string; solicitante: string | null } {
+  const nomeCliente = cli ? (cli.tipo === 'pj' ? (cli.nome_fantasia || cli.razao_social) : cli.nome) : null
+  if (!nomeCliente) return { nome: nomeSolicitante, solicitante: null }
+  const mesmoNome = nomeCliente.trim().toLowerCase() === (nomeSolicitante || '').trim().toLowerCase()
+  return { nome: nomeCliente, solicitante: mesmoNome ? null : nomeSolicitante }
+}
+
 // Formata iniciado_em/finalizado_em (timestamptz gravado com new Date().
 // toISOString(), UTC de verdade — nao tem o bug de fuso do data_hora
 // agendado) no horario de Brasilia, sem precisar de date-fns nesse arquivo.
@@ -2516,11 +2530,13 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
         const motInfo = motoristaInfo(c, c.motorista_id ?? '')
         // Numero exibido: usa numero_reserva se existe (formato "AMES2025-1234")
         const num = c.numero_reserva ? String(c.numero_reserva) : c.id.slice(-5).toUpperCase()
+        const { nome: nomeDoc, solicitante: solicitanteDoc } = nomeParaDocumento(cli, c.cliente_nome)
         return (
           <ModalGerarVoucher
             empresa={empresaFiscal}
             cliente={{
-              nome: c.cliente_nome,
+              nome: nomeDoc,
+              solicitante: solicitanteDoc,
               telefone: c.cliente_telefone,
               email: c.email_solicitante,
               endereco_linha: enderecoCliente,
@@ -2566,11 +2582,13 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
           [cli.endereco_cidade, cli.endereco_estado].filter(Boolean).join('-'),
         ].filter(Boolean).join(', ') : null
         const num = c.numero_reserva ? String(c.numero_reserva) : c.id.slice(-5).toUpperCase()
+        const { nome: nomeDoc, solicitante: solicitanteDoc } = nomeParaDocumento(cli, c.cliente_nome)
         return (
           <ModalGerarRecibo
             empresa={empresaFiscal}
             cliente={{
-              nome: c.cliente_nome,
+              nome: nomeDoc,
+              solicitante: solicitanteDoc,
               telefone: c.cliente_telefone,
               email: c.email_solicitante,
               endereco_linha: enderecoCliente,

@@ -48,6 +48,11 @@ export type VoucherEmpresa = {
 
 export type VoucherCliente = {
   nome: string
+  // Nome de quem LIGOU pedindo a corrida, quando é diferente de quem paga
+  // (ex: empresa contratante "Thirteen Executive", solicitante "Maria do
+  // RH"). So preenchido quando os dois nomes divergem — evita repetir o
+  // mesmo nome duas vezes no documento.
+  solicitante?: string | null
   telefone?: string | null
   email?: string | null
   endereco_linha?: string | null   // ex: "Hotel Intercity Pamplona 83, São Paulo -SP"
@@ -196,6 +201,7 @@ export function VoucherPDF({ empresa, cliente, atendimento }: VoucherProps) {
         {/* Cliente */}
         <View style={{ marginBottom: 4 }}>
           <Text style={{ ...s.label, marginBottom: 2 }}>Cliente: <Text style={s.valor}>{cliente.nome}</Text></Text>
+          {cliente.solicitante && <Text style={s.valor}>Solicitante: {cliente.solicitante}</Text>}
           {cliente.endereco_linha && <Text style={s.valor}>{cliente.endereco_linha}</Text>}
           {cliente.telefone && <Text style={s.valor}>Tel: {cliente.telefone}</Text>}
           {cliente.email && <Text style={s.valor}>{cliente.email}</Text>}
