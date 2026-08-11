@@ -1952,7 +1952,7 @@ function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSa
     : []
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col" style={{ background: '#f0f0ec' }}>
+    <div className="fixed inset-0 z-[60] flex flex-col" style={{ background: '#f0f0ec' }}>
       <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-4 flex items-center gap-3">
         <button onClick={fechar} style={{ color: '#9FE1CB' }} className="text-2xl">‹</button>
         <div>
@@ -2739,7 +2739,7 @@ function ModalListaPDF({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col" style={{ background: '#f0f0ec' }}>
+    <div className="fixed inset-0 z-[60] flex flex-col" style={{ background: '#f0f0ec' }}>
       <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-4 flex items-center gap-3">
         <button onClick={onFechar} style={{ color: '#9FE1CB' }} className="text-2xl">‹</button>
         <div>

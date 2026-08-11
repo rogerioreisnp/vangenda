@@ -1176,8 +1176,10 @@ export default function FinanceiroPage() {
       </div>
 
       {/* Modal nova/editar despesa */}
+      {/* z-[60]: acima do menu de baixo (z-50), senão o rodapé com o botão
+          de salvar fica coberto e não dá pra clicar. */}
       {modalAberto && (
-        <div className="fixed inset-0 z-50 flex flex-col" style={{ background: '#f0f0ec' }}>
+        <div className="fixed inset-0 z-[60] flex flex-col" style={{ background: '#f0f0ec' }}>
           <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-4 flex items-center gap-3 flex-shrink-0">
             <button onClick={() => setModalAberto(false)} style={{ color: '#9FE1CB' }} className="text-2xl">‹</button>
             <p style={{ color: '#E1F5EE' }} className="text-sm font-semibold">
@@ -2043,7 +2045,7 @@ function FormLancamentoEmpresa({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col" style={{ background: '#f0f0ec' }}>
+    <div className="fixed inset-0 z-[60] flex flex-col" style={{ background: '#f0f0ec' }}>
       <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-4 flex items-center gap-3">
         <button onClick={onFechar} style={{ color: '#9FE1CB' }} className="text-2xl">‹</button>
         <p style={{ color: '#E1F5EE' }} className="text-sm font-semibold">

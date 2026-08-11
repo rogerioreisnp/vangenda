@@ -3637,9 +3637,13 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
         </div>
       )}
 
-      {/* Modal formulário nova/editar corrida */}
+      {/* Modal formulário nova/editar corrida.
+          z-[60]: acima do menu de baixo (z-50), que senão cobre o rodapé e
+          deixa o botão de confirmar sem clique. Fica no mesmo nível da ficha,
+          mas vence por vir depois no HTML — que é o certo, já que este
+          formulário abre a partir dela. */}
       {modalAberto && (
-        <div className="fixed inset-0 z-50 flex flex-col" style={{ background: '#fff' }}>
+        <div className="fixed inset-0 z-[60] flex flex-col" style={{ background: '#fff' }}>
           <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-4 flex items-center gap-3 flex-shrink-0">
             <button onClick={() => setModalAberto(false)} style={{ color: '#9FE1CB' }} className="text-2xl">‹</button>
             <p style={{ color: '#E1F5EE' }} className="text-sm font-semibold">
@@ -4747,7 +4751,7 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
 
       {/* Modal agendar passageiro (rota fixa) */}
       {modalAgAberto && (
-        <div className="fixed inset-0 z-50 flex flex-col" style={{ background: '#fff' }}>
+        <div className="fixed inset-0 z-[60] flex flex-col" style={{ background: '#fff' }}>
           <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-4 flex items-center gap-3 flex-shrink-0">
             <button onClick={() => setModalAgAberto(false)} style={{ color: '#9FE1CB' }} className="text-2xl">‹</button>
             <p style={{ color: '#E1F5EE' }} className="text-sm font-semibold">

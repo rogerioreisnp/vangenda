@@ -1018,7 +1018,7 @@ function AbaFiado() {
           />
         )}
         {agExcluindo && (
-          <div className="fixed inset-0 z-50 flex items-end" style={{ background: 'rgba(0,0,0,0.5)' }}
+          <div className="fixed inset-0 z-[60] flex items-end" style={{ background: 'rgba(0,0,0,0.5)' }}
             onClick={ev => { if (ev.target === ev.currentTarget) setAgExcluindo(null) }}>
             <div className="w-full bg-white rounded-t-2xl p-6 pb-16">
               <p className="text-base font-bold text-gray-800 mb-1">Excluir lançamento</p>
@@ -1232,7 +1232,7 @@ function ModalNovoFiado({ onFechar, onSalvo }: { onFechar: () => void; onSalvo: 
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end" style={{ background: 'rgba(0,0,0,0.4)' }}>
+    <div className="fixed inset-0 z-[60] flex items-end" style={{ background: 'rgba(0,0,0,0.4)' }}>
       <div className="w-full bg-white rounded-t-2xl p-6 pb-16 flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <p className="text-base font-bold text-gray-800">Novo fiado</p>
@@ -1341,7 +1341,7 @@ function ModalAdicionarDivida({ nome, onFechar, onSalvo }: {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end" style={{ background: 'rgba(0,0,0,0.4)' }}>
+    <div className="fixed inset-0 z-[60] flex items-end" style={{ background: 'rgba(0,0,0,0.4)' }}>
       <div className="w-full bg-white rounded-t-2xl p-6 pb-16 flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <div>
@@ -1426,7 +1426,7 @@ function ModalDarBaixa({ viagem, onFechar, onSalvo }: {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end" style={{ background: 'rgba(0,0,0,0.4)' }}>
+    <div className="fixed inset-0 z-[60] flex items-end" style={{ background: 'rgba(0,0,0,0.4)' }}>
       <div className="w-full bg-white rounded-t-2xl p-6 pb-16 flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <p className="text-base font-bold text-gray-800">Dar baixa no fiado</p>
@@ -1565,7 +1565,7 @@ function ModalDarBaixaCliente({ cliente, onFechar, onSalvo }: {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end" style={{ background: 'rgba(0,0,0,0.4)' }}>
+    <div className="fixed inset-0 z-[60] flex items-end" style={{ background: 'rgba(0,0,0,0.4)' }}>
       <div className="w-full bg-white rounded-t-2xl p-6 pb-16 flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <p className="text-base font-bold text-gray-800">Dar baixa no fiado</p>
@@ -1922,7 +1922,7 @@ function AbaEncomendas() {
           />
         )}
         {encExcluindo && (
-          <div className="fixed inset-0 z-50 flex items-end" style={{ background: 'rgba(0,0,0,0.5)' }}
+          <div className="fixed inset-0 z-[60] flex items-end" style={{ background: 'rgba(0,0,0,0.5)' }}
             onClick={ev => { if (ev.target === ev.currentTarget) setEncExcluindo(null) }}>
             <div className="w-full bg-white rounded-t-2xl p-6 pb-16">
               <p className="text-base font-bold text-gray-800 mb-1">Excluir encomenda</p>
@@ -2119,7 +2119,7 @@ function ModalEditarFiado({ ag, onFechar, onSalvo }: {
     : (ag.parada_origem || 'Passagem fiada')
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end" style={{ background: 'rgba(0,0,0,0.4)' }}>
+    <div className="fixed inset-0 z-[60] flex items-end" style={{ background: 'rgba(0,0,0,0.4)' }}>
       <div className="w-full bg-white rounded-t-2xl p-6 pb-16 flex flex-col gap-4" style={{ maxHeight: '90dvh', overflowY: 'auto' }}>
         <div className="flex items-center justify-between">
           <p className="text-base font-bold text-gray-800">Editar lançamento</p>
@@ -2193,7 +2193,7 @@ function ModalEditarEncomenda({ encomenda, onFechar, onSalvo }: {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end" style={{ background: 'rgba(0,0,0,0.4)' }}>
+    <div className="fixed inset-0 z-[60] flex items-end" style={{ background: 'rgba(0,0,0,0.4)' }}>
       <div className="w-full bg-white rounded-t-2xl p-6 pb-16 flex flex-col gap-4" style={{ maxHeight: '90dvh', overflowY: 'auto' }}>
         <div className="flex items-center justify-between">
           <p className="text-base font-bold text-gray-800">Editar encomenda</p>
@@ -2276,7 +2276,7 @@ function ModalDarBaixaEncomenda({ encomenda, onFechar, onSalvo }: {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end" style={{ background: 'rgba(0,0,0,0.4)' }}>
+    <div className="fixed inset-0 z-[60] flex items-end" style={{ background: 'rgba(0,0,0,0.4)' }}>
       <div className="w-full bg-white rounded-t-2xl p-6 pb-16 flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <p className="text-base font-bold text-gray-800">Dar baixa na encomenda</p>
@@ -2408,7 +2408,7 @@ function ModalDarBaixaClienteEncomenda({ cliente, onFechar, onSalvo }: {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end" style={{ background: 'rgba(0,0,0,0.4)' }}>
+    <div className="fixed inset-0 z-[60] flex items-end" style={{ background: 'rgba(0,0,0,0.4)' }}>
       <div className="w-full bg-white rounded-t-2xl p-6 pb-16 flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <p className="text-base font-bold text-gray-800">Dar baixa nas encomendas</p>
@@ -2537,7 +2537,7 @@ function FormReceita({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col" style={{ background: '#f0f0ec' }}>
+    <div className="fixed inset-0 z-[60] flex flex-col" style={{ background: '#f0f0ec' }}>
       <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-4 flex items-center gap-3">
         <button onClick={onFechar} style={{ color: '#9FE1CB' }} className="text-2xl">‹</button>
         <p style={{ color: '#E1F5EE' }} className="text-sm font-semibold">
@@ -2667,7 +2667,7 @@ function FormDespesa({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col" style={{ background: '#f0f0ec' }}>
+    <div className="fixed inset-0 z-[60] flex flex-col" style={{ background: '#f0f0ec' }}>
       <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-4 flex items-center gap-3">
         <button onClick={onFechar} style={{ color: '#9FE1CB' }} className="text-2xl">‹</button>
         <p style={{ color: '#E1F5EE' }} className="text-sm font-semibold">

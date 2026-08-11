@@ -1303,7 +1303,7 @@ function DashboardRotaFixa({
 
     {/* Modal pagamentos pendentes */}
     {modalPendentes && (
-      <div className="fixed inset-0 z-50 flex flex-col" style={{ background: 'rgba(0,0,0,0.5)' }}
+      <div className="fixed inset-0 z-[60] flex flex-col" style={{ background: 'rgba(0,0,0,0.5)' }}
         onClick={e => { if (e.target === e.currentTarget) setModalPendentes(false) }}>
         <div className="bg-white flex-1 mt-20 rounded-t-3xl flex flex-col overflow-hidden">
           <div className="px-4 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">

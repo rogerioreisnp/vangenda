@@ -409,7 +409,12 @@ export default function MotoristasPage() {
       </div>
 
       {modalAberto && (
-        <div className="fixed inset-0 z-50 flex flex-col" style={{ background: '#fff' }}>
+        // z-[60] fica ACIMA do menu de baixo (z-50). Empatado em z-50, o menu
+        // vencia por vir depois no HTML e cobria o rodapé do formulário — o
+        // botão de salvar ficava embaixo dele, sem como clicar (relatado por
+        // cliente 2026-08-06). Formulário de tela cheia tem que cobrir o menu
+        // mesmo; pra sair tem o "‹" no topo.
+        <div className="fixed inset-0 z-[60] flex flex-col" style={{ background: '#fff' }}>
           <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-4 flex items-center gap-3 flex-shrink-0">
             <button onClick={() => setModalAberto(false)} style={{ color: '#9FE1CB' }} className="text-2xl">‹</button>
             <div>

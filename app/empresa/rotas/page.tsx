@@ -717,8 +717,10 @@ export default function RotasPage() {
           )}
         </div>
 
+        {/* z-[60]: acima do menu de baixo (z-50). Empatado, o menu cobria o
+            rodapé e o botão de salvar ficava sem clique. */}
         {modalRFAberto && (
-          <div className="fixed inset-0 z-50 flex flex-col" style={{ background: '#f0f0ec' }}>
+          <div className="fixed inset-0 z-[60] flex flex-col" style={{ background: '#f0f0ec' }}>
             <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-4 flex items-center gap-3 flex-shrink-0">
               <button onClick={() => setModalRFAberto(false)} style={{ color: '#9FE1CB' }} className="text-2xl">‹</button>
               <p style={{ color: '#E1F5EE' }} className="text-sm font-semibold">
@@ -1230,7 +1232,7 @@ export default function RotasPage() {
       </div>
 
       {modalAberto && (
-        <div className="fixed inset-0 z-50 flex flex-col" style={{ background: '#fff' }}>
+        <div className="fixed inset-0 z-[60] flex flex-col" style={{ background: '#fff' }}>
           <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-4 flex items-center gap-3 flex-shrink-0">
             <button onClick={() => setModalAberto(false)} style={{ color: '#9FE1CB' }} className="text-2xl">‹</button>
             <div>

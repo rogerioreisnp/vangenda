@@ -106,7 +106,7 @@ export default function ModalNovaEncomenda({ onFechar, onSalvo, nomeInicial, tel
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end" style={{ background: 'rgba(0,0,0,0.4)' }}>
+    <div className="fixed inset-0 z-[60] flex items-end" style={{ background: 'rgba(0,0,0,0.4)' }}>
       <div className="w-full bg-white rounded-t-2xl p-6 pb-16 flex flex-col gap-4" style={{ maxHeight: '90dvh', overflowY: 'auto' }}>
         <div className="flex items-center justify-between">
           <p className="text-base font-bold text-gray-800">Nova encomenda</p>
