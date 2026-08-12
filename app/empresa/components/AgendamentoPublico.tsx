@@ -1413,7 +1413,7 @@ export default function AgendamentoPublico({
                 </Campo>
                 <Campo label="Telefone">
                   <input value={passageiro1Telefone} onChange={e => setPassageiro1Telefone(e.target.value)}
-                    placeholder="(XX) XXXXX-XXXX" type="tel" className="campo-input" />
+                    placeholder="(11) 99999-9999 ou +1 555 123 4567" type="tel" className="campo-input" />
                 </Campo>
                 <Campo label="Número do voo">
                   <input value={numeroVoo} onChange={e => setNumeroVoo(e.target.value)}
@@ -1578,7 +1578,7 @@ export default function AgendamentoPublico({
                     <Campo label="Telefone">
                       <input value={p.telefone}
                         onChange={e => setPassageirosExtras(prev => prev.map((pp, i) => i === idx ? { ...pp, telefone: e.target.value } : pp))}
-                        placeholder="(XX) XXXXX-XXXX" type="tel" className="campo-input" />
+                        placeholder="(11) 99999-9999 ou +1 555 123 4567" type="tel" className="campo-input" />
                     </Campo>
                     <Campo label="Número do voo">
                       <input value={p.numero_voo}
