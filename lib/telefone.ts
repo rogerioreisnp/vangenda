@@ -36,3 +36,42 @@ export function formatarTelefoneWhatsApp(input: string | null | undefined): stri
   // BR errado do que forçar "55" num número que não é brasileiro.
   return digitos
 }
+
+// Confere se um telefone digitado parece real, sem travar cliente
+// internacional (o transfer atende gente de fora do Brasil — mesma
+// ressalva de formatarTelefoneWhatsApp acima). Não é validação de telecom
+// de verdade (não confere se o DDD existe de fato) — é só o suficiente
+// pra barrar número digitado a esmo, tipo "764648464646465" (15 dígitos),
+// que não bate com nenhum formato real de telefone em lugar nenhum.
+//
+// Pedido de cliente (2026-08-11): agendamentos falsos entrando pelo link
+// público com telefone/nome inventados pra atrapalhar. Verificação de
+// código por SMS/WhatsApp foi descartada de propósito — fricção a mais
+// pro cliente real só pra confirmar o telefone.
+export function pareceTelefoneReal(input: string): boolean {
+  const raw = (input || '').trim()
+  if (!raw) return false
+
+  const temMais = raw.startsWith('+')
+  const digitos = raw.replace(/\D/g, '')
+  if (!digitos) return false
+
+  // Internacional explícito: a pessoa assumiu o código do país digitando
+  // "+", então só barra tamanho absurdo (nenhum telefone do mundo tem
+  // menos de 8 ou mais de 15 dígitos).
+  if (temMais) return digitos.length >= 8 && digitos.length <= 15
+
+  // Brasil com código do país embutido (55 + DDD + número).
+  if (digitos.startsWith('55') && (digitos.length === 12 || digitos.length === 13)) {
+    const ddd = parseInt(digitos.slice(2, 4), 10)
+    return ddd >= 11 && ddd <= 99
+  }
+
+  // Brasil sem código (DDD + número: 10 dígitos fixo, 11 celular).
+  if (digitos.length === 10 || digitos.length === 11) {
+    const ddd = parseInt(digitos.slice(0, 2), 10)
+    return ddd >= 11 && ddd <= 99
+  }
+
+  return false
+}

@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { formatarTelefoneWhatsApp } from '@/lib/telefone'
+import { formatarTelefoneWhatsApp, pareceTelefoneReal } from '@/lib/telefone'
 
 function gerarPayloadPix(chave: string, nome: string, valor: number, cidade: string = 'Brasil'): string {
   const pixNome = nome.substring(0, 25).replace(/[^a-zA-Z ]/g, '')
@@ -422,6 +422,24 @@ export default function AgendamentoPublico({
   async function confirmar() {
     if (!form.nome.trim()) { setErro('Seu nome é obrigatório'); return }
     if (!form.telefone.trim()) { setErro('Seu telefone é obrigatório'); return }
+    // Barra número inventado (ex: "764648464646465") pra reduzir
+    // agendamento falso feito pra atrapalhar — pedido de cliente,
+    // 2026-08-11. Aceita número internacional normalmente, desde que
+    // comece com "+" (ver pareceTelefoneReal em lib/telefone.ts).
+    if (!pareceTelefoneReal(form.telefone)) {
+      setErro('Telefone inválido — confira o número com DDD (ex: 11 91234-5678). Se for número internacional, comece com "+" e o código do país.')
+      return
+    }
+    if (passageiro1Telefone.trim() && !pareceTelefoneReal(passageiro1Telefone)) {
+      setErro('Telefone do Passageiro 1 inválido — confira o número.')
+      return
+    }
+    for (const p of passageirosExtras) {
+      if (p.telefone.trim() && !pareceTelefoneReal(p.telefone)) {
+        setErro(`Telefone de ${p.nome.trim() || 'um dos passageiros extras'} inválido — confira o número.`)
+        return
+      }
+    }
     if (!form.rota_id) { setErro('Selecione uma rota'); return }
     if (!form.data) { setErro('Data é obrigatória'); return }
     // Dias de operação valem pra grade compartilhada. Carro fechado é veículo
