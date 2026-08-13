@@ -703,6 +703,14 @@ export default function ConfiguracoesEmpresaPage() {
               <option value="120">2 horas antes</option>
               <option value="180">3 horas antes</option>
               <option value="240">4 horas antes</option>
+              {/* Opções longas — cliente com atendimento de madrugada ou em
+                  outra cidade precisa avisar o motorista com bem mais
+                  antecedência (pedido 2026-08-12). O banco já aceitava até
+                  24h desde a criação do campo; só a lista estava curta. */}
+              <option value="360">6 horas antes</option>
+              <option value="480">8 horas antes</option>
+              <option value="720">12 horas antes</option>
+              <option value="1440">1 dia antes (24 horas)</option>
             </select>
             <p className="text-xs mt-2 leading-relaxed" style={{ color: '#6B7280' }}>
               ℹ️ O motorista atribuído recebe uma notificação nesse intervalo antes de

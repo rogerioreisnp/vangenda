@@ -320,6 +320,23 @@ function tipoMeta(tipo: string | null): TipoMeta {
   return TIPO_META[tipo ?? ''] ?? { badge: tipo ?? 'Serviço', bg: '#F3F4F6', text: '#6B7280', clienteLabel: 'Cliente' }
 }
 
+// Nome do serviço em texto puro, pra mensagem de WhatsApp (o badge de
+// TIPO_META tem emoji e não serve). A mensagem dizia "Transfer" fixo, então
+// Diária, City Tour, Fretamento e Excursão saíam todas como Transfer e o
+// gestor tinha que corrigir na mão antes de enviar (relatado 2026-08-12).
+function rotuloServico(tipo: string | null): string {
+  switch (tipo) {
+    case 'diaria':        return 'Diária'
+    case 'city_tour':     return 'City Tour'
+    case 'fretamento':    return 'Fretamento'
+    case 'excursao':      return 'Excursão'
+    case 'carro_fechado': return 'Carro Fechado'
+    case 'rota_fixa':     return 'Viagem'
+    case 'pre_reserva':   return 'Pedido de Horário'
+    default:              return 'Transfer'
+  }
+}
+
 // Nome que vai no voucher/recibo: a EMPRESA/PESSOA cadastrada como cliente
 // (quem paga), nunca o solicitante que ligou pedindo a corrida — são papéis
 // diferentes e podem ser pessoas diferentes (ex: empresa "Thirteen
@@ -1475,7 +1492,11 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
     // Passageiro 1 (quem viaja) é diferente do responsável quando preenchido.
     // Se não veio (reservas antigas ou responsável = passageiro), cai no
     // cliente_nome/telefone pra manter compatibilidade.
-    let passageiros = c.passageiro1_nome || c.cliente_nome
+    // Sem passageiro informado, NÃO assume que é o solicitante. Agência de
+    // turismo passa o nome dela primeiro e os passageiros depois — dizer que
+    // o passageiro é a agência manda o motorista procurar a pessoa errada
+    // (relatado 2026-08-12). Melhor deixar explícito que falta confirmar.
+    let passageiros = c.passageiro1_nome || `A confirmar (solicitante: ${c.cliente_nome})`
     let telefones = c.passageiro1_telefone || c.cliente_telefone || ''
     if (c.nome_passageiro2) passageiros += `, ${c.nome_passageiro2}`
     if (c.telefone_passageiro2) telefones += telefones ? `, ${c.telefone_passageiro2}` : c.telefone_passageiro2
@@ -1485,7 +1506,7 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
     }
 
     const rotulo = etapa === 'ida' ? ' (IDA)' : etapa === 'volta' ? ' (VOLTA)' : ''
-    let msg = `Olá, tudo bem?\n\nSegue a confirmação do Transfer${rotulo}: ${num}`
+    let msg = `Olá, tudo bem?\n\nSegue a confirmação do ${rotuloServico(c.tipo_servico)}${rotulo}: ${num}`
     msg += `\n📅 *Data/Hora:*\n${data} às ${hora} (${dia})`
     msg += `\n\n👤 *Passageiros:*\n${passageiros}`
     if (telefones) msg += `\n📞 *Telefones:*\n${telefones}`
@@ -3002,7 +3023,20 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
             {(corridaFicha.passageiro1_nome || corridaFicha.rua || corridaFicha.rua_desembarque || corridaFicha.numero_voo) && (
               <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-2">
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">🧍 Passageiro 1</p>
-                <p className="text-sm font-semibold text-gray-800">👤 {corridaFicha.passageiro1_nome || corridaFicha.cliente_nome}</p>
+                {corridaFicha.passageiro1_nome ? (
+                  <p className="text-sm font-semibold text-gray-800">👤 {corridaFicha.passageiro1_nome}</p>
+                ) : (
+                  // Antes caía no nome do solicitante, o que fazia parecer que
+                  // o passageiro já estava definido. Agência informa o nome
+                  // depois — deixar explícito evita o gestor mandar a ficha
+                  // pro motorista com o nome da agência como passageiro.
+                  <div className="rounded-xl px-3 py-2" style={{ background: '#FFFBEB', border: '1px solid #FDE68A' }}>
+                    <p className="text-sm font-semibold" style={{ color: '#92400E' }}>⏳ Passageiro ainda não informado</p>
+                    <p className="text-[11px] mt-0.5" style={{ color: '#B45309' }}>
+                      Toque em Editar pra adicionar quando o solicitante mandar o nome.
+                    </p>
+                  </div>
+                )}
                 {corridaFicha.passageiro1_telefone && (
                   <p className="text-sm text-gray-600">📞 {corridaFicha.passageiro1_telefone}</p>
                 )}
