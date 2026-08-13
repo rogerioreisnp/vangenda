@@ -102,6 +102,12 @@ export default function AgendaPage() {
   // funcionario, pra redirecionar SELECTs e INSERTs. Individual/gestor nao usa.
   const [empresaCtx, setEmpresaCtx] = useState<{ empresaId: string; motEmpresaId?: string; gestorUserId?: string } | null | undefined>(undefined)
   const [rotasEmpresa, setRotasEmpresa] = useState<{ id: string; nome: string | null; origem: string | null; destino: string | null; horario_ida: string | null; horario_volta: string | null; modo_endereco: 'paradas' | 'livre' | null; preco: number | null; capacidade?: number | null; motorista_id?: string | null; oferece_porta?: boolean | null; acrescimo_buscar?: number | null; acrescimo_deixar?: number | null }[]>([])
+  // Sentido (ida/volta) de cada saída da rota, por id. As reservas do link
+  // público guardam em qual saída entraram (horario_rota_id) — é essa a
+  // fonte da verdade do turno. Antes o turno era ADIVINHADO comparando o
+  // relógio da reserva com o horario_volta da rota, o que quebrava assim
+  // que a rota passou a ter mais de uma saída por sentido.
+  const [sentidoPorSaida, setSentidoPorSaida] = useState<Record<string, 'ida' | 'volta'>>({})
   const [isGestor, setIsGestor] = useState(false)
   const [gestorUserIds, setGestorUserIds] = useState<string[]>([])
   const [empresaReady, setEmpresaReady] = useState(false)
@@ -155,7 +161,7 @@ export default function AgendaPage() {
       let corrData: any[] = []
       if (empresaId) {
         let cq = supabase.from('corridas_empresa')
-          .select('id, rota_id, origem, destino, data_hora, cliente_nome, cliente_telefone, valor, status, forma_pagamento, modalidade_embarque, tipo_servico')
+          .select('id, rota_id, origem, destino, data_hora, cliente_nome, cliente_telefone, valor, status, forma_pagamento, modalidade_embarque, tipo_servico, horario_rota_id')
           .eq('empresa_id', empresaId)
           .gte('data_hora', `${inicio}T00:00:00`)
           .lte('data_hora', `${fim}T23:59:59`)
@@ -170,7 +176,11 @@ export default function AgendaPage() {
         if (!c.data_hora || !c.cliente_nome) return acc
         const horaStr = c.data_hora.slice(11, 16)
         const rota = rotasEmpresa.find(r => r.id === c.rota_id)
-        const turno: 'ida' | 'volta' = rota?.horario_volta?.slice(0, 5) === horaStr ? 'volta' : 'ida'
+        // Turno vem da SAÍDA em que a reserva entrou. Só cai no palpite pelo
+        // relógio quando a reserva é antiga e não tem saída vinculada.
+        const turno: 'ida' | 'volta' =
+          (c.horario_rota_id ? sentidoPorSaida[c.horario_rota_id] : undefined)
+          ?? (rota?.horario_volta?.slice(0, 5) === horaStr ? 'volta' : 'ida')
         acc.push({
           id: c.id,
           nome_passageiro: c.cliente_nome,
@@ -225,7 +235,7 @@ export default function AgendaPage() {
     let corrDataMot: any[] = []
     if (empresaCtx?.motEmpresaId && empresaCtx.empresaId) {
       let cq = supabase.from('corridas_empresa')
-        .select('id, rota_id, origem, destino, data_hora, cliente_nome, cliente_telefone, valor, status, forma_pagamento, modalidade_embarque, tipo_servico')
+        .select('id, rota_id, origem, destino, data_hora, cliente_nome, cliente_telefone, valor, status, forma_pagamento, modalidade_embarque, tipo_servico, horario_rota_id')
         .eq('empresa_id', empresaCtx.empresaId)
         .gte('data_hora', `${inicio}T00:00:00`)
         .lte('data_hora', `${fim}T23:59:59`)
@@ -238,7 +248,11 @@ export default function AgendaPage() {
       if (!c.data_hora || !c.cliente_nome) return acc
       const horaStr = c.data_hora.slice(11, 16)
       const rotaEmp = rotasEmpresa.find(r => r.id === c.rota_id)
-      const turno: 'ida' | 'volta' = rotaEmp?.horario_volta?.slice(0, 5) === horaStr ? 'volta' : 'ida'
+      // Turno vem da SAÍDA em que a reserva entrou (ver comentário em
+      // carregarMes). Palpite pelo relógio só pra reserva antiga sem vínculo.
+      const turno: 'ida' | 'volta' =
+        (c.horario_rota_id ? sentidoPorSaida[c.horario_rota_id] : undefined)
+        ?? (rotaEmp?.horario_volta?.slice(0, 5) === horaStr ? 'volta' : 'ida')
       acc.push({
         id: c.id,
         nome_passageiro: c.cliente_nome,
@@ -317,7 +331,7 @@ export default function AgendaPage() {
     let corrData: any[] = []
     if (empresaId) {
       let cq = supabase.from('corridas_empresa')
-        .select('id, rota_id, origem, destino, data_hora, cliente_nome, cliente_telefone, valor, status, forma_pagamento, modalidade_embarque, tipo_servico')
+        .select('id, rota_id, origem, destino, data_hora, cliente_nome, cliente_telefone, valor, status, forma_pagamento, modalidade_embarque, tipo_servico, horario_rota_id')
         .eq('empresa_id', empresaId)
         .gte('data_hora', `${inicio}T00:00:00`)
         .lte('data_hora', `${fim}T23:59:59`)
@@ -331,7 +345,11 @@ export default function AgendaPage() {
       if (!c.data_hora || !c.cliente_nome) return acc
       const horaStr = c.data_hora.slice(11, 16)
       const rotaEmp = rotasEmpresa.find(r => r.id === c.rota_id)
-      const turno: 'ida' | 'volta' = rotaEmp?.horario_volta?.slice(0, 5) === horaStr ? 'volta' : 'ida'
+      // Turno vem da SAÍDA em que a reserva entrou (ver comentário em
+      // carregarMes). Palpite pelo relógio só pra reserva antiga sem vínculo.
+      const turno: 'ida' | 'volta' =
+        (c.horario_rota_id ? sentidoPorSaida[c.horario_rota_id] : undefined)
+        ?? (rotaEmp?.horario_volta?.slice(0, 5) === horaStr ? 'volta' : 'ida')
       acc.push({
         id: c.id,
         nome_passageiro: c.cliente_nome,
@@ -395,6 +413,20 @@ export default function AgendaPage() {
     setFretamentosDoDia((frets as Fretamento[]) || [])
   }
 
+  // Carrega o sentido de cada saída da empresa numa vez só. Se falhar, o
+  // mapa fica vazio e o turno cai no palpite antigo pelo relógio — degrada,
+  // não quebra a agenda.
+  async function carregarSentidoSaidas(empresaId: string) {
+    const { data, error } = await supabase
+      .from('horarios_rota')
+      .select('id, sentido')
+      .eq('empresa_id', empresaId)
+    if (error) { console.error('[saidas] falha ao carregar sentido:', error.message); return }
+    const mapa: Record<string, 'ida' | 'volta'> = {}
+    for (const s of data || []) mapa[s.id as string] = s.sentido as 'ida' | 'volta'
+    setSentidoPorSaida(mapa)
+  }
+
   async function detectarEmpresa() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
@@ -424,6 +456,7 @@ export default function AgendaPage() {
         .from('rotas_empresa').select('id, nome, origem, destino, ativa, horario_ida, horario_volta, modo_endereco, preco, capacidade, oferece_porta, acrescimo_buscar, acrescimo_deixar')
         .eq('empresa_id', gestorRow.empresa_id).order('created_at', { ascending: true })
       setRotasEmpresa((rts || []).filter(r => r.ativa !== false))
+      await carregarSentidoSaidas(gestorRow.empresa_id)
       const { data: motsEmp } = await supabase
         .from('motoristas_empresa').select('user_id')
         .eq('empresa_id', gestorRow.empresa_id).eq('status', 'ativo')
@@ -469,6 +502,7 @@ export default function AgendaPage() {
         .order('created_at', { ascending: true })
       const rotasAtivas = (rts || []).filter(r => r.ativa !== false)
       setRotasEmpresa(rotasAtivas)
+      await carregarSentidoSaidas(motEmp.empresa_id)
       // Pré-seleciona a rota atribuída a este motorista (rotas_empresa.motorista_id
       // guarda o id de motoristas_empresa). Ele abre a agenda já vendo só a
       // rota dele; pode trocar pra "Todas as rotas" no seletor se quiser.
