@@ -277,9 +277,15 @@ export default function CorridaFicha({ params }: { params: { id: string } }) {
   // proprio passageiro. Antes o telefone caia no fallback sozinho: nome do
   // passageiro (Isabela) aparecia com o telefone do solicitante embaixo,
   // como se fosse dela — reportado pelo Julimar, 2026-08-05.
+  // ATUALIZACAO 2026-08-12: sem passageiro informado, o motorista nao ve NEM o
+  // nome NEM o telefone do solicitante. O solicitante costuma ser o cliente
+  // comercial da empresa (agencia de turismo, hotel) — dar esse contato pro
+  // motorista permitiria ele fechar direto e passar por cima de quem repassou
+  // a corrida. Palavras do Rogerio: "tem coisa que e sigilosa". Quando falta o
+  // passageiro, o motorista fala com a empresa, nao com o cliente dela.
   const semPassageiroProprio = !c.passageiro1_nome
-  const passageiro1 = c.passageiro1_nome || c.cliente_nome || 'Sem nome'
-  const tel1 = semPassageiroProprio ? c.cliente_telefone : c.passageiro1_telefone
+  const passageiro1 = c.passageiro1_nome || 'Passageiro a confirmar'
+  const tel1 = semPassageiroProprio ? null : c.passageiro1_telefone
 
   return (
     <div className="pb-6">
@@ -414,7 +420,16 @@ export default function CorridaFicha({ params }: { params: { id: string } }) {
         {/* Passageiro 1 */}
         <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-2">
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">🧍 Passageiro 1</p>
-          <p className="text-sm font-semibold text-gray-800">{passageiro1}</p>
+          {semPassageiroProprio ? (
+            <div className="rounded-xl px-3 py-2" style={{ background: '#FFFBEB', border: '1px solid #FDE68A' }}>
+              <p className="text-sm font-semibold" style={{ color: '#92400E' }}>⏳ Passageiro a confirmar</p>
+              <p className="text-[11px] mt-0.5" style={{ color: '#B45309' }}>
+                O nome ainda não foi informado. Confirme com a empresa antes de sair.
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm font-semibold text-gray-800">{passageiro1}</p>
+          )}
           {tel1 && (
             <a href={`tel:${tel1}`} className="text-sm" style={{ color: '#0F6E56' }}>
               📞 {tel1}

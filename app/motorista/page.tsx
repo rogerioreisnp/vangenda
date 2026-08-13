@@ -217,8 +217,12 @@ function ListaResumo({ titulo, items }: { titulo: string; items: CorridaRes[] })
   )
 }
 
+// Sem passageiro informado, NAO mostra o nome do solicitante. O solicitante
+// costuma ser o cliente comercial da empresa (agencia de turismo, hotel), e
+// expor isso pro motorista permitiria ele fechar direto e passar por cima da
+// empresa. Decisao do Rogerio, 2026-08-12: "tem coisa que e sigilosa".
 function passageiro(c: CorridaRes): string {
-  return c.passageiro1_nome || c.cliente_nome || 'Sem nome'
+  return c.passageiro1_nome || 'Passageiro a confirmar'
 }
 
 function formatarDataHora(iso: string): string {

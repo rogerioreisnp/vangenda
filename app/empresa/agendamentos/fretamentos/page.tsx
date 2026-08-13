@@ -1482,7 +1482,13 @@ export default function AgendamentosPage() {
     return { id: motoristaId, nome: j.nome ?? '', veiculo: j.veiculo ?? null, placa: j.placa ?? null, cor: j.cor ?? null, telefone: j.telefone ?? null, user_id: null }
   }
 
-function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'volta'): string {
+// paraMotorista: a MESMA mensagem vai pro cliente e pro motorista, mas o que
+// pode aparecer nelas é diferente. Sem passageiro informado, a versão do
+// motorista NÃO pode cair no nome/telefone do solicitante — esse é o cliente
+// comercial da empresa (agência, hotel), e entregar esse contato permitiria o
+// motorista fechar direto por fora. Pro cliente, mostrar é inofensivo: é ele
+// mesmo. (Rogério, 2026-08-12: "tem coisa que é sigilosa".)
+function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'volta', paraMotorista = false): string {
     const motorista = motoristaInfo(c, motoristaId)
     const data = `${c.data_hora.slice(8,10)}/${c.data_hora.slice(5,7)}/${c.data_hora.slice(0,4)}`
     const hora = c.data_hora.slice(11,16)
@@ -1496,8 +1502,13 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
     // turismo passa o nome dela primeiro e os passageiros depois — dizer que
     // o passageiro é a agência manda o motorista procurar a pessoa errada
     // (relatado 2026-08-12). Melhor deixar explícito que falta confirmar.
-    let passageiros = c.passageiro1_nome || `A confirmar (solicitante: ${c.cliente_nome})`
-    let telefones = c.passageiro1_telefone || c.cliente_telefone || ''
+    let passageiros = c.passageiro1_nome
+      || (paraMotorista ? 'A confirmar com a empresa' : `A confirmar (solicitante: ${c.cliente_nome})`)
+    // Telefone do solicitante NUNCA vai pro motorista quando não há passageiro:
+    // seria entregar o contato do cliente comercial da empresa.
+    let telefones = c.passageiro1_telefone
+      || (paraMotorista ? '' : (c.cliente_telefone || ''))
+      || ''
     if (c.nome_passageiro2) passageiros += `, ${c.nome_passageiro2}`
     if (c.telefone_passageiro2) telefones += telefones ? `, ${c.telefone_passageiro2}` : c.telefone_passageiro2
     for (const p of c.passageiros_adicionais || []) {
@@ -1614,7 +1625,7 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
     if (!motorista) return
     const telFmt = formatarTelefoneWhatsApp(motorista.telefone)
     if (!telFmt) { alert(`Motorista ${motorista.nome} não tem telefone cadastrado.`); return }
-    let msg = montarMsgDetalhada(c, motoristaId, etapa)
+    let msg = montarMsgDetalhada(c, motoristaId, etapa, true)
     // Pra o MOTORISTA (e nao pro cliente), incluir o valor de repasse dele
     // logo antes da assinatura — motorista precisa saber quanto vai receber.
     // Insere ANTES do bloco de assinatura (que comeca com \n\n*Nome Empresa*).

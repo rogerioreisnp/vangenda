@@ -220,7 +220,9 @@ export default function MotoristaAgenda() {
 function CorridaCard({ c }: { c: Corrida }) {
   const st = STATUS_META[c.status] ?? { bg: '#F3F4F6', text: '#6B7280', label: c.status }
   const tp = c.tipo_servico ? TIPO_META[c.tipo_servico] : null
-  const passageiro = c.passageiro1_nome || c.cliente_nome || 'Sem nome'
+  // Nunca cai no nome do solicitante — ver comentário em /motorista/page.tsx:
+  // solicitante é o cliente comercial da empresa e não pode vazar pro motorista.
+  const passageiro = c.passageiro1_nome || 'Passageiro a confirmar'
   const data = dataHoraBrasilia(c.data_hora)
   const dataFmt = format(data, "dd 'de' MMM · HH:mm", { locale: ptBR })
 
