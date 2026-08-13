@@ -250,7 +250,7 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
       return
     }
     if (lotado) {
-      setErroMsg('Van lotada neste dia. Tente outra data.')
+      setErroMsg(`Van lotada na ${form.turno === 'ida' ? 'ida' : 'volta'} deste dia. Tente o outro turno ou outra data.`)
       return
     }
     if (vagasInsuficientes) {
@@ -472,12 +472,17 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
                   }}>
                   <p className="text-xs font-semibold"
                     style={{ color: lotado ? '#A32D2D' : vagasDisponiveis <= 3 ? '#854F0B' : '#085041' }}>
-                    {lotado ? '🚫 Van lotada neste dia' : vagasDisponiveis <= 3 ? '⚠️ Últimas vagas!' : '✅ Vagas disponíveis'}
+                    {/* "neste dia" dava a entender que a lotação era do dia
+                        inteiro. A contagem sempre foi por TURNO (ida e volta
+                        têm vagas independentes) — o texto é que dizia errado. */}
+                    {lotado
+                      ? `🚫 ${form.turno === 'ida' ? 'Ida' : 'Volta'} lotada neste dia`
+                      : vagasDisponiveis <= 3 ? '⚠️ Últimas vagas!' : '✅ Vagas disponíveis'}
                   </p>
                   {!lotado && (
                     <p className="text-xs mt-0.5"
                       style={{ color: vagasDisponiveis <= 3 ? '#854F0B' : '#0F6E56' }}>
-                      {vagasDisponiveis} vaga{vagasDisponiveis !== 1 ? 's' : ''} restante{vagasDisponiveis !== 1 ? 's' : ''}
+                      {vagasDisponiveis} vaga{vagasDisponiveis !== 1 ? 's' : ''} restante{vagasDisponiveis !== 1 ? 's' : ''} na {form.turno === 'ida' ? 'ida' : 'volta'}
                     </p>
                   )}
                 </div>
@@ -486,8 +491,10 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
               {lotado && (
                 <div style={{ background: '#FCEBEB', borderColor: '#F5BCBC' }}
                   className="border rounded-xl px-4 py-3 text-center">
-                  <p className="text-sm font-bold" style={{ color: '#A32D2D' }}>😔 Sem vagas neste dia</p>
-                  <p className="text-xs text-gray-500 mt-1">Tente outra data ou turno</p>
+                  <p className="text-sm font-bold" style={{ color: '#A32D2D' }}>
+                    😔 Sem vagas na {form.turno === 'ida' ? 'ida' : 'volta'} deste dia
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">Tente o outro turno ou outra data</p>
                 </div>
               )}
 
@@ -654,7 +661,7 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
                     <div style={{ background: '#FCEBEB', borderColor: '#F5BCBC' }}
                       className="border rounded-xl px-4 py-3">
                       <p className="text-xs font-semibold" style={{ color: '#A32D2D' }}>
-                        ⚠️ Só há {vagasDisponiveis} vaga{vagasDisponiveis !== 1 ? 's' : ''} disponível{vagasDisponiveis !== 1 ? 'is' : ''} neste dia.
+                        ⚠️ Só há {vagasDisponiveis} vaga{vagasDisponiveis !== 1 ? 's' : ''} disponível{vagasDisponiveis !== 1 ? 'is' : ''} na {form.turno === 'ida' ? 'ida' : 'volta'} deste dia.
                       </p>
                     </div>
                   )}

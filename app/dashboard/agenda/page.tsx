@@ -736,7 +736,11 @@ export default function AgendaPage() {
             className="border rounded-xl p-3 flex gap-3 mb-4">
             <span className="text-lg">🔔</span>
             <p style={{ color: '#633806' }} className="text-xs leading-relaxed">
-              <strong>Amanhã:</strong> {agsDoDia.length} passageiro{agsDoDia.length !== 1 ? 's' : ''}. Ligue para confirmar antes de sair!
+              <strong>Amanhã:</strong>{' '}
+              {ida.length > 0 && volta.length > 0
+                ? `${ida.length} na ida e ${volta.length} na volta`
+                : `${agsDoDia.length} passageiro${agsDoDia.length !== 1 ? 's' : ''}`}
+              . Ligue para confirmar antes de sair!
             </p>
           </div>
         )}
@@ -745,8 +749,17 @@ export default function AgendaPage() {
           <p className="text-sm font-semibold text-gray-800 capitalize">
             {format(diaSelecionado, "EEEE, dd 'de' MMM", { locale: ptBR })}
           </p>
+          {/* Contagem SEPARADA por turno. Somar os dois dava a impressao de
+              van cheia quando na verdade eram duas viagens diferentes: 3 na
+              ida + 10 na volta apareciam como "13 passageiros", sendo que
+              cada sentido tem a sua propria lotacao (relatado por cliente
+              do app individual, 2026-08-12). */}
           {agsDoDia.length > 0 && (
-            <span className="text-xs text-gray-400">{agsDoDia.length} passageiro{agsDoDia.length !== 1 ? 's' : ''}</span>
+            <span className="text-xs text-gray-400">
+              {ida.length > 0 && volta.length > 0
+                ? `${ida.length} ida · ${volta.length} volta`
+                : `${agsDoDia.length} passageiro${agsDoDia.length !== 1 ? 's' : ''}`}
+            </span>
           )}
         </div>
 
