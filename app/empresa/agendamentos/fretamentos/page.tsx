@@ -320,23 +320,6 @@ function tipoMeta(tipo: string | null): TipoMeta {
   return TIPO_META[tipo ?? ''] ?? { badge: tipo ?? 'Serviço', bg: '#F3F4F6', text: '#6B7280', clienteLabel: 'Cliente' }
 }
 
-// Nome do serviço em texto puro, pra mensagem de WhatsApp (o badge de
-// TIPO_META tem emoji e não serve). A mensagem dizia "Transfer" fixo, então
-// Diária, City Tour, Fretamento e Excursão saíam todas como Transfer e o
-// gestor tinha que corrigir na mão antes de enviar (relatado 2026-08-12).
-function rotuloServico(tipo: string | null): string {
-  switch (tipo) {
-    case 'diaria':        return 'Diária'
-    case 'city_tour':     return 'City Tour'
-    case 'fretamento':    return 'Fretamento'
-    case 'excursao':      return 'Excursão'
-    case 'carro_fechado': return 'Carro Fechado'
-    case 'rota_fixa':     return 'Viagem'
-    case 'pre_reserva':   return 'Pedido de Horário'
-    default:              return 'Transfer'
-  }
-}
-
 // Nome que vai no voucher/recibo: a EMPRESA/PESSOA cadastrada como cliente
 // (quem paga), nunca o solicitante que ligou pedindo a corrida — são papéis
 // diferentes e podem ser pessoas diferentes (ex: empresa "Thirteen
@@ -1105,6 +1088,20 @@ export default function AgendamentosPage() {
         updateFields.motorista_confirmado_em = null
       }
 
+      // Se motorista mudou (ou nunca teve veiculo definido pra esse
+      // motorista — ex: atendimento criado por aqui, que nao tem campo de
+      // veiculo), assume o primeiro veiculo cadastrado dele como padrao, sem
+      // sobrescrever uma escolha explicita ja feita na ficha. Pedido Julimar
+      // 2026-08-13: motorista ja aparecer com o carro dele.
+      if (camposComuns.motorista_id) {
+        if (motoristaMudou || !corridaEditando.veiculo_atribuido) {
+          const padrao = veiculosDoMotorista(camposComuns.motorista_id as string)[0]
+          if (padrao) updateFields.veiculo_atribuido = padrao
+        }
+      } else if (corridaEditando.motorista_id) {
+        updateFields.veiculo_atribuido = null
+      }
+
       const { error } = await supabase
         .from('corridas_empresa')
         .update(updateFields)
@@ -1178,7 +1175,13 @@ export default function AgendamentosPage() {
       // (o cliente pode pagar antecipado sem que o serviço tenha rolado ainda).
       // O gestor promove pra concluida manualmente no botão "✓ Marcar como
       // Concluído" da ficha quando o serviço acabar.
-      const base = { empresa_id: empresaId, status: 'confirmada', ...camposComuns }
+      // Motorista ja atribuido na criacao? Assume o primeiro veiculo
+      // cadastrado dele como padrao (o form grande nao tem campo de
+      // veiculo). Pedido Julimar 2026-08-13.
+      const veiculoPadraoNovo = camposComuns.motorista_id
+        ? (veiculosDoMotorista(camposComuns.motorista_id as string)[0] ?? null)
+        : null
+      const base = { empresa_id: empresaId, status: 'confirmada', ...camposComuns, veiculo_atribuido: veiculoPadraoNovo }
       // Par ida-volta ganha um id compartilhado — é o que amarra as duas
       // linhas de verdade, em vez de deixar a tela adivinhar depois pelo
       // horário em que foram criadas (ver saoParIdaVolta).
@@ -1420,6 +1423,29 @@ export default function AgendamentosPage() {
       voltaAtual = c
     }
 
+    // Ja tem motorista mas nunca teve veiculo definido (ex: atendimento criado
+    // pelo formulario grande, que nao tem campo de veiculo) — assume o primeiro
+    // veiculo cadastrado do motorista como padrao e ja grava no banco, sem
+    // precisar de acao manual do gestor. Pedido Julimar 2026-08-13: motorista
+    // ja aparecer com o carro dele; segue editavel pelo dropdown se ele quiser
+    // trocar so nesse atendimento.
+    if (!idaAtual.veiculo_atribuido && idaAtual.motorista_id) {
+      const padrao = veiculosDoMotorista(idaAtual.motorista_id)[0]
+      if (padrao) {
+        idaAtual = { ...idaAtual, veiculo_atribuido: padrao }
+        supabase.from('corridas_empresa').update({ veiculo_atribuido: padrao }).eq('id', idaAtual.id)
+        setCorridas(prev => prev.map(x => x.id === idaAtual.id ? { ...x, veiculo_atribuido: padrao } : x))
+      }
+    }
+    if (voltaAtual && !voltaAtual.veiculo_atribuido && voltaAtual.motorista_id) {
+      const padrao = veiculosDoMotorista(voltaAtual.motorista_id)[0]
+      if (padrao) {
+        voltaAtual = { ...voltaAtual, veiculo_atribuido: padrao }
+        supabase.from('corridas_empresa').update({ veiculo_atribuido: padrao }).eq('id', voltaAtual.id)
+        setCorridas(prev => prev.map(x => x.id === voltaAtual!.id ? { ...x, veiculo_atribuido: padrao } : x))
+      }
+    }
+
     setCorridaFicha(idaAtual)
     setVoltaDaFicha(voltaAtual)
     setMotoristaFicha(idaAtual.motorista_id ?? '')
@@ -1517,7 +1543,7 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
     }
 
     const rotulo = etapa === 'ida' ? ' (IDA)' : etapa === 'volta' ? ' (VOLTA)' : ''
-    let msg = `Olá, tudo bem?\n\nSegue a confirmação do ${rotuloServico(c.tipo_servico)}${rotulo}: ${num}`
+    let msg = `Olá, tudo bem?\n\nSegue a confirmação do Atendimento${rotulo}: ${num}`
     msg += `\n📅 *Data/Hora:*\n${data} às ${hora} (${dia})`
     msg += `\n\n👤 *Passageiros:*\n${passageiros}`
     if (telefones) msg += `\n📞 *Telefones:*\n${telefones}`
@@ -2685,7 +2711,7 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
           <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-4 flex items-center gap-3 flex-shrink-0">
             <button onClick={() => setModalFichaAberto(false)} style={{ color: '#9FE1CB' }} className="text-2xl">‹</button>
             <div className="flex-1">
-              <p style={{ color: '#E1F5EE' }} className="text-sm font-semibold">Solicitação de Transfer</p>
+              <p style={{ color: '#E1F5EE' }} className="text-sm font-semibold">Solicitação de Atendimento</p>
             </div>
             <span className="text-[11px] font-semibold px-2 py-1 rounded-full"
               style={{ background: STATUS_COR[corridaFicha.status]?.bg ?? '#FEF3C7', color: STATUS_COR[corridaFicha.status]?.text ?? '#92400E' }}>
@@ -2695,10 +2721,10 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
 
           <div className="flex-1 overflow-y-auto px-4 pt-4 pb-24 flex flex-col gap-3">
 
-            {/* Viagem */}
+            {/* Atendimento */}
             <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-2">
               <div className="flex items-center justify-between gap-2">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Viagem</p>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Atendimento</p>
                 {corridaFicha.tipo_servico !== 'fretamento' && corridaFicha.tipo_servico !== 'excursao' && (() => {
                   // Acao aqui e SO da ida — ida e volta sao linhas separadas
                   // em corridas_empresa e agora tratadas de forma independente
@@ -3212,7 +3238,7 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                   <>
                     <select
                       value={motoristaFicha}
-                      onChange={e => { setMotoristaFicha(e.target.value); setVeiculoFicha('') }}
+                      onChange={e => { setMotoristaFicha(e.target.value); setVeiculoFicha(veiculosDoMotorista(e.target.value)[0] ?? '') }}
                       className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 bg-white outline-none">
                       <option value="">Selecione o motorista...</option>
                       {motoristasOpcoes.map(m => (
@@ -3550,7 +3576,7 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                       </p>
                       <select
                         value={motoristaFichaVolta}
-                        onChange={e => { setMotoristaFichaVolta(e.target.value); setVeiculoFichaVolta('') }}
+                        onChange={e => { setMotoristaFichaVolta(e.target.value); setVeiculoFichaVolta(veiculosDoMotorista(e.target.value)[0] ?? '') }}
                         className="w-full px-3 py-2.5 rounded-xl border text-sm text-gray-700 bg-white outline-none"
                         style={{ borderColor: '#AFA9EC' }}>
                         <option value="">Selecione o motorista...</option>
