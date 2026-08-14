@@ -137,7 +137,7 @@ export default function CorridaFicha({ params }: { params: { id: string } }) {
     setConfirmando(false)
     if (error) { setErroAcao(`Erro ao confirmar: ${error.message}`); return }
     if (!data || data.length === 0) {
-      setErroAcao('Sem permissão pra confirmar esta corrida.')
+      setErroAcao('Sem permissão pra confirmar este atendimento.')
       return
     }
     setC({ ...c, motorista_confirmado_em: agora })
@@ -161,7 +161,7 @@ export default function CorridaFicha({ params }: { params: { id: string } }) {
     setSalvando(false)
     if (error) { setErroAcao(`Erro ao iniciar: ${error.message}`); return }
     if (!data || data.length === 0) {
-      setErroAcao('Sem permissão pra iniciar esta corrida. Confirme com o gestor que ela está atribuída a você e que a migration RLS foi rodada.')
+      setErroAcao('Sem permissão pra iniciar este atendimento. Confirme com o gestor que ele está atribuído a você e que a migration RLS foi rodada.')
       return
     }
     setC({ ...c, status: 'em_andamento', km_inicial: km, iniciado_em: agora })
@@ -182,7 +182,7 @@ export default function CorridaFicha({ params }: { params: { id: string } }) {
     setSalvando(false)
     if (error) { setErroAcao(`Erro ao finalizar: ${error.message}`); return }
     if (!data || data.length === 0) {
-      setErroAcao('Sem permissão pra finalizar esta corrida. Confirme com o gestor que ela está atribuída a você.')
+      setErroAcao('Sem permissão pra finalizar este atendimento. Confirme com o gestor que ele está atribuído a você.')
       return
     }
     setC({ ...c, status: 'concluida', km_final: km, finalizado_em: agora })
@@ -199,7 +199,7 @@ export default function CorridaFicha({ params }: { params: { id: string } }) {
     setSalvandoTrajeto(false)
     if (error) { setErroAcao(`Erro ao adicionar trajeto: ${error.message}`); return }
     if (!data || data.length === 0) {
-      setErroAcao('Sem permissão pra adicionar trajeto nesta corrida.')
+      setErroAcao('Sem permissão pra adicionar trajeto neste atendimento.')
       return
     }
     setC({ ...c, trajetos: novos })
@@ -233,7 +233,7 @@ export default function CorridaFicha({ params }: { params: { id: string } }) {
     setSalvandoObs(false)
     if (error) { setErroObs(`Erro ao salvar: ${error.message}`); return }
     if (!data || data.length === 0) {
-      setErroObs('Sem permissão pra salvar nesta corrida.')
+      setErroObs('Sem permissão pra salvar neste atendimento.')
       return
     }
     setC({ ...c, observacao_motorista: observacaoMotorista.trim() || null, anexo_motorista_url: anexoUrl })
@@ -254,7 +254,7 @@ export default function CorridaFicha({ params }: { params: { id: string } }) {
     return (
       <div className="min-h-dvh px-4 py-8 flex flex-col items-center gap-3">
         <p className="text-3xl">😕</p>
-        <p className="text-sm font-bold text-gray-800">Corrida não encontrada</p>
+        <p className="text-sm font-bold text-gray-800">Atendimento não encontrado</p>
         <Link href="/motorista/agenda" className="text-xs font-semibold" style={{ color: '#0F6E56' }}>
           Voltar para agenda
         </Link>
@@ -292,7 +292,7 @@ export default function CorridaFicha({ params }: { params: { id: string } }) {
       <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-4 flex items-center gap-3">
         <button onClick={() => router.back()} style={{ color: '#9FE1CB' }} className="text-2xl">‹</button>
         <div className="flex-1">
-          <p style={{ color: '#E1F5EE' }} className="text-sm font-semibold">Ficha da corrida</p>
+          <p style={{ color: '#E1F5EE' }} className="text-sm font-semibold">Ficha do atendimento</p>
         </div>
         <span className="text-[10px] font-semibold px-2 py-1 rounded-full"
           style={{ background: st.bg, color: st.text }}>
@@ -310,13 +310,13 @@ export default function CorridaFicha({ params }: { params: { id: string } }) {
           c.motorista_confirmado_em ? (
             <div className="rounded-2xl px-4 py-3 border" style={{ background: '#E1F5EE', borderColor: '#9FE1CB' }}>
               <p className="text-xs font-semibold" style={{ color: '#085041' }}>
-                ✓ Você confirmou esta corrida às {format(new Date(c.motorista_confirmado_em), 'HH:mm')}h
+                ✓ Você confirmou este atendimento às {format(new Date(c.motorista_confirmado_em), 'HH:mm')}h
               </p>
             </div>
           ) : (
             <div className="rounded-2xl p-3 flex flex-col gap-2" style={{ background: '#FFFBEB', border: '1px solid #FDE68A' }}>
               <p className="text-xs" style={{ color: '#92400E' }}>
-                Avise que você recebeu esta corrida — assim o gestor não precisa
+                Avise que você recebeu este atendimento — assim o gestor não precisa
                 ligar pra saber se chegou.
               </p>
               <button onClick={confirmarRecebimento} disabled={confirmando}
@@ -575,7 +575,7 @@ export default function CorridaFicha({ params }: { params: { id: string } }) {
                 disabled={salvando || !kmValido}
                 className="w-full py-3.5 rounded-xl text-sm font-bold border disabled:opacity-40"
                 style={{ background: '#E1F5EE', color: '#085041', borderColor: '#9FE1CB' }}>
-                {salvando ? 'Salvando…' : !kmValido ? 'Informe o KM inicial' : '▶️ Iniciar corrida'}
+                {salvando ? 'Salvando…' : !kmValido ? 'Informe o KM inicial' : '▶️ Iniciar atendimento'}
               </button>
             </div>
           )
@@ -618,7 +618,7 @@ export default function CorridaFicha({ params }: { params: { id: string } }) {
                 disabled={salvando || !kmValido || kmMenor}
                 className="w-full py-3.5 rounded-xl text-sm font-bold border disabled:opacity-40"
                 style={{ background: '#E1F5EE', color: '#085041', borderColor: '#9FE1CB' }}>
-                {salvando ? 'Salvando…' : !kmValido ? 'Informe o KM final' : kmMenor ? 'KM inválido' : '⏹️ Finalizar corrida'}
+                {salvando ? 'Salvando…' : !kmValido ? 'Informe o KM final' : kmMenor ? 'KM inválido' : '⏹️ Finalizar atendimento'}
               </button>
             </div>
           )
@@ -628,21 +628,21 @@ export default function CorridaFicha({ params }: { params: { id: string } }) {
         {c.status === 'pendente' && (
           <div className="rounded-xl px-4 py-3 border" style={{ background: '#FEF3C7', borderColor: '#FDE68A' }}>
             <p className="text-xs" style={{ color: '#92400E' }}>
-              ⏳ Esta corrida ainda está pendente de confirmação do gestor. Aguarde a confirmação para iniciar.
+              ⏳ Este atendimento ainda está pendente de confirmação do gestor. Aguarde a confirmação para iniciar.
             </p>
           </div>
         )}
 
         {c.status === 'concluida' && (
           <div className="rounded-xl px-4 py-3 border" style={{ background: '#F3F4F6', borderColor: '#E5E7EB' }}>
-            <p className="text-xs text-gray-500">✅ Corrida concluída.</p>
+            <p className="text-xs text-gray-500">✅ Atendimento concluído.</p>
           </div>
         )}
 
         {!eDele && (
           <div className="rounded-xl px-4 py-3 border" style={{ background: '#FFF7ED', borderColor: '#FED7AA' }}>
             <p className="text-xs" style={{ color: '#9A3412' }}>
-              ℹ️ Esta corrida não está atribuída a você. Você pode ver os dados, mas só o motorista atribuído pode iniciar/finalizar.
+              ℹ️ Este atendimento não está atribuído a você. Você pode ver os dados, mas só o motorista atribuído pode iniciar/finalizar.
             </p>
           </div>
         )}
@@ -707,7 +707,7 @@ function waLink(tel: string, nome: string, c: Corrida): string {
   const dataFmt = c.data_hora.slice(8, 10) + '/' + c.data_hora.slice(5, 7)
   const horaFmt = c.data_hora.slice(11, 16)
   const msg = encodeURIComponent(
-    `Olá ${nome.split(' ')[0]}, sou o motorista da sua corrida de ${dataFmt} às ${horaFmt}. Estou a caminho!`
+    `Olá ${nome.split(' ')[0]}, sou o motorista do seu atendimento de ${dataFmt} às ${horaFmt}. Estou a caminho!`
   )
   return `https://wa.me/${t}?text=${msg}`
 }

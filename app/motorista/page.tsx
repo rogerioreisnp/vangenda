@@ -128,12 +128,12 @@ export default function MotoristaHome() {
         <div className="grid grid-cols-2 gap-3">
           <CardContador
             emoji="📅"
-            label="Corridas hoje"
+            label="Atendimentos hoje"
             valor={hoje.length}
           />
           <CardContador
             emoji="📆"
-            label="Corridas amanhã"
+            label="Atendimentos amanhã"
             valor={amanha.length}
           />
         </div>
@@ -142,7 +142,7 @@ export default function MotoristaHome() {
           <Link href={`/motorista/corrida/${proxima.id}`}
             className="rounded-2xl p-4 bg-white border border-gray-100 active:opacity-75"
             style={{ boxShadow: '0 1px 6px rgba(0,0,0,0.06)' }}>
-            <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#0F6E56' }}>Próxima corrida</p>
+            <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#0F6E56' }}>Próximo atendimento</p>
             <p className="text-base font-bold text-gray-800 mt-1">
               {proxima.origem} → {proxima.destino || '...'}
             </p>
@@ -168,9 +168,9 @@ export default function MotoristaHome() {
         {!loading && hoje.length === 0 && amanha.length === 0 && !proxima && !emAndamento && (
           <div className="bg-white rounded-2xl p-6 border border-gray-100 text-center">
             <p className="text-3xl mb-2">😴</p>
-            <p className="text-sm font-bold text-gray-800">Nenhuma corrida atribuída</p>
+            <p className="text-sm font-bold text-gray-800">Nenhum atendimento atribuído</p>
             <p className="text-xs text-gray-500 mt-1">
-              Quando o gestor te atribuir uma corrida, ela aparece aqui e você recebe uma notificação.
+              Quando o gestor te atribuir um atendimento, ele aparece aqui e você recebe uma notificação.
             </p>
           </div>
         )}

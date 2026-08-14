@@ -123,7 +123,7 @@ export default function MotoristaAgenda() {
     <div>
       <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-4">
         <p style={{ color: '#9FE1CB' }} className="text-xs">Agenda</p>
-        <p style={{ color: '#E1F5EE' }} className="text-lg font-bold">Suas corridas</p>
+        <p style={{ color: '#E1F5EE' }} className="text-lg font-bold">Seus atendimentos</p>
       </div>
 
       {/* Mini-calendário próximos 7 dias — atalho rápido pro motorista */}
@@ -150,7 +150,7 @@ export default function MotoristaAgenda() {
                 {d.qtd > 0 && (
                   <span className="text-[9px] font-semibold leading-tight"
                     style={{ color: ativo ? '#E1F5EE' : '#0F6E56' }}>
-                    {d.qtd} corrida{d.qtd !== 1 ? 's' : ''}
+                    {d.qtd} atendimento{d.qtd !== 1 ? 's' : ''}
                   </span>
                 )}
                 {d.qtd === 0 && (
@@ -196,15 +196,15 @@ export default function MotoristaAgenda() {
 
       <div className="px-4 py-3 flex flex-col gap-2">
         {loading && (
-          <p className="text-xs text-gray-400 text-center py-6">Carregando corridas...</p>
+          <p className="text-xs text-gray-400 text-center py-6">Carregando atendimentos...</p>
         )}
 
         {!loading && filtradas.length === 0 && (
           <div className="bg-white rounded-2xl p-6 border border-gray-100 text-center">
             <p className="text-3xl mb-2">📋</p>
-            <p className="text-sm font-bold text-gray-800">Nenhuma corrida neste filtro</p>
+            <p className="text-sm font-bold text-gray-800">Nenhum atendimento neste filtro</p>
             <p className="text-xs text-gray-500 mt-1">
-              {filtro === 'proximas' ? 'Você não tem corridas agendadas pra frente.' : 'Sem resultados aqui.'}
+              {filtro === 'proximas' ? 'Você não tem atendimentos agendados pra frente.' : 'Sem resultados aqui.'}
             </p>
           </div>
         )}

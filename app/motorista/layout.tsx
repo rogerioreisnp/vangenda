@@ -105,7 +105,7 @@ export default function MotoristaLayout({ children }: { children: React.ReactNod
     return (
       <TelaMensagem
         titulo="Empresa com plano suspenso"
-        texto="O plano da sua empresa expirou. Peça ao gestor para renovar. Assim que ele renovar, você volta a acessar as corridas."
+        texto="O plano da sua empresa expirou. Peça ao gestor para renovar. Assim que ele renovar, você volta a acessar os atendimentos."
         onSair={sair}
       />
     )
