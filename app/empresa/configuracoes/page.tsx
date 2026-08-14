@@ -45,6 +45,11 @@ type Empresa = {
   // Horas apos o atendimento pra alertar pagamento Pix/Dinheiro/Cartao ainda
   // pendente (0 = desativado)
   horas_apos_atendimento_cobranca: number | null
+  // Quando true, um atendimento salvo sem nome de passageiro copia
+  // automaticamente o nome/telefone do solicitante pro passageiro. Default
+  // false (nao expor o solicitante) — cada empresa ativa conforme seu perfil
+  // de cliente (ver app/empresa/agendamentos/fretamentos/page.tsx::salvar).
+  preencher_passageiro_automatico: boolean | null
 }
 
 // Planos vendidos hoje: Mensal, Semestral e Anual (mudam só o período de
@@ -89,7 +94,7 @@ export default function ConfiguracoesEmpresaPage() {
 
     const { data: emp } = await supabase
       .from('empresas')
-      .select('id, nome, telefone, tipo_operacao, periodo, status, cnpj, email_comercial, cidade, estado, qtd_veiculos, descricao, chave_pix, tipo_chave_pix, instagram, whatsapp_comercial, cor_destaque, logo_url, trial_fim, slug, transfer_numero_inicio, mensagem_confirmacao, mensagem_confirmacao_transfer, endereco_rua, endereco_numero, endereco_bairro, endereco_cep, inscricao_estadual, site, banco_nome, banco_agencia, banco_conta, banco_tipo_conta, banco_titular_nome, banco_titular_documento, minutos_antes_lembrete, horas_apos_atendimento_cobranca')
+      .select('id, nome, telefone, tipo_operacao, periodo, status, cnpj, email_comercial, cidade, estado, qtd_veiculos, descricao, chave_pix, tipo_chave_pix, instagram, whatsapp_comercial, cor_destaque, logo_url, trial_fim, slug, transfer_numero_inicio, mensagem_confirmacao, mensagem_confirmacao_transfer, endereco_rua, endereco_numero, endereco_bairro, endereco_cep, inscricao_estadual, site, banco_nome, banco_agencia, banco_conta, banco_tipo_conta, banco_titular_nome, banco_titular_documento, minutos_antes_lembrete, horas_apos_atendimento_cobranca, preencher_passageiro_automatico')
       .eq('id', gestor.empresa_id)
       .single()
 
@@ -176,6 +181,7 @@ export default function ConfiguracoesEmpresaPage() {
         banco_titular_documento: empresa.banco_titular_documento?.trim() || null,
         minutos_antes_lembrete: empresa.minutos_antes_lembrete ?? 60,
         horas_apos_atendimento_cobranca: empresa.horas_apos_atendimento_cobranca ?? 24,
+        preencher_passageiro_automatico: empresa.preencher_passageiro_automatico ?? false,
       })
       .eq('id', empresa.id)
 
@@ -687,6 +693,22 @@ export default function ConfiguracoesEmpresaPage() {
               </p>
             </Campo>
           </div>
+        </Secao>
+
+        <Secao titulo="👤 Preenchimento do passageiro">
+          <label className="flex items-start gap-2.5 text-sm text-gray-700">
+            <input type="checkbox"
+              checked={empresa?.preencher_passageiro_automatico ?? false}
+              onChange={e => setEmpresa(emp => emp ? { ...emp, preencher_passageiro_automatico: e.target.checked } : emp)}
+              className="mt-0.5" />
+            <span>Usar o solicitante como passageiro quando não for informado outro nome</span>
+          </label>
+          <p className="text-xs mt-2 leading-relaxed" style={{ color: '#6B7280' }}>
+            ℹ️ Deixe <b>desligado</b> se você atende agências, hotéis ou empresas que reservam
+            para terceiros — o motorista nunca verá o contato de quem solicitou, só o do
+            passageiro real (quando informado). Ligue se, na sua operação, quem solicita o
+            atendimento normalmente é quem viaja — evita ter que digitar o mesmo nome duas vezes.
+          </p>
         </Secao>
 
         <Secao titulo="🔔 Lembrete antes do atendimento">

@@ -473,6 +473,12 @@ export default function AgendamentosPage() {
   const [reciboAberto, setReciboAberto] = useState<null | { corrida: Corrida; cliente: any; reembolsos: any[] }>(null)
   const [repasseAberto, setRepasseAberto] = useState<Corrida | null>(null)
   const [mensagemConfirmacaoTransfer, setMensagemConfirmacaoTransfer] = useState<string | null>(null)
+  // Empresa como o Alexandre (ASF, Curitiba): 90%+ dos solicitantes SÃO o
+  // passageiro, e ele não quer digitar o nome duas vezes. Empresa como o
+  // Julimar (AAJP): solicitante costuma ser outra pessoa (agência), e o
+  // nome dele não pode vazar pro motorista — por isso é opt-in por empresa,
+  // default false. Configurável em /empresa/configuracoes. 2026-08-14.
+  const [preencherPassageiroAuto, setPreencherPassageiroAuto] = useState(false)
   const [rotasOpcoes, setRotasOpcoes] = useState<RotaOpcao[]>([])
   const [motoristasOpcoes, setMotoristasOpcoes] = useState<MotoristaOpcao[]>([])
   const [clientesOpcoes, setClientesOpcoes] = useState<Array<{ id: string; tipo: 'pj'|'pf'; label: string; telefone: string | null; email: string | null; raw: any }>>([])
@@ -624,7 +630,7 @@ export default function AgendamentosPage() {
     const [{ data: empresa }, { data: rts }, { data: mots }, { data: clientesData }, { data: emAndamento }, { data: futuras }, { data: passadas }] = await Promise.all([
       supabase
         .from('empresas')
-        .select('tipo_operacao, nome, mensagem_confirmacao_transfer, descricao, whatsapp_comercial, instagram, slug, cnpj, inscricao_estadual, logo_url, telefone, email_comercial, site, endereco_rua, endereco_numero, endereco_bairro, endereco_cep, cidade, estado, chave_pix, tipo_chave_pix, banco_nome, banco_agencia, banco_conta, banco_tipo_conta, banco_titular_nome, banco_titular_documento')
+        .select('tipo_operacao, nome, mensagem_confirmacao_transfer, descricao, whatsapp_comercial, instagram, slug, cnpj, inscricao_estadual, logo_url, telefone, email_comercial, site, endereco_rua, endereco_numero, endereco_bairro, endereco_cep, cidade, estado, chave_pix, tipo_chave_pix, banco_nome, banco_agencia, banco_conta, banco_tipo_conta, banco_titular_nome, banco_titular_documento, preencher_passageiro_automatico')
         .eq('id', gestor.empresa_id)
         .single(),
       supabase
@@ -679,6 +685,7 @@ export default function AgendamentosPage() {
       setEmpresaSlug((empresa as any).slug || '')
       setEmpresaFiscal(empresa)
       setMensagemConfirmacaoTransfer((empresa as any).mensagem_confirmacao_transfer || null)
+      setPreencherPassageiroAuto((empresa as any).preencher_passageiro_automatico ?? false)
     }
     if (rts) setRotasOpcoes(rts)
     if (mots) {
@@ -970,8 +977,15 @@ export default function AgendamentosPage() {
       cliente_id: form.cliente_id || null,
       cliente_telefone: form.cliente_telefone.trim() || null,
       email_solicitante: form.email_solicitante.trim() || null,
-      passageiro1_nome: form.passageiro1_nome.trim() || null,
-      passageiro1_telefone: form.passageiro1_telefone.trim() || null,
+      // Sem passageiro digitado + empresa optou por usar o solicitante como
+      // passageiro padrão (toggle em Configurações): copia nome/telefone do
+      // solicitante pro passageiro, exatamente como se o gestor tivesse
+      // digitado — reaproveita toda a lógica existente (mensagens, ficha,
+      // app do motorista) sem precisar duplicar condicional em cada tela.
+      passageiro1_nome: form.passageiro1_nome.trim()
+        || (preencherPassageiroAuto ? form.cliente_nome.trim() || null : null),
+      passageiro1_telefone: form.passageiro1_telefone.trim()
+        || (preencherPassageiroAuto ? form.cliente_telefone.trim() || null : null),
       numero_voo: form.numero_voo.trim() || null,
       rua: form.rua.trim() || null,
       numero: form.numero.trim() || null,
