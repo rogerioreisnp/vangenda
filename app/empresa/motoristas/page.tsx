@@ -470,8 +470,8 @@ export default function MotoristasPage() {
                 onChange={e => setForm(f => ({ ...f, modo_repasse: e.target.value as any }))}
                 className="campo-input">
                 <option value="">Sem repasse (motorista funcionário)</option>
-                <option value="percentual">% Porcentagem do valor da corrida</option>
-                <option value="valor_fixo">R$ Valor combinado por corrida</option>
+                <option value="percentual">% Porcentagem do valor do atendimento</option>
+                <option value="valor_fixo">R$ Valor combinado por atendimento</option>
               </select>
             </Campo>
 

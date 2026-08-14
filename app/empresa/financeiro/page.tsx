@@ -1109,7 +1109,7 @@ export default function FinanceiroPage() {
                             <p className="text-sm font-bold" style={{ color: '#A32D2D' }}>{fmt(v.despesa)}</p>
                           </div>
                           <div className="text-center">
-                            <p className="text-[10px] text-gray-400 mb-0.5">Corridas</p>
+                            <p className="text-[10px] text-gray-400 mb-0.5">Atendimentos</p>
                             <p className="text-sm font-bold text-gray-700">{v.qtd}</p>
                           </div>
                         </div>

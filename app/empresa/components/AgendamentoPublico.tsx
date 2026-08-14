@@ -1003,7 +1003,7 @@ export default function AgendamentoPublico({
               {rotaSelecionada && empresa.tipo_operacao !== 'rota_fixa' && Number(rotaSelecionada.preco) > 0 && (
                 <div className="rounded-xl px-4 py-3" style={{ background: '#f0f0ec' }}>
                   <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium text-gray-600">Valor da corrida</span>
+                    <span className="text-sm font-medium text-gray-600">Valor do atendimento</span>
                     <span className="text-xl font-bold" style={{ color: cor }}>
                       R$ {Number(rotaSelecionada.preco).toFixed(2).replace('.', ',')}
                     </span>
