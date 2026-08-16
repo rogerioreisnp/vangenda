@@ -7,7 +7,7 @@ export async function POST(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
   try {
-    const { userId, nomeEmpresa, nomeGestor, email, telefone, tipoOperacao } = await req.json()
+    const { userId, nomeEmpresa, nomeGestor, email, telefone, tipoOperacao, afid } = await req.json()
 
     // `plano` deixou de ser exigido no cadastro (2026-08-05): quem entra pelo
     // "iniciar teste gratis" nao escolhe plano nenhum, so testa. O que a
@@ -40,6 +40,10 @@ export async function POST(req: NextRequest) {
         status:        'trial',
         trial_inicio:  new Date().toISOString(),
         trial_fim:     trialFim.toISOString().split('T')[0],
+        // Código de afiliado da Kiwify (?afid= no link de cadastro) — usado
+        // depois pra montar o link de pagamento na tela de trial encerrado.
+        // Ver supabase/migrations/afiliados_kiwify.sql.
+        afid:          afid || null,
       })
       .select('id')
       .single()

@@ -64,6 +64,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [isEmpresaUser, setIsEmpresaUser] = useState(false)
   // isFuncionario = motorista de empresa (funcionario). Gestor e individual = false.
   const [isFuncionario, setIsFuncionario] = useState(false)
+  // Código de afiliado da Kiwify capturado no cadastro (?afid=) — usado pra
+  // montar o link de pagamento na tela de bloqueio. Ver
+  // supabase/migrations/afiliados_kiwify.sql.
+  const [afidMotorista, setAfidMotorista] = useState<string | null>(null)
 
   useEffect(() => {
     verificarAcesso()
@@ -252,12 +256,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     // 3) É motorista individual?
     const { data: motorista } = await supabase
       .from('motoristas')
-      .select('trial_inicio, assinatura_status, assinatura_expira, criado_em')
+      .select('trial_inicio, assinatura_status, assinatura_expira, criado_em, afid')
       .eq('id', userId)
       .maybeSingle()
 
     if (motorista) {
       console.log('[acesso] usuário é motorista individual')
+      setAfidMotorista(motorista.afid || null)
       checarAcessoIndividual(motorista)
       return
     }
@@ -289,7 +294,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   if (statusAcesso === 'bloqueado') {
-    return <TelaBloqueio />
+    return <TelaBloqueio afid={afidMotorista} />
   }
 
   return (
@@ -337,7 +342,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   )
 }
 
-function TelaBloqueio() {
+function TelaBloqueio({ afid = null }: { afid?: string | null }) {
   return (
     <div className="min-h-dvh flex flex-col" style={{ background: '#f0f0ec' }}>
       <div style={{ background: '#0F6E56' }} className="px-4 pt-14 pb-8 text-center">
@@ -401,7 +406,8 @@ function TelaBloqueio() {
                 )}
               </div>
             </div>
-            <a href={plano.kiwifyUrl} target="_blank" rel="noopener noreferrer"
+            <a href={afid ? `${plano.kiwifyUrl}?afid=${encodeURIComponent(afid)}` : plano.kiwifyUrl}
+              target="_blank" rel="noopener noreferrer"
               className="block w-full py-3 rounded-xl text-center text-sm font-bold transition-all"
               style={{
                 background: plano.destaque ? '#E1F5EE' : '#0F6E56',

@@ -1,7 +1,7 @@
 'use client'
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 
 // Entrada direta no cadastro (2026-08-05). Antes, quem clicava "iniciar teste
@@ -33,8 +33,21 @@ const FORM_VAZIO: FormDados = {
   tipoOperacao: 'transfer',
 }
 
+// useSearchParams (pro ?afid= do afiliado) exige um Suspense boundary pra
+// nao quebrar o prerender estatico desta pagina.
 export default function RegistroEmpresaPage() {
+  return (
+    <Suspense fallback={null}>
+      <RegistroEmpresaPageInner />
+    </Suspense>
+  )
+}
+
+function RegistroEmpresaPageInner() {
   const router = useRouter()
+  // Código de afiliado da Kiwify (?afid=) — ver supabase/migrations/afiliados_kiwify.sql.
+  const searchParams = useSearchParams()
+  const afid = searchParams.get('afid')
   const [form, setForm] = useState<FormDados>(FORM_VAZIO)
   const [loading, setLoading] = useState(false)
   const [erro, setErro] = useState('')
@@ -82,6 +95,7 @@ export default function RegistroEmpresaPage() {
           email:        form.email.trim(),
           telefone:     form.telefone.trim(),
           tipoOperacao: form.tipoOperacao,
+          afid:         afid || null,
         }),
       })
 

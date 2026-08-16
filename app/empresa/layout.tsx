@@ -40,6 +40,11 @@ export default function EmpresaLayout({ children }: { children: React.ReactNode 
   //   'inativo': status='inativo' (cancelou/reembolso/chargeback via webhook)
   const [motivoBloqueio, setMotivoBloqueio] = useState<'trial' | 'assinatura' | 'inativo'>('trial')
   const [tipoOperacao, setTipoOperacao] = useState('')
+  // Código de afiliado da Kiwify capturado no cadastro (?afid=) — usado pra
+  // montar o link de pagamento na tela de trial encerrado, senão a comissão
+  // do afiliado se perde quando a pessoa paga depois do primeiro acesso.
+  // Ver supabase/migrations/afiliados_kiwify.sql.
+  const [afidEmpresa, setAfidEmpresa] = useState<string | null>(null)
 
   useEffect(() => {
     verificarGestor()
@@ -64,7 +69,7 @@ export default function EmpresaLayout({ children }: { children: React.ReactNode 
 
     const { data: empresa } = await supabase
       .from('empresas')
-      .select('periodo, status, trial_fim, tipo_operacao')
+      .select('periodo, status, trial_fim, tipo_operacao, afid')
       .eq('id', gestor.empresa_id)
       .single()
 
@@ -72,6 +77,7 @@ export default function EmpresaLayout({ children }: { children: React.ReactNode 
       setPeriodoEmpresa(empresa.periodo || '')
       setStatusEmpresa(empresa.status || '')
       setTipoOperacao(empresa.tipo_operacao || '')
+      setAfidEmpresa(empresa.afid || null)
       const agora = new Date()
       // Nova regra: trial_fim manda em AMBOS os status (trial E ativo). Pra
       // Kiwify, o webhook renova trial_fim toda vez que a assinatura mensal
@@ -132,7 +138,7 @@ export default function EmpresaLayout({ children }: { children: React.ReactNode 
   }
 
   if (trialExpirado) {
-    return <TelaTrialExpirado onSair={sair} motivo={motivoBloqueio} />
+    return <TelaTrialExpirado onSair={sair} motivo={motivoBloqueio} afid={afidEmpresa} />
   }
 
   return (
@@ -316,7 +322,7 @@ function waAssinar(nomePlano: string) {
   return `https://wa.me/5595984143839?text=${msg}`
 }
 
-function TelaTrialExpirado({ onSair, motivo = 'trial' }: { onSair: () => void; motivo?: 'trial' | 'assinatura' | 'inativo' }) {
+function TelaTrialExpirado({ onSair, motivo = 'trial', afid = null }: { onSair: () => void; motivo?: 'trial' | 'assinatura' | 'inativo'; afid?: string | null }) {
   const cabecalho = motivo === 'assinatura' ? 'Assinatura vencida'
     : motivo === 'inativo'    ? 'Conta desativada'
     : 'Trial encerrado'
@@ -377,7 +383,8 @@ function TelaTrialExpirado({ onSair, motivo = 'trial' }: { onSair: () => void; m
                     </p>
                     <p className="text-[10px] text-gray-400 mt-0.5">{p.precoLabel}</p>
                   </div>
-                  <a href={p.kiwifyUrl} target="_blank" rel="noopener noreferrer"
+                  <a href={afid ? `${p.kiwifyUrl}?afid=${encodeURIComponent(afid)}` : p.kiwifyUrl}
+                    target="_blank" rel="noopener noreferrer"
                     className="px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap"
                     style={{ background: p.destaque ? '#0F6E56' : '#1D9E75', color: '#fff' }}>
                     Assinar

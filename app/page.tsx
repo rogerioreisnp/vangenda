@@ -1,13 +1,29 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 
 const WHATSAPP_SUPORTE = '5595984143839'
 const WHATSAPP_LINK = `https://wa.me/${WHATSAPP_SUPORTE}?text=Ol%C3%A1%2C%20preciso%20de%20ajuda%20para%20acessar%20minha%20conta%20no%20RotaGenda.`
 
+// useSearchParams (pro ?afid= do afiliado) exige um Suspense boundary pra
+// nao quebrar o prerender estatico desta pagina.
 export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginPageInner />
+    </Suspense>
+  )
+}
+
+function LoginPageInner() {
   const router = useRouter()
+  // Código de afiliado da Kiwify (?afid=) capturado no primeiro acesso e
+  // gravado junto com a conta — sem isso, quem indica só ganha comissão se
+  // a pessoa pagar direto no link da Kiwify, na hora. Ver
+  // supabase/migrations/afiliados_kiwify.sql.
+  const searchParams = useSearchParams()
+  const afid = searchParams.get('afid')
   const [modo, setModo] = useState<'login' | 'cadastro' | 'recuperar'>('login')
   const [loading, setLoading] = useState(false)
   const [verificandoSessao, setVerificandoSessao] = useState(true)
@@ -100,7 +116,7 @@ export default function LoginPage() {
           email: form.email,
           password: form.senha,
           options: {
-            data: { nome: form.nome, telefone: form.telefone },
+            data: { nome: form.nome, telefone: form.telefone, afid: afid || undefined },
           },
         })
         if (error) throw error
