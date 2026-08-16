@@ -54,6 +54,16 @@ type Corrida = {
   retorno_horario: string | null
   retorno_origem: string | null
   retorno_destino: string | null
+  forma_pagamento: string | null
+  valor_repasse_motorista: number | null
+}
+
+// Só o rótulo em texto puro — a tela do motorista não mostra o valor
+// TOTAL cobrado do cliente (informação comercial da empresa), só a forma
+// de pagamento (pra saber se precisa cobrar em dinheiro) e o próprio
+// repasse dele. Pedido do Alexandre (ASF, Curitiba), 2026-08-14.
+const FORMA_PAGAMENTO_LABEL: Record<string, string> = {
+  a_definir: 'A definir', pix: 'Pix', dinheiro: 'Dinheiro', cartao: 'Cartão', faturado: 'Faturado',
 }
 
 const STATUS_META: Record<string, { bg: string; text: string; label: string }> = {
@@ -353,6 +363,16 @@ export default function CorridaFicha({ params }: { params: { id: string } }) {
           )}
           {c.veiculo_atribuido && (
             <p className="text-sm text-gray-600 mt-1">🚐 Veículo: <strong>{c.veiculo_atribuido}</strong></p>
+          )}
+          {c.forma_pagamento && (
+            <p className="text-sm text-gray-600 mt-1">
+              💳 Pagamento: <strong>{FORMA_PAGAMENTO_LABEL[c.forma_pagamento] ?? c.forma_pagamento}</strong>
+            </p>
+          )}
+          {c.valor_repasse_motorista != null && (
+            <p className="text-sm text-gray-600 mt-1">
+              💰 Seu repasse: <strong>R$ {c.valor_repasse_motorista.toFixed(2).replace('.', ',')}</strong>
+            </p>
           )}
           {c.retorno_data && (
             <div className="mt-2 rounded-xl px-3 py-2" style={{ background: '#EEEDFE' }}>
