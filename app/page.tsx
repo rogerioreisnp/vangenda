@@ -18,12 +18,16 @@ export default function LoginPage() {
 
 function LoginPageInner() {
   const router = useRouter()
-  // Código de afiliado da Kiwify (?afid=) capturado no primeiro acesso e
-  // gravado junto com a conta — sem isso, quem indica só ganha comissão se
-  // a pessoa pagar direto no link da Kiwify, na hora. Ver
-  // supabase/migrations/afiliados_kiwify.sql.
+  // Código de afiliado da Kiwify, capturado no primeiro acesso e gravado
+  // junto com a conta — sem isso, quem indica só ganha comissão se a pessoa
+  // pagar direto no link da Kiwify, na hora. Lê de utm_content PRIMEIRO
+  // porque é o que sobrevive à página de vendas (rotagenda.com.br/lp-
+  // rotagenda-empresa): testamos em 2026-08-16 e ela repassa os UTMs pro
+  // link de cadastro, mas descarta um `?afid=` cru no redirect do Kiwify.
+  // afid como fallback cobre quem chega direto (sem passar pela pagina de
+  // vendas). Ver supabase/migrations/afiliados_kiwify.sql.
   const searchParams = useSearchParams()
-  const afid = searchParams.get('afid')
+  const afid = searchParams.get('utm_content') || searchParams.get('afid')
   const [modo, setModo] = useState<'login' | 'cadastro' | 'recuperar'>('login')
   const [loading, setLoading] = useState(false)
   const [verificandoSessao, setVerificandoSessao] = useState(true)

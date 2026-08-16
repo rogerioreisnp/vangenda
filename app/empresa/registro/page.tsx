@@ -45,9 +45,12 @@ export default function RegistroEmpresaPage() {
 
 function RegistroEmpresaPageInner() {
   const router = useRouter()
-  // Código de afiliado da Kiwify (?afid=) — ver supabase/migrations/afiliados_kiwify.sql.
+  // Código de afiliado da Kiwify — lê utm_content PRIMEIRO (é o que
+  // sobrevive à página de vendas, que repassa UTMs mas descarta um
+  // `?afid=` cru), com afid como fallback pra quem chega direto. Ver
+  // supabase/migrations/afiliados_kiwify.sql.
   const searchParams = useSearchParams()
-  const afid = searchParams.get('afid')
+  const afid = searchParams.get('utm_content') || searchParams.get('afid')
   const [form, setForm] = useState<FormDados>(FORM_VAZIO)
   const [loading, setLoading] = useState(false)
   const [erro, setErro] = useState('')
