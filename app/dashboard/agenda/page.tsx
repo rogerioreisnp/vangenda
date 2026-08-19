@@ -2673,51 +2673,54 @@ function ModalListaPDF({
       doc.setFontSize(6.5)
       doc.setFont('helvetica', 'bold')
       doc.setTextColor(120, 120, 120)
-      doc.text(lbl, cx + 2, cy + 4.5)
+      doc.text(lbl, cx + 2, cy + 4)
       doc.setFontSize(9)
       doc.setFont('helvetica', 'bold')
       doc.setTextColor(20, 20, 20)
-      doc.text(trunc(val || '—'), cx + 2, cy + 10.5)
+      doc.text(trunc(val || '—'), cx + 2, cy + 8.5)
     }
 
     let y = 15
 
-    // Cabeçalho da empresa
+    // Cabeçalho da empresa — compacto (2026-08-16): cliente com 20+
+    // passageiros reclamou que o cabeçalho grande empurrava a lista pra
+    // uma segunda página. Fontes e espaçamentos reduzidos aqui pra sobrar
+    // altura suficiente pra lista inteira caber numa página só.
     if (form.nome_empresa) {
-      doc.setFontSize(16)
+      doc.setFontSize(12)
       doc.setFont('helvetica', 'bold')
       doc.setTextColor(0, 0, 0)
       doc.text(form.nome_empresa.toUpperCase(), pageW / 2, y, { align: 'center' })
-      y += 8
+      y += 6
     }
 
     if (form.razao_social) {
-      doc.setFontSize(10)
+      doc.setFontSize(8)
       doc.setFont('helvetica', 'normal')
       doc.setTextColor(60, 60, 60)
       doc.text(form.razao_social, pageW / 2, y, { align: 'center' })
-      y += 5
+      y += 4
     }
 
     if (form.cnpj) {
-      doc.setFontSize(10)
+      doc.setFontSize(8)
       doc.setFont('helvetica', 'normal')
       doc.setTextColor(60, 60, 60)
       doc.text(`CNPJ: ${form.cnpj}`, pageW / 2, y, { align: 'center' })
-      y += 5
+      y += 4
     }
 
     if (form.nome_empresa || form.razao_social || form.cnpj) {
-      y += 10
+      y += 5
     }
 
-    doc.setFontSize(form.nome_empresa ? 10 : 12)
+    doc.setFontSize(form.nome_empresa ? 9 : 11)
     doc.setFont('helvetica', 'bold')
     doc.setTextColor(20, 20, 20)
     doc.text('LISTA DE PASSAGEIROS — FRETAMENTO', pageW / 2, y, { align: 'center' })
-    y += 9
+    y += 6
 
-    const rowH = 14
+    const rowH = 11
     const half = W / 2
     const third = W / 3
 
@@ -2736,20 +2739,20 @@ function ModalListaPDF({
 
     cell(mg, y, half, rowH, 'DATA DA SAÍDA', fmtDate(form.data_saida))
     cell(mg + half, y, half, rowH, 'DATA DA VOLTA', fmtDate(form.data_volta))
-    y += rowH + 7
+    y += rowH + 4
 
-    const hdrH = 8
+    const hdrH = 7
     const nameW = W * 0.65
     doc.setFillColor(15, 110, 86)
     doc.rect(mg, y, W, hdrH, 'F')
     doc.setTextColor(255, 255, 255)
     doc.setFontSize(8)
     doc.setFont('helvetica', 'bold')
-    doc.text('PASSAGEIROS', mg + 3, y + 5.5)
-    doc.text('DOCUMENTO DE PORTE', mg + nameW + 3, y + 5.5)
+    doc.text('PASSAGEIROS', mg + 3, y + 4.9)
+    doc.text('DOCUMENTO DE PORTE', mg + nameW + 3, y + 4.9)
     y += hdrH
 
-    const passH = 9
+    const passH = 8
     passageirosFiltrados.forEach((ag, i) => {
       if (y + passH > 280) { doc.addPage(); y = 20 }
       if (i % 2 === 1) { doc.setFillColor(245, 245, 245); doc.rect(mg, y, W, passH, 'F') }
@@ -2759,13 +2762,13 @@ function ModalListaPDF({
       doc.setTextColor(30, 30, 30)
       doc.setFontSize(8.5)
       doc.setFont('helvetica', 'normal')
-      doc.text(`${i + 1}.  ${trunc(ag.nome_passageiro.replace(/\s*\(\d+\/\d+\)\s*$/, '').toUpperCase(), 40)}`, mg + 3, y + 6.2)
+      doc.text(`${i + 1}.  ${trunc(ag.nome_passageiro.replace(/\s*\(\d+\/\d+\)\s*$/, '').toUpperCase(), 40)}`, mg + 3, y + 5.5)
       const docText = documentosRef.current[ag.id] || ''
       if (docText) {
-        doc.text(trunc(docText, 25), mg + nameW + 3, y + 6.2)
+        doc.text(trunc(docText, 25), mg + nameW + 3, y + 5.5)
       } else {
         doc.setTextColor(180, 180, 180)
-        doc.text('RG/CPF', mg + nameW + 3, y + 6.2)
+        doc.text('RG/CPF', mg + nameW + 3, y + 5.5)
         doc.setTextColor(30, 30, 30)
       }
       y += passH
