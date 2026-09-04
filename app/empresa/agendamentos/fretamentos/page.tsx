@@ -305,6 +305,18 @@ const STATUS_COR: Record<string, { bg: string; text: string; label: string }> = 
   parcialmente_cancelada: { bg: '#FEF3C7', text: '#92400E', label: 'Parc. cancelada' },
 }
 
+// Selo de pagamento na lista — o campo status_pagamento já existia e já
+// controlava o financeiro, mas não aparecia visível no card, só dentro da
+// ficha. Pedido do cliente 2026-09-04: mostrar isso de cara na lista.
+const STATUS_PAGAMENTO_BADGE: Record<string, string> = {
+  a_receber: '💰 Aguardando pagamento',
+  parcial: '💰 Pagamento parcial',
+}
+function badgePagamento(statusPagamento: string | null | undefined, status: string): string | null {
+  if (status === 'cancelada' || status === 'recusada') return null
+  return statusPagamento ? STATUS_PAGAMENTO_BADGE[statusPagamento] ?? null : null
+}
+
 type TipoMeta = { badge: string; bg: string; text: string; clienteLabel: string }
 const TIPO_META: Record<string, TipoMeta> = {
   rota_fixa:  { badge: '🛣️ Rota Fixa',  bg: '#E1F5EE', text: '#085041', clienteLabel: 'Passageiro' },
@@ -2316,6 +2328,12 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                               ↔ Ida e volta
                             </span>
                           )}
+                          {badgePagamento(c.status_pagamento, c.status) && (
+                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
+                              style={{ background: '#FEF3C7', color: '#92400E' }}>
+                              {badgePagamento(c.status_pagamento, c.status)}
+                            </span>
+                          )}
                         </div>
                         {temVolta ? (
                           <>
@@ -2422,6 +2440,12 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                           style={{ background: '#E1F5EE', color: '#0F6E56' }}>
                           ↔ Ida e volta
                         </span>
+                        {badgePagamento(ida.status_pagamento, statusKey) && (
+                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
+                            style={{ background: '#FEF3C7', color: '#92400E' }}>
+                            {badgePagamento(ida.status_pagamento, statusKey)}
+                          </span>
+                        )}
                       </div>
                       <p className="text-sm font-semibold text-gray-800 truncate">
                         ↗ {ida.origem} → {ida.destino}
