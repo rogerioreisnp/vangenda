@@ -15,6 +15,8 @@ type Motorista = {
   percentual_repasse: number | null
   modo_repasse: 'percentual' | 'valor_fixo' | null
   valor_fixo_repasse: number | null
+  cnh_numero: string | null
+  cnh_vencimento: string | null
   veiculos?: VeiculoMotorista[]
 }
 
@@ -28,6 +30,18 @@ type VeiculoMotorista = {
 const VEICULO_VAZIO: VeiculoMotorista = { veiculo: '', placa: '', cor: '' }
 const MAX_VEICULOS = 5
 
+// Selo de CNH vencendo/vencida na lista — só aparece quando importa (≤30
+// dias ou já vencida), pra não poluir o card de quem está em dia.
+function alertaCnh(vencimento: string | null): { texto: string; vencida: boolean } | null {
+  if (!vencimento) return null
+  const hoje = new Date(); hoje.setHours(0, 0, 0, 0)
+  const dataVenc = new Date(vencimento + 'T00:00:00')
+  const dias = Math.round((dataVenc.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24))
+  if (dias < 0) return { texto: `🪪 CNH vencida (${dataVenc.toLocaleDateString('pt-BR')})`, vencida: true }
+  if (dias <= 30) return { texto: `🪪 CNH vence em ${dias} dia${dias !== 1 ? 's' : ''} (${dataVenc.toLocaleDateString('pt-BR')})`, vencida: false }
+  return null
+}
+
 type FormMotorista = {
   nome: string
   email: string
@@ -36,6 +50,8 @@ type FormMotorista = {
   modo_repasse: '' | 'percentual' | 'valor_fixo'  // '' = motorista sem repasse
   percentual_repasse: string  // input string, converte no save
   valor_fixo_repasse: string
+  cnh_numero: string
+  cnh_vencimento: string
   veiculos: VeiculoMotorista[]
 }
 
@@ -45,7 +61,7 @@ export default function MotoristasPage() {
   const [loading, setLoading] = useState(true)
   const [modalAberto, setModalAberto] = useState(false)
   const [editando, setEditando] = useState<Motorista | null>(null)
-  const [form, setForm] = useState<FormMotorista>({ nome: '', email: '', senha: '', telefone: '', modo_repasse: '', percentual_repasse: '', valor_fixo_repasse: '', veiculos: [{ ...VEICULO_VAZIO }] })
+  const [form, setForm] = useState<FormMotorista>({ nome: '', email: '', senha: '', telefone: '', modo_repasse: '', percentual_repasse: '', valor_fixo_repasse: '', cnh_numero: '', cnh_vencimento: '', veiculos: [{ ...VEICULO_VAZIO }] })
   const [salvando, setSalvando] = useState(false)
   const salvandoRef = useRef(false)
   const [erro, setErro] = useState('')
@@ -76,7 +92,7 @@ export default function MotoristasPage() {
 
     const { data: mots } = await supabase
       .from('motoristas_empresa')
-      .select('id, user_id, nome, telefone, veiculo, placa, cor, status, percentual_repasse, modo_repasse, valor_fixo_repasse, veiculos_motorista(id, veiculo, placa, cor, ordem)')
+      .select('id, user_id, nome, telefone, veiculo, placa, cor, status, percentual_repasse, modo_repasse, valor_fixo_repasse, cnh_numero, cnh_vencimento, veiculos_motorista(id, veiculo, placa, cor, ordem)')
       .eq('empresa_id', empresa.id)
       .order('created_at')
 
@@ -91,7 +107,7 @@ export default function MotoristasPage() {
 
   function abrirAdicionar() {
     setEditando(null)
-    setForm({ nome: '', email: '', senha: '', telefone: '', modo_repasse: '', percentual_repasse: '', valor_fixo_repasse: '', veiculos: [{ ...VEICULO_VAZIO }] })
+    setForm({ nome: '', email: '', senha: '', telefone: '', modo_repasse: '', percentual_repasse: '', valor_fixo_repasse: '', cnh_numero: '', cnh_vencimento: '', veiculos: [{ ...VEICULO_VAZIO }] })
     setErro('')
     setModalAberto(true)
   }
@@ -109,6 +125,8 @@ export default function MotoristasPage() {
       modo_repasse: m.modo_repasse ?? (m.percentual_repasse != null ? 'percentual' : ''),
       percentual_repasse: m.percentual_repasse != null ? String(m.percentual_repasse) : '',
       valor_fixo_repasse: m.valor_fixo_repasse != null ? String(m.valor_fixo_repasse) : '',
+      cnh_numero: m.cnh_numero || '',
+      cnh_vencimento: m.cnh_vencimento || '',
       veiculos: veiculosCarregados,
     })
     setErro('')
@@ -162,6 +180,11 @@ export default function MotoristasPage() {
             modo_repasse: form.modo_repasse || null,
             percentual_repasse: pctNum,
             valor_fixo_repasse: valorFixoNum,
+            cnh_numero: form.cnh_numero.trim() || null,
+            cnh_vencimento: form.cnh_vencimento || null,
+            // Validade mudou (renovação)? Zera o alerta já disparado, senão
+            // o cron nunca mais avisa sobre o próximo vencimento.
+            ...(form.cnh_vencimento !== (editando.cnh_vencimento || '') ? { cnh_alerta_enviado_em: null } : {}),
           })
           .eq('id', editando.id)
 
@@ -222,6 +245,8 @@ export default function MotoristasPage() {
             email: form.email.trim(),
             senha: form.senha,
             telefone: form.telefone.trim() || null,
+            cnhNumero: form.cnh_numero.trim() || null,
+            cnhVencimento: form.cnh_vencimento || null,
             veiculos: form.veiculos
               .filter(v => v.veiculo.trim() || v.placa.trim() || v.cor.trim())
               .map(v => ({ veiculo: v.veiculo.trim() || null, placa: v.placa.trim() || null, cor: v.cor.trim() || null })),
@@ -347,6 +372,18 @@ export default function MotoristasPage() {
                         {[m.veiculo, m.cor, m.placa].filter(Boolean).join(' · ')}
                       </p>
                     )}
+                    {(() => {
+                      const alerta = alertaCnh(m.cnh_vencimento)
+                      if (!alerta) return null
+                      return (
+                        <span className="inline-block mt-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
+                          style={alerta.vencida
+                            ? { background: '#FCEBEB', color: '#A32D2D' }
+                            : { background: '#FEF3C7', color: '#92400E' }}>
+                          {alerta.texto}
+                        </span>
+                      )
+                    })()}
                   </div>
                   <div className="flex gap-2 flex-shrink-0">
                     <button
@@ -461,6 +498,20 @@ export default function MotoristasPage() {
               <input value={form.telefone} onChange={e => setForm(f => ({ ...f, telefone: e.target.value }))}
                 placeholder="(XX) XXXXX-XXXX" className="campo-input" />
             </Campo>
+
+            {/* CNH — número + validade. O gestor recebe um alerta quando
+                estiver a 30 dias (ou menos) do vencimento (ver
+                /api/cron/notificacoes). Pedido do cliente 2026-09-04. */}
+            <div className="grid grid-cols-2 gap-2">
+              <Campo label="Número da CNH">
+                <input value={form.cnh_numero} onChange={e => setForm(f => ({ ...f, cnh_numero: e.target.value }))}
+                  placeholder="Opcional" className="campo-input" />
+              </Campo>
+              <Campo label="Validade da CNH">
+                <input type="date" value={form.cnh_vencimento} onChange={e => setForm(f => ({ ...f, cnh_vencimento: e.target.value }))}
+                  className="campo-input" />
+              </Campo>
+            </div>
 
             {/* Repasse ao motorista parceiro — 3 modos possiveis. Auto-preenche
                 o valor de repasse quando atribuido a um atendimento conforme

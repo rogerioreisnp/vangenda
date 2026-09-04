@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 /**
  * Cron diario de alertas pro GESTOR (transfer). Roda 1x por dia.
  *
- * Tres alertas:
+ * Quatro alertas:
  *   Item 3 — pagamentos que vencem HOJE (so Faturado): lembra o gestor de dar baixa
  *   Item 4 — pagamentos VENCIDOS (so Faturado): avisa que continua sem receber
  *   Item 5 — Pix/Dinheiro/Cartao ainda pendentes X horas apos o atendimento
@@ -14,6 +14,11 @@ import { NextRequest, NextResponse } from 'next/server'
  *            avisado. X e configuravel por empresa (empresas.
  *            horas_apos_atendimento_cobranca, default 24h, 0 = desativado).
  *            Dispara UMA vez so (marca alerta_pagamento_imediato_enviado_em).
+ *   Item 6 — CNH de motorista ativo vencendo em ate 30 dias ou ja vencida
+ *            (pedido cliente 2026-09-04). Dispara UMA vez por vencimento
+ *            (marca cnh_alerta_enviado_em); zera quando o gestor atualiza
+ *            a validade pra uma data nova (renovacao), permitindo alertar
+ *            de novo no proximo vencimento.
  *
  * Decisoes de design:
  *   - AGRUPA por empresa: gestor com 5 pagamentos vencendo recebe UMA
@@ -133,14 +138,29 @@ export async function GET(req: NextRequest) {
     .is('alerta_pagamento_imediato_enviado_em', null)
     .limit(500)
 
+  // ── Item 6: CNH vencendo em ate 30 dias ou ja vencida ────────────────
+  // So motorista ativo — nao faz sentido alertar sobre quem ja saiu da
+  // empresa. cnh_alerta_enviado_em zera quando o gestor atualiza a
+  // validade (renovacao), permitindo alertar de novo no proximo vencimento.
+  const em30dias = new Date(agoraDate.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  const { data: cnhVencendo } = await supabase
+    .from('motoristas_empresa')
+    .select('id, empresa_id, nome, cnh_vencimento')
+    .eq('status', 'ativo')
+    .not('cnh_vencimento', 'is', null)
+    .lte('cnh_vencimento', em30dias)
+    .is('cnh_alerta_enviado_em', null)
+    .limit(500)
+
   // Resolve gestores das empresas envolvidas (1 query pra todas)
   const empresaIds = Array.from(new Set([
     ...(vencemHoje || []).map(c => c.empresa_id),
     ...(vencidas || []).map(c => c.empresa_id),
     ...(pendentesImediato || []).map((c: any) => c.empresa_id),
+    ...(cnhVencendo || []).map((m: any) => m.empresa_id),
   ]))
   if (empresaIds.length === 0) {
-    return NextResponse.json({ ok: true, vencem_hoje: 0, vencidas: 0, pendentes_imediato: 0, msg: 'Nada a notificar' })
+    return NextResponse.json({ ok: true, vencem_hoje: 0, vencidas: 0, pendentes_imediato: 0, cnh_vencendo: 0, msg: 'Nada a notificar' })
   }
 
   const [{ data: gestores }, { data: empresasConfig }] = await Promise.all([
@@ -237,6 +257,32 @@ export async function GET(req: NextRequest) {
     idsAlertaImediato.push(...lista.map(c => c.id))
   }
 
+  // Dispara item 6 — CNH vencendo/vencida, dispara so 1x por vencimento
+  const idsAlertaCnh: string[] = []
+  const cnhPorEmpresa: Record<string, { nome: string; cnh_vencimento: string }[]> = {}
+  ;(cnhVencendo || []).forEach((m: any) => {
+    if (!cnhPorEmpresa[m.empresa_id]) cnhPorEmpresa[m.empresa_id] = []
+    cnhPorEmpresa[m.empresa_id].push({ nome: m.nome, cnh_vencimento: m.cnh_vencimento })
+  })
+  for (const [empresaId, lista] of Object.entries(cnhPorEmpresa)) {
+    const gestorUserId = gestorPorEmpresa[empresaId]
+    if (!gestorUserId) continue
+    const hojeStr = agoraDate.toISOString().slice(0, 10)
+    const primeira = lista[0]
+    const diasPrimeira = Math.round((new Date(primeira.cnh_vencimento).getTime() - new Date(hojeStr).getTime()) / (1000 * 60 * 60 * 24))
+    const dataFmt = new Date(primeira.cnh_vencimento + 'T00:00:00').toLocaleDateString('pt-BR')
+    const situacao = diasPrimeira < 0 ? 'venceu' : diasPrimeira === 0 ? 'vence hoje' : `vence em ${diasPrimeira} dias`
+    const titulo = lista.length === 1
+      ? '🪪 CNH vencendo'
+      : `🪪 ${lista.length} CNHs vencendo`
+    const corpo = lista.length === 1
+      ? `${primeira.nome} · CNH ${situacao} (${dataFmt}).`
+      : `${lista.map(m => m.nome).join(', ')} — CNH vencendo ou vencida. Toque para revisar.`
+    const r = await enviarPush(gestorUserId, titulo, corpo, `${appUrl}/empresa/motoristas`)
+    resultados.push({ tipo: 'cnh_vencendo', empresaId, qtd: lista.length, onesignal: r })
+    idsAlertaCnh.push(...(cnhVencendo || []).filter((m: any) => m.empresa_id === empresaId).map((m: any) => m.id))
+  }
+
   // Marca como alertadas — evita repetir o mesmo aviso amanha
   const agora = new Date().toISOString()
   if (idsAlertaPagamento.length > 0) {
@@ -254,11 +300,17 @@ export async function GET(req: NextRequest) {
       .update({ alerta_pagamento_imediato_enviado_em: agora })
       .in('id', idsAlertaImediato)
   }
+  if (idsAlertaCnh.length > 0) {
+    await supabase.from('motoristas_empresa')
+      .update({ cnh_alerta_enviado_em: agora })
+      .in('id', idsAlertaCnh)
+  }
 
   console.log('[cron-notificacoes]', {
     vencem_hoje: idsAlertaPagamento.length,
     vencidas: idsAlertaAtraso.length,
     pendentes_imediato: idsAlertaImediato.length,
+    cnh_vencendo: idsAlertaCnh.length,
     empresas: Object.keys(gestorPorEmpresa).length,
   })
 
@@ -267,6 +319,7 @@ export async function GET(req: NextRequest) {
     vencem_hoje: idsAlertaPagamento.length,
     vencidas: idsAlertaAtraso.length,
     pendentes_imediato: idsAlertaImediato.length,
+    cnh_vencendo: idsAlertaCnh.length,
     detalhes: resultados,
   })
 }

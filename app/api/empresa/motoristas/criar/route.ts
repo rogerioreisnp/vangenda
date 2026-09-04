@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
     }
 
-    const { nome, email, senha, telefone, veiculo, placa, cor, veiculos } = await req.json()
+    const { nome, email, senha, telefone, veiculo, placa, cor, veiculos, cnhNumero, cnhVencimento } = await req.json()
 
     // `veiculos` (array) é o formato novo (múltiplos veículos). Se não vier,
     // cai pro formato antigo (veiculo/placa/cor únicos) por compatibilidade.
@@ -125,6 +125,8 @@ export async function POST(req: NextRequest) {
         placa: principal?.placa?.trim() || null,
         cor: principal?.cor?.trim() || null,
         status: 'ativo',
+        cnh_numero: cnhNumero?.trim() || null,
+        cnh_vencimento: cnhVencimento || null,
       })
       .select('id')
       .single()
