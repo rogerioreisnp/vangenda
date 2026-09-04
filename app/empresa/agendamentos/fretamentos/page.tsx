@@ -79,13 +79,13 @@ type Corrida = {
   numero_voo: string | null
   nome_passageiro2: string | null
   telefone_passageiro2: string | null
-  rua: string | null; numero: string | null; bairro: string | null; municipio: string | null; cep: string | null; referencia: string | null
+  rua: string | null; numero: string | null; bairro: string | null; municipio: string | null; cep: string | null; referencia: string | null; complemento: string | null
   rua_desembarque: string | null; numero_desembarque: string | null; bairro_desembarque: string | null
-  municipio_desembarque: string | null; cep_desembarque: string | null; referencia_desembarque: string | null
+  municipio_desembarque: string | null; cep_desembarque: string | null; referencia_desembarque: string | null; complemento_desembarque: string | null
   rua_retorno_embarque: string | null; numero_retorno_embarque: string | null; bairro_retorno_embarque: string | null
-  municipio_retorno_embarque: string | null; cep_retorno_embarque: string | null; referencia_retorno_embarque: string | null
+  municipio_retorno_embarque: string | null; cep_retorno_embarque: string | null; referencia_retorno_embarque: string | null; complemento_retorno_embarque: string | null
   rua_retorno_desembarque: string | null; numero_retorno_desembarque: string | null; bairro_retorno_desembarque: string | null
-  municipio_retorno_desembarque: string | null; cep_retorno_desembarque: string | null; referencia_retorno_desembarque: string | null
+  municipio_retorno_desembarque: string | null; cep_retorno_desembarque: string | null; referencia_retorno_desembarque: string | null; complemento_retorno_desembarque: string | null
   retorno_data: string | null
   retorno_horario: string | null
   retorno_origem: string | null
@@ -179,13 +179,13 @@ type FormCorrida = {
   passageiro1_nome: string
   passageiro1_telefone: string
   numero_voo: string
-  rua: string; numero: string; bairro: string; municipio: string; cep: string; referencia: string
+  rua: string; numero: string; bairro: string; municipio: string; cep: string; referencia: string; complemento: string
   rua_desembarque: string; numero_desembarque: string; bairro_desembarque: string
-  municipio_desembarque: string; cep_desembarque: string; referencia_desembarque: string
+  municipio_desembarque: string; cep_desembarque: string; referencia_desembarque: string; complemento_desembarque: string
   rua_retorno_embarque: string; numero_retorno_embarque: string; bairro_retorno_embarque: string
-  municipio_retorno_embarque: string; cep_retorno_embarque: string; referencia_retorno_embarque: string
+  municipio_retorno_embarque: string; cep_retorno_embarque: string; referencia_retorno_embarque: string; complemento_retorno_embarque: string
   rua_retorno_desembarque: string; numero_retorno_desembarque: string; bairro_retorno_desembarque: string
-  municipio_retorno_desembarque: string; cep_retorno_desembarque: string; referencia_retorno_desembarque: string
+  municipio_retorno_desembarque: string; cep_retorno_desembarque: string; referencia_retorno_desembarque: string; complemento_retorno_desembarque: string
   // Diária / City Tour: término estimado e trajetos percorridos
   data_termino: string
   horario_termino: string
@@ -233,13 +233,13 @@ const FORM_VAZIO: FormCorrida = {
   passageiro1_nome: '',
   passageiro1_telefone: '',
   numero_voo: '',
-  rua: '', numero: '', bairro: '', municipio: '', cep: '', referencia: '',
+  rua: '', numero: '', bairro: '', municipio: '', cep: '', referencia: '', complemento: '',
   rua_desembarque: '', numero_desembarque: '', bairro_desembarque: '',
-  municipio_desembarque: '', cep_desembarque: '', referencia_desembarque: '',
+  municipio_desembarque: '', cep_desembarque: '', referencia_desembarque: '', complemento_desembarque: '',
   rua_retorno_embarque: '', numero_retorno_embarque: '', bairro_retorno_embarque: '',
-  municipio_retorno_embarque: '', cep_retorno_embarque: '', referencia_retorno_embarque: '',
+  municipio_retorno_embarque: '', cep_retorno_embarque: '', referencia_retorno_embarque: '', complemento_retorno_embarque: '',
   rua_retorno_desembarque: '', numero_retorno_desembarque: '', bairro_retorno_desembarque: '',
-  municipio_retorno_desembarque: '', cep_retorno_desembarque: '', referencia_retorno_desembarque: '',
+  municipio_retorno_desembarque: '', cep_retorno_desembarque: '', referencia_retorno_desembarque: '', complemento_retorno_desembarque: '',
   data_termino: '', horario_termino: '', trajetos: [],
   km_inicial: '', km_final: '', km_inicial_volta: '', km_final_volta: '',
   passageiros_adicionais: [],
@@ -637,7 +637,7 @@ export default function AgendamentosPage() {
     //   2. FUTURAS (data_hora >= agora e status != em_andamento) — asc
     //   3. PASSADAS (data_hora < agora e status != em_andamento) — desc
     const agoraISO = new Date().toISOString()
-    const colsCorridas = 'id, rota_id, cliente_id, origem, destino, data_hora, created_at, cliente_nome, cliente_telefone, email_solicitante, passageiro1_nome, passageiro1_telefone, valor, status, motorista_id, tipo_servico, forma_pagamento, status_pagamento, valor_recebido, data_pagamento, data_prevista_pagamento, valor_repasse_motorista, observacoes, motoristas_empresa(nome), numero_voo, nome_passageiro2, telefone_passageiro2, retorno_data, retorno_horario, retorno_origem, retorno_destino, numero_reserva, quantidade_bagagem, passageiros_adicionais, rua, numero, bairro, municipio, cep, referencia, rua_desembarque, numero_desembarque, bairro_desembarque, municipio_desembarque, cep_desembarque, referencia_desembarque, data_hora_termino, trajetos, km_inicial, km_final, iniciado_em, finalizado_em, observacao_motorista, anexo_motorista_url, veiculo_atribuido, anexo_observacoes_url, par_id, quantidade_passageiros, motorista_visto_em, motorista_confirmado_em'
+    const colsCorridas = 'id, rota_id, cliente_id, origem, destino, data_hora, created_at, cliente_nome, cliente_telefone, email_solicitante, passageiro1_nome, passageiro1_telefone, valor, status, motorista_id, tipo_servico, forma_pagamento, status_pagamento, valor_recebido, data_pagamento, data_prevista_pagamento, valor_repasse_motorista, observacoes, motoristas_empresa(nome), numero_voo, nome_passageiro2, telefone_passageiro2, retorno_data, retorno_horario, retorno_origem, retorno_destino, numero_reserva, quantidade_bagagem, passageiros_adicionais, rua, numero, bairro, municipio, cep, referencia, complemento, rua_desembarque, numero_desembarque, bairro_desembarque, municipio_desembarque, cep_desembarque, referencia_desembarque, complemento_desembarque, data_hora_termino, trajetos, km_inicial, km_final, iniciado_em, finalizado_em, observacao_motorista, anexo_motorista_url, veiculo_atribuido, anexo_observacoes_url, par_id, quantidade_passageiros, motorista_visto_em, motorista_confirmado_em'
 
     const [{ data: empresa }, { data: rts }, { data: mots }, { data: clientesData }, { data: emAndamento }, { data: futuras }, { data: passadas }] = await Promise.all([
       supabase
@@ -658,7 +658,7 @@ export default function AgendamentosPage() {
         .order('nome'),
       supabase
         .from('clientes_empresa')
-        .select('id, tipo, razao_social, nome_fantasia, cnpj, nome, cpf, telefone, email, endereco_rua, endereco_numero, endereco_bairro, endereco_cidade, endereco_estado, endereco_cep')
+        .select('id, tipo, razao_social, nome_fantasia, cnpj, nome, cpf, telefone, email, endereco_rua, endereco_numero, endereco_bairro, endereco_cidade, endereco_estado, endereco_cep, endereco_complemento')
         .eq('empresa_id', gestor.empresa_id)
         .eq('ativo', true)
         .order('atualizado_em', { ascending: false }),
@@ -801,13 +801,13 @@ export default function AgendamentosPage() {
       passageiro1_nome: c.passageiro1_nome || '',
       passageiro1_telefone: c.passageiro1_telefone || '',
       numero_voo: c.numero_voo || '',
-      rua: c.rua || '', numero: c.numero || '', bairro: c.bairro || '', municipio: c.municipio || '', cep: c.cep || '', referencia: c.referencia || '',
+      rua: c.rua || '', numero: c.numero || '', bairro: c.bairro || '', municipio: c.municipio || '', cep: c.cep || '', referencia: c.referencia || '', complemento: c.complemento || '',
       rua_desembarque: c.rua_desembarque || '', numero_desembarque: c.numero_desembarque || '', bairro_desembarque: c.bairro_desembarque || '',
-      municipio_desembarque: c.municipio_desembarque || '', cep_desembarque: c.cep_desembarque || '', referencia_desembarque: c.referencia_desembarque || '',
+      municipio_desembarque: c.municipio_desembarque || '', cep_desembarque: c.cep_desembarque || '', referencia_desembarque: c.referencia_desembarque || '', complemento_desembarque: c.complemento_desembarque || '',
       rua_retorno_embarque: c.rua_retorno_embarque || '', numero_retorno_embarque: c.numero_retorno_embarque || '', bairro_retorno_embarque: c.bairro_retorno_embarque || '',
-      municipio_retorno_embarque: c.municipio_retorno_embarque || '', cep_retorno_embarque: c.cep_retorno_embarque || '', referencia_retorno_embarque: c.referencia_retorno_embarque || '',
+      municipio_retorno_embarque: c.municipio_retorno_embarque || '', cep_retorno_embarque: c.cep_retorno_embarque || '', referencia_retorno_embarque: c.referencia_retorno_embarque || '', complemento_retorno_embarque: c.complemento_retorno_embarque || '',
       rua_retorno_desembarque: c.rua_retorno_desembarque || '', numero_retorno_desembarque: c.numero_retorno_desembarque || '', bairro_retorno_desembarque: c.bairro_retorno_desembarque || '',
-      municipio_retorno_desembarque: c.municipio_retorno_desembarque || '', cep_retorno_desembarque: c.cep_retorno_desembarque || '', referencia_retorno_desembarque: c.referencia_retorno_desembarque || '',
+      municipio_retorno_desembarque: c.municipio_retorno_desembarque || '', cep_retorno_desembarque: c.cep_retorno_desembarque || '', referencia_retorno_desembarque: c.referencia_retorno_desembarque || '', complemento_retorno_desembarque: c.complemento_retorno_desembarque || '',
       data_termino: c.data_hora_termino ? c.data_hora_termino.slice(0, 10) : '',
       horario_termino: c.data_hora_termino ? c.data_hora_termino.slice(11, 16) : '',
       trajetos: Array.isArray(c.trajetos) ? c.trajetos : [],
@@ -1005,12 +1005,14 @@ export default function AgendamentosPage() {
       municipio: form.municipio.trim() || null,
       cep: form.cep.trim() || null,
       referencia: form.referencia.trim() || null,
+      complemento: form.complemento.trim() || null,
       rua_desembarque: form.rua_desembarque.trim() || null,
       numero_desembarque: form.numero_desembarque.trim() || null,
       bairro_desembarque: form.bairro_desembarque.trim() || null,
       municipio_desembarque: form.municipio_desembarque.trim() || null,
       cep_desembarque: form.cep_desembarque.trim() || null,
       referencia_desembarque: form.referencia_desembarque.trim() || null,
+      complemento_desembarque: form.complemento_desembarque.trim() || null,
       // Volta estruturada do Passageiro 1 — só grava se ida_volta ativo
       rua_retorno_embarque:         form.ida_volta ? (form.rua_retorno_embarque.trim()         || null) : null,
       numero_retorno_embarque:      form.ida_volta ? (form.numero_retorno_embarque.trim()      || null) : null,
@@ -1018,12 +1020,14 @@ export default function AgendamentosPage() {
       municipio_retorno_embarque:   form.ida_volta ? (form.municipio_retorno_embarque.trim()   || null) : null,
       cep_retorno_embarque:         form.ida_volta ? (form.cep_retorno_embarque.trim()         || null) : null,
       referencia_retorno_embarque:  form.ida_volta ? (form.referencia_retorno_embarque.trim()  || null) : null,
+      complemento_retorno_embarque: form.ida_volta ? (form.complemento_retorno_embarque.trim() || null) : null,
       rua_retorno_desembarque:         form.ida_volta ? (form.rua_retorno_desembarque.trim()         || null) : null,
       numero_retorno_desembarque:      form.ida_volta ? (form.numero_retorno_desembarque.trim()      || null) : null,
       bairro_retorno_desembarque:      form.ida_volta ? (form.bairro_retorno_desembarque.trim()      || null) : null,
       municipio_retorno_desembarque:   form.ida_volta ? (form.municipio_retorno_desembarque.trim()   || null) : null,
       cep_retorno_desembarque:         form.ida_volta ? (form.cep_retorno_desembarque.trim()         || null) : null,
       referencia_retorno_desembarque:  form.ida_volta ? (form.referencia_retorno_desembarque.trim()  || null) : null,
+      complemento_retorno_desembarque: form.ida_volta ? (form.complemento_retorno_desembarque.trim() || null) : null,
       passageiros_adicionais: form.passageiros_adicionais.length > 0
         ? form.passageiros_adicionais.map(p => ({
             nome: p.nome.trim(), telefone: p.telefone.trim(), numero_voo: p.numero_voo.trim() || null,
@@ -3124,6 +3128,7 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                     <p className="text-sm text-gray-700">{[corridaFicha.rua, corridaFicha.numero].filter(Boolean).join(', ')}</p>
                     <p className="text-sm text-gray-700">{[corridaFicha.bairro, corridaFicha.municipio].filter(Boolean).join(' - ')}</p>
                     {corridaFicha.cep && <p className="text-xs text-gray-400">CEP: {corridaFicha.cep}</p>}
+                    {corridaFicha.complemento && <p className="text-sm text-gray-700">{corridaFicha.complemento}</p>}
                     {corridaFicha.referencia && <p className="text-xs text-gray-500">📌 {corridaFicha.referencia}</p>}
                   </div>
                 )}
@@ -3133,6 +3138,7 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                     <p className="text-sm text-gray-700">{[corridaFicha.rua_desembarque, corridaFicha.numero_desembarque].filter(Boolean).join(', ')}</p>
                     <p className="text-sm text-gray-700">{[corridaFicha.bairro_desembarque, corridaFicha.municipio_desembarque].filter(Boolean).join(' - ')}</p>
                     {corridaFicha.cep_desembarque && <p className="text-xs text-gray-400">CEP: {corridaFicha.cep_desembarque}</p>}
+                    {corridaFicha.complemento_desembarque && <p className="text-sm text-gray-700">{corridaFicha.complemento_desembarque}</p>}
                     {corridaFicha.referencia_desembarque && <p className="text-xs text-gray-500">📌 {corridaFicha.referencia_desembarque}</p>}
                   </div>
                 )}
@@ -4295,6 +4301,10 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                   <input value={form.referencia} onChange={e => setForm(f => ({ ...f, referencia: e.target.value }))}
                     placeholder="Ex: Próximo ao mercado Boa Ideia" className="campo-input" />
                 </Campo>
+                <Campo label="Complemento">
+                  <input value={form.complemento} onChange={e => setForm(f => ({ ...f, complemento: e.target.value }))}
+                    placeholder="Ex: Bloco B, apto 302" className="campo-input" />
+                </Campo>
 
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mt-1">🏁 Endereço de desembarque <span className="normal-case font-normal">(opcional)</span></p>
                 <div style={{ display: 'grid', gridTemplateColumns: '70% 30%', gap: '8px' }}>
@@ -4324,6 +4334,10 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                 <Campo label="Ponto de referência">
                   <input value={form.referencia_desembarque} onChange={e => setForm(f => ({ ...f, referencia_desembarque: e.target.value }))}
                     placeholder="Ex: Em frente à padaria" className="campo-input" />
+                </Campo>
+                <Campo label="Complemento">
+                  <input value={form.complemento_desembarque} onChange={e => setForm(f => ({ ...f, complemento_desembarque: e.target.value }))}
+                    placeholder="Ex: Bloco B, apto 302" className="campo-input" />
                 </Campo>
 
                 {/* Endereços da volta (só se ida_volta ativo) */}
@@ -4358,6 +4372,10 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                       <input value={form.referencia_retorno_embarque} onChange={e => setForm(f => ({ ...f, referencia_retorno_embarque: e.target.value }))}
                         placeholder="Ex: Em frente à padaria" className="campo-input" />
                     </Campo>
+                    <Campo label="Complemento">
+                      <input value={form.complemento_retorno_embarque} onChange={e => setForm(f => ({ ...f, complemento_retorno_embarque: e.target.value }))}
+                        placeholder="Ex: Bloco B, apto 302" className="campo-input" />
+                    </Campo>
 
                     <p className="text-xs font-semibold uppercase tracking-wide mt-2" style={{ color: '#3C3489' }}>🏁 Endereço de desembarque (volta) <span className="normal-case font-normal text-gray-400">— pré-preenchido, edite se necessário</span></p>
                     <div style={{ display: 'grid', gridTemplateColumns: '70% 30%', gap: '8px' }}>
@@ -4387,6 +4405,10 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                     <Campo label="Ponto de referência">
                       <input value={form.referencia_retorno_desembarque} onChange={e => setForm(f => ({ ...f, referencia_retorno_desembarque: e.target.value }))}
                         placeholder="Ex: Próximo ao mercado Boa Ideia" className="campo-input" />
+                    </Campo>
+                    <Campo label="Complemento">
+                      <input value={form.complemento_retorno_desembarque} onChange={e => setForm(f => ({ ...f, complemento_retorno_desembarque: e.target.value }))}
+                        placeholder="Ex: Bloco B, apto 302" className="campo-input" />
                     </Campo>
                   </>
                 )}

@@ -31,6 +31,7 @@ type Cliente = {
   endereco_cidade: string | null
   endereco_estado: string | null
   endereco_cep: string | null
+  endereco_complemento: string | null
   observacoes: string | null
   ativo: boolean
   criado_em: string
@@ -53,6 +54,7 @@ const FORM_VAZIO: Omit<Cliente, 'id' | 'empresa_id' | 'criado_em'> = {
   endereco_cidade: '',
   endereco_estado: '',
   endereco_cep: '',
+  endereco_complemento: '',
   observacoes: '',
   ativo: true,
 }
@@ -141,6 +143,7 @@ export default function ClientesPage() {
       endereco_cidade: c.endereco_cidade || '',
       endereco_estado: c.endereco_estado || '',
       endereco_cep: c.endereco_cep || '',
+      endereco_complemento: c.endereco_complemento || '',
       observacoes: c.observacoes || '',
       ativo: c.ativo,
     })
@@ -175,6 +178,7 @@ export default function ClientesPage() {
       endereco_cidade: form.endereco_cidade?.trim() || null,
       endereco_estado: form.endereco_estado     || null,
       endereco_cep:  form.endereco_cep?.trim()  || null,
+      endereco_complemento: form.endereco_complemento?.trim() || null,
       observacoes:   form.observacoes?.trim()   || null,
       ativo:         form.ativo,
       atualizado_em: new Date().toISOString(),
@@ -386,6 +390,10 @@ export default function ClientesPage() {
                     </select>
                   </Campo>
                 </div>
+                <Campo label="Complemento">
+                  <input value={form.endereco_complemento || ''} onChange={e => setForm(f => ({ ...f, endereco_complemento: e.target.value }))}
+                    placeholder="Ex: Bloco B, apto 302, sala 12" className="campo-input" />
+                </Campo>
               </div>
             </details>
 

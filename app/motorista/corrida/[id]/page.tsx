@@ -46,9 +46,9 @@ type Corrida = {
   motorista_confirmado_em: string | null
   trajetos: string[] | null
   rua: string | null; numero: string | null; bairro: string | null
-  municipio: string | null; cep: string | null; referencia: string | null
+  municipio: string | null; cep: string | null; referencia: string | null; complemento: string | null
   rua_desembarque: string | null; numero_desembarque: string | null; bairro_desembarque: string | null
-  municipio_desembarque: string | null; cep_desembarque: string | null; referencia_desembarque: string | null
+  municipio_desembarque: string | null; cep_desembarque: string | null; referencia_desembarque: string | null; complemento_desembarque: string | null
   passageiros_adicionais: PassageiroExtra[] | null
   retorno_data: string | null
   retorno_horario: string | null
@@ -391,13 +391,13 @@ export default function CorridaFicha({ params }: { params: { id: string } }) {
         {/* Endereço de embarque estruturado */}
         <BlocoEndereco titulo="📍 Endereço de embarque"
           rua={c.rua} numero={c.numero} bairro={c.bairro}
-          municipio={c.municipio} cep={c.cep} referencia={c.referencia}
+          municipio={c.municipio} cep={c.cep} referencia={c.referencia} complemento={c.complemento}
           fallback={c.origem} />
 
         {/* Endereço de desembarque estruturado */}
         <BlocoEndereco titulo="🏁 Endereço de desembarque"
           rua={c.rua_desembarque} numero={c.numero_desembarque} bairro={c.bairro_desembarque}
-          municipio={c.municipio_desembarque} cep={c.cep_desembarque} referencia={c.referencia_desembarque}
+          municipio={c.municipio_desembarque} cep={c.cep_desembarque} referencia={c.referencia_desembarque} complemento={c.complemento_desembarque}
           fallback={c.destino} />
 
         {/* Trajetos (diária / city tour) */}
@@ -680,23 +680,27 @@ export default function CorridaFicha({ params }: { params: { id: string } }) {
   )
 }
 
-function BlocoEndereco({ titulo, rua, numero, bairro, municipio, cep, referencia, fallback }: {
+function BlocoEndereco({ titulo, rua, numero, bairro, municipio, cep, referencia, complemento, fallback }: {
   titulo: string
   rua: string | null; numero: string | null; bairro: string | null
-  municipio: string | null; cep: string | null; referencia: string | null
+  municipio: string | null; cep: string | null; referencia: string | null; complemento?: string | null
   fallback: string | null
 }) {
   const linhas: string[] = []
   const ruaNum = [rua, numero].filter(Boolean).join(', ')
   if (ruaNum) linhas.push(ruaNum)
+  if (complemento) linhas.push(complemento)
   const bairroMun = [bairro, municipio].filter(Boolean).join(' — ')
   if (bairroMun) linhas.push(bairroMun)
   if (cep) linhas.push(`CEP: ${cep}`)
   if (referencia) linhas.push(`Ref: ${referencia}`)
 
   const enderecoStr = linhas.length > 0 ? linhas.join('\n') : (fallback || 'Não informado')
+  // Complemento (ex: "Bloco B, apto 302") ajuda o motorista a achar a
+  // entrada certa, mas não faz sentido mandar pro Google Maps — poluiria
+  // a busca do endereço. Mesmo tratamento de CEP/Ref, exclui pelo valor.
   const enderecoParaMaps = linhas.length > 0
-    ? linhas.filter(l => !l.startsWith('CEP:') && !l.startsWith('Ref:')).join(', ')
+    ? linhas.filter(l => !l.startsWith('CEP:') && !l.startsWith('Ref:') && l !== complemento).join(', ')
     : fallback
 
   return (
