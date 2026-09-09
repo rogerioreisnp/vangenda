@@ -397,17 +397,28 @@ export default function AgendamentoPublico({
         })
       return
     }
-    supabase
-      .rpc('count_vagas_ocupadas', {
-        p_rota_id: rotaSelecionada.id,
-        p_data: form.data,
-        p_horario: form.horario,
-      })
-      .then(({ data: ocupadas }) => {
+    contarVagasLegado(rotaSelecionada.id, form.data, form.horario, turnoRF)
+      .then(ocupadas => {
         const cap = rotaSelecionada.capacidade ?? 0
-        setVagasDisponiveis(Math.max(0, cap - (ocupadas || 0)))
+        setVagasDisponiveis(Math.max(0, cap - ocupadas))
       })
-  }, [rotaSelecionada, form.data, form.horario, empresa.tipo_operacao, saidaId, saidasRota])
+  }, [rotaSelecionada, form.data, form.horario, empresa.tipo_operacao, saidaId, saidasRota, turnoRF])
+
+  // Contagem legada (rota sem saidas cadastradas), com turno EXPLICITO — a
+  // versao antiga da RPC deduzia o turno pelo horario de relogio e misturava
+  // ida com volta quando os horarios da rota coincidiam (13 na ida faziam a
+  // volta mostrar "2 vagas"). O fallback pra assinatura antiga cobre a
+  // janela entre o deploy e a execucao da migration vagas_por_turno.sql.
+  async function contarVagasLegado(rotaId: string, data: string, horario: string, turno: 'ida' | 'volta'): Promise<number> {
+    const { data: ocupadas, error } = await supabase.rpc('count_vagas_ocupadas', {
+      p_rota_id: rotaId, p_data: data, p_horario: horario, p_turno: turno,
+    })
+    if (!error) return Number(ocupadas) || 0
+    const { data: ocupadasAntigo } = await supabase.rpc('count_vagas_ocupadas', {
+      p_rota_id: rotaId, p_data: data, p_horario: horario,
+    })
+    return Number(ocupadasAntigo) || 0
+  }
 
   // Validação de dia da semana para rota_fixa
   // Força conversão para number para evitar mismatch string vs number vindo do Postgres
@@ -505,14 +516,10 @@ export default function AgendamentoPublico({
     // por "van lotada" — e a trava no banco impede o contrário, que ele coma
     // vaga de quem reservou (ver carro_fechado_link_publico.sql).
     if (empresa.tipo_operacao === 'rota_fixa' && !foraDaGrade && capacidadeAlvo > 0) {
-      const { data: ocupadas } = saidaEscolhida
-        ? await supabase.rpc('count_vagas_saida', { p_horario_id: saidaEscolhida.id, p_data: form.data })
-        : await supabase.rpc('count_vagas_ocupadas', {
-            p_rota_id: rotaSelecionada!.id,
-            p_data: form.data,
-            p_horario: form.horario,
-          })
-      const vagasDisponiveis = capacidadeAlvo - (Number(ocupadas) || 0)
+      const ocupadas = saidaEscolhida
+        ? Number((await supabase.rpc('count_vagas_saida', { p_horario_id: saidaEscolhida.id, p_data: form.data })).data) || 0
+        : await contarVagasLegado(rotaSelecionada!.id, form.data, form.horario, turnoRF)
+      const vagasDisponiveis = capacidadeAlvo - ocupadas
       if (vagasDisponiveis <= 0) {
         setErro('Não há vagas disponíveis para esta rota nesta data e horário.')
         return

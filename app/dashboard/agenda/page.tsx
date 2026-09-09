@@ -1745,13 +1745,26 @@ function FormAgendamento({ data, rotas, empresaCtx, rotasEmpresa, onFechar, onSa
       }
       const horario = form.turno === 'ida' ? horarioIda : horarioVolta
       if (!rotaEmpresaId || !form.data_viagem || !horario) { setVagasOcupadas(0); return }
+      // p_turno explicito: a versao antiga da RPC deduzia o turno pelo
+      // horario de relogio e misturava ida com volta quando os horarios da
+      // rota coincidiam (13 na ida faziam a volta mostrar "2 vagas"). O
+      // fallback pra assinatura antiga cobre a janela entre o deploy e a
+      // execucao da migration vagas_por_turno.sql.
       const { data: ocupadas, error } = await supabase.rpc('count_vagas_ocupadas', {
         p_rota_id: rotaEmpresaId,
         p_data: form.data_viagem,
         p_horario: horario,
+        p_turno: form.turno,
       })
-      if (error) console.error('[vagas] falha ao contar:', error.message)
-      setVagasOcupadas(Number(ocupadas) || 0)
+      if (!error) { setVagasOcupadas(Number(ocupadas) || 0); return }
+      console.error('[vagas] RPC com turno falhou, tentando assinatura antiga:', error.message)
+      const { data: ocupadasAntigo, error: errAntigo } = await supabase.rpc('count_vagas_ocupadas', {
+        p_rota_id: rotaEmpresaId,
+        p_data: form.data_viagem,
+        p_horario: horario,
+      })
+      if (errAntigo) console.error('[vagas] falha ao contar:', errAntigo.message)
+      setVagasOcupadas(Number(ocupadasAntigo) || 0)
       return
     }
     if (!form.rota_id) return
