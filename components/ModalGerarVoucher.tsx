@@ -15,29 +15,35 @@ type Props = {
   atendimento: VoucherAtendimento
   emailCliente?: string | null
   onFechar: () => void
+  // 'nota_servico' = mesmo espelho do voucher, sem observacoes e com outro
+  // titulo. Default 'voucher'. Ver VoucherPDF.tsx.
+  modo?: 'voucher' | 'nota_servico'
 }
 
-export default function ModalGerarVoucher({ empresa, cliente, atendimento, emailCliente, onFechar }: Props) {
+export default function ModalGerarVoucher({ empresa, cliente, atendimento, emailCliente, onFechar, modo = 'voucher' }: Props) {
   const [gerando, setGerando] = useState<null | 'baixar' | 'email'>(null)
   const [erro, setErro] = useState('')
   const [sucesso, setSucesso] = useState('')
+  const ehNota = modo === 'nota_servico'
+  const docLabel = ehNota ? 'Nota de serviço' : 'Voucher'
+  const arquivoPrefixo = ehNota ? 'nota-servico' : 'voucher'
 
   async function baixarPDF() {
     setErro(''); setSucesso('')
     setGerando('baixar')
     try {
       const blob = await pdf(
-        <VoucherPDF empresa={empresa} cliente={cliente} atendimento={atendimento} />
+        <VoucherPDF empresa={empresa} cliente={cliente} atendimento={atendimento} modo={modo} />
       ).toBlob()
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `voucher-${atendimento.numero || 'reserva'}.pdf`
+      a.download = `${arquivoPrefixo}-${atendimento.numero || 'reserva'}.pdf`
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
       URL.revokeObjectURL(url)
-      setSucesso('Voucher baixado com sucesso.')
+      setSucesso(`${docLabel} ${ehNota ? 'baixada' : 'baixado'} com sucesso.`)
     } catch (e: any) {
       setErro(e?.message || 'Erro ao gerar PDF')
     } finally {
@@ -54,7 +60,7 @@ export default function ModalGerarVoucher({ empresa, cliente, atendimento, email
     setGerando('email')
     try {
       const blob = await pdf(
-        <VoucherPDF empresa={empresa} cliente={cliente} atendimento={atendimento} />
+        <VoucherPDF empresa={empresa} cliente={cliente} atendimento={atendimento} modo={modo} />
       ).toBlob()
       const base64 = await new Promise<string>((res, rej) => {
         const reader = new FileReader()
@@ -75,6 +81,7 @@ export default function ModalGerarVoucher({ empresa, cliente, atendimento, email
           empresa_nome: empresa.nome,
           numero: atendimento.numero,
           pdf_base64: base64,
+          documento: modo,
         }),
       })
       const data = await resp.json()
@@ -93,7 +100,7 @@ export default function ModalGerarVoucher({ empresa, cliente, atendimento, email
     <div className="fixed inset-0 z-[70] flex items-end justify-center" style={{ background: 'rgba(0,0,0,0.4)' }} onClick={onFechar}>
       <div className="w-full max-w-lg bg-white rounded-t-2xl p-5 pb-24 flex flex-col gap-3" style={{ maxHeight: '92dvh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between">
-          <p className="text-base font-bold text-gray-800">📄 Voucher do atendimento</p>
+          <p className="text-base font-bold text-gray-800">📄 {ehNota ? 'Nota de serviço' : 'Voucher do atendimento'}</p>
           <button onClick={onFechar} className="text-gray-400 text-xl leading-none">✕</button>
         </div>
 
@@ -125,7 +132,7 @@ export default function ModalGerarVoucher({ empresa, cliente, atendimento, email
         {sucesso && <p className="text-xs text-green-700 bg-green-50 px-3 py-2 rounded-xl">✓ {sucesso}</p>}
 
         <p className="text-[10px] text-gray-400 mt-1 text-center">
-          O voucher usa os dados fiscais e bancários da empresa. Preencha em <b>Configurações</b> se faltar informação.
+          {ehNota ? 'A nota de serviço usa' : 'O voucher usa'} os dados fiscais e bancários da empresa. Preencha em <b>Configurações</b> se faltar informação.
         </p>
       </div>
     </div>

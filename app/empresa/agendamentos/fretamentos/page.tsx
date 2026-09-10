@@ -480,8 +480,10 @@ export default function AgendamentosPage() {
   const [empresaSlug, setEmpresaSlug] = useState<string>('')
   // Dados fiscais/bancarios completos da empresa (Fase 1) — usados no voucher PDF
   const [empresaFiscal, setEmpresaFiscal] = useState<any>(null)
-  // Modal de voucher aberto na ficha da corrida
-  const [voucherAberto, setVoucherAberto] = useState<null | { corrida: Corrida; cliente: any }>(null)
+  // Modal de voucher aberto na ficha da corrida. modo 'nota_servico' gera o
+  // mesmo documento sem observacoes e com titulo "Nota de servico" (pedido
+  // de cliente 2026-09-10) — reusa o mesmo modal e a mesma montagem de dados.
+  const [voucherAberto, setVoucherAberto] = useState<null | { corrida: Corrida; cliente: any; modo?: 'voucher' | 'nota_servico' }>(null)
   const [reciboAberto, setReciboAberto] = useState<null | { corrida: Corrida; cliente: any; reembolsos: any[] }>(null)
   const [repasseAberto, setRepasseAberto] = useState<Corrida | null>(null)
   const [mensagemConfirmacaoTransfer, setMensagemConfirmacaoTransfer] = useState<string | null>(null)
@@ -2667,6 +2669,7 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
             }}
             emailCliente={c.email_solicitante}
             onFechar={() => setVoucherAberto(null)}
+            modo={voucherAberto.modo || 'voucher'}
           />
         )
       })()}
@@ -3382,6 +3385,19 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
               className="w-full py-3 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 mt-2 border"
               style={{ background: '#fff', color: '#0F6E56', borderColor: '#9FE1CB' }}>
               📄 Gerar voucher PDF
+            </button>
+
+            {/* Nota de servico — mesmo espelho do voucher, sem observacoes.
+                Pedido de cliente 2026-09-10: clientes finais dele pedem esse
+                documento, e ele nao pode carregar as observacoes internas. */}
+            <button
+              onClick={() => {
+                const cli = clientesOpcoes.find(c => c.id === corridaFicha.cliente_id)?.raw
+                setVoucherAberto({ corrida: corridaFicha, cliente: cli || null, modo: 'nota_servico' })
+              }}
+              className="w-full py-3 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 mt-2 border"
+              style={{ background: '#fff', color: '#0F6E56', borderColor: '#9FE1CB' }}>
+              📃 Gerar nota de serviço PDF
             </button>
 
             {/* Botao Recibo PDF — so aparece quando pagamento foi recebido.

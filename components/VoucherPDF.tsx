@@ -85,6 +85,11 @@ export type VoucherProps = {
   empresa: VoucherEmpresa
   cliente: VoucherCliente
   atendimento: VoucherAtendimento
+  // 'nota_servico' = mesmo espelho do voucher, mas com titulo "Nota de
+  // servico" e SEM o bloco de observacoes (pedido de cliente 2026-09-10:
+  // clientes finais dele pedem esse documento, e ele nao pode carregar as
+  // observacoes internas). Default 'voucher' — nada muda pra quem ja usa.
+  modo?: 'voucher' | 'nota_servico'
 }
 
 const fmtBRL = (n: number) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -162,7 +167,8 @@ function tipoServicoLabel(t?: string | null): string {
   return 'Transfer'
 }
 
-export function VoucherPDF({ empresa, cliente, atendimento }: VoucherProps) {
+export function VoucherPDF({ empresa, cliente, atendimento, modo = 'voucher' }: VoucherProps) {
+  const ehNota = modo === 'nota_servico'
   const dataViagem = fmtData(atendimento.data_hora)
   const horaViagem = fmtHora(atendimento.data_hora)
   const dataEmissao = new Date().toLocaleDateString('pt-BR')
@@ -189,7 +195,7 @@ export function VoucherPDF({ empresa, cliente, atendimento }: VoucherProps) {
         {/* Titulo Voucher */}
         <View style={s.faixa}>
           <Text style={s.faixaTitulo}>
-            Voucher de transporte {atendimento.numero ? `Nº ${atendimento.numero}` : ''}
+            {ehNota ? 'Nota de serviço' : 'Voucher de transporte'} {atendimento.numero ? `Nº ${atendimento.numero}` : ''}
           </Text>
           {atendimento.subtitulo_servico
             ? <Text style={s.faixaSub}>{atendimento.subtitulo_servico}</Text>
@@ -255,7 +261,9 @@ export function VoucherPDF({ empresa, cliente, atendimento }: VoucherProps) {
           </View>
         )}
 
-        {atendimento.observacoes && (
+        {/* Nota de servico NUNCA mostra observacoes — e a unica diferenca
+            de conteudo pro voucher, por pedido explicito do cliente. */}
+        {atendimento.observacoes && !ehNota && (
           <View style={{ marginTop: 6 }}>
             <Text style={s.label}>Observações</Text>
             <Text style={s.valor}>{atendimento.observacoes}</Text>

@@ -8,7 +8,7 @@ import { NextRequest, NextResponse } from 'next/server'
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { email, cliente_nome, empresa_nome, numero, pdf_base64 } = body
+    const { email, cliente_nome, empresa_nome, numero, pdf_base64, documento } = body
 
     if (!email) return NextResponse.json({ error: 'Email não informado' }, { status: 400 })
     if (!pdf_base64) return NextResponse.json({ error: 'PDF não anexado' }, { status: 400 })
@@ -16,9 +16,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'RESEND_API_KEY não configurado' }, { status: 500 })
     }
 
+    // 'nota_servico' = mesmo documento sem observacoes, com titulo proprio.
+    // Sem o campo (chamadas antigas), continua sendo voucher.
+    const ehNota = documento === 'nota_servico'
+    const docNome = ehNota ? 'nota de serviço' : 'voucher'
+    const docNomeCapital = ehNota ? 'Nota de serviço' : 'Voucher'
+    const prefixoArq = ehNota ? 'nota-servico' : 'voucher'
+
     const empresa = empresa_nome || 'Rotagenda'
     const numeroTxt = numero ? `Nº ${numero}` : ''
-    const nomeArq = numero ? `voucher-${numero}.pdf` : 'voucher.pdf'
+    const nomeArq = numero ? `${prefixoArq}-${numero}.pdf` : `${prefixoArq}.pdf`
 
     const html = `
 <!DOCTYPE html>
@@ -31,7 +38,7 @@ export async function POST(req: NextRequest) {
       Olá${cliente_nome ? `, <b>${cliente_nome}</b>` : ''}!
     </p>
     <p style="font-size:14px;color:#333;margin:0 0 12px 0;">
-      Segue em anexo o voucher ${numeroTxt} do seu atendimento. Guarde-o para os seus registros.
+      Segue em anexo ${ehNota ? 'a' : 'o'} ${docNome} ${numeroTxt} do seu atendimento. Guarde para os seus registros.
     </p>
     <p style="font-size:13px;color:#666;margin:16px 0 0 0;">
       Qualquer dúvida, estamos à disposição.<br>
@@ -50,7 +57,7 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify({
         from: `${empresa} <atendimento@rotagenda.com.br>`,
         to: [email],
-        subject: `Voucher ${numeroTxt} — ${empresa}`,
+        subject: `${docNomeCapital} ${numeroTxt} — ${empresa}`,
         html,
         attachments: [{ filename: nomeArq, content: pdf_base64 }],
       }),
