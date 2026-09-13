@@ -1651,6 +1651,13 @@ function AbaEncomendas() {
   const [excluindo, setExcluindo] = useState(false)
   const [mostrarQuitadas, setMostrarQuitadas] = useState(false)
   const [clienteSelecionadoEnc, setClienteSelecionadoEnc] = useState<string | null>(null)
+  // Filtros da lista de encomendas (pedido de cliente 2026-09-13: achar
+  // rapido quem esta devendo, quanto e quantas — direto na secao, sem
+  // depender da agenda). Busca ignora acentos; 'vencidas' = so quem tem
+  // encomenda com data combinada ja passada.
+  const [buscaEnc, setBuscaEnc] = useState('')
+  const [filtroEnc, setFiltroEnc] = useState<'todos' | 'vencidas'>('todos')
+  const [ordemEnc, setOrdemEnc] = useState<'divida' | 'recente' | 'nome'>('divida')
   const [historicosEnc, setHistoricosEnc] = useState<Record<string, { tipo: string; valor: number; descricao: string | null; created_at: string }[]>>({})
   const [carregandoHistEnc, setCarregandoHistEnc] = useState<Record<string, boolean>>({})
 
@@ -1726,6 +1733,29 @@ function AbaEncomendas() {
   })
 
   const totalGeral = pedidores.reduce((s, p) => s + p.total, 0)
+
+  // ── Filtros de busca/status/ordenação sobre a lista de devedores ──────
+  const normalizar = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+  const buscaNorm = normalizar(buscaEnc.trim())
+  const ultimaDataDe = (p: { encomendas: Encomenda[] }) =>
+    p.encomendas.reduce((max, e) => {
+      const d = (e.data_entrega ?? e.criado_em).substring(0, 10)
+      return d > max ? d : max
+    }, '')
+  const pedidoresFiltrados = pedidores
+    .filter(p => !buscaNorm || normalizar(p.nome).includes(buscaNorm))
+    .filter(p => filtroEnc !== 'vencidas' || p.temVencido)
+    .sort((a, b) => {
+      if (ordemEnc === 'nome') return a.nome.localeCompare(b.nome, 'pt-BR')
+      if (ordemEnc === 'recente') return ultimaDataDe(b).localeCompare(ultimaDataDe(a))
+      // 'divida' (padrão): vencidas primeiro, depois maior saldo devedor
+      if (a.temVencido !== b.temVencido) return a.temVencido ? -1 : 1
+      return b.total - a.total
+    })
+  const totalFiltrado = pedidoresFiltrados.reduce((s, p) => s + p.total, 0)
+  const qtdEncFiltradas = pedidoresFiltrados.reduce((s, p) => s + p.encomendas.length, 0)
+  const qtdVencidas = pedidores.filter(p => p.temVencido).length
+  const temFiltroAtivo = buscaNorm !== '' || filtroEnc !== 'todos'
   const totalQuitadoMes = quitadas
     .filter(q => { const d = new Date(q.criado_em); return d >= inicioMes && d <= fimMes })
     .reduce((s, q) => s + q.valor, 0)
@@ -1987,6 +2017,60 @@ function AbaEncomendas() {
         </div>
       </div>
 
+      {/* Filtros — achar rápido quem está devendo, quanto e quantas
+          (pedido de cliente 2026-09-13) */}
+      {pedidores.length > 0 && (
+        <div className="mb-4 flex flex-col gap-2">
+          <input
+            value={buscaEnc}
+            onChange={e => setBuscaEnc(e.target.value)}
+            placeholder="🔍 Buscar cliente pelo nome..."
+            className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 bg-white outline-none"
+          />
+          <div className="flex gap-2 overflow-x-auto pb-0.5">
+            <button onClick={() => setFiltroEnc('todos')}
+              className="flex-shrink-0 text-xs font-semibold px-3 py-1.5 rounded-full transition-all"
+              style={filtroEnc === 'todos'
+                ? { background: '#0F6E56', color: '#fff' }
+                : { background: '#fff', color: '#666', border: '1px solid #e5e7eb' }}>
+              Todos ({pedidores.length})
+            </button>
+            <button onClick={() => setFiltroEnc('vencidas')}
+              className="flex-shrink-0 text-xs font-semibold px-3 py-1.5 rounded-full transition-all"
+              style={filtroEnc === 'vencidas'
+                ? { background: '#A32D2D', color: '#fff' }
+                : { background: '#fff', color: '#A32D2D', border: '1px solid #F5BCBC' }}>
+              ⚠️ Vencidas ({qtdVencidas})
+            </button>
+            <span className="flex-shrink-0 self-center text-gray-300 text-xs px-1">|</span>
+            {([
+              { id: 'divida' as const, label: '💰 Maior dívida' },
+              { id: 'recente' as const, label: '🕐 Recentes' },
+              { id: 'nome' as const, label: 'A-Z' },
+            ]).map(o => (
+              <button key={o.id} onClick={() => setOrdemEnc(o.id)}
+                className="flex-shrink-0 text-xs font-semibold px-3 py-1.5 rounded-full transition-all"
+                style={ordemEnc === o.id
+                  ? { background: '#FAEEDA', color: '#854F0B', border: '1px solid #FAC775' }
+                  : { background: '#fff', color: '#666', border: '1px solid #e5e7eb' }}>
+                {o.label}
+              </button>
+            ))}
+          </div>
+          {temFiltroAtivo && (
+            <p className="text-xs text-gray-500 px-1">
+              {pedidoresFiltrados.length === 0
+                ? 'Nenhum cliente encontrado com esse filtro'
+                : <>
+                    <b>{pedidoresFiltrados.length}</b> cliente{pedidoresFiltrados.length !== 1 ? 's' : ''} ·{' '}
+                    <b>{qtdEncFiltradas}</b> encomenda{qtdEncFiltradas !== 1 ? 's' : ''} ·{' '}
+                    <b style={{ color: '#A32D2D' }}>R$ {totalFiltrado.toFixed(2).replace('.', ',')}</b> em aberto
+                  </>}
+            </p>
+          )}
+        </div>
+      )}
+
       {pedidores.length === 0 ? (
         <div className="text-center py-10">
           <p className="text-3xl mb-2">📦</p>
@@ -1994,7 +2078,7 @@ function AbaEncomendas() {
         </div>
       ) : (
         <div className="flex flex-col gap-3">
-          {pedidores.map(pedidor => {
+          {pedidoresFiltrados.map(pedidor => {
             const iniciais = pedidor.nome.split(' ').slice(0, 2).map(p => p[0] || '').join('').toUpperCase()
             const ultimaData = pedidor.encomendas[0]?.data_entrega ?? pedidor.encomendas[0]?.criado_em
             return (
@@ -2040,7 +2124,9 @@ function AbaEncomendas() {
           <div className="flex flex-col gap-3 mt-3">
             {pedidoresQuitados.length === 0 ? (
               <p className="text-center text-gray-400 text-sm py-4">Nenhuma encomenda quitada ainda</p>
-            ) : pedidoresQuitados.map(pq => {
+            ) : pedidoresQuitados
+              .filter(pq => !buscaNorm || normalizar(pq.nome).includes(buscaNorm))
+              .map(pq => {
               const ini = pq.nome.split(' ').slice(0, 2).map((p: string) => p[0] || '').join('').toUpperCase()
               const ultima = pq.encomendas[0]?.data_entrega ?? pq.encomendas[0]?.criado_em
               return (
