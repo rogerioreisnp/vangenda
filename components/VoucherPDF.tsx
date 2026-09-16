@@ -79,6 +79,11 @@ export type VoucherAtendimento = {
   // corridas_empresa. Quando presente, o voucher mostra a volta tambem
   // (antes so gerava o voucher da ida, mesmo pra reservas ida-volta).
   volta?: { origem: string; destino: string; data_hora: string; valor?: number | null } | null
+  // Despesas reembolsaveis vinculadas ao atendimento (estacionamento,
+  // pedagio...). Entram como linhas de cobranca e somam no total — caso
+  // Julimar 2026-09-16: lancou estacionamento "reembolso a cobrar" e ele
+  // nao aparecia no voucher (so o recibo buscava reembolsos).
+  reembolsos?: { descricao?: string | null; categoria?: string | null; data?: string | null; valor: number }[] | null
 }
 
 export type VoucherProps = {
@@ -177,7 +182,9 @@ export function VoucherPDF({ empresa, cliente, atendimento, modo = 'voucher' }: 
   const trajetos = (atendimento.trajetos || []).filter(t => t?.origem || t?.destino)
   const volta = atendimento.volta
   const valorVolta = volta?.valor ?? 0
-  const valorTotal = atendimento.valor + valorVolta
+  const reembolsos = (atendimento.reembolsos || []).filter(r => Number(r.valor) > 0)
+  const totalReembolsos = reembolsos.reduce((s, r) => s + Number(r.valor), 0)
+  const valorTotal = atendimento.valor + valorVolta + totalReembolsos
 
   return (
     <Document>
@@ -293,6 +300,33 @@ export function VoucherPDF({ empresa, cliente, atendimento, modo = 'voucher' }: 
               </View>
               {volta.valor != null && <Text style={s.valor}>R$ {fmtBRL(volta.valor)}</Text>}
             </View>
+          </>
+        )}
+
+        {/* Reembolsos vinculados (estacionamento, pedagio...) — compoem a
+            cobranca do cliente, por isso entram antes do Total. */}
+        {reembolsos.length > 0 && (
+          <>
+            <View style={s.faixa}>
+              <View style={s.linha}>
+                <Text style={s.faixaTitulo}>Reembolsos</Text>
+                <Text style={{ ...s.label, fontSize: 8 }}>Valor</Text>
+              </View>
+            </View>
+            {reembolsos.map((r, i) => {
+              const catLabel = r.categoria
+                ? r.categoria.replace(/_/g, ' ').replace(/^./, c => c.toUpperCase())
+                : 'Despesa'
+              const rotulo = r.descricao ? `${catLabel} — ${r.descricao}` : catLabel
+              return (
+                <View key={i} style={s.linha}>
+                  <Text style={s.valor}>
+                    {rotulo}{r.data ? `  (${fmtData(r.data)})` : ''}
+                  </Text>
+                  <Text style={s.valor}>R$ {fmtBRL(Number(r.valor))}</Text>
+                </View>
+              )
+            })}
           </>
         )}
 

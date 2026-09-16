@@ -483,7 +483,24 @@ export default function AgendamentosPage() {
   // Modal de voucher aberto na ficha da corrida. modo 'nota_servico' gera o
   // mesmo documento sem observacoes e com titulo "Nota de servico" (pedido
   // de cliente 2026-09-10) — reusa o mesmo modal e a mesma montagem de dados.
-  const [voucherAberto, setVoucherAberto] = useState<null | { corrida: Corrida; cliente: any; modo?: 'voucher' | 'nota_servico' }>(null)
+  // reembolsos: despesas reembolsaveis vinculadas (pendentes E pagas) —
+  // diferente do recibo, que so inclui as ja pagas. O voucher e o documento
+  // de COBRANCA, entao o "reembolso a cobrar" precisa aparecer nele (caso
+  // Julimar 2026-09-16: estacionamento a cobrar nao saia no voucher).
+  const [voucherAberto, setVoucherAberto] = useState<null | { corrida: Corrida; cliente: any; modo?: 'voucher' | 'nota_servico'; reembolsos?: any[] }>(null)
+
+  // Busca as despesas reembolsaveis vinculadas e abre o modal do voucher /
+  // nota de servico — mesma montagem pros dois documentos.
+  async function abrirVoucher(c: Corrida, modo: 'voucher' | 'nota_servico') {
+    const cli = clientesOpcoes.find(x => x.id === c.cliente_id)?.raw
+    const { data: reembs } = await supabase
+      .from('despesas_empresa')
+      .select('id, data, categoria, descricao, valor, reembolsado_em')
+      .eq('corrida_id', c.id)
+      .eq('reembolsavel', true)
+      .order('data', { ascending: true })
+    setVoucherAberto({ corrida: c, cliente: cli || null, modo, reembolsos: reembs || [] })
+  }
   const [reciboAberto, setReciboAberto] = useState<null | { corrida: Corrida; cliente: any; reembolsos: any[] }>(null)
   const [repasseAberto, setRepasseAberto] = useState<Corrida | null>(null)
   const [mensagemConfirmacaoTransfer, setMensagemConfirmacaoTransfer] = useState<string | null>(null)
@@ -2666,6 +2683,12 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                 data_hora: voltaDaFicha.data_hora,
                 valor: Number(voltaDaFicha.valor) || 0,
               } : null,
+              reembolsos: (voucherAberto.reembolsos || []).map((r: any) => ({
+                descricao: r.descricao ?? null,
+                categoria: r.categoria ?? null,
+                data: r.data ?? null,
+                valor: Number(r.valor) || 0,
+              })),
             }}
             emailCliente={c.email_solicitante}
             onFechar={() => setVoucherAberto(null)}
@@ -3378,10 +3401,7 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
             {/* Botao Voucher PDF — sempre disponivel na ficha, independente do
                 status. Comprovante de reserva formal pro cliente. */}
             <button
-              onClick={() => {
-                const cli = clientesOpcoes.find(c => c.id === corridaFicha.cliente_id)?.raw
-                setVoucherAberto({ corrida: corridaFicha, cliente: cli || null })
-              }}
+              onClick={() => abrirVoucher(corridaFicha, 'voucher')}
               className="w-full py-3 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 mt-2 border"
               style={{ background: '#fff', color: '#0F6E56', borderColor: '#9FE1CB' }}>
               📄 Gerar voucher PDF
@@ -3391,10 +3411,7 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                 Pedido de cliente 2026-09-10: clientes finais dele pedem esse
                 documento, e ele nao pode carregar as observacoes internas. */}
             <button
-              onClick={() => {
-                const cli = clientesOpcoes.find(c => c.id === corridaFicha.cliente_id)?.raw
-                setVoucherAberto({ corrida: corridaFicha, cliente: cli || null, modo: 'nota_servico' })
-              }}
+              onClick={() => abrirVoucher(corridaFicha, 'nota_servico')}
               className="w-full py-3 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 mt-2 border"
               style={{ background: '#fff', color: '#0F6E56', borderColor: '#9FE1CB' }}>
               📃 Gerar nota de serviço PDF
