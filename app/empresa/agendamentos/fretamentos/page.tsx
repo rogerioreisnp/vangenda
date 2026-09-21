@@ -1099,6 +1099,36 @@ export default function AgendamentosPage() {
       anexo_observacoes_url: form.anexo_observacoes_url.trim() || null,
     }
 
+    // Endereços da VOLTA, mapeados pra linha da volta do par. O form guarda
+    // o embarque/desembarque da volta nos campos *_retorno_*, que gravam nas
+    // colunas retorno_* da linha da IDA — mas a ficha da volta e o app do
+    // motorista leem rua/rua_desembarque da PRÓPRIA linha da volta. Sem esse
+    // mapeamento a volta ficava com o endereço da ida (copiado no insert) e
+    // qualquer correção do gestor não chegava nela. Só sobrescreve um bloco
+    // quando o gestor preencheu algo nele — form em branco não apaga o que
+    // já está gravado.
+    function enderecosDaVoltaDoPar(): Record<string, string | null> {
+      const out: Record<string, string | null> = {}
+      const emb = {
+        rua: form.rua_retorno_embarque, numero: form.numero_retorno_embarque, bairro: form.bairro_retorno_embarque,
+        municipio: form.municipio_retorno_embarque, cep: form.cep_retorno_embarque,
+        referencia: form.referencia_retorno_embarque, complemento: form.complemento_retorno_embarque,
+      }
+      if (Object.values(emb).some(v => v.trim())) {
+        for (const [k, v] of Object.entries(emb)) out[k] = v.trim() || null
+      }
+      const des = {
+        rua_desembarque: form.rua_retorno_desembarque, numero_desembarque: form.numero_retorno_desembarque,
+        bairro_desembarque: form.bairro_retorno_desembarque, municipio_desembarque: form.municipio_retorno_desembarque,
+        cep_desembarque: form.cep_retorno_desembarque, referencia_desembarque: form.referencia_retorno_desembarque,
+        complemento_desembarque: form.complemento_retorno_desembarque,
+      }
+      if (Object.values(des).some(v => v.trim())) {
+        for (const [k, v] of Object.entries(des)) out[k] = v.trim() || null
+      }
+      return out
+    }
+
     if (corridaEditando) {
       const novoDataHora = `${form.data}T${form.horario}:00`
       const updateFields: Record<string, unknown> = {
@@ -1181,11 +1211,28 @@ export default function AgendamentosPage() {
       // observacoes) quando o usuario editar eles no formulario.
       if (voltaIdEditando) {
         const precoVoltaNum = parseFloat(form.preco_volta)
+        // Dados de IDENTIDADE do atendimento — são os mesmos nas duas pontas
+        // (é a mesma pessoa viajando) e a criação do par já copia todos eles
+        // pra volta. A edição só propagava motorista/solicitante/forma de
+        // pagamento: se o gestor corrigia o passageiro, o cliente vinculado,
+        // o e-mail ou o voo, a volta ficava com o dado ERRADO antigo
+        // (Julimar 2026-09-21: "editei e só aceitou a ida"). Financeiro
+        // (status/valor recebido/repasse), KM e observações continuam por
+        // ponta — cada linha tem os seus.
         const updateVolta: Record<string, unknown> = {
           motorista_id: camposComuns.motorista_id,
           cliente_nome: camposComuns.cliente_nome,
           cliente_telefone: camposComuns.cliente_telefone,
           forma_pagamento: camposComuns.forma_pagamento,
+          rota_id: camposComuns.rota_id,
+          cliente_id: camposComuns.cliente_id,
+          email_solicitante: camposComuns.email_solicitante,
+          passageiro1_nome: camposComuns.passageiro1_nome,
+          passageiro1_telefone: camposComuns.passageiro1_telefone,
+          numero_voo: camposComuns.numero_voo,
+          passageiros_adicionais: camposComuns.passageiros_adicionais,
+          tipo_servico: camposComuns.tipo_servico,
+          ...enderecosDaVoltaDoPar(),
         }
         // Se o usuario alterou os dados da volta no form, propaga na volta
         if (form.origem_volta.trim()) updateVolta.origem = form.origem_volta.trim()
@@ -1251,6 +1298,9 @@ export default function AgendamentosPage() {
           valor: !isNaN(precoVolta) && form.preco_volta.trim() !== '' ? precoVolta : preco,
           observacoes: form.observacoes_volta.trim() || null,
           anexo_observacoes_url: form.anexo_observacoes_volta_url.trim() || null,
+          // Endereço de embarque/desembarque da VOLTA na própria linha da
+          // volta (antes ficava com o da ida, copiado do base).
+          ...enderecosDaVoltaDoPar(),
         } as any)
       }
 
