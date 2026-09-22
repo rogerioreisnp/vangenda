@@ -7,7 +7,7 @@ import { ptBR } from 'date-fns/locale'
 import Link from 'next/link'
 
 type Periodo = 'mes_atual' | 'ultimos_7' | 'ultimos_30' | 'personalizado'
-type Aba = 'resumo' | 'receitas' | 'despesas' | 'veiculo'
+type Aba = 'resumo' | 'receitas' | 'despesas' | 'veiculo' | 'repasse'
 
 type CorridaFin = {
   id: string
@@ -565,13 +565,13 @@ export default function FinanceiroPage() {
 
         {/* Abas */}
         <div className="flex">
-          {(['resumo', 'receitas', 'despesas', 'veiculo'] as Aba[]).map(a => (
+          {(['resumo', 'receitas', 'despesas', 'veiculo', 'repasse'] as Aba[]).map(a => (
             <button key={a} onClick={() => setAba(a)}
               className="flex-1 py-2.5 text-[11px] font-semibold border-b-2"
               style={aba === a
                 ? { borderColor: '#9FE1CB', color: '#E1F5EE', background: 'transparent' }
                 : { borderColor: 'transparent', color: '#5DCAA5', background: 'transparent' }}>
-              {a === 'resumo' ? 'Resumo' : a === 'receitas' ? 'Receitas' : a === 'despesas' ? 'Despesas' : 'Veículos'}
+              {a === 'resumo' ? 'Resumo' : a === 'receitas' ? 'Receitas' : a === 'despesas' ? 'Despesas' : a === 'veiculo' ? 'Veículos' : 'Repasse'}
             </button>
           ))}
         </div>
@@ -1054,7 +1054,7 @@ export default function FinanceiroPage() {
             )}
           </div>
 
-        ) : (
+        ) : aba === 'veiculo' ? (
           /* ── Veículos ── */
           <div>
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
@@ -1171,6 +1171,16 @@ export default function FinanceiroPage() {
               </div>
             )}
           </div>
+        ) : (
+          /* ── Repasse ao motorista (Fase 4, 2026-09-22) ────────────────
+              Julimar queria "quanto devo pra cada motorista este mes" com
+              baixa em lote. Reusa periodo global do topo do financeiro. */
+          <AbaRepasseMotoristas
+            empresaId={empresaId!}
+            motoristasList={motoristas}
+            intervaloInicio={intervalo().inicio}
+            intervaloFim={intervalo().fim}
+          />
         )}
         <div className="h-20" />
       </div>
@@ -2167,6 +2177,308 @@ function Campo({ label, children }: { label: string; children: React.ReactNode }
     <div>
       <p className="text-xs font-medium text-gray-500 mb-1">{label}</p>
       {children}
+    </div>
+  )
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// Aba Repasse — Fase 4 (Julimar, 2026-09-22)
+//
+// Agrupa os atendimentos com repasse por motorista no periodo filtrado,
+// mostra total a pagar / total pago, e permite dar baixa em LOTE (varios
+// atendimentos de uma vez com data + forma) — que e como o gestor
+// realmente paga: acerta com o motorista uma vez por semana, quita um
+// monte de corridas de uma vez. Baixa individual continua na ficha.
+// ────────────────────────────────────────────────────────────────────────
+type CorridaRepasse = {
+  id: string
+  data_hora: string
+  origem: string
+  destino: string
+  valor: number | null
+  valor_repasse_motorista: number | null
+  motorista_id: string | null
+  repasse_status: 'a_pagar' | 'pago' | null
+  repasse_data_pago: string | null
+  repasse_forma_pagamento: string | null
+  numero_reserva: string | null
+}
+
+function AbaRepasseMotoristas({
+  empresaId, motoristasList, intervaloInicio, intervaloFim,
+}: {
+  empresaId: string
+  motoristasList: { id: string; nome: string }[]
+  intervaloInicio: string
+  intervaloFim: string
+}) {
+  const [loading, setLoading] = useState(true)
+  const [corridas, setCorridas] = useState<CorridaRepasse[]>([])
+  const [expandido, setExpandido] = useState<Record<string, boolean>>({})
+  const [selecionadas, setSelecionadas] = useState<Record<string, boolean>>({})
+  // Modal de baixa em lote — mesma UX da baixa individual, mas atualiza N
+  // corridas de uma vez. Aberto tanto pelo botao "Marcar N como pagas"
+  // quanto pelo atalho "Marcar TODAS deste motorista" (que so pre-marca
+  // as pendentes desse motorista antes de abrir).
+  const [modalLoteAberto, setModalLoteAberto] = useState(false)
+  const [loteData, setLoteData] = useState(() => {
+    const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+  })
+  const [loteForma, setLoteForma] = useState<'pix' | 'dinheiro' | 'transferencia' | 'cartao'>('pix')
+  const [loteSalvando, setLoteSalvando] = useState(false)
+
+  useEffect(() => { if (empresaId) carregar() }, [empresaId, intervaloInicio, intervaloFim])
+
+  async function carregar() {
+    setLoading(true)
+    setSelecionadas({})
+    // Puxa atendimentos com repasse configurado (>0) no periodo. Cancelados
+    // ficam de fora — repasse de servico cancelado nao vira divida.
+    const { data, error } = await supabase
+      .from('corridas_empresa')
+      .select('id, data_hora, origem, destino, valor, valor_repasse_motorista, motorista_id, repasse_status, repasse_data_pago, repasse_forma_pagamento, numero_reserva')
+      .eq('empresa_id', empresaId)
+      .neq('status', 'cancelada')
+      .gt('valor_repasse_motorista', 0)
+      .gte('data_hora', `${intervaloInicio}T00:00:00`)
+      .lte('data_hora', `${intervaloFim}T23:59:59`)
+      .order('data_hora', { ascending: false })
+    if (error) console.error('[repasse]', error.message)
+    setCorridas((data || []) as CorridaRepasse[])
+    setLoading(false)
+  }
+
+  const nomePorMotorista: Record<string, string> = {}
+  motoristasList.forEach(m => { nomePorMotorista[m.id] = m.nome })
+
+  // Agrupa por motorista_id — inclui 'sem_motorista' pra atendimentos que
+  // tem repasse configurado mas ficaram sem motorista atribuido (edge case
+  // — mostra pra o gestor perceber).
+  const grupos = corridas.reduce((acc, c) => {
+    const key = c.motorista_id || '__sem__'
+    if (!acc[key]) acc[key] = { motoristaId: c.motorista_id, nome: nomePorMotorista[c.motorista_id || ''] || '⚠️ Sem motorista', corridas: [], totalAPagar: 0, totalPago: 0 }
+    acc[key].corridas.push(c)
+    const v = Number(c.valor_repasse_motorista) || 0
+    if (c.repasse_status === 'pago') acc[key].totalPago += v
+    else acc[key].totalAPagar += v
+    return acc
+  }, {} as Record<string, { motoristaId: string | null; nome: string; corridas: CorridaRepasse[]; totalAPagar: number; totalPago: number }>)
+
+  const listaGrupos = Object.values(grupos).sort((a, b) => b.totalAPagar - a.totalAPagar)
+  const totalGeralAPagar = listaGrupos.reduce((s, g) => s + g.totalAPagar, 0)
+  const totalGeralPago = listaGrupos.reduce((s, g) => s + g.totalPago, 0)
+
+  const idsSelecionados = Object.entries(selecionadas).filter(([, v]) => v).map(([id]) => id)
+  const valorSelecionado = corridas
+    .filter(c => selecionadas[c.id])
+    .reduce((s, c) => s + (Number(c.valor_repasse_motorista) || 0), 0)
+
+  function toggleTodasDoMotorista(motoristaId: string | null, marcar: boolean) {
+    const key = motoristaId || '__sem__'
+    const idsPendentes = grupos[key]?.corridas.filter(c => c.repasse_status !== 'pago').map(c => c.id) || []
+    setSelecionadas(prev => {
+      const n = { ...prev }
+      idsPendentes.forEach(id => { if (marcar) n[id] = true; else delete n[id] })
+      return n
+    })
+  }
+
+  function abrirBaixaTodasDoMotorista(motoristaId: string | null) {
+    setSelecionadas({})
+    toggleTodasDoMotorista(motoristaId, true)
+    // useState atualiza em batch — abre no proximo tick pra o modal ja abrir
+    // com o total certo.
+    setTimeout(() => setModalLoteAberto(true), 0)
+  }
+
+  async function confirmarBaixaLote() {
+    if (idsSelecionados.length === 0) return
+    setLoteSalvando(true)
+    const patch = {
+      repasse_status: 'pago' as const,
+      repasse_data_pago: loteData || null,
+      repasse_forma_pagamento: loteForma,
+    }
+    const { error } = await supabase.from('corridas_empresa').update(patch).in('id', idsSelecionados)
+    setLoteSalvando(false)
+    if (error) { alert('Erro ao marcar em lote: ' + error.message); return }
+    setCorridas(prev => prev.map(c => idsSelecionados.includes(c.id) ? { ...c, ...patch } : c))
+    setSelecionadas({})
+    setModalLoteAberto(false)
+  }
+
+  const FORMA_LABEL: Record<string, string> = { pix: 'Pix', dinheiro: 'Dinheiro', transferencia: 'Transferência', cartao: 'Cartão' }
+  const fmtValor = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+  const fmtDataBR = (iso: string) => iso.split('-').reverse().join('/')
+
+  if (loading) return <p className="text-center text-gray-400 text-sm py-10">Carregando repasses...</p>
+
+  return (
+    <div className="flex flex-col gap-3 pb-32">
+      {/* Topo — totalizador do periodo */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="bg-white rounded-2xl p-4 border border-gray-100">
+          <p className="text-xs text-gray-400 mb-2">🤝 A pagar (motoristas)</p>
+          <p className="text-xl font-bold" style={{ color: '#1D4ED8' }}>{fmtValor(totalGeralAPagar)}</p>
+        </div>
+        <div className="bg-white rounded-2xl p-4 border border-gray-100">
+          <p className="text-xs text-gray-400 mb-2">✓ Já pago no período</p>
+          <p className="text-xl font-bold" style={{ color: '#0F6E56' }}>{fmtValor(totalGeralPago)}</p>
+        </div>
+      </div>
+
+      {listaGrupos.length === 0 ? (
+        <div className="bg-white rounded-2xl p-8 text-center border border-gray-100">
+          <p className="text-3xl mb-2">🤝</p>
+          <p className="text-sm text-gray-500">Nenhum atendimento com repasse no período.</p>
+          <p className="text-[11px] text-gray-400 mt-1">
+            Só aparece aqui quando o motorista tem repasse configurado (parceiro/agregado) e existe atendimento no período.
+          </p>
+        </div>
+      ) : listaGrupos.map(g => {
+        const key = g.motoristaId || '__sem__'
+        const aberto = expandido[key] || false
+        const pendentes = g.corridas.filter(c => c.repasse_status !== 'pago')
+        const todasSelecionadas = pendentes.length > 0 && pendentes.every(c => selecionadas[c.id])
+        return (
+          <div key={key} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+            <button type="button" onClick={() => setExpandido(prev => ({ ...prev, [key]: !aberto }))}
+              className="w-full text-left p-4">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-800 truncate">{g.nome}</p>
+                  <p className="text-[11px] text-gray-400 mt-0.5">
+                    {g.corridas.length} atendimento{g.corridas.length !== 1 ? 's' : ''} · {pendentes.length} pendente{pendentes.length !== 1 ? 's' : ''}
+                  </p>
+                </div>
+                <div className="text-right shrink-0">
+                  {g.totalAPagar > 0 && (
+                    <p className="text-sm font-bold" style={{ color: '#1D4ED8' }}>{fmtValor(g.totalAPagar)}</p>
+                  )}
+                  {g.totalPago > 0 && (
+                    <p className="text-[11px]" style={{ color: '#0F6E56' }}>pago: {fmtValor(g.totalPago)}</p>
+                  )}
+                </div>
+                <span className="text-gray-300 text-sm">{aberto ? '▲' : '▼'}</span>
+              </div>
+            </button>
+
+            {aberto && (
+              <div className="px-4 pb-4 flex flex-col gap-2" style={{ borderTop: '1px solid #f5f5f5' }}>
+                {pendentes.length > 0 && (
+                  <div className="flex items-center justify-between pt-3">
+                    <label className="flex items-center gap-2 text-xs text-gray-600">
+                      <input type="checkbox" checked={todasSelecionadas}
+                        onChange={e => toggleTodasDoMotorista(g.motoristaId, e.target.checked)} />
+                      selecionar todas pendentes
+                    </label>
+                    <button type="button" onClick={() => abrirBaixaTodasDoMotorista(g.motoristaId)}
+                      className="text-[11px] font-semibold px-2.5 py-1 rounded-full"
+                      style={{ background: '#E1F5EE', color: '#0F6E56' }}>
+                      💵 Quitar todas · {fmtValor(g.totalAPagar)}
+                    </button>
+                  </div>
+                )}
+
+                {g.corridas.map(c => {
+                  const pago = c.repasse_status === 'pago'
+                  const numero = c.numero_reserva || `#${c.id.slice(-5).toUpperCase()}`
+                  const dataFmt = fmtDataBR(c.data_hora.slice(0, 10))
+                  const horaFmt = c.data_hora.slice(11, 16)
+                  return (
+                    <div key={c.id} className="flex items-start gap-2 py-2 border-t border-gray-50">
+                      <input type="checkbox" className="mt-1"
+                        disabled={pago}
+                        checked={!!selecionadas[c.id]}
+                        onChange={e => setSelecionadas(prev => ({ ...prev, [c.id]: e.target.checked }))} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-gray-700 truncate">
+                          <span className="font-mono text-gray-400">{numero}</span>{' '}
+                          {c.origem} → {c.destino}
+                        </p>
+                        <p className="text-[11px] text-gray-400">
+                          {dataFmt} às {horaFmt}h
+                          {pago && c.repasse_data_pago && (
+                            <span className="ml-2" style={{ color: '#0F6E56' }}>
+                              · ✓ pago em {fmtDataBR(c.repasse_data_pago)}
+                              {c.repasse_forma_pagamento && ` (${FORMA_LABEL[c.repasse_forma_pagamento] || c.repasse_forma_pagamento})`}
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                      <p className="text-xs font-bold shrink-0"
+                        style={{ color: pago ? '#0F6E56' : '#1D4ED8' }}>
+                        {fmtValor(Number(c.valor_repasse_motorista) || 0)}
+                      </p>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )
+      })}
+
+      {/* Barra fixa de acao — so aparece quando ha selecao. Fica acima da
+          bottom nav do empresarial (que e z-50 e pb ~64px). */}
+      {idsSelecionados.length > 0 && (
+        <div className="fixed left-0 right-0 z-40 px-4"
+          style={{ bottom: 76 }}>
+          <div className="max-w-lg mx-auto bg-white rounded-2xl shadow-lg border border-gray-200 p-3 flex items-center gap-3">
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-gray-500">{idsSelecionados.length} selecionado{idsSelecionados.length !== 1 ? 's' : ''}</p>
+              <p className="text-sm font-bold" style={{ color: '#1D4ED8' }}>{fmtValor(valorSelecionado)}</p>
+            </div>
+            <button onClick={() => setSelecionadas({})}
+              className="text-xs font-semibold text-gray-500 px-2 py-2">
+              limpar
+            </button>
+            <button onClick={() => setModalLoteAberto(true)}
+              className="px-4 py-3 rounded-xl text-sm font-bold text-white"
+              style={{ background: '#0F6E56' }}>
+              ✓ Marcar como pagas
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de baixa em lote — data + forma pra N corridas. */}
+      {modalLoteAberto && (
+        <div className="fixed inset-0 z-[70] flex items-end justify-center" style={{ background: 'rgba(0,0,0,0.4)' }} onClick={() => setModalLoteAberto(false)}>
+          <div className="w-full max-w-md bg-white rounded-t-2xl p-5 pb-10 flex flex-col gap-3" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <p className="text-base font-bold text-gray-800">
+                ✓ Marcar {idsSelecionados.length} repasse{idsSelecionados.length !== 1 ? 's' : ''} como pago{idsSelecionados.length !== 1 ? 's' : ''}
+              </p>
+              <button onClick={() => setModalLoteAberto(false)} className="text-gray-400 text-xl leading-none">✕</button>
+            </div>
+            <div className="rounded-xl p-3" style={{ background: '#F5F6F8' }}>
+              <p className="text-xs text-gray-500">Total a marcar como pago</p>
+              <p className="text-lg font-bold" style={{ color: '#0F6E56' }}>{fmtValor(valorSelecionado)}</p>
+            </div>
+            <Campo label="Data do pagamento">
+              <input type="date" value={loteData}
+                onChange={e => setLoteData(e.target.value)}
+                className="campo-input" />
+            </Campo>
+            <Campo label="Forma de pagamento">
+              <select value={loteForma}
+                onChange={e => setLoteForma(e.target.value as any)}
+                className="campo-input">
+                <option value="pix">Pix</option>
+                <option value="dinheiro">Dinheiro</option>
+                <option value="transferencia">Transferência bancária</option>
+                <option value="cartao">Cartão</option>
+              </select>
+            </Campo>
+            <button onClick={confirmarBaixaLote} disabled={loteSalvando || !loteData}
+              className="w-full py-3 rounded-xl text-sm font-bold text-white disabled:opacity-40"
+              style={{ background: '#0F6E56' }}>
+              {loteSalvando ? 'Salvando…' : `✓ Confirmar (${idsSelecionados.length})`}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

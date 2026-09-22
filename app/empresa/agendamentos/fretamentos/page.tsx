@@ -60,6 +60,12 @@ type Corrida = {
   data_pagamento: string | null
   data_prevista_pagamento: string | null
   valor_repasse_motorista: number | null
+  // Repasse ao motorista parceiro pago? Espelho do status_pagamento
+  // (cliente -> gestor), agora do lado gestor -> motorista. So faz
+  // sentido quando valor_repasse_motorista > 0.
+  repasse_status: 'a_pagar' | 'pago' | null
+  repasse_data_pago: string | null
+  repasse_forma_pagamento: string | null
   observacoes: string | null
   anexo_observacoes_url: string | null
   observacao_motorista: string | null
@@ -317,6 +323,16 @@ function badgePagamento(statusPagamento: string | null | undefined, status: stri
   return statusPagamento ? STATUS_PAGAMENTO_BADGE[statusPagamento] ?? null : null
 }
 
+// Selo de repasse ao motorista pendente (Fase 3, 2026-09-22). So aparece
+// quando ha valor de repasse configurado (motorista parceiro/agregado) e
+// o gestor ainda nao marcou como pago. Nao aparece em cancelado/recusado.
+function badgeRepasse(c: { valor_repasse_motorista: number | null; repasse_status: string | null; status: string }): string | null {
+  if (c.status === 'cancelada' || c.status === 'recusada') return null
+  if (!c.valor_repasse_motorista || Number(c.valor_repasse_motorista) <= 0) return null
+  if (c.repasse_status === 'pago') return null
+  return '🤝 Repasse pendente'
+}
+
 type TipoMeta = { badge: string; bg: string; text: string; clienteLabel: string }
 const TIPO_META: Record<string, TipoMeta> = {
   rota_fixa:  { badge: '🛣️ Rota Fixa',  bg: '#E1F5EE', text: '#085041', clienteLabel: 'Passageiro' },
@@ -503,6 +519,48 @@ export default function AgendamentosPage() {
   }
   const [reciboAberto, setReciboAberto] = useState<null | { corrida: Corrida; cliente: any; reembolsos: any[] }>(null)
   const [repasseAberto, setRepasseAberto] = useState<Corrida | null>(null)
+  // Modal de baixa do repasse: marca 'pago' com data e forma. Reaberto
+  // depois pra ver/alterar. Ver Fase 2 do repasse ao motorista (2026-09-22).
+  const [baixaRepasseAberta, setBaixaRepasseAberta] = useState<Corrida | null>(null)
+  const [baixaRepasseData, setBaixaRepasseData] = useState('')
+  const [baixaRepasseForma, setBaixaRepasseForma] = useState<'pix' | 'dinheiro' | 'transferencia' | 'cartao'>('pix')
+  const [baixaRepasseSalvando, setBaixaRepasseSalvando] = useState(false)
+
+  function abrirBaixaRepasse(c: Corrida) {
+    // Se ja tem baixa, pre-preenche pra edicao. Senao, sugere hoje + pix.
+    const hoje = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` })()
+    setBaixaRepasseData(c.repasse_data_pago || hoje)
+    setBaixaRepasseForma((c.repasse_forma_pagamento as any) || 'pix')
+    setBaixaRepasseAberta(c)
+  }
+
+  async function confirmarBaixaRepasse() {
+    if (!baixaRepasseAberta) return
+    setBaixaRepasseSalvando(true)
+    const patch = {
+      repasse_status: 'pago' as const,
+      repasse_data_pago: baixaRepasseData || null,
+      repasse_forma_pagamento: baixaRepasseForma,
+    }
+    const { error } = await supabase.from('corridas_empresa').update(patch).eq('id', baixaRepasseAberta.id)
+    setBaixaRepasseSalvando(false)
+    if (error) { alert('Erro ao marcar repasse: ' + error.message); return }
+    // Atualiza estado local sem re-fetch — mesma pattern das outras acoes.
+    setCorridas(prev => prev.map(x => x.id === baixaRepasseAberta.id ? { ...x, ...patch } : x))
+    setCorridaFicha(prev => prev && prev.id === baixaRepasseAberta.id ? { ...prev, ...patch } : prev)
+    setVoltaDaFicha(prev => prev && prev.id === baixaRepasseAberta.id ? { ...prev, ...patch } : prev)
+    setBaixaRepasseAberta(null)
+  }
+
+  async function desfazerBaixaRepasse(c: Corrida) {
+    if (!confirm(`Desfazer a baixa do repasse deste atendimento? Ele voltará a aparecer como "a pagar".`)) return
+    const patch = { repasse_status: 'a_pagar' as const, repasse_data_pago: null, repasse_forma_pagamento: null }
+    const { error } = await supabase.from('corridas_empresa').update(patch).eq('id', c.id)
+    if (error) { alert('Erro ao desfazer: ' + error.message); return }
+    setCorridas(prev => prev.map(x => x.id === c.id ? { ...x, ...patch } : x))
+    setCorridaFicha(prev => prev && prev.id === c.id ? { ...prev, ...patch } : prev)
+    setVoltaDaFicha(prev => prev && prev.id === c.id ? { ...prev, ...patch } : prev)
+  }
   const [mensagemConfirmacaoTransfer, setMensagemConfirmacaoTransfer] = useState<string | null>(null)
   // Empresa como o Alexandre (ASF, Curitiba): 90%+ dos solicitantes SÃO o
   // passageiro, e ele não quer digitar o nome duas vezes. Empresa como o
@@ -656,7 +714,7 @@ export default function AgendamentosPage() {
     //   2. FUTURAS (data_hora >= agora e status != em_andamento) — asc
     //   3. PASSADAS (data_hora < agora e status != em_andamento) — desc
     const agoraISO = new Date().toISOString()
-    const colsCorridas = 'id, rota_id, cliente_id, origem, destino, data_hora, created_at, cliente_nome, cliente_telefone, email_solicitante, passageiro1_nome, passageiro1_telefone, valor, status, motorista_id, tipo_servico, forma_pagamento, status_pagamento, valor_recebido, data_pagamento, data_prevista_pagamento, valor_repasse_motorista, observacoes, motoristas_empresa(nome), numero_voo, nome_passageiro2, telefone_passageiro2, retorno_data, retorno_horario, retorno_origem, retorno_destino, numero_reserva, quantidade_bagagem, passageiros_adicionais, rua, numero, bairro, municipio, cep, referencia, complemento, rua_desembarque, numero_desembarque, bairro_desembarque, municipio_desembarque, cep_desembarque, referencia_desembarque, complemento_desembarque, data_hora_termino, trajetos, km_inicial, km_final, iniciado_em, finalizado_em, observacao_motorista, anexo_motorista_url, veiculo_atribuido, anexo_observacoes_url, par_id, quantidade_passageiros, motorista_visto_em, motorista_confirmado_em'
+    const colsCorridas = 'id, rota_id, cliente_id, origem, destino, data_hora, created_at, cliente_nome, cliente_telefone, email_solicitante, passageiro1_nome, passageiro1_telefone, valor, status, motorista_id, tipo_servico, forma_pagamento, status_pagamento, valor_recebido, data_pagamento, data_prevista_pagamento, valor_repasse_motorista, repasse_status, repasse_data_pago, repasse_forma_pagamento, observacoes, motoristas_empresa(nome), numero_voo, nome_passageiro2, telefone_passageiro2, retorno_data, retorno_horario, retorno_origem, retorno_destino, numero_reserva, quantidade_bagagem, passageiros_adicionais, rua, numero, bairro, municipio, cep, referencia, complemento, rua_desembarque, numero_desembarque, bairro_desembarque, municipio_desembarque, cep_desembarque, referencia_desembarque, complemento_desembarque, data_hora_termino, trajetos, km_inicial, km_final, iniciado_em, finalizado_em, observacao_motorista, anexo_motorista_url, veiculo_atribuido, anexo_observacoes_url, par_id, quantidade_passageiros, motorista_visto_em, motorista_confirmado_em'
 
     const [{ data: empresa }, { data: rts }, { data: mots }, { data: clientesData }, { data: emAndamento }, { data: futuras }, { data: passadas }] = await Promise.all([
       supabase
@@ -2407,6 +2465,12 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                               {badgePagamento(c.status_pagamento, c.status)}
                             </span>
                           )}
+                          {badgeRepasse(c) && (
+                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
+                              style={{ background: '#F0F4FA', color: '#1D4ED8' }}>
+                              {badgeRepasse(c)}
+                            </span>
+                          )}
                         </div>
                         {temVolta ? (
                           <>
@@ -2517,6 +2581,16 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                           <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
                             style={{ background: '#FEF3C7', color: '#92400E' }}>
                             {badgePagamento(ida.status_pagamento, statusKey)}
+                          </span>
+                        )}
+                        {/* Par ida-volta: mostra pendente se QUALQUER das duas
+                            ainda esta a pagar. O gestor normalmente da baixa
+                            das duas juntas, mas nao vale esconder o alerta
+                            enquanto uma esta pendente. */}
+                        {(badgeRepasse({ ...ida, status: statusKey }) || badgeRepasse({ ...volta, status: statusKey })) && (
+                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
+                            style={{ background: '#F0F4FA', color: '#1D4ED8' }}>
+                            🤝 Repasse pendente
                           </span>
                         )}
                       </div>
@@ -2820,6 +2894,58 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
             forma_pagamento={c.forma_pagamento}
             onFechar={() => setRepasseAberto(null)}
           />
+        )
+      })()}
+
+      {/* Modal — baixa do repasse ao motorista (Fase 2, 2026-09-22).
+          Simples: data + forma. Reaberto pra editar/desfazer. */}
+      {baixaRepasseAberta && (() => {
+        const c = baixaRepasseAberta
+        const mot = motoristaInfo(c, c.motorista_id ?? '')
+        const editando = c.repasse_status === 'pago'
+        return (
+          <div className="fixed inset-0 z-[70] flex items-end justify-center" style={{ background: 'rgba(0,0,0,0.4)' }} onClick={() => setBaixaRepasseAberta(null)}>
+            <div className="w-full max-w-md bg-white rounded-t-2xl p-5 pb-24 flex flex-col gap-3" style={{ maxHeight: '92dvh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between">
+                <p className="text-base font-bold text-gray-800">
+                  {editando ? '✏️ Editar baixa do repasse' : '✓ Marcar repasse como pago'}
+                </p>
+                <button onClick={() => setBaixaRepasseAberta(null)} className="text-gray-400 text-xl leading-none">✕</button>
+              </div>
+
+              <div className="rounded-xl p-3" style={{ background: '#F5F6F8' }}>
+                <p className="text-xs text-gray-500">
+                  {mot?.nome || 'Motorista'} · {c.origem} → {c.destino}
+                </p>
+                <p className="text-sm font-semibold text-gray-800 mt-0.5">
+                  Repasse: R$ {(Number(c.valor_repasse_motorista) || 0).toFixed(2).replace('.', ',')}
+                </p>
+              </div>
+
+              <Campo label="Data do pagamento">
+                <input type="date" value={baixaRepasseData}
+                  onChange={e => setBaixaRepasseData(e.target.value)}
+                  className="campo-input" />
+              </Campo>
+
+              <Campo label="Forma de pagamento">
+                <select value={baixaRepasseForma}
+                  onChange={e => setBaixaRepasseForma(e.target.value as any)}
+                  className="campo-input">
+                  <option value="pix">Pix</option>
+                  <option value="dinheiro">Dinheiro</option>
+                  <option value="transferencia">Transferência bancária</option>
+                  <option value="cartao">Cartão</option>
+                </select>
+              </Campo>
+
+              <button onClick={confirmarBaixaRepasse} disabled={baixaRepasseSalvando || !baixaRepasseData}
+                className="w-full py-3 rounded-xl text-sm font-bold text-white disabled:opacity-40"
+                style={{ background: '#0F6E56' }}>
+                {baixaRepasseSalvando ? 'Salvando…' : editando ? 'Salvar alteração' : '✓ Confirmar pagamento'}
+              </button>
+            </div>
+          </div>
         )
       })()}
 
@@ -3500,6 +3626,46 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                 style={{ background: '#F0F4FA', color: '#1D4ED8', borderColor: '#BFDBFE' }}>
                 🤝 Recibo de repasse ao motorista
               </button>
+            )}
+
+            {/* Baixa do repasse — pedido Julimar 2026-09-22 pra saber se ja
+                pagou o motorista ou nao. So aparece quando ha repasse. */}
+            {Number(corridaFicha.valor_repasse_motorista) > 0 && corridaFicha.repasse_status !== 'pago' && (
+              <button
+                onClick={() => abrirBaixaRepasse(corridaFicha)}
+                className="w-full py-3 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 border"
+                style={{ background: '#E1F5EE', color: '#0F6E56', borderColor: '#9FE1CB' }}>
+                ✓ Marcar repasse como pago
+              </button>
+            )}
+            {Number(corridaFicha.valor_repasse_motorista) > 0 && corridaFicha.repasse_status === 'pago' && (
+              <div className="w-full py-3 px-4 rounded-2xl text-sm border flex items-center justify-between gap-2"
+                style={{ background: '#F0FDF4', borderColor: '#BBF7D0' }}>
+                <div className="flex flex-col text-left">
+                  <span className="text-xs font-bold" style={{ color: '#166534' }}>
+                    ✓ Repasse pago{corridaFicha.repasse_data_pago ? ` em ${corridaFicha.repasse_data_pago.split('-').reverse().join('/')}` : ''}
+                  </span>
+                  {corridaFicha.repasse_forma_pagamento && (
+                    <span className="text-[11px] text-gray-500">
+                      via {corridaFicha.repasse_forma_pagamento === 'pix' ? 'Pix'
+                        : corridaFicha.repasse_forma_pagamento === 'dinheiro' ? 'Dinheiro'
+                        : corridaFicha.repasse_forma_pagamento === 'transferencia' ? 'Transferência'
+                        : corridaFicha.repasse_forma_pagamento === 'cartao' ? 'Cartão'
+                        : corridaFicha.repasse_forma_pagamento}
+                    </span>
+                  )}
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <button onClick={() => abrirBaixaRepasse(corridaFicha)}
+                    className="text-xs font-semibold underline" style={{ color: '#166534' }}>
+                    editar
+                  </button>
+                  <button onClick={() => desfazerBaixaRepasse(corridaFicha)}
+                    className="text-xs font-semibold underline text-gray-500">
+                    desfazer
+                  </button>
+                </div>
+              </div>
             )}
 
             {/* Ações — Confirmada: definir motorista e marcar em andamento */}
