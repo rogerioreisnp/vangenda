@@ -561,6 +561,56 @@ export default function AgendamentosPage() {
     setCorridaFicha(prev => prev && prev.id === c.id ? { ...prev, ...patch } : prev)
     setVoltaDaFicha(prev => prev && prev.id === c.id ? { ...prev, ...patch } : prev)
   }
+
+  // Baixa direta do PAGAMENTO DO CLIENTE — atalho de um clique na ficha.
+  // Julimar 2026-09-23: reportou que marcava recebido pelo form grande e
+  // continuava "Aguardando pagamento". Nao consegui reproduzir o bug no
+  // caminho do form (a logica parece integra), mas o form e grande e tem
+  // muita superficie de erro. Este atalho grava direto so os campos que
+  // importam pra baixa, sem depender do form/re-render/validacao geral.
+  const [baixaPagamentoAberta, setBaixaPagamentoAberta] = useState<Corrida | null>(null)
+  const [baixaPagamentoData, setBaixaPagamentoData] = useState('')
+  const [baixaPagamentoValor, setBaixaPagamentoValor] = useState('')
+  const [baixaPagamentoForma, setBaixaPagamentoForma] = useState<string>('pix')
+  const [baixaPagamentoSalvando, setBaixaPagamentoSalvando] = useState(false)
+
+  function abrirBaixaPagamento(c: Corrida) {
+    const hoje = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` })()
+    setBaixaPagamentoData(c.data_pagamento || hoje)
+    setBaixaPagamentoValor(String(Number(c.valor) || 0))
+    // Ja tinha forma cadastrada? Reusa. Senao, sugere Pix (mais comum).
+    setBaixaPagamentoForma(c.forma_pagamento && c.forma_pagamento !== 'a_definir' ? c.forma_pagamento : 'pix')
+    setBaixaPagamentoAberta(c)
+  }
+
+  async function confirmarBaixaPagamento() {
+    if (!baixaPagamentoAberta) return
+    setBaixaPagamentoSalvando(true)
+    const valor = parseFloat(baixaPagamentoValor.replace(',', '.'))
+    const patch = {
+      status_pagamento: 'recebido' as const,
+      data_pagamento: baixaPagamentoData || null,
+      valor_recebido: isNaN(valor) ? Number(baixaPagamentoAberta.valor) || 0 : valor,
+      forma_pagamento: baixaPagamentoForma,
+    }
+    const { error } = await supabase.from('corridas_empresa').update(patch).eq('id', baixaPagamentoAberta.id)
+    setBaixaPagamentoSalvando(false)
+    if (error) { alert('Erro ao marcar como recebido: ' + error.message); return }
+    setCorridas(prev => prev.map(x => x.id === baixaPagamentoAberta.id ? { ...x, ...patch } : x))
+    setCorridaFicha(prev => prev && prev.id === baixaPagamentoAberta.id ? { ...prev, ...patch } : prev)
+    setVoltaDaFicha(prev => prev && prev.id === baixaPagamentoAberta.id ? { ...prev, ...patch } : prev)
+    setBaixaPagamentoAberta(null)
+  }
+
+  async function desfazerBaixaPagamento(c: Corrida) {
+    if (!confirm(`Desfazer a baixa do pagamento deste atendimento? Ele voltará a aparecer como "a receber".`)) return
+    const patch = { status_pagamento: 'a_receber' as const, data_pagamento: null, valor_recebido: 0 }
+    const { error } = await supabase.from('corridas_empresa').update(patch).eq('id', c.id)
+    if (error) { alert('Erro ao desfazer: ' + error.message); return }
+    setCorridas(prev => prev.map(x => x.id === c.id ? { ...x, ...patch } : x))
+    setCorridaFicha(prev => prev && prev.id === c.id ? { ...prev, ...patch } : prev)
+    setVoltaDaFicha(prev => prev && prev.id === c.id ? { ...prev, ...patch } : prev)
+  }
   const [mensagemConfirmacaoTransfer, setMensagemConfirmacaoTransfer] = useState<string | null>(null)
   // Empresa como o Alexandre (ASF, Curitiba): 90%+ dos solicitantes SÃO o
   // passageiro, e ele não quer digitar o nome duas vezes. Empresa como o
@@ -2949,6 +2999,63 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
         )
       })()}
 
+      {/* Modal — baixa direta do PAGAMENTO DO CLIENTE (2026-09-23).
+          Atalho de um clique: data + valor + forma. Reaberto pra editar. */}
+      {baixaPagamentoAberta && (() => {
+        const c = baixaPagamentoAberta
+        const editando = c.status_pagamento === 'recebido'
+        return (
+          <div className="fixed inset-0 z-[70] flex items-end justify-center" style={{ background: 'rgba(0,0,0,0.4)' }} onClick={() => setBaixaPagamentoAberta(null)}>
+            <div className="w-full max-w-md bg-white rounded-t-2xl p-5 pb-24 flex flex-col gap-3" style={{ maxHeight: '92dvh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between">
+                <p className="text-base font-bold text-gray-800">
+                  {editando ? '✏️ Editar baixa do pagamento' : '✓ Marcar pagamento como recebido'}
+                </p>
+                <button onClick={() => setBaixaPagamentoAberta(null)} className="text-gray-400 text-xl leading-none">✕</button>
+              </div>
+
+              <div className="rounded-xl p-3" style={{ background: '#F5F6F8' }}>
+                <p className="text-xs text-gray-500">
+                  {c.cliente_nome} · {c.origem} → {c.destino}
+                </p>
+                <p className="text-sm font-semibold text-gray-800 mt-0.5">
+                  Valor do atendimento: R$ {(Number(c.valor) || 0).toFixed(2).replace('.', ',')}
+                </p>
+              </div>
+
+              <Campo label="Data do recebimento">
+                <input type="date" value={baixaPagamentoData}
+                  onChange={e => setBaixaPagamentoData(e.target.value)}
+                  className="campo-input" />
+              </Campo>
+
+              <Campo label="Valor recebido (R$)">
+                <input type="number" step="0.01" min={0} value={baixaPagamentoValor}
+                  onChange={e => setBaixaPagamentoValor(e.target.value)}
+                  placeholder="0,00" className="campo-input" />
+              </Campo>
+
+              <Campo label="Forma de pagamento">
+                <select value={baixaPagamentoForma}
+                  onChange={e => setBaixaPagamentoForma(e.target.value)}
+                  className="campo-input">
+                  <option value="pix">Pix</option>
+                  <option value="dinheiro">Dinheiro</option>
+                  <option value="cartao">Cartão</option>
+                  <option value="faturado">Faturado</option>
+                </select>
+              </Campo>
+
+              <button onClick={confirmarBaixaPagamento} disabled={baixaPagamentoSalvando || !baixaPagamentoData}
+                className="w-full py-3 rounded-xl text-sm font-bold text-white disabled:opacity-40"
+                style={{ background: '#0F6E56' }}>
+                {baixaPagamentoSalvando ? 'Salvando…' : editando ? 'Salvar alteração' : '✓ Confirmar recebimento'}
+              </button>
+            </div>
+          </div>
+        )
+      })()}
+
       {/* Modal ficha de solicitação pendente (transfer) */}
       {modalFichaAberto && corridaFicha && (
         <div className="fixed inset-0 z-[60] flex flex-col" style={{ background: '#fff' }}>
@@ -3192,15 +3299,48 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                   </div>
                 </div>
               )}
-              {corridaFicha.status_pagamento === 'recebido' && corridaFicha.data_pagamento && (
-                <p className="text-xs mt-1" style={{ color: '#0F6E56' }}>
-                  ✅ Recebido em {corridaFicha.data_pagamento.slice(8,10)}/{corridaFicha.data_pagamento.slice(5,7)}/{corridaFicha.data_pagamento.slice(0,4)}
-                </p>
-              )}
               {corridaFicha.status_pagamento !== 'recebido' && corridaFicha.data_prevista_pagamento && (
                 <p className="text-xs mt-1 text-gray-500">
                   🕐 Previsão de recebimento: {corridaFicha.data_prevista_pagamento.slice(8,10)}/{corridaFicha.data_prevista_pagamento.slice(5,7)}/{corridaFicha.data_prevista_pagamento.slice(0,4)}
                 </p>
+              )}
+
+              {/* Baixa direta do pagamento — atalho de um clique, sem passar
+                  pelo form grande. Julimar 2026-09-23 relatou que marcar
+                  "recebido" pelo form nem sempre pegava. */}
+              {Number(corridaFicha.valor) > 0 && corridaFicha.status_pagamento !== 'recebido' && corridaFicha.status !== 'cancelada' && corridaFicha.status !== 'recusada' && (
+                <button
+                  onClick={() => abrirBaixaPagamento(corridaFicha)}
+                  className="w-full mt-2 py-2.5 rounded-xl text-xs font-bold border"
+                  style={{ background: '#E1F5EE', color: '#0F6E56', borderColor: '#9FE1CB' }}>
+                  ✓ Marcar pagamento como recebido
+                </button>
+              )}
+              {corridaFicha.status_pagamento === 'recebido' && (
+                <div className="w-full mt-2 py-2 px-3 rounded-xl text-xs border flex items-center justify-between gap-2"
+                  style={{ background: '#F0FDF4', borderColor: '#BBF7D0' }}>
+                  <div className="flex flex-col text-left">
+                    <span className="font-bold" style={{ color: '#166534' }}>
+                      ✓ Pagamento recebido{corridaFicha.data_pagamento ? ` em ${corridaFicha.data_pagamento.slice(8,10)}/${corridaFicha.data_pagamento.slice(5,7)}/${corridaFicha.data_pagamento.slice(0,4)}` : ''}
+                    </span>
+                    {corridaFicha.forma_pagamento && corridaFicha.forma_pagamento !== 'a_definir' && (
+                      <span className="text-[11px] text-gray-500">
+                        via {{ cartao: 'Cartão', pix: 'Pix', faturado: 'Faturado', dinheiro: 'Dinheiro' }[corridaFicha.forma_pagamento] ?? corridaFicha.forma_pagamento}
+                        {Number(corridaFicha.valor_recebido) > 0 && ` · R$ ${Number(corridaFicha.valor_recebido).toFixed(2).replace('.', ',')}`}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    <button onClick={() => abrirBaixaPagamento(corridaFicha)}
+                      className="text-xs font-semibold underline" style={{ color: '#166534' }}>
+                      editar
+                    </button>
+                    <button onClick={() => desfazerBaixaPagamento(corridaFicha)}
+                      className="text-xs font-semibold underline text-gray-500">
+                      desfazer
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
 
@@ -4968,7 +5108,11 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                 onChange={e => setForm(f => ({
                   ...f,
                   status_pagamento: e.target.value,
-                  valor_recebido: '',
+                  // Zerar valor_recebido so faz sentido quando volta pra
+                  // 'a_receber'. Trocar pra 'recebido' preserva pra o gestor
+                  // conferir o valor no proximo campo; 'parcial' preserva o
+                  // que ja tinha se estava editando parcial anterior.
+                  valor_recebido: e.target.value === 'a_receber' ? '' : f.valor_recebido,
                   data_pagamento: e.target.value === 'recebido' && !f.data_pagamento
                     ? (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` })()
                     : f.data_pagamento,
