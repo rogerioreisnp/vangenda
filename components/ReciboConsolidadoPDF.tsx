@@ -33,6 +33,10 @@ export type ReciboConsolidadoProps = {
   periodo: { inicio: string; fim: string }  // yyyy-mm-dd
   linhas: LinhaConsolidado[]
   reembolsos?: LinhaReembolso[]  // despesas reembolsaveis a cobrar
+  // 'nota_servico' = mesmo layout, so muda o titulo pra "NOTA DE SERVICO"
+  // (pedido de cliente 2026-09-23: precisa de um documento consolidado com
+  // esse nome). Default 'relatorio' — comportamento antigo preservado.
+  modo?: 'relatorio' | 'nota_servico'
 }
 
 const fmtBRL = (n: number) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -103,7 +107,8 @@ const s = StyleSheet.create({
   rodapeLinha: { fontSize: 7, color: CINZA_TXT },
 })
 
-export function ReciboConsolidadoPDF({ empresa, cliente, periodo, linhas, reembolsos = [] }: ReciboConsolidadoProps) {
+export function ReciboConsolidadoPDF({ empresa, cliente, periodo, linhas, reembolsos = [], modo = 'relatorio' }: ReciboConsolidadoProps) {
+  const tituloDoc = modo === 'nota_servico' ? 'NOTA DE SERVIÇO' : 'RELATÓRIO DE ATENDIMENTOS'
   const totalAtendimentos = linhas.reduce((s, l) => s + Number(l.valor || 0), 0)
   const totalReembolsos = reembolsos.reduce((s, r) => s + Number(r.valor || 0), 0)
   const total = totalAtendimentos + totalReembolsos
@@ -129,7 +134,7 @@ export function ReciboConsolidadoPDF({ empresa, cliente, periodo, linhas, reembo
             </View>
           </View>
           <View>
-            <Text style={s.tag}>RELATÓRIO DE ATENDIMENTOS</Text>
+            <Text style={s.tag}>{tituloDoc}</Text>
             <Text style={s.subtag}>Emitido em {dataEmissao}</Text>
           </View>
         </View>

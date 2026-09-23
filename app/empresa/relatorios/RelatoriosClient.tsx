@@ -73,7 +73,7 @@ export default function RelatoriosPage() {
   })
   const [dataFim, setDataFim] = useState<string>(() => toIso(new Date()))
   const [loading, setLoading] = useState(true)
-  const [gerando, setGerando] = useState<null | 'pdf' | 'excel'>(null)
+  const [gerando, setGerando] = useState<null | 'pdf' | 'excel' | 'nota'>(null)
   const [erro, setErro] = useState('')
 
   useEffect(() => { carregar() }, [])
@@ -176,9 +176,9 @@ export default function RelatoriosPage() {
     }
   }
 
-  async function baixarPDF() {
+  async function baixarPDF(modo: 'relatorio' | 'nota_servico' = 'relatorio') {
     if (!empresa) return
-    setErro(''); setGerando('pdf')
+    setErro(''); setGerando(modo === 'nota_servico' ? 'nota' : 'pdf')
     try {
       const blob = await pdf(
         <ReciboConsolidadoPDF
@@ -187,13 +187,15 @@ export default function RelatoriosPage() {
           periodo={{ inicio: dataInicio, fim: dataFim }}
           linhas={linhas}
           reembolsos={reembolsos}
+          modo={modo}
         />
       ).toBlob()
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       const nomeCli = (cliente ? nomeExibicao(cliente) : 'diversos').replace(/[^a-zA-Z0-9]/g, '_')
+      const prefixo = modo === 'nota_servico' ? 'nota-servico' : 'relatorio'
       a.href = url
-      a.download = `relatorio-${nomeCli}-${dataInicio}-a-${dataFim}.pdf`
+      a.download = `${prefixo}-${nomeCli}-${dataInicio}-a-${dataFim}.pdf`
       document.body.appendChild(a); a.click(); document.body.removeChild(a)
       URL.revokeObjectURL(url)
     } catch (e: any) {
@@ -315,7 +317,7 @@ export default function RelatoriosPage() {
         </div>
 
         <div className="grid grid-cols-2 gap-2">
-          <button onClick={baixarPDF} disabled={gerando !== null || linhas.length === 0}
+          <button onClick={() => baixarPDF('relatorio')} disabled={gerando !== null || linhas.length === 0}
             className="py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-40"
             style={{ background: '#0F6E56', color: '#fff' }}>
             {gerando === 'pdf' ? 'Gerando...' : '📄 Baixar PDF'}
@@ -326,6 +328,17 @@ export default function RelatoriosPage() {
             {gerando === 'excel' ? 'Gerando...' : '📊 Baixar Excel'}
           </button>
         </div>
+
+        {/* Nota de serviço consolidada — mesmo espelho do PDF acima,
+            só troca o título pra "NOTA DE SERVIÇO". Pedido de cliente
+            2026-09-23: clientes finais dele pedem esse documento com
+            vários atendimentos numa nota só, do mesmo jeito do
+            relatório. */}
+        <button onClick={() => baixarPDF('nota_servico')} disabled={gerando !== null || linhas.length === 0}
+          className="py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-40 border"
+          style={{ background: '#fff', color: '#0F6E56', borderColor: '#9FE1CB' }}>
+          {gerando === 'nota' ? 'Gerando...' : '📃 Baixar Nota de Serviço PDF (consolidada)'}
+        </button>
 
         {erro && <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-xl">{erro}</p>}
 
