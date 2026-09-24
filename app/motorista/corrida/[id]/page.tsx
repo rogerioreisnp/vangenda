@@ -56,6 +56,11 @@ type Corrida = {
   retorno_destino: string | null
   forma_pagamento: string | null
   valor_repasse_motorista: number | null
+  // Status do repasse (2026-09-24) — motorista só visualiza, quem
+  // marca é o gestor. Padrão 'a_pagar' até o gestor dar baixa.
+  repasse_status: 'a_pagar' | 'pago' | null
+  repasse_data_pago: string | null
+  repasse_forma_pagamento: string | null
 }
 
 // Só o rótulo em texto puro — a tela do motorista não mostra o valor
@@ -369,10 +374,32 @@ export default function CorridaFicha({ params }: { params: { id: string } }) {
               💳 Pagamento: <strong>{FORMA_PAGAMENTO_LABEL[c.forma_pagamento] ?? c.forma_pagamento}</strong>
             </p>
           )}
-          {c.valor_repasse_motorista != null && (
-            <p className="text-sm text-gray-600 mt-1">
-              💰 Seu repasse: <strong>R$ {c.valor_repasse_motorista.toFixed(2).replace('.', ',')}</strong>
-            </p>
+          {c.valor_repasse_motorista != null && Number(c.valor_repasse_motorista) > 0 && (
+            <>
+              <p className="text-sm text-gray-600 mt-1">
+                💰 Seu repasse: <strong>R$ {c.valor_repasse_motorista.toFixed(2).replace('.', ',')}</strong>
+              </p>
+              {/* Status do repasse — quem marca "pago" é o gestor
+                  (2026-09-24). Motorista só visualiza. */}
+              {c.repasse_status === 'pago' ? (
+                <span className="inline-block mt-1 text-[11px] font-semibold px-2 py-0.5 rounded-full"
+                  style={{ background: '#F0FDF4', color: '#166534' }}>
+                  ✓ Recebido{c.repasse_data_pago ? ` em ${c.repasse_data_pago.split('-').reverse().join('/')}` : ''}
+                  {c.repasse_forma_pagamento && ` · ${
+                    c.repasse_forma_pagamento === 'pix' ? 'Pix'
+                    : c.repasse_forma_pagamento === 'dinheiro' ? 'Dinheiro'
+                    : c.repasse_forma_pagamento === 'transferencia' ? 'Transferência'
+                    : c.repasse_forma_pagamento === 'cartao' ? 'Cartão'
+                    : c.repasse_forma_pagamento
+                  }`}
+                </span>
+              ) : (
+                <span className="inline-block mt-1 text-[11px] font-semibold px-2 py-0.5 rounded-full"
+                  style={{ background: '#FEF3C7', color: '#92400E' }}>
+                  🕐 Repasse a receber
+                </span>
+              )}
+            </>
           )}
           {c.retorno_data && (
             <div className="mt-2 rounded-xl px-3 py-2" style={{ background: '#EEEDFE' }}>

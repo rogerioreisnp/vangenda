@@ -15,6 +15,8 @@ type CorridaRes = {
   status: string
   tipo_servico: string | null
   data_hora_termino: string | null
+  valor_repasse_motorista: number | null
+  repasse_status: 'a_pagar' | 'pago' | null
 }
 
 const TIPO_LABEL: Record<string, string> = {
@@ -54,7 +56,7 @@ export default function MotoristaHome() {
     const hojeStr = format(agora, 'yyyy-MM-dd')
     const amanhaStr = format(addDays(agora, 1), 'yyyy-MM-dd')
 
-    const cols = 'id, origem, destino, data_hora, cliente_nome, passageiro1_nome, status, tipo_servico, data_hora_termino'
+    const cols = 'id, origem, destino, data_hora, cliente_nome, passageiro1_nome, status, tipo_servico, data_hora_termino, valor_repasse_motorista, repasse_status'
 
     const [{ data: dHoje }, { data: dAmanha }, { data: dProxima }, { data: dAndamento }] = await Promise.all([
       supabase.from('corridas_empresa').select(cols)
@@ -152,12 +154,28 @@ export default function MotoristaHome() {
             <p className="text-sm text-gray-600">
               👤 {passageiro(proxima)}
             </p>
-            {proxima.tipo_servico && (
-              <span className="inline-block mt-2 text-[10px] font-semibold px-2 py-0.5 rounded-full"
-                style={{ background: '#F0FDF4', color: '#166534' }}>
-                {TIPO_LABEL[proxima.tipo_servico] || proxima.tipo_servico}
-              </span>
-            )}
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {proxima.tipo_servico && (
+                <span className="inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                  style={{ background: '#F0FDF4', color: '#166534' }}>
+                  {TIPO_LABEL[proxima.tipo_servico] || proxima.tipo_servico}
+                </span>
+              )}
+              {/* Selo do repasse — só quando ha valor configurado */}
+              {proxima.valor_repasse_motorista != null && Number(proxima.valor_repasse_motorista) > 0 && (
+                proxima.repasse_status === 'pago' ? (
+                  <span className="inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                    style={{ background: '#F0FDF4', color: '#166534' }}>
+                    ✓ Repasse recebido
+                  </span>
+                ) : (
+                  <span className="inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                    style={{ background: '#FEF3C7', color: '#92400E' }}>
+                    🕐 Repasse a receber
+                  </span>
+                )
+              )}
+            </div>
           </Link>
         )}
 

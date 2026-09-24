@@ -16,6 +16,10 @@ type Corrida = {
   passageiro1_nome: string | null
   status: string
   tipo_servico: string | null
+  // Repasse ao motorista (parceiro/agregado) — selo no card. Só aparece
+  // quando ha repasse configurado (2026-09-24).
+  valor_repasse_motorista: number | null
+  repasse_status: 'a_pagar' | 'pago' | null
 }
 
 const STATUS_META: Record<string, { bg: string; text: string; label: string }> = {
@@ -59,7 +63,7 @@ export default function MotoristaAgenda() {
       .maybeSingle()
     if (!motEmp) { setLoading(false); return }
 
-    const cols = 'id, origem, destino, data_hora, data_hora_termino, cliente_nome, passageiro1_nome, status, tipo_servico'
+    const cols = 'id, origem, destino, data_hora, data_hora_termino, cliente_nome, passageiro1_nome, status, tipo_servico, valor_repasse_motorista, repasse_status'
     const agoraISO = new Date().toISOString()
 
     // 3 blocos ordenados: em_andamento no topo, futuras asc, passadas desc
@@ -237,6 +241,21 @@ function CorridaCard({ c }: { c: Corrida }) {
               style={{ background: tp.bg, color: tp.text }}>
               {tp.label}
             </span>
+          )}
+          {/* Selo do repasse — só se o gestor configurou valor de repasse
+              (motorista parceiro/agregado). Cor muda com o status. */}
+          {c.valor_repasse_motorista != null && Number(c.valor_repasse_motorista) > 0 && (
+            c.repasse_status === 'pago' ? (
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                style={{ background: '#F0FDF4', color: '#166534' }}>
+                ✓ Repasse recebido
+              </span>
+            ) : (
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                style={{ background: '#FEF3C7', color: '#92400E' }}>
+                🕐 Repasse a receber
+              </span>
+            )
           )}
         </div>
         <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0"
