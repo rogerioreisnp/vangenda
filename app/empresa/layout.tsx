@@ -295,7 +295,9 @@ const PLANOS_TRIAL = [
     precoLabel: '/ano',
     subtitulo: 'equivale a R$ 37,90/mês · economia de 43%',
     destaque: true,
-    badge: 'MAIS ESCOLHIDO' as string | null,
+    // Um selo só, no plano que de fato dá o maior desconto. "Mais escolhido"
+    // saiu: é afirmação de popularidade que não temos dado pra sustentar.
+    badge: 'MELHOR CUSTO-BENEFÍCIO' as string | null,
     badgeStyle: { bg: '#FAC775', text: '#7C3E00' } as { bg: string; text: string } | undefined,
     kiwifyUrl: 'https://pay.kiwify.com.br/Pz3p5tb',
   },
@@ -306,8 +308,8 @@ const PLANOS_TRIAL = [
     precoLabel: '/semestre',
     subtitulo: 'equivale a R$ 49,90/mês · economia de 25%',
     destaque: false,
-    badge: 'MELHOR CUSTO-BENEFÍCIO' as string | null,
-    badgeStyle: { bg: '#E1F5EE', text: '#085041' } as { bg: string; text: string } | undefined,
+    badge: null as string | null,
+    badgeStyle: undefined as { bg: string; text: string } | undefined,
     kiwifyUrl: 'https://pay.kiwify.com.br/lV3FtsB',
   },
 ]
