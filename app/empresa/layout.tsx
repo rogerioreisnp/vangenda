@@ -272,40 +272,43 @@ export default function EmpresaLayout({ children }: { children: React.ReactNode 
 
 // Planos por período — mesmo modelo simplificado do /empresa/registro:
 // todo mundo tem acesso completo, a única diferença é o período de pagamento.
-// Reflete o pricing atual: mensal R$127, semestral R$97/mês, anual R$77/mês.
+// Pricing a partir de 2026-10-22 (planos novos na Kiwify): mensal R$ 67,00,
+// semestral R$ 299,40 (R$ 49,90/mês), anual R$ 454,80 (R$ 37,90/mês).
+// Economia calculada sobre 6x/12x o mensal e arredondada PRA BAIXO, pra
+// nunca prometer mais desconto do que o cliente realmente tem.
 const PLANOS_TRIAL = [
  {
     id: 'mensal' as const,
     nome: 'Mensal',
-    preco: 97.90,
+    preco: 67.00,
     precoLabel: '/mês',
     subtitulo: 'Pague mês a mês, sem compromisso',
     destaque: false,
     badge: null as string | null,
     badgeStyle: undefined as { bg: string; text: string } | undefined,
-    kiwifyUrl: 'https://pay.kiwify.com.br/pdGfyFE',
+    kiwifyUrl: 'https://pay.kiwify.com.br/HEUJ19U',
   },
   {
     id: 'anual' as const,
     nome: 'Anual',
-    preco: 815,
+    preco: 454.80,
     precoLabel: '/ano',
-    subtitulo: 'equivale a R$ 67,90/mês · economia de 31%',
+    subtitulo: 'equivale a R$ 37,90/mês · economia de 43%',
     destaque: true,
     badge: 'MAIS ESCOLHIDO' as string | null,
     badgeStyle: { bg: '#FAC775', text: '#7C3E00' } as { bg: string; text: string } | undefined,
-    kiwifyUrl: 'https://pay.kiwify.com.br/lGg1DcH',
+    kiwifyUrl: 'https://pay.kiwify.com.br/Pz3p5tb',
   },
   {
     id: 'semestral' as const,
     nome: 'Semestral',
-    preco: 479,
+    preco: 299.40,
     precoLabel: '/semestre',
-    subtitulo: 'equivale a R$ 79,90/mês · economia de 18%',
+    subtitulo: 'equivale a R$ 49,90/mês · economia de 25%',
     destaque: false,
     badge: 'MELHOR CUSTO-BENEFÍCIO' as string | null,
     badgeStyle: { bg: '#E1F5EE', text: '#085041' } as { bg: string; text: string } | undefined,
-    kiwifyUrl: 'https://pay.kiwify.com.br/8Jg0zNg',
+    kiwifyUrl: 'https://pay.kiwify.com.br/lV3FtsB',
   },
 ]
 
@@ -379,7 +382,7 @@ function TelaTrialExpirado({ onSair, motivo = 'trial', afid = null }: { onSair: 
                 <div className="flex items-center gap-3 flex-shrink-0">
                   <div className="text-right">
                     <p className="text-sm font-semibold leading-none" style={{ color: '#0F6E56' }}>
-                      R$ {p.preco}
+                      R$ {p.preco.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </p>
                     <p className="text-[10px] text-gray-400 mt-0.5">{p.precoLabel}</p>
                   </div>
