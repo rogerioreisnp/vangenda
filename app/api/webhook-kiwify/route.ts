@@ -32,8 +32,11 @@ export async function POST(req: NextRequest) {
     const nomeProduto = (order?.Product?.product_name ?? order?.Product?.name ?? '').toLowerCase()
     const planName = (order?.Subscription?.plan?.name ?? '').toLowerCase()
     const accessUntil = order?.Subscription?.customer_access?.access_until ?? null
+    // Id da assinatura na Kiwify — e o mesmo em todas as renovacoes, e muda
+    // quando o cliente faz uma compra nova (ex: trocou mensal por anual).
+    const subscriptionId: string | null = order?.subscription_id ?? order?.Subscription?.id ?? null
 
-    console.log(`[kiwify] event: ${eventType} | email: ${email} | produto: ${nomeProduto} | plano: ${planName} | expira: ${accessUntil}`)
+    console.log(`[kiwify] event: ${eventType} | email: ${email} | produto: ${nomeProduto} | plano: ${planName} | expira: ${accessUntil} | assinatura: ${subscriptionId}`)
 
     // Eventos que ATIVAM/RENOVAM acesso (compra aprovada + renovação recorrente).
     // Cobre variações porque a Kiwify não documenta 100% os nomes técnicos.
@@ -151,6 +154,33 @@ export async function POST(req: NextRequest) {
     const userId = usuario.id
     console.log(`[kiwify] Usuário encontrado: ${userId}`)
 
+    // Cancelamento/reembolso de uma assinatura ANTIGA nao pode derrubar o acesso
+    // de uma assinatura NOVA. Case real: Julimar (Alternativa Move), 2026-10-22 —
+    // trocou o mensal pelo anual, pagou, e o aviso de cancelamento do mensal
+    // chegou depois e desativou a conta.
+    //   - Com id salvo: so desativa se o evento for da mesma assinatura.
+    //   - Sem id salvo (cadastros antigos): so no cancelamento, compara datas —
+    //     se o acesso atual vai bem alem do fim da assinatura cancelada, foi
+    //     uma compra mais nova que estendeu. Reembolso/chargeback sem id seguem
+    //     desativando como antes.
+    const eventoDeAssinaturaAntiga = (idSalvo: string | null | undefined, expiraAtual: string | null | undefined): boolean => {
+      if (idSalvo && subscriptionId) return idSalvo !== subscriptionId
+      if (eventType.startsWith('subscription_cancel') && accessUntil && expiraAtual) {
+        const TOLERANCIA_MS = 3 * 24 * 60 * 60 * 1000
+        return new Date(expiraAtual).getTime() > new Date(accessUntil).getTime() + TOLERANCIA_MS
+      }
+      return false
+    }
+
+    // Guarda o id da assinatura que ativou o acesso (usado pela regra acima).
+    // Update separado e que nunca falha a requisicao: se a migration ainda nao
+    // rodou, a ativacao em si ja foi feita e nao pode quebrar por causa disso.
+    const salvarAssinatura = async (tabela: 'empresas' | 'motoristas', id: string | null) => {
+      if (!subscriptionId || !id) return
+      const { error } = await supabase.from(tabela).update({ kiwify_subscription_id: subscriptionId }).eq('id', id)
+      if (error) console.warn(`[kiwify] Nao salvou kiwify_subscription_id em ${tabela}:`, error.message)
+    }
+
     // DESATIVAÇÃO — cancelamento, atraso, reembolso ou chargeback.
     // Setar status 'inativo' bloqueia acesso imediato (tanto em motoristas
     // quanto em empresas o gate lê status/assinatura_status pra decidir).
@@ -163,6 +193,18 @@ export async function POST(req: NextRequest) {
         .single()
 
       if (gestorDes?.empresa_id) {
+        // select('*') e nao a lista de colunas: se a migration do
+        // kiwify_subscription_id ainda nao rodou, nao quebra a consulta.
+        const { data: empDes } = await supabase
+          .from('empresas')
+          .select('*')
+          .eq('id', gestorDes.empresa_id)
+          .single()
+        if (empDes && eventoDeAssinaturaAntiga(empDes.kiwify_subscription_id, empDes.trial_fim)) {
+          console.log(`[kiwify] Evento de assinatura antiga ignorado | empresa_id: ${gestorDes.empresa_id} | assinatura evento: ${subscriptionId} | salva: ${empDes.kiwify_subscription_id} | trial_fim: ${empDes.trial_fim}`)
+          return NextResponse.json({ ok: true, msg: `Evento de assinatura antiga ignorado: ${email} (${eventType})` })
+        }
+
         const { error: errEmpDes } = await supabase
           .from('empresas')
           .update({ status: 'inativo' })
@@ -170,6 +212,16 @@ export async function POST(req: NextRequest) {
         if (errEmpDes) console.error('[kiwify] Erro desativar empresa:', errEmpDes.message)
         console.log(`[kiwify] Empresa desativada | empresa_id: ${gestorDes.empresa_id}`)
       } else {
+        const { data: motDes } = await supabase
+          .from('motoristas')
+          .select('*')
+          .eq('id', userId)
+          .maybeSingle()
+        if (motDes && eventoDeAssinaturaAntiga(motDes.kiwify_subscription_id, motDes.assinatura_expira)) {
+          console.log(`[kiwify] Evento de assinatura antiga ignorado | user_id: ${userId} | assinatura evento: ${subscriptionId} | salva: ${motDes.kiwify_subscription_id} | expira: ${motDes.assinatura_expira}`)
+          return NextResponse.json({ ok: true, msg: `Evento de assinatura antiga ignorado: ${email} (${eventType})` })
+        }
+
         // Individual: mantém assinatura_expira pra preservar histórico, muda só status.
         const { error: errMotDes } = await supabase
           .from('motoristas')
@@ -194,6 +246,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: errMotorista.message }, { status: 500 })
       }
 
+      await salvarAssinatura('motoristas', userId)
       console.log(`[kiwify] Motorista ativado | user_id: ${userId} | expira: ${expira}`)
       return NextResponse.json({ ok: true, msg: `Acesso individual liberado: ${email}` })
     }
@@ -223,6 +276,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: errEmpresa.message }, { status: 500 })
       }
 
+      await salvarAssinatura('empresas', empresaId)
       console.log(`[kiwify] Empresa ativada | empresa_id: ${empresaId} | expira: ${expira}`)
       return NextResponse.json({ ok: true, msg: `Empresa ativada: ${email}` })
     }
@@ -242,6 +296,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: errMotorista.message }, { status: 500 })
     }
 
+    await salvarAssinatura('motoristas', userId)
     console.log(`[kiwify] Motorista ativado | user_id: ${userId} | expira: ${expira}`)
     return NextResponse.json({ ok: true, msg: `Acesso liberado: ${email}` })
 
