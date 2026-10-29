@@ -573,6 +573,7 @@ export default function AgendamentosPage() {
   const [baixaPagamentoValor, setBaixaPagamentoValor] = useState('')
   const [baixaPagamentoForma, setBaixaPagamentoForma] = useState<string>('pix')
   const [baixaPagamentoSalvando, setBaixaPagamentoSalvando] = useState(false)
+  const [baixaIncluirVolta, setBaixaIncluirVolta] = useState(true)
 
   function abrirBaixaPagamento(c: Corrida) {
     const hoje = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` })()
@@ -580,7 +581,21 @@ export default function AgendamentosPage() {
     setBaixaPagamentoValor(String(Number(c.valor) || 0))
     // Ja tinha forma cadastrada? Reusa. Senao, sugere Pix (mais comum).
     setBaixaPagamentoForma(c.forma_pagamento && c.forma_pagamento !== 'a_definir' ? c.forma_pagamento : 'pix')
+    setBaixaIncluirVolta(true)
     setBaixaPagamentoAberta(c)
+  }
+
+  // Ida de um par com a volta ainda a receber. Cada ponta tem o proprio
+  // status_pagamento, e a baixa so gravava na ida — a volta ficava "a
+  // receber" no financeiro pra sempre (Julimar 2026-10-29: "lancei como
+  // recebido e continua pendente"). O modal oferece dar baixa nas duas
+  // juntas, que e o caso comum (cliente paga o par inteiro).
+  function voltaPendenteDaBaixa(c: Corrida): Corrida | null {
+    const v = voltaDaFicha
+    if (!v || v.id === c.id) return null
+    if (v.status_pagamento === 'recebido' || v.status === 'cancelada' || v.status === 'recusada') return null
+    if (!(Number(v.valor) > 0)) return null
+    return v
   }
 
   async function confirmarBaixaPagamento() {
@@ -594,11 +609,27 @@ export default function AgendamentosPage() {
       forma_pagamento: baixaPagamentoForma,
     }
     const { error } = await supabase.from('corridas_empresa').update(patch).eq('id', baixaPagamentoAberta.id)
+    if (error) { setBaixaPagamentoSalvando(false); alert('Erro ao marcar como recebido: ' + error.message); return }
+
+    const volta = baixaIncluirVolta ? voltaPendenteDaBaixa(baixaPagamentoAberta) : null
+    let patchVolta: typeof patch | null = null
+    if (volta) {
+      patchVolta = { ...patch, valor_recebido: Number(volta.valor) || 0 }
+      const { error: erroVolta } = await supabase.from('corridas_empresa').update(patchVolta).eq('id', volta.id)
+      if (erroVolta) {
+        alert('A ida foi marcada como recebida, mas deu erro na volta: ' + erroVolta.message)
+        patchVolta = null
+      }
+    }
     setBaixaPagamentoSalvando(false)
-    if (error) { alert('Erro ao marcar como recebido: ' + error.message); return }
-    setCorridas(prev => prev.map(x => x.id === baixaPagamentoAberta.id ? { ...x, ...patch } : x))
-    setCorridaFicha(prev => prev && prev.id === baixaPagamentoAberta.id ? { ...prev, ...patch } : prev)
-    setVoltaDaFicha(prev => prev && prev.id === baixaPagamentoAberta.id ? { ...prev, ...patch } : prev)
+
+    const aplicar = <T extends Corrida>(x: T): T =>
+      x.id === baixaPagamentoAberta.id ? { ...x, ...patch }
+      : patchVolta && volta && x.id === volta.id ? { ...x, ...patchVolta }
+      : x
+    setCorridas(prev => prev.map(aplicar))
+    setCorridaFicha(prev => prev && aplicar(prev))
+    setVoltaDaFicha(prev => prev && aplicar(prev))
     setBaixaPagamentoAberta(null)
   }
 
@@ -1353,6 +1384,26 @@ export default function AgendamentosPage() {
         }
         updateVolta.observacoes = form.observacoes_volta.trim() || null
         updateVolta.anexo_observacoes_url = form.anexo_observacoes_volta_url.trim() || null
+
+        // Pagamento: o "Status do pagamento" do form vale pro atendimento
+        // inteiro, mas so gravava na ida — a volta ficava "a receber" no
+        // financeiro pra sempre (Julimar 2026-10-29). So propaga quando o
+        // gestor MUDOU o status nesta edicao: corrigir o endereco de um par
+        // com so a ida paga nao pode marcar a volta como recebida sozinho.
+        // 'parcial' continua por ponta (o valor digitado e o da ida).
+        const statusPagOriginal = corridaEditando.status_pagamento || (corridaEditando.status === 'concluida' ? 'recebido' : 'a_receber')
+        if (form.status_pagamento !== statusPagOriginal) {
+          if (form.status_pagamento === 'recebido') {
+            const valorVolta = updateVolta.valor ?? corridas.find(x => x.id === voltaIdEditando)?.valor
+            updateVolta.status_pagamento = 'recebido'
+            updateVolta.valor_recebido = Number(valorVolta) || 0
+            updateVolta.data_pagamento = dataPagamento
+          } else if (form.status_pagamento === 'a_receber') {
+            updateVolta.status_pagamento = 'a_receber'
+            updateVolta.valor_recebido = 0
+            updateVolta.data_pagamento = null
+          }
+        }
 
         // KM da volta independentes da ida. Só grava se cliente digitou
         // valor válido; se em branco, grava null pra permitir limpar campo.
@@ -2610,6 +2661,10 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
               const nomeMotorista = ida.motoristas_empresa?.nome ?? volta.motoristas_empresa?.nome ?? null
               const idsCancelar = [ida, volta].filter(c => c.status === 'confirmada').map(c => c.id)
               const tmPar = tipoMeta(ida.tipo_servico)
+              // Pendente se QUALQUER ponta ativa ainda nao foi recebida. Antes
+              // so a ida era olhada: com a ida paga o selo sumia, mas a volta
+              // continuava "a receber" no financeiro (Julimar 2026-10-29).
+              const badgePagPar = badgePagamento(ida.status_pagamento, ida.status) || badgePagamento(volta.status_pagamento, volta.status)
 
               return (
                 <div key={`${ida.id}-${volta.id}`} className="bg-white rounded-2xl p-4 border border-gray-100" onClick={() => podeAbrirFichaTransfer(ida) ? abrirFicha(ida) : undefined} style={{ cursor: podeAbrirFichaTransfer(ida) ? 'pointer' : undefined }}>
@@ -2627,10 +2682,10 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                           style={{ background: '#E1F5EE', color: '#0F6E56' }}>
                           ↔ Ida e volta
                         </span>
-                        {badgePagamento(ida.status_pagamento, statusKey) && (
+                        {badgePagPar && (
                           <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
                             style={{ background: '#FEF3C7', color: '#92400E' }}>
-                            {badgePagamento(ida.status_pagamento, statusKey)}
+                            {badgePagPar}
                           </span>
                         )}
                         {/* Par ida-volta: mostra pendente se QUALQUER das duas
@@ -3004,6 +3059,7 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
       {baixaPagamentoAberta && (() => {
         const c = baixaPagamentoAberta
         const editando = c.status_pagamento === 'recebido'
+        const voltaPend = voltaPendenteDaBaixa(c)
         return (
           <div className="fixed inset-0 z-[70] flex items-end justify-center" style={{ background: 'rgba(0,0,0,0.4)' }} onClick={() => setBaixaPagamentoAberta(null)}>
             <div className="w-full max-w-md bg-white rounded-t-2xl p-5 pb-24 flex flex-col gap-3" style={{ maxHeight: '92dvh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
@@ -3045,6 +3101,19 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                   <option value="faturado">Faturado</option>
                 </select>
               </Campo>
+
+              {voltaPend && (
+                <label className="flex items-start gap-2 rounded-xl p-3 border cursor-pointer"
+                  style={{ background: '#EEEDFE', borderColor: '#AFA9EC' }}>
+                  <input type="checkbox" checked={baixaIncluirVolta}
+                    onChange={e => setBaixaIncluirVolta(e.target.checked)}
+                    className="mt-0.5" />
+                  <span className="text-xs" style={{ color: '#3C3489' }}>
+                    <span className="font-bold">🔁 Incluir também a volta</span>
+                    {' '}— R$ {(Number(voltaPend.valor) || 0).toFixed(2).replace('.', ',')}, mesma data e forma de pagamento
+                  </span>
+                </label>
+              )}
 
               <button onClick={confirmarBaixaPagamento} disabled={baixaPagamentoSalvando || !baixaPagamentoData}
                 className="w-full py-3 rounded-xl text-sm font-bold text-white disabled:opacity-40"
@@ -3412,6 +3481,36 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                   <p className="text-sm font-semibold mt-1" style={{ color: '#3C3489' }}>
                     R$ {Number(voltaDaFicha.valor).toFixed(2).replace('.', ',')}
                   </p>
+                )}
+                {/* Pagamento da volta — a volta tem o proprio status_pagamento
+                    e antes nao havia onde dar baixa nela: ficava "a receber"
+                    no financeiro pra sempre (Julimar 2026-10-29). */}
+                {Number(voltaDaFicha.valor) > 0 && !vCancelada && voltaDaFicha.status !== 'recusada' && (
+                  voltaDaFicha.status_pagamento === 'recebido' ? (
+                    <div className="w-full mt-2 py-2 px-3 rounded-xl text-xs border flex items-center justify-between gap-2"
+                      style={{ background: '#F0FDF4', borderColor: '#BBF7D0' }}>
+                      <span className="font-bold" style={{ color: '#166534' }}>
+                        ✓ Volta recebida{voltaDaFicha.data_pagamento ? ` em ${voltaDaFicha.data_pagamento.slice(8,10)}/${voltaDaFicha.data_pagamento.slice(5,7)}/${voltaDaFicha.data_pagamento.slice(0,4)}` : ''}
+                      </span>
+                      <div className="flex gap-2 shrink-0">
+                        <button onClick={() => abrirBaixaPagamento(voltaDaFicha)}
+                          className="text-xs font-semibold underline" style={{ color: '#166534' }}>
+                          editar
+                        </button>
+                        <button onClick={() => desfazerBaixaPagamento(voltaDaFicha)}
+                          className="text-xs font-semibold underline text-gray-500">
+                          desfazer
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => abrirBaixaPagamento(voltaDaFicha)}
+                      className="w-full mt-2 py-2.5 rounded-xl text-xs font-bold border"
+                      style={{ background: '#E1F5EE', color: '#0F6E56', borderColor: '#9FE1CB' }}>
+                      ✓ Marcar pagamento da volta como recebido
+                    </button>
+                  )
                 )}
                 {voltaDaFicha.observacoes && (
                   <p className="text-xs text-gray-500 mt-2">📝 {voltaDaFicha.observacoes}</p>
