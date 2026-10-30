@@ -677,6 +677,9 @@ export default function AgendamentosPage() {
   } | null>(null)
   const [corridaEditando, setCorridaEditando] = useState<Corrida | null>(null)
   const [voltaIdEditando, setVoltaIdEditando] = useState<string | null>(null)
+  // Numero do atendimento de origem quando o form foi aberto pelo "Duplicar"
+  // (so pra mostrar o aviso no topo do form). null = novo ou edicao.
+  const [duplicandoDe, setDuplicandoDe] = useState<string | null>(null)
   const [modalAgAberto, setModalAgAberto] = useState(false)
   const [formAg, setFormAg] = useState<FormAgPassageiro>(FORM_AG_VAZIO)
   const [trechosRF, setTrechosRF] = useState<{ nome: string; preco: number }[]>([])
@@ -895,6 +898,7 @@ export default function AgendamentosPage() {
   function abrirNovaCorrida() {
     setCorridaEditando(null)
     setVoltaIdEditando(null)
+    setDuplicandoDe(null)
     setForm(FORM_VAZIO)
     setEnderecosClienteForm([])
     setErro('')
@@ -937,6 +941,7 @@ export default function AgendamentosPage() {
     const tipoSemVolta = c.tipo_servico === 'diaria' || c.tipo_servico === 'city_tour'
     setCorridaEditando(c)
     setVoltaIdEditando(voltaId ?? null)
+    setDuplicandoDe(null)
     setForm({
       tipo_servico: c.tipo_servico || 'transfer',
       rota_id: rotaExiste ? c.rota_id! : 'manual',
@@ -1002,6 +1007,30 @@ export default function AgendamentosPage() {
     if (c.cliente_telefone || cliCad) carregarEnderecosCliente(c.cliente_telefone || '', cliCad?.raw)
     setErro('')
     setModalAberto(true)
+  }
+
+  // Duplicar: abre o form de NOVO atendimento ja preenchido com os dados de
+  // um existente (enderecos, solicitante, passageiros, valores, motorista).
+  // Pedido Julimar 2026-10-30: refazer o mesmo servico semanas depois, pra
+  // outra pessoa, sem redigitar tudo — o "Reativar" reaproveitava a propria
+  // ficha e o servico antigo sumia do historico. Reusa o abrirEditar pra
+  // preencher e so troca pra modo criacao, limpando o que e de CADA viagem.
+  // O original nao e tocado.
+  function abrirDuplicar(c: Corrida, voltaId?: string) {
+    abrirEditar(c, voltaId)
+    setCorridaEditando(null)
+    setVoltaIdEditando(null)
+    setDuplicandoDe(c.numero_reserva ? String(c.numero_reserva) : `#${c.id.slice(-5).toUpperCase()}`)
+    setForm(f => ({
+      ...f,
+      // Data/horario em branco: o salvar exige preencher, entao a copia
+      // nunca sai sem querer na mesma data do original.
+      data: '', horario: '', data_retorno: '', horario_retorno: '',
+      data_termino: '', horario_termino: '',
+      numero_voo: '',
+      km_inicial: '', km_final: '', km_inicial_volta: '', km_final_volta: '',
+      status_pagamento: 'a_receber', valor_recebido: '', data_pagamento: '', data_prevista_pagamento: '',
+    }))
   }
 
   function selecionarRota(rotaId: string) {
@@ -3199,6 +3228,18 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                         </button>
                       )}
                       <button
+                        onClick={() => {
+                          const c = corridaFicha
+                          const voltaId = voltaDaFicha?.id
+                          setModalFichaAberto(false)
+                          abrirDuplicar(c, voltaId)
+                        }}
+                        title="Duplicar: cria um atendimento novo com os mesmos dados (o original não muda)"
+                        className="px-2.5 py-1 rounded-lg text-[10px] font-medium"
+                        style={{ background: '#EEF2FF', color: '#3730A3' }}>
+                        📋 Duplicar
+                      </button>
+                      <button
                         onClick={async () => {
                           const msg = voltaDaFicha
                             ? 'Apagar definitivamente a IDA? A volta continua salva separadamente. Os dados da ida serão perdidos.'
@@ -4268,11 +4309,18 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
           <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-4 flex items-center gap-3 flex-shrink-0">
             <button onClick={() => setModalAberto(false)} style={{ color: '#9FE1CB' }} className="text-2xl">‹</button>
             <p style={{ color: '#E1F5EE' }} className="text-sm font-semibold">
-              {corridaEditando ? 'Editar atendimento' : 'Novo atendimento'}
+              {corridaEditando ? 'Editar atendimento' : duplicandoDe ? 'Duplicar atendimento' : 'Novo atendimento'}
             </p>
           </div>
 
           <div className="flex-1 overflow-y-auto px-4 pt-4 pb-20 flex flex-col gap-3">
+
+            {duplicandoDe && !corridaEditando && (
+              <div className="rounded-xl p-3 text-xs leading-relaxed" style={{ background: '#EEF2FF', color: '#3730A3' }}>
+                📋 <span className="font-bold">Cópia do atendimento {duplicandoDe}.</span>{' '}
+                Escolha a nova data e horário e confira passageiro e voo antes de salvar. O atendimento original não muda.
+              </div>
+            )}
 
             <Campo label="Tipo de serviço">
               <select value={form.tipo_servico}
