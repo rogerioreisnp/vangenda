@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { format, startOfMonth, endOfMonth, subDays, startOfDay, endOfDay, addMonths, subMonths } from 'date-fns'
+import { format, startOfMonth, endOfMonth, subDays, addDays, startOfDay, endOfDay, addMonths, subMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import Link from 'next/link'
 
@@ -180,6 +180,10 @@ export default function FinanceiroPage() {
   const [corridas, setCorridas]     = useState<CorridaFin[]>([])
   const [corridasRecebidasPeriodo, setCorridasRecebidasPeriodo] = useState<CorridaFin[]>([])
   const [corridasAReceberTotal, setCorridasAReceberTotal] = useState<CorridaFin[]>([])
+  // Atendimentos que podem ser vinculados a uma despesa: o periodo + 7 dias
+  // de cada lado. Julimar 2026-11-01: abasteceu dia 1 as 00:30 pra servicos
+  // do dia 31 e o seletor so listava novembro (o periodo do filtro).
+  const [corridasVinculo, setCorridasVinculo] = useState<CorridaFin[]>([])
   const [despesas, setDespesas]     = useState<Despesa[]>([])
   const [receitasManuais, setReceitasManuais] = useState<Despesa[]>([])
   const [veiculoExpandido, setVeiculoExpandido] = useState<string | null>(null)
@@ -266,7 +270,10 @@ export default function FinanceiroPage() {
     const { inicio, fim } = intervalo()
     const selectCorrida = 'id, origem, destino, data_hora, valor, status, cliente_nome, motorista_id, valor_recebido, status_pagamento, data_pagamento, numero_reserva, valor_repasse_motorista, motoristas_empresa(nome, veiculo, placa)'
 
-    const [{ data: corr }, { data: desp }, { data: recebidas }, { data: aReceber }] = await Promise.all([
+    const vinculoInicio = format(subDays(new Date(`${inicio}T12:00:00`), 7), 'yyyy-MM-dd')
+    const vinculoFim    = format(addDays(new Date(`${fim}T12:00:00`), 7), 'yyyy-MM-dd')
+
+    const [{ data: corr }, { data: desp }, { data: recebidas }, { data: aReceber }, { data: vinculo }] = await Promise.all([
       // Corridas concluídas no período (atividade/operação, não é a conta de receita)
       supabase
         .from('corridas_empresa')
@@ -300,9 +307,19 @@ export default function FinanceiroPage() {
         .eq('status', 'concluida')
         .neq('status_pagamento', 'recebido')
         .order('data_hora', { ascending: true }),
+      // Opcoes do "Vincular a atendimento" (periodo +/- 7 dias). Nao entra
+      // em nenhum total — so alimenta o seletor e o link da despesa.
+      supabase
+        .from('corridas_empresa')
+        .select(selectCorrida)
+        .eq('empresa_id', eid)
+        .gte('data_hora', `${vinculoInicio}T00:00:00`)
+        .lte('data_hora', `${vinculoFim}T23:59:59`)
+        .order('data_hora', { ascending: false }),
     ])
 
     setCorridas((corr as any) ?? [])
+    setCorridasVinculo((vinculo as any) ?? [])
     setCorridasRecebidasPeriodo((recebidas as any) ?? [])
     setCorridasAReceberTotal((aReceber as any) ?? [])
     const todosLancamentos = (desp as Despesa[]) ?? []
@@ -995,7 +1012,7 @@ export default function FinanceiroPage() {
                             </p>
                           )}
                           {d.corrida_id && (() => {
-                            const c = corridas.find(x => x.id === d.corrida_id)
+                            const c = corridasVinculo.find(x => x.id === d.corrida_id) ?? corridas.find(x => x.id === d.corrida_id)
                             if (!c) return null
                             const num = c.numero_reserva || `#${c.id.slice(-5).toUpperCase()}`
                             return (
@@ -1305,7 +1322,7 @@ export default function FinanceiroPage() {
                   onChange={e => setForm(f => ({ ...f, corrida_id: e.target.value, reembolsavel: e.target.value ? f.reembolsavel : false }))}
                   className="campo-input">
                   <option value="">Nenhum</option>
-                  {[...corridas].sort((a, b) => b.data_hora.localeCompare(a.data_hora)).map(c => {
+                  {[...corridasVinculo].sort((a, b) => b.data_hora.localeCompare(a.data_hora)).map(c => {
                     const num = c.numero_reserva || `#${c.id.slice(-5).toUpperCase()}`
                     const dt = `${c.data_hora.slice(8,10)}/${c.data_hora.slice(5,7)}`
                     return (

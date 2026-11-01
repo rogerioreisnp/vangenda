@@ -212,6 +212,8 @@ type FormCorrida = {
   data_prevista_pagamento: string
   preco: string
   valor_repasse_motorista: string
+  // Repasse da VOLTA de um par ida-volta. Em branco = mesmo valor da ida.
+  valor_repasse_volta: string
   observacoes: string
   anexo_observacoes_url: string
   anexo_observacoes_volta_url: string
@@ -256,6 +258,7 @@ const FORM_VAZIO: FormCorrida = {
   data_prevista_pagamento: '',
   preco: '',
   valor_repasse_motorista: '',
+  valor_repasse_volta: '',
   observacoes: '',
   anexo_observacoes_url: '',
   anexo_observacoes_volta_url: '',
@@ -525,13 +528,26 @@ export default function AgendamentosPage() {
   const [baixaRepasseData, setBaixaRepasseData] = useState('')
   const [baixaRepasseForma, setBaixaRepasseForma] = useState<'pix' | 'dinheiro' | 'transferencia' | 'cartao'>('pix')
   const [baixaRepasseSalvando, setBaixaRepasseSalvando] = useState(false)
+  const [baixaRepasseIncluirVolta, setBaixaRepasseIncluirVolta] = useState(true)
 
   function abrirBaixaRepasse(c: Corrida) {
     // Se ja tem baixa, pre-preenche pra edicao. Senao, sugere hoje + pix.
     const hoje = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` })()
     setBaixaRepasseData(c.repasse_data_pago || hoje)
     setBaixaRepasseForma((c.repasse_forma_pagamento as any) || 'pix')
+    setBaixaRepasseIncluirVolta(true)
     setBaixaRepasseAberta(c)
+  }
+
+  // Ida de um par com o repasse da volta ainda a pagar — o modal oferece dar
+  // baixa nas duas juntas. Mesma ideia da baixa do pagamento do cliente:
+  // cada ponta tem o proprio repasse_status (Julimar 2026-11-01).
+  function voltaRepassePendente(c: Corrida): Corrida | null {
+    const v = voltaDaFicha
+    if (!v || v.id === c.id) return null
+    if (!(Number(v.valor_repasse_motorista) > 0) || v.repasse_status === 'pago') return null
+    if (v.status === 'cancelada' || v.status === 'recusada') return null
+    return v
   }
 
   async function confirmarBaixaRepasse() {
@@ -543,12 +559,23 @@ export default function AgendamentosPage() {
       repasse_forma_pagamento: baixaRepasseForma,
     }
     const { error } = await supabase.from('corridas_empresa').update(patch).eq('id', baixaRepasseAberta.id)
+    if (error) { setBaixaRepasseSalvando(false); alert('Erro ao marcar repasse: ' + error.message); return }
+
+    const volta = baixaRepasseIncluirVolta ? voltaRepassePendente(baixaRepasseAberta) : null
+    let voltaOk = false
+    if (volta) {
+      const { error: erroVolta } = await supabase.from('corridas_empresa').update(patch).eq('id', volta.id)
+      if (erroVolta) alert('O repasse da ida foi marcado, mas deu erro na volta: ' + erroVolta.message)
+      else voltaOk = true
+    }
     setBaixaRepasseSalvando(false)
-    if (error) { alert('Erro ao marcar repasse: ' + error.message); return }
+
     // Atualiza estado local sem re-fetch — mesma pattern das outras acoes.
-    setCorridas(prev => prev.map(x => x.id === baixaRepasseAberta.id ? { ...x, ...patch } : x))
-    setCorridaFicha(prev => prev && prev.id === baixaRepasseAberta.id ? { ...prev, ...patch } : prev)
-    setVoltaDaFicha(prev => prev && prev.id === baixaRepasseAberta.id ? { ...prev, ...patch } : prev)
+    const aplicar = <T extends Corrida>(x: T): T =>
+      x.id === baixaRepasseAberta.id || (voltaOk && volta && x.id === volta.id) ? { ...x, ...patch } : x
+    setCorridas(prev => prev.map(aplicar))
+    setCorridaFicha(prev => prev && aplicar(prev))
+    setVoltaDaFicha(prev => prev && aplicar(prev))
     setBaixaRepasseAberta(null)
   }
 
@@ -998,6 +1025,11 @@ export default function AgendamentosPage() {
       data_prevista_pagamento: c.data_prevista_pagamento || '',
       preco: String(c.valor),
       valor_repasse_motorista: c.valor_repasse_motorista != null ? String(c.valor_repasse_motorista) : '',
+      // So mostra o repasse da volta quando ele e DIFERENTE do da ida — igual
+      // ou vazio fica em branco ("mesmo da ida"), e salvar grava o da ida nela.
+      valor_repasse_volta: volta && volta.valor_repasse_motorista != null
+        && Number(volta.valor_repasse_motorista) !== Number(c.valor_repasse_motorista)
+        ? String(volta.valor_repasse_motorista) : '',
       observacoes: c.observacoes || '',
       anexo_observacoes_url: c.anexo_observacoes_url || '',
       anexo_observacoes_volta_url: volta?.anexo_observacoes_url || '',
@@ -1267,6 +1299,14 @@ export default function AgendamentosPage() {
       anexo_observacoes_url: form.anexo_observacoes_url.trim() || null,
     }
 
+    // Repasse da VOLTA do par: campo proprio no form; em branco = mesmo valor
+    // da ida. Antes a edicao so gravava o repasse na ida e a volta ficava sem
+    // (Julimar 2026-11-01: "repasses nao contemplados na ida e volta").
+    const repasseVoltaTrim = form.valor_repasse_volta.trim()
+    const repasseVolta = repasseVoltaTrim
+      ? Math.max(0, parseFloat(repasseVoltaTrim.replace(',', '.'))) || null
+      : camposComuns.valor_repasse_motorista
+
     // Endereços da VOLTA, mapeados pra linha da volta do par. O form guarda
     // o embarque/desembarque da volta nos campos *_retorno_*, que gravam nas
     // colunas retorno_* da linha da IDA — mas a ficha da volta e o app do
@@ -1400,6 +1440,7 @@ export default function AgendamentosPage() {
           numero_voo: camposComuns.numero_voo,
           passageiros_adicionais: camposComuns.passageiros_adicionais,
           tipo_servico: camposComuns.tipo_servico,
+          valor_repasse_motorista: repasseVolta,
           ...enderecosDaVoltaDoPar(),
         }
         // Se o usuario alterou os dados da volta no form, propaga na volta
@@ -1484,6 +1525,7 @@ export default function AgendamentosPage() {
           origem: (form.origem_volta || form.destino).trim(),
           destino: (form.destino_volta || form.origem).trim(),
           valor: !isNaN(precoVolta) && form.preco_volta.trim() !== '' ? precoVolta : preco,
+          valor_repasse_motorista: repasseVolta,
           observacoes: form.observacoes_volta.trim() || null,
           anexo_observacoes_url: form.anexo_observacoes_volta_url.trim() || null,
           // Endereço de embarque/desembarque da VOLTA na própria linha da
@@ -3037,6 +3079,7 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
         const c = baixaRepasseAberta
         const mot = motoristaInfo(c, c.motorista_id ?? '')
         const editando = c.repasse_status === 'pago'
+        const voltaRepPend = voltaRepassePendente(c)
         return (
           <div className="fixed inset-0 z-[70] flex items-end justify-center" style={{ background: 'rgba(0,0,0,0.4)' }} onClick={() => setBaixaRepasseAberta(null)}>
             <div className="w-full max-w-md bg-white rounded-t-2xl p-5 pb-24 flex flex-col gap-3" style={{ maxHeight: '92dvh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
@@ -3072,6 +3115,19 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                   <option value="cartao">Cartão</option>
                 </select>
               </Campo>
+
+              {voltaRepPend && (
+                <label className="flex items-start gap-2 rounded-xl p-3 border cursor-pointer"
+                  style={{ background: '#EEEDFE', borderColor: '#AFA9EC' }}>
+                  <input type="checkbox" checked={baixaRepasseIncluirVolta}
+                    onChange={e => setBaixaRepasseIncluirVolta(e.target.checked)}
+                    className="mt-0.5" />
+                  <span className="text-xs" style={{ color: '#3C3489' }}>
+                    <span className="font-bold">🔁 Incluir também o repasse da volta</span>
+                    {' '}— R$ {(Number(voltaRepPend.valor_repasse_motorista) || 0).toFixed(2).replace('.', ',')}, mesma data e forma de pagamento
+                  </span>
+                </label>
+              )}
 
               <button onClick={confirmarBaixaRepasse} disabled={baixaRepasseSalvando || !baixaRepasseData}
                 className="w-full py-3 rounded-xl text-sm font-bold text-white disabled:opacity-40"
@@ -3552,6 +3608,44 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                       ✓ Marcar pagamento da volta como recebido
                     </button>
                   )
+                )}
+                {/* Repasse da volta — a volta tem o proprio valor de repasse
+                    e repasse_status, e antes nao aparecia na ficha nem tinha
+                    onde dar baixa (Julimar 2026-11-01). */}
+                {Number(voltaDaFicha.valor_repasse_motorista) > 0 && !vCancelada && voltaDaFicha.status !== 'recusada' && (
+                  <>
+                    <div className="flex justify-between text-xs mt-2 rounded-lg p-2" style={{ background: '#F5F6F8' }}>
+                      <span style={{ color: '#6B7280' }}>Repasse motorista (volta)</span>
+                      <span style={{ color: '#A32D2D' }}>
+                        − R$ {Number(voltaDaFicha.valor_repasse_motorista).toFixed(2).replace('.', ',')}
+                      </span>
+                    </div>
+                    {voltaDaFicha.repasse_status === 'pago' ? (
+                      <div className="w-full mt-2 py-2 px-3 rounded-xl text-xs border flex items-center justify-between gap-2"
+                        style={{ background: '#F0FDF4', borderColor: '#BBF7D0' }}>
+                        <span className="font-bold" style={{ color: '#166534' }}>
+                          ✓ Repasse da volta pago{voltaDaFicha.repasse_data_pago ? ` em ${voltaDaFicha.repasse_data_pago.split('-').reverse().join('/')}` : ''}
+                        </span>
+                        <div className="flex gap-2 shrink-0">
+                          <button onClick={() => abrirBaixaRepasse(voltaDaFicha)}
+                            className="text-xs font-semibold underline" style={{ color: '#166534' }}>
+                            editar
+                          </button>
+                          <button onClick={() => desfazerBaixaRepasse(voltaDaFicha)}
+                            className="text-xs font-semibold underline text-gray-500">
+                            desfazer
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => abrirBaixaRepasse(voltaDaFicha)}
+                        className="w-full mt-2 py-2.5 rounded-xl text-xs font-bold border"
+                        style={{ background: '#E1F5EE', color: '#0F6E56', borderColor: '#9FE1CB' }}>
+                        ✓ Marcar repasse da volta como pago
+                      </button>
+                    )}
+                  </>
                 )}
                 {voltaDaFicha.observacoes && (
                   <p className="text-xs text-gray-500 mt-2">📝 {voltaDaFicha.observacoes}</p>
@@ -4342,6 +4436,7 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                       preco_volta: '', observacoes_volta: '',
                       anexo_observacoes_volta_url: '',
                       km_inicial_volta: '', km_final_volta: '',
+                      valor_repasse_volta: '',
                     }
                   }
                   return { ...f, tipo_servico: tipo }
@@ -4383,15 +4478,23 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                   //   - sem repasse (funcionario): fica em branco
                   // So preenche se campo estiver vazio (nao sobrescreve edicao manual).
                   let repasseAuto = form.valor_repasse_motorista
+                  let repasseVoltaAuto = form.valor_repasse_volta
+                  // Inferir modo pra motoristas legados que so tem percentual_repasse
+                  const modo = mot ? (mot.modo_repasse ?? (mot.percentual_repasse ? 'percentual' : null)) : null
                   if (!form.valor_repasse_motorista && mot) {
-                    // Inferir modo pra motoristas legados que so tem percentual_repasse
-                    const modo = mot.modo_repasse ?? (mot.percentual_repasse ? 'percentual' : null)
                     if (modo === 'percentual' && mot.percentual_repasse && valorNum > 0) {
                       repasseAuto = (valorNum * mot.percentual_repasse / 100).toFixed(2)
                     }
                     // modo=valor_fixo: nao auto-preenche (gestor digita)
                   }
-                  setForm(f => ({ ...f, motorista_id: id, valor_repasse_motorista: repasseAuto }))
+                  // Volta com preco proprio diferente da ida: o % tambem vale
+                  // sobre o preco da volta. Preco igual fica em branco (= ida).
+                  const valorVoltaNum = parseFloat(form.preco_volta?.replace(',', '.') || '0')
+                  if (!form.valor_repasse_volta && mot && form.ida_volta && modo === 'percentual'
+                    && mot.percentual_repasse && valorVoltaNum > 0 && valorVoltaNum !== valorNum) {
+                    repasseVoltaAuto = (valorVoltaNum * mot.percentual_repasse / 100).toFixed(2)
+                  }
+                  setForm(f => ({ ...f, motorista_id: id, valor_repasse_motorista: repasseAuto, valor_repasse_volta: repasseVoltaAuto }))
                 }}
                 className="campo-input">
                 <option value="">A definir</option>
@@ -4409,7 +4512,7 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                 atribuido. Autopreenchido pelo percentual padrao — gestor pode
                 editar. Lucro real = valor - repasse (mostrado na ficha). */}
             {form.motorista_id && (
-              <Campo label="Valor de repasse ao motorista (R$)">
+              <Campo label={form.ida_volta && (!corridaEditando || voltaIdEditando) ? 'Valor de repasse ao motorista — ida (R$)' : 'Valor de repasse ao motorista (R$)'}>
                 <input type="number" min={0} step={0.01}
                   value={form.valor_repasse_motorista}
                   onChange={e => setForm(f => ({ ...f, valor_repasse_motorista: e.target.value }))}
@@ -4418,6 +4521,22 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                 <p className="text-[10px] text-gray-400 mt-1">
                   Deixe em branco pra motorista funcionário (sem repasse).
                   Se o motorista tem % configurado, o valor é calculado automaticamente.
+                </p>
+              </Campo>
+            )}
+
+            {/* Repasse da VOLTA — so no par ida-volta (criando ou editando o
+                par). Antes nao existia: a edicao gravava o repasse so na ida
+                (Julimar 2026-11-01). Em branco = mesmo valor da ida. */}
+            {form.motorista_id && form.ida_volta && (!corridaEditando || voltaIdEditando) && (
+              <Campo label="Valor de repasse ao motorista — volta (R$)">
+                <input type="number" min={0} step={0.01}
+                  value={form.valor_repasse_volta}
+                  onChange={e => setForm(f => ({ ...f, valor_repasse_volta: e.target.value }))}
+                  placeholder={form.valor_repasse_motorista ? `Mesmo da ida (R$ ${form.valor_repasse_motorista})` : 'Mesmo da ida'}
+                  className="campo-input" />
+                <p className="text-[10px] text-gray-400 mt-1">
+                  Em branco, a volta fica com o mesmo repasse da ida.
                 </p>
               </Campo>
             )}
