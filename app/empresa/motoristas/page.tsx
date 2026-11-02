@@ -282,10 +282,46 @@ export default function MotoristasPage() {
   }
 
   async function excluir(m: Motorista) {
+    // Motorista com historico NAO e excluido de verdade: o banco apaga o
+    // vinculo dele em todos os atendimentos/lancamentos antigos (ON DELETE
+    // SET NULL) e as fichas ficam sem motorista pra sempre (Julimar
+    // 2026-11-02). Nesse caso desativa — pra operacao e o mesmo efeito (sai
+    // das listas de atribuicao), o historico fica intacto e da pra reativar.
+    const [{ count: nCorridas, error: e1 }, { count: nDespesas, error: e2 }] = await Promise.all([
+      supabase.from('corridas_empresa').select('id', { count: 'exact', head: true }).eq('motorista_id', m.id),
+      supabase.from('despesas_empresa').select('id', { count: 'exact', head: true }).eq('motorista_id', m.id),
+    ])
+    const erroContagem = e1 || e2
+    if (erroContagem) { alert('Não foi possível verificar o histórico do motorista: ' + erroContagem.message); return }
+    if ((nCorridas || 0) + (nDespesas || 0) > 0) {
+      const partes = [
+        nCorridas ? `${nCorridas} atendimento${nCorridas !== 1 ? 's' : ''}` : null,
+        nDespesas ? `${nDespesas} lançamento${nDespesas !== 1 ? 's' : ''} no financeiro` : null,
+      ].filter(Boolean).join(' e ')
+      if (m.status === 'inativo') {
+        alert(
+          `"${m.nome}" tem ${partes} no histórico, por isso não pode ser excluído — ` +
+          `as fichas antigas perderiam o motorista.\n\n` +
+          `Ele continua desativado e não aparece para novos atendimentos.`
+        )
+        return
+      }
+      const okDesativar = confirm(
+        `"${m.nome}" tem ${partes} no histórico.\n\n` +
+        `Para não perder quem fez cada atendimento, ele será DESATIVADO em vez de excluído:\n` +
+        `• Sai das listas para novos atendimentos.\n` +
+        `• As fichas antigas continuam com o nome dele.\n` +
+        `• Você pode reativar quando quiser.\n\n` +
+        `Desativar agora?`
+      )
+      if (okDesativar) await inativar(m.id)
+      return
+    }
+
     const ok = confirm(
       `Excluir "${m.nome}" da lista de motoristas?\n\n` +
-      `• O cadastro dele será removido da sua empresa.\n` +
-      `• O histórico de corridas e o financeiro serão preservados.\n\n` +
+      `• Ele não tem atendimentos nem lançamentos no histórico.\n` +
+      `• O cadastro dele será removido da sua empresa.\n\n` +
       `Esta ação não pode ser desfeita.`
     )
     if (!ok) return

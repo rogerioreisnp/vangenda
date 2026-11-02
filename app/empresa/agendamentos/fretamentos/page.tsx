@@ -35,6 +35,7 @@ type MotoristaOpcao = {
   modo_repasse: 'percentual' | 'valor_fixo' | null
   valor_fixo_repasse: number | null
   veiculos: { id: string; veiculo: string | null; placa: string | null; cor: string | null }[]
+  status?: string
 }
 
 type Corrida = {
@@ -678,6 +679,11 @@ export default function AgendamentosPage() {
   const [preencherPassageiroAuto, setPreencherPassageiroAuto] = useState(false)
   const [rotasOpcoes, setRotasOpcoes] = useState<RotaOpcao[]>([])
   const [motoristasOpcoes, setMotoristasOpcoes] = useState<MotoristaOpcao[]>([])
+  // Motoristas DESATIVADOS — nunca oferecidos pra atribuir atendimento novo,
+  // mas usados pra mostrar quem fez os atendimentos antigos (nome, veiculo,
+  // telefone). Antes a tela so carregava ativos e as fichas antigas pareciam
+  // ter perdido o motorista (Julimar 2026-11-02).
+  const [motoristasInativos, setMotoristasInativos] = useState<MotoristaOpcao[]>([])
   const [clientesOpcoes, setClientesOpcoes] = useState<Array<{ id: string; tipo: 'pj'|'pf'; label: string; telefone: string | null; email: string | null; raw: any }>>([])
   // Enderecos ja usados por esse telefone em atendimentos anteriores (ordenados
   // por frequencia) — evita redigitar embarque/desembarque de clientes
@@ -840,9 +846,8 @@ export default function AgendamentosPage() {
         .order('created_at'),
       supabase
         .from('motoristas_empresa')
-        .select('id, nome, user_id, telefone, veiculo, placa, cor, percentual_repasse, modo_repasse, valor_fixo_repasse, veiculos_motorista(id, veiculo, placa, cor, ordem)')
+        .select('id, nome, user_id, telefone, veiculo, placa, cor, status, percentual_repasse, modo_repasse, valor_fixo_repasse, veiculos_motorista(id, veiculo, placa, cor, ordem)')
         .eq('empresa_id', gestor.empresa_id)
-        .eq('status', 'ativo')
         .order('nome'),
       supabase
         .from('clientes_empresa')
@@ -889,10 +894,12 @@ export default function AgendamentosPage() {
     }
     if (rts) setRotasOpcoes(rts)
     if (mots) {
-      setMotoristasOpcoes((mots as any[]).map(m => ({
+      const todos: MotoristaOpcao[] = (mots as any[]).map(m => ({
         ...m,
         veiculos: (m.veiculos_motorista || []).slice().sort((a: any, b: any) => a.ordem - b.ordem),
-      })))
+      }))
+      setMotoristasOpcoes(todos.filter(m => m.status === 'ativo'))
+      setMotoristasInativos(todos.filter(m => m.status !== 'ativo'))
     }
     if (clientesData) {
       setClientesOpcoes((clientesData as any[]).map(c => ({
@@ -1789,7 +1796,7 @@ export default function AgendamentosPage() {
   // veiculos_motorista; sem nenhum la, cai no veiculo/placa/cor "principal"
   // (motoristas antigos que nunca abriram a tela de multiplos veiculos).
   function veiculosDoMotorista(motoristaId: string): string[] {
-    const m = motoristasOpcoes.find(x => x.id === motoristaId)
+    const m = motoristasOpcoes.find(x => x.id === motoristaId) ?? motoristasInativos.find(x => x.id === motoristaId)
     if (!m) return []
     if (m.veiculos && m.veiculos.length > 0) {
       return m.veiculos.map(v => [v.veiculo, v.cor, v.placa].filter(Boolean).join(' · ')).filter(Boolean)
@@ -1829,8 +1836,17 @@ export default function AgendamentosPage() {
   // (c.motoristas_empresa) quando o motorista foi DESATIVADO depois — antes
   // o nome do motorista sumia da mensagem porque motoristasOpcoes só traz
   // status='ativo'.
+  // Atendimento antigo de motorista DESATIVADO: os selects de atribuicao so
+  // listam ativos, e sem esta opcao o campo aparecia "Selecione o
+  // motorista..." como se a ficha tivesse perdido o motorista. Mostra ele
+  // marcado como desativado, sem oferecer pra atendimento novo.
+  function opcaoMotoristaDesativado(motoristaId: string) {
+    const m = motoristaId ? motoristasInativos.find(x => x.id === motoristaId) : null
+    return m ? <option value={m.id}>{m.nome} (desativado)</option> : null
+  }
+
   function motoristaInfo(c: Corrida, motoristaId: string) {
-    const m = motoristasOpcoes.find(x => x.id === motoristaId)
+    const m = motoristasOpcoes.find(x => x.id === motoristaId) ?? motoristasInativos.find(x => x.id === motoristaId)
     if (m) return m
     const j = (c as any).motoristas_empresa
     if (!j) return null
@@ -3861,6 +3877,7 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                       onChange={e => { setMotoristaFicha(e.target.value); setVeiculoFicha(veiculosDoMotorista(e.target.value)[0] ?? '') }}
                       className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 bg-white outline-none">
                       <option value="">Selecione o motorista...</option>
+                      {opcaoMotoristaDesativado(motoristaFicha)}
                       {motoristasOpcoes.map(m => (
                         <option key={m.id} value={m.id}>{m.nome}</option>
                       ))}
@@ -4247,6 +4264,7 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                         className="w-full px-3 py-2.5 rounded-xl border text-sm text-gray-700 bg-white outline-none"
                         style={{ borderColor: '#AFA9EC' }}>
                         <option value="">Selecione o motorista...</option>
+                        {opcaoMotoristaDesativado(motoristaFichaVolta)}
                         {motoristasOpcoes.map(m => (
                           <option key={m.id} value={m.id}>{m.nome}</option>
                         ))}
@@ -4498,6 +4516,7 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                 }}
                 className="campo-input">
                 <option value="">A definir</option>
+                {opcaoMotoristaDesativado(form.motorista_id)}
                 {motoristasOpcoes.map(m => {
                   const modo = m.modo_repasse ?? (m.percentual_repasse ? 'percentual' : null)
                   const info = modo === 'percentual' && m.percentual_repasse ? ` · ${m.percentual_repasse}% repasse`

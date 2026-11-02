@@ -50,7 +50,12 @@ type Motorista = {
   nome: string
   veiculo: string | null
   placa: string | null
+  status: string | null
 }
+
+// Motorista desativado continua aparecendo no historico (nomes, filtros,
+// repasse) marcado assim — so nao e oferecido pra lancamento novo.
+const nomeMotorista = (m: Motorista) => m.status === 'ativo' ? m.nome : `${m.nome} (desativado)`
 
 type FormDespesa = {
   tipo: 'receita' | 'despesa'
@@ -225,10 +230,12 @@ export default function FinanceiroPage() {
 
     const [{ data: mots }, { data: emp }] = await Promise.all([
       supabase
+        // Todos, inclusive desativados: o financeiro e historico, e so com os
+        // ativos os lancamentos antigos de um motorista desativado viravam
+        // "Sem motorista" (Julimar 2026-11-02).
         .from('motoristas_empresa')
-        .select('id, nome, veiculo, placa')
+        .select('id, nome, veiculo, placa, status')
         .eq('empresa_id', gestor.empresa_id)
-        .eq('status', 'ativo')
         .order('nome'),
       supabase
         .from('empresas')
@@ -696,7 +703,7 @@ export default function FinanceiroPage() {
                   className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm outline-none bg-white focus:border-green-600">
                   <option value="">Todos os motoristas</option>
                   {motoristas.map(m => (
-                    <option key={m.id} value={m.id}>🚗 {m.nome}{m.veiculo ? ` · ${m.veiculo}` : ''}</option>
+                    <option key={m.id} value={m.id}>🚗 {nomeMotorista(m)}{m.veiculo ? ` · ${m.veiculo}` : ''}</option>
                   ))}
                 </select>
               )}
@@ -897,7 +904,7 @@ export default function FinanceiroPage() {
                     <select value={filtroDespMotorista} onChange={e => setFiltroDespMotorista(e.target.value)}
                       className="px-2 py-2 rounded-xl border border-gray-200 text-xs outline-none bg-white focus:border-green-600">
                       <option value="">Todos motoristas</option>
-                      {motoristas.map(m => <option key={m.id} value={m.id}>🚗 {m.nome}</option>)}
+                      {motoristas.map(m => <option key={m.id} value={m.id}>🚗 {nomeMotorista(m)}</option>)}
                     </select>
                   )}
                   {veiculosComDespesa.length > 1 && (
@@ -1194,7 +1201,7 @@ export default function FinanceiroPage() {
               baixa em lote. Reusa periodo global do topo do financeiro. */
           <AbaRepasseMotoristas
             empresaId={empresaId!}
-            motoristasList={motoristas}
+            motoristasList={motoristas.map(m => ({ id: m.id, nome: nomeMotorista(m) }))}
             intervaloInicio={intervalo().inicio}
             intervaloFim={intervalo().fim}
           />
@@ -1304,9 +1311,11 @@ export default function FinanceiroPage() {
                 }}
                 className="campo-input">
                 <option value="">Selecionar...</option>
-                {motoristas.map(m => (
+                {/* Lancamento novo: so ativos. O desativado so aparece se ja
+                    for o motorista deste lancamento (edicao de um antigo). */}
+                {motoristas.filter(m => m.status === 'ativo' || m.id === form.motorista_id).map(m => (
                   <option key={m.id} value={m.id}>
-                    {m.nome}{m.veiculo ? ` · ${m.veiculo}` : ''}
+                    {nomeMotorista(m)}{m.veiculo ? ` · ${m.veiculo}` : ''}
                   </option>
                 ))}
               </select>
