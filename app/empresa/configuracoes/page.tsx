@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import ListaFrases from './ListaFrases'
 
 type Empresa = {
   id: string
@@ -50,7 +51,14 @@ type Empresa = {
   // false (nao expor o solicitante) — cada empresa ativa conforme seu perfil
   // de cliente (ver app/empresa/agendamentos/fretamentos/page.tsx::salvar).
   preencher_passageiro_automatico: boolean | null
+  // Personalizacao da ficha enviada ao motorista pelo WhatsApp. Vazio/true
+  // reproduz a mensagem padrao (ver montarMsgDetalhada em fretamentos/page.tsx).
+  msg_motorista_avisos: string[] | null
+  msg_motorista_final: string[] | null
+  msg_motorista_rodape: boolean | null
 }
+
+const limparFrases = (frases: string[] | null) => (frases || []).map(f => f.trim()).filter(Boolean)
 
 // Planos vendidos hoje: Mensal, Semestral e Anual (mudam só o período de
 // cobrança). Os rótulos antigos Starter/Pro/Fleet não existem mais.
@@ -94,7 +102,7 @@ export default function ConfiguracoesEmpresaPage() {
 
     const { data: emp } = await supabase
       .from('empresas')
-      .select('id, nome, telefone, tipo_operacao, periodo, status, cnpj, email_comercial, cidade, estado, qtd_veiculos, descricao, chave_pix, tipo_chave_pix, instagram, whatsapp_comercial, cor_destaque, logo_url, trial_fim, slug, transfer_numero_inicio, mensagem_confirmacao, mensagem_confirmacao_transfer, endereco_rua, endereco_numero, endereco_bairro, endereco_cep, inscricao_estadual, site, banco_nome, banco_agencia, banco_conta, banco_tipo_conta, banco_titular_nome, banco_titular_documento, minutos_antes_lembrete, horas_apos_atendimento_cobranca, preencher_passageiro_automatico')
+      .select('id, nome, telefone, tipo_operacao, periodo, status, cnpj, email_comercial, cidade, estado, qtd_veiculos, descricao, chave_pix, tipo_chave_pix, instagram, whatsapp_comercial, cor_destaque, logo_url, trial_fim, slug, transfer_numero_inicio, mensagem_confirmacao, mensagem_confirmacao_transfer, endereco_rua, endereco_numero, endereco_bairro, endereco_cep, inscricao_estadual, site, banco_nome, banco_agencia, banco_conta, banco_tipo_conta, banco_titular_nome, banco_titular_documento, minutos_antes_lembrete, horas_apos_atendimento_cobranca, preencher_passageiro_automatico, msg_motorista_avisos, msg_motorista_final, msg_motorista_rodape')
       .eq('id', gestor.empresa_id)
       .single()
 
@@ -145,6 +153,9 @@ export default function ConfiguracoesEmpresaPage() {
     setSaving(true)
     setErro('')
 
+    const msgMotoristaAvisos = limparFrases(empresa.msg_motorista_avisos)
+    const msgMotoristaFinal = limparFrases(empresa.msg_motorista_final)
+
     const { error } = await supabase
       .from('empresas')
       .update({
@@ -182,12 +193,16 @@ export default function ConfiguracoesEmpresaPage() {
         minutos_antes_lembrete: empresa.minutos_antes_lembrete ?? 60,
         horas_apos_atendimento_cobranca: empresa.horas_apos_atendimento_cobranca ?? 24,
         preencher_passageiro_automatico: empresa.preencher_passageiro_automatico ?? false,
+        msg_motorista_avisos: msgMotoristaAvisos,
+        msg_motorista_final: msgMotoristaFinal,
+        msg_motorista_rodape: empresa.msg_motorista_rodape ?? true,
       })
       .eq('id', empresa.id)
 
     if (error) {
       setErro('Erro ao salvar: ' + error.message)
     } else {
+      setEmpresa(emp => emp ? { ...emp, msg_motorista_avisos: msgMotoristaAvisos, msg_motorista_final: msgMotoristaFinal } : emp)
       setSavedMsg(true)
       setTimeout(() => setSavedMsg(false), 2000)
       await reagendarLembretesPendentes()
@@ -694,6 +709,38 @@ export default function ConfiguracoesEmpresaPage() {
             </Campo>
           </div>
         </Secao>
+
+        {empresa?.tipo_operacao !== 'rota_fixa' && (
+          <Secao titulo="🚗 Mensagem para o motorista (WhatsApp)">
+            <div className="flex flex-col gap-4">
+              <p className="text-xs leading-relaxed" style={{ color: '#6B7280' }}>
+                ℹ️ Vale para o botão &quot;Enviar ficha ao motorista&quot;. O cliente não recebe estes textos.
+                Depois de ajustar, toque em <b>Salvar alterações</b> no fim da página.
+              </p>
+              <Campo label="Avisos abaixo da data e horário">
+                <ListaFrases
+                  itens={empresa?.msg_motorista_avisos ?? []}
+                  onChange={itens => setEmpresa(emp => emp ? { ...emp, msg_motorista_avisos: itens } : emp)}
+                  exemplo="Ex: Chegar sempre 15 minutos antes"
+                />
+              </Campo>
+              <Campo label="Texto no final da mensagem">
+                <ListaFrases
+                  itens={empresa?.msg_motorista_final ?? []}
+                  onChange={itens => setEmpresa(emp => emp ? { ...emp, msg_motorista_final: itens } : emp)}
+                  exemplo="Ex: Apresente-se bem vestido"
+                />
+              </Campo>
+              <label className="flex items-start gap-2.5 text-sm text-gray-700">
+                <input type="checkbox"
+                  checked={empresa?.msg_motorista_rodape ?? true}
+                  onChange={e => setEmpresa(emp => emp ? { ...emp, msg_motorista_rodape: e.target.checked } : emp)}
+                  className="mt-0.5" />
+                <span>Mostrar os dados da empresa no rodapé da mensagem</span>
+              </label>
+            </div>
+          </Secao>
+        )}
 
         <Secao titulo="👤 Preenchimento do passageiro">
           <label className="flex items-start gap-2.5 text-sm text-gray-700">

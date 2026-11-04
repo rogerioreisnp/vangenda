@@ -677,6 +677,11 @@ export default function AgendamentosPage() {
   // nome dele não pode vazar pro motorista — por isso é opt-in por empresa,
   // default false. Configurável em /empresa/configuracoes. 2026-08-14.
   const [preencherPassageiroAuto, setPreencherPassageiroAuto] = useState(false)
+  // Personalizacao da ficha enviada ao motorista, por empresa (Configuracoes).
+  // Vazio/true = mensagem padrao. Pedido Julimar 2026-11-04.
+  const [msgMotoristaAvisos, setMsgMotoristaAvisos] = useState<string[]>([])
+  const [msgMotoristaFinal, setMsgMotoristaFinal] = useState<string[]>([])
+  const [msgMotoristaRodape, setMsgMotoristaRodape] = useState(true)
   const [rotasOpcoes, setRotasOpcoes] = useState<RotaOpcao[]>([])
   const [motoristasOpcoes, setMotoristasOpcoes] = useState<MotoristaOpcao[]>([])
   // Motoristas DESATIVADOS — nunca oferecidos pra atribuir atendimento novo,
@@ -836,7 +841,7 @@ export default function AgendamentosPage() {
     const [{ data: empresa }, { data: rts }, { data: mots }, { data: clientesData }, { data: emAndamento }, { data: futuras }, { data: passadas }] = await Promise.all([
       supabase
         .from('empresas')
-        .select('tipo_operacao, nome, mensagem_confirmacao_transfer, descricao, whatsapp_comercial, instagram, slug, cnpj, inscricao_estadual, logo_url, telefone, email_comercial, site, endereco_rua, endereco_numero, endereco_bairro, endereco_cep, cidade, estado, chave_pix, tipo_chave_pix, banco_nome, banco_agencia, banco_conta, banco_tipo_conta, banco_titular_nome, banco_titular_documento, preencher_passageiro_automatico')
+        .select('tipo_operacao, nome, mensagem_confirmacao_transfer, descricao, whatsapp_comercial, instagram, slug, cnpj, inscricao_estadual, logo_url, telefone, email_comercial, site, endereco_rua, endereco_numero, endereco_bairro, endereco_cep, cidade, estado, chave_pix, tipo_chave_pix, banco_nome, banco_agencia, banco_conta, banco_tipo_conta, banco_titular_nome, banco_titular_documento, preencher_passageiro_automatico, msg_motorista_avisos, msg_motorista_final, msg_motorista_rodape')
         .eq('id', gestor.empresa_id)
         .single(),
       supabase
@@ -891,6 +896,9 @@ export default function AgendamentosPage() {
       setEmpresaFiscal(empresa)
       setMensagemConfirmacaoTransfer((empresa as any).mensagem_confirmacao_transfer || null)
       setPreencherPassageiroAuto((empresa as any).preencher_passageiro_automatico ?? false)
+      setMsgMotoristaAvisos(Array.isArray((empresa as any).msg_motorista_avisos) ? (empresa as any).msg_motorista_avisos : [])
+      setMsgMotoristaFinal(Array.isArray((empresa as any).msg_motorista_final) ? (empresa as any).msg_motorista_final : [])
+      setMsgMotoristaRodape((empresa as any).msg_motorista_rodape !== false)
     }
     if (rts) setRotasOpcoes(rts)
     if (mots) {
@@ -1890,6 +1898,7 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
     const rotulo = etapa === 'ida' ? ' (IDA)' : etapa === 'volta' ? ' (VOLTA)' : ''
     let msg = `Olá, tudo bem?\n\nSegue a confirmação do Atendimento${rotulo}: ${num}`
     msg += `\n📅 *Data/Hora:*\n${data} às ${hora} (${dia})`
+    if (paraMotorista) for (const aviso of msgMotoristaAvisos) msg += `\n${aviso}`
     msg += `\n\n👤 *Passageiros:*\n${passageiros}`
     if (telefones) msg += `\n📞 *Telefones:*\n${telefones}`
 
@@ -1920,7 +1929,14 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
       if (c.retorno_origem) msg += `\n📍 ${c.retorno_origem} → ${c.retorno_destino}`
     }
     if (c.observacoes) msg += `\n\n📝 *Obs:*\n${c.observacoes}`
-    const ass = montarAssinatura()
+    // So pro MOTORISTA: o repasse dele e o texto final configurado pela empresa.
+    // O cliente nunca recebe esses blocos.
+    if (paraMotorista) {
+      const repasse = Number(c.valor_repasse_motorista) || 0
+      if (repasse > 0) msg += `\n\n💰 *Seu repasse:* R$ ${repasse.toFixed(2).replace('.', ',')}`
+      if (msgMotoristaFinal.length > 0) msg += `\n\n${msgMotoristaFinal.join('\n')}`
+    }
+    const ass = paraMotorista && !msgMotoristaRodape ? '' : montarAssinatura()
     if (ass) msg += `\n\n${ass}`
     return msg
   }
@@ -1996,22 +2012,7 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
     if (!motorista) return
     const telFmt = formatarTelefoneWhatsApp(motorista.telefone)
     if (!telFmt) { alert(`Motorista ${motorista.nome} não tem telefone cadastrado.`); return }
-    let msg = montarMsgDetalhada(c, motoristaId, etapa, true)
-    // Pra o MOTORISTA (e nao pro cliente), incluir o valor de repasse dele
-    // logo antes da assinatura — motorista precisa saber quanto vai receber.
-    // Insere ANTES do bloco de assinatura (que comeca com \n\n*Nome Empresa*).
-    const repasse = Number(c.valor_repasse_motorista) || 0
-    if (repasse > 0) {
-      const valorFmt = repasse.toFixed(2).replace('.', ',')
-      const linhaRepasse = `\n\n💰 *Seu repasse:* R$ ${valorFmt}`
-      // Se tiver assinatura no final, insere antes dela; senao adiciona no fim
-      const idxAssinatura = msg.lastIndexOf('\n\n*')
-      if (idxAssinatura > 0) {
-        msg = msg.slice(0, idxAssinatura) + linhaRepasse + msg.slice(idxAssinatura)
-      } else {
-        msg += linhaRepasse
-      }
-    }
+    const msg = montarMsgDetalhada(c, motoristaId, etapa, true)
     window.open(`https://wa.me/${telFmt}?text=${encodeURIComponent(msg)}`, '_blank')
   }
 
