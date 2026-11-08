@@ -469,7 +469,14 @@ export default function FinanceiroPage() {
     return true
   }
   const corridasRecebidasFiltradas = corridasRecebidasPeriodo.filter(c => passaFiltroRec(c.motorista_id, c.cliente_nome))
-  const corridasAReceberFiltradas  = corridasAReceber.filter(c => passaFiltroRec(c.motorista_id, c.cliente_nome))
+  // "A receber" na ordem em que cada um deve ser pago: a previsao de
+  // recebimento (faturado) ou, sem previsao, a data do proprio atendimento
+  // (Pix/dinheiro vence no dia do servico). Vencidas ficam no topo. Pedido
+  // Julimar 2026-11-08 — antes seguia a data do servico.
+  const vencimentoDe = (c: CorridaFin) => c.data_prevista_pagamento || c.data_hora.slice(0, 10)
+  const corridasAReceberFiltradas  = corridasAReceber
+    .filter(c => passaFiltroRec(c.motorista_id, c.cliente_nome))
+    .sort((a, b) => vencimentoDe(a).localeCompare(vencimentoDe(b)) || a.data_hora.localeCompare(b.data_hora))
   const receitasManuaisFiltradas   = receitasManuais.filter(r => passaFiltroRec(r.motorista_id, r.descricao))
   const totalRecCorridasFiltrado = corridasRecebidasFiltradas.reduce((s, c) => s + Number(c.valor), 0)
   const totalAReceberFiltrado    = corridasAReceberFiltradas.reduce((s, c) => s + (Number(c.valor) - Number(c.valor_recebido || 0)), 0)
