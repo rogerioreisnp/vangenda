@@ -734,13 +734,23 @@ function BlocoEndereco({ titulo, rua, numero, bairro, municipio, cep, referencia
     <div className="bg-white rounded-2xl p-4 border border-gray-100">
       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{titulo}</p>
       <p className="text-sm text-gray-700 whitespace-pre-wrap">{enderecoStr}</p>
+      {/* Google Maps ou Waze, o motorista escolhe o app que usa (pedido
+          Julimar 2026-11-05). Mesmo endereco nos dois. */}
       {enderecoParaMaps && (
-        <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(enderecoParaMaps)}`}
-          target="_blank" rel="noopener noreferrer"
-          className="mt-3 py-2 rounded-xl text-white text-xs font-semibold text-center flex items-center justify-center gap-2"
-          style={{ background: '#4285F4' }}>
-          🗺️ Abrir no Google Maps
-        </a>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(enderecoParaMaps)}`}
+            target="_blank" rel="noopener noreferrer"
+            className="py-2 rounded-xl text-white text-xs font-semibold text-center flex items-center justify-center gap-1.5"
+            style={{ background: '#4285F4' }}>
+            🗺️ Google Maps
+          </a>
+          <a href={`https://waze.com/ul?q=${encodeURIComponent(enderecoParaMaps)}&navigate=yes`}
+            target="_blank" rel="noopener noreferrer"
+            className="py-2 rounded-xl text-xs font-semibold text-center flex items-center justify-center gap-1.5"
+            style={{ background: '#33CCFF', color: '#04342C' }}>
+            🚙 Waze
+          </a>
+        </div>
       )}
     </div>
   )

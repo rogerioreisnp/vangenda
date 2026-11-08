@@ -327,6 +327,27 @@ function badgePagamento(statusPagamento: string | null | undefined, status: stri
   return statusPagamento ? STATUS_PAGAMENTO_BADGE[statusPagamento] ?? null : null
 }
 
+// Previsao de recebimento no card da lista (pedido Julimar 2026-11-05: ver de
+// cara quando cada atendimento deve ser pago, sem abrir a ficha). So enquanto
+// nao foi recebido; vencida aparece em vermelho.
+function badgePrevisaoRecebimento(c: { status: string; status_pagamento: string | null; data_prevista_pagamento: string | null }): { texto: string; vencida: boolean } | null {
+  if (c.status === 'cancelada' || c.status === 'recusada') return null
+  if (c.status_pagamento === 'recebido' || !c.data_prevista_pagamento) return null
+  const d = c.data_prevista_pagamento
+  const vencida = d < HOJE
+  return { texto: `${vencida ? '⚠️ Venceu' : '📅 Receber até'} ${d.slice(8, 10)}/${d.slice(5, 7)}`, vencida }
+}
+
+function SeloPrevisao({ previsao }: { previsao: { texto: string; vencida: boolean } | null }) {
+  if (!previsao) return null
+  return (
+    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
+      style={previsao.vencida ? { background: '#FCEBEB', color: '#A32D2D' } : { background: '#EFF6FF', color: '#1D4ED8' }}>
+      {previsao.texto}
+    </span>
+  )
+}
+
 // Selo de repasse ao motorista pendente (Fase 3, 2026-09-22). So aparece
 // quando ha valor de repasse configurado (motorista parceiro/agregado) e
 // o gestor ainda nao marcou como pago. Nao aparece em cancelado/recusado.
@@ -981,6 +1002,21 @@ export default function AgendamentosPage() {
     // pros registros que ficaram com retorno preenchido por causa do bug do
     // toggle (ver o onChange do "Tipo de serviço").
     const tipoSemVolta = c.tipo_servico === 'diaria' || c.tipo_servico === 'city_tour'
+    // Endereco da VOLTA: o form usa os campos *_retorno_*, gravados na linha da
+    // IDA. Par antigo (ou criado sem preencher a volta) so tem o endereco na
+    // linha da propria volta — sem isto o editar/duplicar mostrava a volta sem
+    // endereco (Julimar 2026-11-05). Bloco a bloco: se a ida tem algo no
+    // bloco, ele vale; senao vem da linha da volta (o que o motorista ve).
+    const idaTemEmbarqueVolta = [c.rua_retorno_embarque, c.numero_retorno_embarque, c.bairro_retorno_embarque,
+      c.municipio_retorno_embarque, c.cep_retorno_embarque, c.referencia_retorno_embarque, c.complemento_retorno_embarque].some(Boolean)
+    const idaTemDesembarqueVolta = [c.rua_retorno_desembarque, c.numero_retorno_desembarque, c.bairro_retorno_desembarque,
+      c.municipio_retorno_desembarque, c.cep_retorno_desembarque, c.referencia_retorno_desembarque, c.complemento_retorno_desembarque].some(Boolean)
+    const embVolta = volta && !idaTemEmbarqueVolta
+      ? { rua: volta.rua, numero: volta.numero, bairro: volta.bairro, municipio: volta.municipio, cep: volta.cep, referencia: volta.referencia, complemento: volta.complemento }
+      : { rua: c.rua_retorno_embarque, numero: c.numero_retorno_embarque, bairro: c.bairro_retorno_embarque, municipio: c.municipio_retorno_embarque, cep: c.cep_retorno_embarque, referencia: c.referencia_retorno_embarque, complemento: c.complemento_retorno_embarque }
+    const desVolta = volta && !idaTemDesembarqueVolta
+      ? { rua: volta.rua_desembarque, numero: volta.numero_desembarque, bairro: volta.bairro_desembarque, municipio: volta.municipio_desembarque, cep: volta.cep_desembarque, referencia: volta.referencia_desembarque, complemento: volta.complemento_desembarque }
+      : { rua: c.rua_retorno_desembarque, numero: c.numero_retorno_desembarque, bairro: c.bairro_retorno_desembarque, municipio: c.municipio_retorno_desembarque, cep: c.cep_retorno_desembarque, referencia: c.referencia_retorno_desembarque, complemento: c.complemento_retorno_desembarque }
     setCorridaEditando(c)
     setVoltaIdEditando(voltaId ?? null)
     setDuplicandoDe(null)
@@ -1009,10 +1045,10 @@ export default function AgendamentosPage() {
       rua: c.rua || '', numero: c.numero || '', bairro: c.bairro || '', municipio: c.municipio || '', cep: c.cep || '', referencia: c.referencia || '', complemento: c.complemento || '',
       rua_desembarque: c.rua_desembarque || '', numero_desembarque: c.numero_desembarque || '', bairro_desembarque: c.bairro_desembarque || '',
       municipio_desembarque: c.municipio_desembarque || '', cep_desembarque: c.cep_desembarque || '', referencia_desembarque: c.referencia_desembarque || '', complemento_desembarque: c.complemento_desembarque || '',
-      rua_retorno_embarque: c.rua_retorno_embarque || '', numero_retorno_embarque: c.numero_retorno_embarque || '', bairro_retorno_embarque: c.bairro_retorno_embarque || '',
-      municipio_retorno_embarque: c.municipio_retorno_embarque || '', cep_retorno_embarque: c.cep_retorno_embarque || '', referencia_retorno_embarque: c.referencia_retorno_embarque || '', complemento_retorno_embarque: c.complemento_retorno_embarque || '',
-      rua_retorno_desembarque: c.rua_retorno_desembarque || '', numero_retorno_desembarque: c.numero_retorno_desembarque || '', bairro_retorno_desembarque: c.bairro_retorno_desembarque || '',
-      municipio_retorno_desembarque: c.municipio_retorno_desembarque || '', cep_retorno_desembarque: c.cep_retorno_desembarque || '', referencia_retorno_desembarque: c.referencia_retorno_desembarque || '', complemento_retorno_desembarque: c.complemento_retorno_desembarque || '',
+      rua_retorno_embarque: embVolta.rua || '', numero_retorno_embarque: embVolta.numero || '', bairro_retorno_embarque: embVolta.bairro || '',
+      municipio_retorno_embarque: embVolta.municipio || '', cep_retorno_embarque: embVolta.cep || '', referencia_retorno_embarque: embVolta.referencia || '', complemento_retorno_embarque: embVolta.complemento || '',
+      rua_retorno_desembarque: desVolta.rua || '', numero_retorno_desembarque: desVolta.numero || '', bairro_retorno_desembarque: desVolta.bairro || '',
+      municipio_retorno_desembarque: desVolta.municipio || '', cep_retorno_desembarque: desVolta.cep || '', referencia_retorno_desembarque: desVolta.referencia || '', complemento_retorno_desembarque: desVolta.complemento || '',
       data_termino: c.data_hora_termino ? c.data_hora_termino.slice(0, 10) : '',
       horario_termino: c.data_hora_termino ? c.data_hora_termino.slice(11, 16) : '',
       trajetos: Array.isArray(c.trajetos) ? c.trajetos : [],
@@ -1040,10 +1076,10 @@ export default function AgendamentosPage() {
       data_prevista_pagamento: c.data_prevista_pagamento || '',
       preco: String(c.valor),
       valor_repasse_motorista: c.valor_repasse_motorista != null ? String(c.valor_repasse_motorista) : '',
-      // So mostra o repasse da volta quando ele e DIFERENTE do da ida — igual
-      // ou vazio fica em branco ("mesmo da ida"), e salvar grava o da ida nela.
+      // Repasse da volta sempre com o valor gravado nela. Antes ficava em
+      // branco quando igual ao da ida e, no duplicar, parecia que nao tinha
+      // copiado (Julimar 2026-11-05). Em branco so quando a volta nao tem.
       valor_repasse_volta: volta && volta.valor_repasse_motorista != null
-        && Number(volta.valor_repasse_motorista) !== Number(c.valor_repasse_motorista)
         ? String(volta.valor_repasse_motorista) : '',
       observacoes: c.observacoes || '',
       anexo_observacoes_url: c.anexo_observacoes_url || '',
@@ -2654,6 +2690,7 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                               {badgePagamento(c.status_pagamento, c.status)}
                             </span>
                           )}
+                          <SeloPrevisao previsao={badgePrevisaoRecebimento(c)} />
                           {badgeRepasse(c) && (
                             <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
                               style={{ background: '#F0F4FA', color: '#1D4ED8' }}>
@@ -2776,6 +2813,7 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                             {badgePagPar}
                           </span>
                         )}
+                        <SeloPrevisao previsao={badgePrevisaoRecebimento(ida) ?? badgePrevisaoRecebimento(volta)} />
                         {/* Par ida-volta: mostra pendente se QUALQUER das duas
                             ainda esta a pagar. O gestor normalmente da baixa
                             das duas juntas, mas nao vale esconder o alerta
@@ -3832,6 +3870,22 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
               </div>
             )}
 
+            {/* Concluida: so leitura de quem fez o atendimento. O bloco de
+                atribuir (abaixo) so existe em confirmada/em_andamento, e o
+                motorista sumia da ficha ao concluir (Julimar 2026-11-05). */}
+            {corridaFicha.status === 'concluida' && corridaFicha.motorista_id && (() => {
+              const m = motoristaInfo(corridaFicha, corridaFicha.motorista_id)
+              if (!m) return null
+              const veiculo = corridaFicha.veiculo_atribuido || [m.veiculo, m.cor, m.placa].filter(Boolean).join(' · ')
+              return (
+                <div className="bg-white rounded-2xl p-4 border border-gray-100">
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">🚗 Motorista do atendimento</p>
+                  <p className="text-sm font-bold text-gray-800 mt-1">{m.nome}</p>
+                  {veiculo && <p className="text-xs text-gray-500 mt-0.5">🚙 {veiculo}</p>}
+                </div>
+              )
+            })()}
+
             {/* Motorista — inline em confirmada e em_andamento pra o gestor
                 atribuir/trocar sem precisar entrar em Editar. Se muda em
                 em_andamento, dispara push pro novo motorista. */}
@@ -4400,11 +4454,20 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                     )
                   })()}
 
-                  {v.status === 'concluida' && (
-                    <div className="rounded-lg p-2 border" style={{ background: '#F3F4F6', borderColor: '#E5E7EB' }}>
-                      <p className="text-xs text-gray-500">✅ Volta concluída.</p>
-                    </div>
-                  )}
+                  {v.status === 'concluida' && (() => {
+                    const mv = v.motorista_id ? motoristaInfo(v, v.motorista_id) : null
+                    const veiculoV = mv ? (v.veiculo_atribuido || [mv.veiculo, mv.cor, mv.placa].filter(Boolean).join(' · ')) : ''
+                    return (
+                      <div className="rounded-lg p-2 border" style={{ background: '#F3F4F6', borderColor: '#E5E7EB' }}>
+                        <p className="text-xs text-gray-500">✅ Volta concluída.</p>
+                        {mv && (
+                          <p className="text-xs text-gray-700 mt-1">
+                            🚗 <span className="font-semibold">{mv.nome}</span>{veiculoV ? ` · ${veiculoV}` : ''}
+                          </p>
+                        )}
+                      </div>
+                    )
+                  })()}
                 </div>
               )
             })()}
@@ -4431,7 +4494,7 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
             {duplicandoDe && !corridaEditando && (
               <div className="rounded-xl p-3 text-xs leading-relaxed" style={{ background: '#EEF2FF', color: '#3730A3' }}>
                 📋 <span className="font-bold">Cópia do atendimento {duplicandoDe}.</span>{' '}
-                Escolha a nova data e horário e confira passageiro e voo antes de salvar. O atendimento original não muda.
+                Escolha a nova data e horário{form.ida_volta ? ' da ida e da volta' : ''} e confira passageiro e voo antes de salvar. O atendimento original não muda.
               </div>
             )}
 

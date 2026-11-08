@@ -21,6 +21,7 @@ type CorridaFin = {
   valor_recebido: number | null
   status_pagamento: string | null
   data_pagamento: string | null
+  data_prevista_pagamento: string | null
   numero_reserva: string | null
   motoristas_empresa: { nome: string; veiculo: string | null; placa: string | null } | null
   valor_repasse_motorista: number | null
@@ -275,7 +276,7 @@ export default function FinanceiroPage() {
     // decisão de 2026-07-16 (Smart Car style).
 
     const { inicio, fim } = intervalo()
-    const selectCorrida = 'id, origem, destino, data_hora, valor, status, cliente_nome, motorista_id, valor_recebido, status_pagamento, data_pagamento, numero_reserva, valor_repasse_motorista, motoristas_empresa(nome, veiculo, placa)'
+    const selectCorrida = 'id, origem, destino, data_hora, valor, status, cliente_nome, motorista_id, valor_recebido, status_pagamento, data_pagamento, data_prevista_pagamento, numero_reserva, valor_repasse_motorista, motoristas_empresa(nome, veiculo, placa)'
 
     const vinculoInicio = format(subDays(new Date(`${inicio}T12:00:00`), 7), 'yyyy-MM-dd')
     const vinculoFim    = format(addDays(new Date(`${fim}T12:00:00`), 7), 'yyyy-MM-dd')
@@ -777,6 +778,17 @@ export default function FinanceiroPage() {
                               {c.data_hora.slice(8, 10)}/{c.data_hora.slice(5, 7)} às {c.data_hora.slice(11, 16)} · {c.cliente_nome}
                             </p>
                             {mot?.nome && <p className="text-xs text-gray-400">🚗 {mot.nome}</p>}
+                            {/* Previsao de recebimento (faturado). Pedido Julimar
+                                2026-11-05: ver aqui quando cada um deve pagar. */}
+                            {c.data_prevista_pagamento && (() => {
+                              const d = c.data_prevista_pagamento
+                              const vencida = d < format(new Date(), 'yyyy-MM-dd')
+                              return (
+                                <p className="text-xs font-semibold mt-0.5" style={{ color: vencida ? '#A32D2D' : '#1D4ED8' }}>
+                                  {vencida ? '⚠️ Venceu em' : '📅 Receber até'} {d.slice(8, 10)}/{d.slice(5, 7)}/{d.slice(0, 4)}
+                                </p>
+                              )
+                            })()}
                           </div>
                           <p className="text-sm font-bold flex-shrink-0" style={{ color: '#1D4ED8' }}>{fmt(Number(c.valor))}</p>
                         </div>
