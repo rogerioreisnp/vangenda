@@ -58,6 +58,16 @@ type Motorista = {
 // repasse) marcado assim — so nao e oferecido pra lancamento novo.
 const nomeMotorista = (m: Motorista) => m.status === 'ativo' ? m.nome : `${m.nome} (desativado)`
 
+// Numero do atendimento nas listas de receita, no mesmo formato do card da
+// tela de atendimentos (Julimar 2026-11-08: "nao aparece o numero").
+function SeloNumero({ c }: { c: { id: string; numero_reserva: string | null } }) {
+  return (
+    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-full mr-1.5" style={{ background: '#F3F4F6', color: '#4B5563' }}>
+      {c.numero_reserva || `#${c.id.slice(-5).toUpperCase()}`}
+    </span>
+  )
+}
+
 type FormDespesa = {
   tipo: 'receita' | 'despesa'
   categoria: string
@@ -305,7 +315,10 @@ export default function FinanceiroPage() {
         .eq('empresa_id', eid)
         .eq('status_pagamento', 'recebido')
         .gte('data_pagamento', inicio)
-        .lte('data_pagamento', fim),
+        .lte('data_pagamento', fim)
+        // Data do atendimento crescente, igual ao "A receber". Sem ordem o
+        // banco devolvia na ordem de cadastro (Julimar 2026-11-08).
+        .order('data_hora', { ascending: true }),
       // A receber: saldo corrente, toda corrida já concluída e ainda não recebida.
       // Mais antigas primeiro — prioriza cobrar quem está devendo há mais tempo.
       supabase
@@ -736,7 +749,7 @@ export default function FinanceiroPage() {
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-semibold text-gray-800 truncate">{c.origem} → {c.destino}</p>
                             <p className="text-xs text-gray-400 mt-0.5">
-                              {c.data_hora.slice(8, 10)}/{c.data_hora.slice(5, 7)} · {c.cliente_nome}
+                              <SeloNumero c={c} />{c.data_hora.slice(8, 10)}/{c.data_hora.slice(5, 7)} · {c.cliente_nome}
                             </p>
                             {mot?.nome && <p className="text-xs text-gray-400">🚗 {mot.nome}</p>}
                           </div>
@@ -775,7 +788,7 @@ export default function FinanceiroPage() {
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-semibold text-gray-800 truncate">{c.origem} → {c.destino}</p>
                             <p className="text-xs text-gray-400 mt-0.5">
-                              {c.data_hora.slice(8, 10)}/{c.data_hora.slice(5, 7)} às {c.data_hora.slice(11, 16)} · {c.cliente_nome}
+                              <SeloNumero c={c} />{c.data_hora.slice(8, 10)}/{c.data_hora.slice(5, 7)} às {c.data_hora.slice(11, 16)} · {c.cliente_nome}
                             </p>
                             {mot?.nome && <p className="text-xs text-gray-400">🚗 {mot.nome}</p>}
                             {/* Previsao de recebimento (faturado). Pedido Julimar
