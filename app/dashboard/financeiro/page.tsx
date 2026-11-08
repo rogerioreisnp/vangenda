@@ -7,6 +7,7 @@ import { format, startOfMonth, endOfMonth, subMonths, addMonths, subDays, startO
 import { ptBR } from 'date-fns/locale'
 import ModalNovaEncomenda from '@/components/ModalNovaEncomenda'
 import { getMotoristaIdSalvar } from '@/lib/motorista-salvar'
+import { planejarAjuste, type ItemCobranca } from '@/lib/ajuste-pagamento'
 
 type Despesa = {
   id: string
@@ -627,6 +628,219 @@ function corAvatar(nome: string) {
   return cores[nome.charCodeAt(0) % cores.length]
 }
 
+const brl = (v: number) => `R$ ${v.toFixed(2).replace('.', ',')}`
+const arred = (v: number) => parseFloat(v.toFixed(2))
+
+// Linha do historico do cliente (tabela movimentacoes) — divida ou pagamento.
+type MovHistorico = {
+  id: string
+  tipo: string
+  valor: number
+  descricao: string | null
+  created_at: string
+  categoria: string
+  cliente_nome: string
+  referencia_id: string | null
+}
+const COLUNAS_MOV = 'id, tipo, valor, descricao, created_at, categoria, cliente_nome, referencia_id'
+
+// Lapis e lixeira das linhas do extrato. Area de toque de 32px (antes eram
+// icones de texto pequeno e quase transparentes, dificeis de achar e tocar).
+function BotoesLinha({ rotulo, onEditar, onExcluir }: { rotulo: string; onEditar: () => void; onExcluir: () => void }) {
+  return (
+    <div className="flex items-center gap-1 mt-1 justify-end">
+      <button type="button" onClick={onEditar} aria-label={`Editar ${rotulo}`} title="Editar"
+        className="w-8 h-8 rounded-lg flex items-center justify-center text-sm opacity-60 active:opacity-100"
+        style={{ background: '#f5f5f2' }}>✏️</button>
+      <button type="button" onClick={onExcluir} aria-label={`Excluir ${rotulo}`} title="Excluir"
+        className="w-8 h-8 rounded-lg flex items-center justify-center text-sm opacity-60 active:opacity-100"
+        style={{ background: '#f5f5f2' }}>🗑️</button>
+    </div>
+  )
+}
+
+// ─── CORRIGIR / EXCLUIR PAGAMENTO (fiado e encomendas) ───────────────────────
+//
+// A baixa por cliente divide o valor recebido entre as passagens/encomendas em
+// aberto, da mais antiga pra mais nova, e grava UMA movimentacao 'pagamento'
+// sem registrar como dividiu. Por isso excluir ou corrigir o pagamento precisa
+// refazer a conta nos itens — so apagar a linha deixaria os itens marcados como
+// pagos e o saldo errado. Pedido de cliente 2026-11-08 (lancou valor errado).
+//   - Devolver valor (excluir ou corrigir pra menos): tira primeiro do item
+//     pago mais recente, ordem inversa da baixa. O saldo total sempre fecha.
+//   - Corrigir pra mais: aplica a diferenca como uma baixa (mais antigo primeiro).
+// O calculo fica em lib/ajuste-pagamento.ts; aqui so le e grava.
+
+async function carregarItensDoPagamento(userId: string, p: MovHistorico): Promise<ItemCobranca[]> {
+  if (p.categoria === 'encomenda') {
+    let q = supabase.from('encomendas').select('id, valor, valor_pago')
+      .eq('motorista_id', userId).eq('nome', p.cliente_nome)
+    if (p.referencia_id) q = q.eq('id', p.referencia_id)
+    const { data, error } = await q.order('criado_em', { ascending: true })
+    if (error) throw error
+    return (data || []).map(e => ({ id: e.id, valor: Number(e.valor), pago: Number(e.valor_pago) || 0 }))
+  }
+  let q = supabase.from('agendamentos').select('id, valor, fiado_valor_pago')
+    .eq('motorista_id', userId).eq('forma_pagamento', 'fiado').neq('status', 'cancelado')
+    .eq('nome_passageiro', p.cliente_nome)
+  if (p.referencia_id) q = q.eq('id', p.referencia_id)
+  const { data, error } = await q.order('data_viagem', { ascending: true })
+  if (error) throw error
+  return (data || []).map(a => ({ id: a.id, valor: Number(a.valor), pago: Number(a.fiado_valor_pago) || 0 }))
+}
+
+// delta < 0 devolve |delta| aos itens; delta > 0 aplica delta como baixa.
+async function ajustarItensDoPagamento(p: MovHistorico, itens: ItemCobranca[], delta: number, forma: string) {
+  const encomenda = p.categoria === 'encomenda'
+  const devolvendo = delta < 0
+  // Item que fica quitado nesta correcao recebe a data do pagamento original,
+  // pra receita continuar caindo no mesmo dia/mes.
+  const dataPagamento = p.created_at.substring(0, 10)
+  for (const { id, novoPago, quitado } of planejarAjuste(itens, delta)) {
+    const updates = encomenda
+      ? { valor_pago: novoPago, pago: quitado, data_pago: quitado ? dataPagamento : null, ...(devolvendo ? {} : { forma_pagamento: forma }) }
+      : { fiado_valor_pago: novoPago, fiado_pago: quitado, ...(devolvendo ? {} : { fiado_forma_pagamento: forma }) }
+    const { error } = await supabase.from(encomenda ? 'encomendas' : 'agendamentos').update(updates).eq('id', id)
+    if (error) throw error
+  }
+}
+
+// Forma gravada na descricao pela baixa: "Pagamento recebido (pix)".
+function formaDoPagamento(p: MovHistorico): string {
+  return p.descricao?.match(/\(([^)]+)\)\s*$/)?.[1] ?? 'dinheiro'
+}
+
+function ModalPagamento({ pagamento, modo, onFechar, onSalvo }: {
+  pagamento: MovHistorico
+  modo: 'editar' | 'excluir'
+  onFechar: () => void
+  onSalvo: () => void
+}) {
+  const [itens, setItens] = useState<ItemCobranca[] | null>(null)
+  const [valor, setValor] = useState(pagamento.valor.toFixed(2))
+  const [forma, setForma] = useState(formaDoPagamento(pagamento))
+  const [saving, setSaving] = useState(false)
+  const [erro, setErro] = useState('')
+
+  useEffect(() => {
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { setErro('Sessão expirada. Entre de novo.'); return }
+      try { setItens(await carregarItensDoPagamento(user.id, pagamento)) }
+      catch { setErro('Não foi possível carregar os lançamentos deste cliente.') }
+    })()
+  }, [pagamento])
+
+  const saldoAtual = itens ? arred(itens.reduce((s, it) => s + Math.max(0, it.valor - it.pago), 0)) : 0
+  const novoValor = arred(parseFloat(valor.replace(',', '.')) || 0)
+  // Maximo que o pagamento pode valer: o que ele ja cobre + o que esta em aberto.
+  const maximo = arred(pagamento.valor + saldoAtual)
+  const saldoDepois = modo === 'excluir'
+    ? arred(saldoAtual + pagamento.valor)
+    : arred(saldoAtual - (novoValor - pagamento.valor))
+  const opcoesForma = ['dinheiro', 'pix', ...(['dinheiro', 'pix'].includes(forma) ? [] : [forma])]
+
+  async function confirmar() {
+    if (!itens) return
+    setErro('')
+    if (modo === 'editar') {
+      if (novoValor <= 0) { setErro('Informe um valor maior que zero. Para tirar o pagamento, use a lixeira.'); return }
+      if (novoValor > maximo + 0.001) { setErro(`O valor não pode passar de ${brl(maximo)} — é tudo o que o cliente devia.`); return }
+    }
+    setSaving(true)
+    try {
+      if (modo === 'excluir') {
+        await ajustarItensDoPagamento(pagamento, itens, -pagamento.valor, forma)
+        const { error } = await supabase.from('movimentacoes').delete().eq('id', pagamento.id)
+        if (error) throw error
+      } else {
+        const delta = arred(novoValor - pagamento.valor)
+        if (Math.abs(delta) > 0.001) await ajustarItensDoPagamento(pagamento, itens, delta, forma)
+        const { error } = await supabase.from('movimentacoes')
+          .update({ valor: novoValor, descricao: `Pagamento recebido (${forma})` })
+          .eq('id', pagamento.id)
+        if (error) throw error
+      }
+      onSalvo()
+    } catch {
+      setErro('Não foi possível concluir. Confira o saldo do cliente antes de tentar de novo.')
+      setSaving(false)
+    }
+  }
+
+  const dataPag = format(new Date(pagamento.created_at), 'dd/MM/yyyy')
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-end" style={{ background: 'rgba(0,0,0,0.5)' }}
+      onClick={ev => { if (ev.target === ev.currentTarget && !saving) onFechar() }}>
+      <div className="w-full bg-white rounded-t-2xl p-6 pb-16 flex flex-col gap-4" style={{ maxHeight: '90dvh', overflowY: 'auto' }}>
+        <div className="flex items-center justify-between">
+          <p className="text-base font-bold text-gray-800">{modo === 'excluir' ? 'Excluir pagamento' : 'Corrigir pagamento'}</p>
+          <button onClick={onFechar} disabled={saving} className="text-gray-400 text-xl leading-none">✕</button>
+        </div>
+
+        <div className="rounded-xl p-3" style={{ background: '#f0f0ec' }}>
+          <p className="text-sm font-bold text-gray-800">{pagamento.cliente_nome}</p>
+          <p className="text-xs text-gray-500 mt-0.5">{pagamento.descricao || 'Pagamento recebido'} · {dataPag}</p>
+          <p className="text-sm font-bold mt-1" style={{ color: '#0F6E56' }}>Lançado: {brl(pagamento.valor)}</p>
+        </div>
+
+        {modo === 'editar' && (
+          <>
+            <div>
+              <p className="text-xs font-medium text-gray-500 mb-1">Valor correto (R$)</p>
+              <input type="number" step="0.01" inputMode="decimal" value={valor}
+                onChange={e => setValor(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-base outline-none bg-white focus:border-green-600" />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-gray-500 mb-2">Forma de recebimento</p>
+              <div className="grid grid-cols-2 gap-2">
+                {opcoesForma.map(f => (
+                  <button key={f} type="button" onClick={() => setForma(f)}
+                    className="py-2.5 rounded-xl text-sm font-medium border transition-all"
+                    style={forma === f
+                      ? { background: '#0F6E56', color: '#fff', borderColor: '#0F6E56' }
+                      : { background: '#fff', color: '#666', borderColor: '#e5e7eb' }}>
+                    {f === 'dinheiro' ? '💵 Dinheiro' : f === 'pix' ? '📱 Pix' : f}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
+        {itens && (modo === 'excluir' || (novoValor > 0 && novoValor <= maximo + 0.001)) && (
+          <div className="border rounded-xl px-4 py-3" style={{ background: '#FAEEDA', borderColor: '#FAC775' }}>
+            <p className="text-xs" style={{ color: '#854F0B' }}>
+              {modo === 'excluir'
+                ? `${brl(pagamento.valor)} volta para o saldo em aberto. `
+                : ''}
+              Saldo do cliente: {brl(saldoAtual)} → <b>{brl(Math.max(0, saldoDepois))}</b>
+            </p>
+          </div>
+        )}
+
+        {modo === 'excluir' && <p className="text-xs text-gray-400">Essa ação não pode ser desfeita.</p>}
+        {erro && <p className="text-xs text-red-500 bg-red-50 px-3 py-2 rounded-xl">{erro}</p>}
+
+        <div className="flex gap-3">
+          <button onClick={onFechar} disabled={saving}
+            className="flex-1 py-3.5 rounded-xl text-sm font-semibold border border-gray-200"
+            style={{ color: '#6b7280' }}>
+            Cancelar
+          </button>
+          <button onClick={confirmar} disabled={saving || !itens}
+            className="flex-1 py-3.5 rounded-xl text-sm font-bold disabled:opacity-50"
+            style={modo === 'excluir' ? { background: '#FCEBEB', color: '#A32D2D' } : { background: '#1D9E75', color: '#fff' }}>
+            {saving ? 'Salvando...' : !itens && !erro ? 'Carregando...' : modo === 'excluir' ? 'Excluir' : '✓ Salvar correção'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── ABA FIADO ────────────────────────────────────────────────────────────────
 
 function AbaFiado() {
@@ -639,7 +853,8 @@ function AbaFiado() {
   const [modalNovoFiado, setModalNovoFiado] = useState(false)
   const [obsMap, setObsMap] = useState<Record<string, string>>({})
   const [editandoObs, setEditandoObs] = useState<Record<string, boolean>>({})
-  const [historicos, setHistoricos] = useState<Record<string, { tipo: string; valor: number; descricao: string | null; created_at: string }[]>>({})
+  const [historicos, setHistoricos] = useState<Record<string, MovHistorico[]>>({})
+  const [pagamentoAcao, setPagamentoAcao] = useState<{ pagamento: MovHistorico; modo: 'editar' | 'excluir' } | null>(null)
   const [expandidoHist, setExpandidoHist] = useState<Record<string, boolean>>({})
   const [carregandoHist, setCarregandoHist] = useState<Record<string, boolean>>({})
   const [modalAdicionarDivida, setModalAdicionarDivida] = useState<string | null>(null)
@@ -703,7 +918,7 @@ function AbaFiado() {
     if (!user) return
     const { data } = await supabase
       .from('movimentacoes')
-      .select('tipo, valor, descricao, created_at')
+      .select(COLUNAS_MOV)
       .eq('motorista_id', user.id)
       .eq('cliente_nome', nome)
       .in('categoria', ['fiado', 'encomenda'])
@@ -822,6 +1037,7 @@ function AbaFiado() {
             valorPago: v.fiado_valor_pago || 0,
             dataCombinada: v.fiado_data_combinada as string | undefined,
             id: v.id,
+            mov: undefined as MovHistorico | undefined,
           })),
           ...pagamentosHist.map(p => ({
             tipo: 'pagamento' as const,
@@ -831,6 +1047,7 @@ function AbaFiado() {
             valorPago: 0,
             dataCombinada: undefined as string | undefined,
             id: undefined as string | undefined,
+            mov: p as MovHistorico | undefined,
           })),
         ].sort((a, b) => a.data.localeCompare(b.data))
       : hist.map(m => ({
@@ -841,6 +1058,7 @@ function AbaFiado() {
           valorPago: 0,
           dataCombinada: undefined as string | undefined,
           id: undefined as string | undefined,
+          mov: m.tipo === 'pagamento' ? m : undefined,
         })).sort((a, b) => a.data.localeCompare(b.data))
 
     return (
@@ -935,9 +1153,13 @@ function AbaFiado() {
                         {format(new Date(e.data + 'T00:00:00'), 'dd/MM/yyyy')}
                       </p>
                       {e.tipo === 'divida' && e.valorPago > 0 && (
-                        <p className="text-xs mt-0.5" style={{ color: '#854F0B' }}>
-                          Parcial: R$ {e.valorPago.toFixed(2).replace('.', ',')} pago
-                        </p>
+                        e.valorPago >= e.valor - 0.001 ? (
+                          <p className="text-xs mt-0.5 font-semibold" style={{ color: '#0F6E56' }}>✓ Pago</p>
+                        ) : (
+                          <p className="text-xs mt-0.5" style={{ color: '#854F0B' }}>
+                            Parcial: R$ {e.valorPago.toFixed(2).replace('.', ',')} pago
+                          </p>
+                        )
                       )}
                       {e.tipo === 'divida' && e.dataCombinada && (
                         <p className="text-xs mt-0.5" style={{ color: vencida ? '#A32D2D' : '#6b7280' }}>
@@ -951,19 +1173,20 @@ function AbaFiado() {
                         style={{ color: e.tipo === 'divida' ? '#A32D2D' : '#0F6E56' }}>
                         {e.tipo === 'divida' ? '+' : '−'} R$ {e.valor.toFixed(2).replace('.', ',')}
                       </p>
-                      {e.tipo === 'divida' && e.valorPago > 0 && (
+                      {e.tipo === 'divida' && e.valorPago > 0 && e.valorPago < e.valor - 0.001 && (
                         <p className="text-[10px] text-gray-400 mt-0.5">
                           saldo R$ {(e.valor - e.valorPago).toFixed(2).replace('.', ',')}
                         </p>
                       )}
                       {e.tipo === 'divida' && e.id && (
-                        <div className="flex items-center gap-1.5 mt-0.5 justify-end">
-                          <button onClick={() => setFiadoEditando(devedor.viagens.find(v => v.id === e.id) || null)}
-                            className="text-xs opacity-30 active:opacity-100">✏️</button>
-                          <button
-                            onClick={() => setAgExcluindo({ id: e.id!, descricao: e.descricao, valor: e.valor })}
-                            className="text-xs opacity-30 active:opacity-100">🗑️</button>
-                        </div>
+                        <BotoesLinha rotulo={e.descricao}
+                          onEditar={() => setFiadoEditando(devedor.viagens.find(v => v.id === e.id) || null)}
+                          onExcluir={() => setAgExcluindo({ id: e.id!, descricao: e.descricao, valor: e.valor })} />
+                      )}
+                      {e.tipo === 'pagamento' && e.mov && (
+                        <BotoesLinha rotulo={`pagamento de ${brl(e.valor)}`}
+                          onEditar={() => setPagamentoAcao({ pagamento: e.mov!, modo: 'editar' })}
+                          onExcluir={() => setPagamentoAcao({ pagamento: e.mov!, modo: 'excluir' })} />
                       )}
                     </div>
                   </div>
@@ -1050,6 +1273,20 @@ function AbaFiado() {
               const nome = clienteSelecionado!
               invalidarHistorico(nome)
               setFiadoEditando(null)
+              carregarFiados()
+              carregarHistorico(nome)
+            }}
+          />
+        )}
+        {pagamentoAcao && (
+          <ModalPagamento
+            pagamento={pagamentoAcao.pagamento}
+            modo={pagamentoAcao.modo}
+            onFechar={() => setPagamentoAcao(null)}
+            onSalvo={() => {
+              const nome = clienteSelecionado!
+              invalidarHistorico(nome)
+              setPagamentoAcao(null)
               carregarFiados()
               carregarHistorico(nome)
             }}
@@ -1658,7 +1895,8 @@ function AbaEncomendas() {
   const [buscaEnc, setBuscaEnc] = useState('')
   const [filtroEnc, setFiltroEnc] = useState<'todos' | 'vencidas'>('todos')
   const [ordemEnc, setOrdemEnc] = useState<'divida' | 'recente' | 'nome'>('divida')
-  const [historicosEnc, setHistoricosEnc] = useState<Record<string, { tipo: string; valor: number; descricao: string | null; created_at: string }[]>>({})
+  const [historicosEnc, setHistoricosEnc] = useState<Record<string, MovHistorico[]>>({})
+  const [pagamentoAcaoEnc, setPagamentoAcaoEnc] = useState<{ pagamento: MovHistorico; modo: 'editar' | 'excluir' } | null>(null)
   const [carregandoHistEnc, setCarregandoHistEnc] = useState<Record<string, boolean>>({})
 
   useEffect(() => { carregarEncomendas() }, [])
@@ -1691,7 +1929,7 @@ function AbaEncomendas() {
     if (!user) return
     const { data } = await supabase
       .from('movimentacoes')
-      .select('tipo, valor, descricao, created_at')
+      .select(COLUNAS_MOV)
       .eq('motorista_id', user.id)
       .eq('cliente_nome', nome)
       .eq('categoria', 'encomenda')
@@ -1804,6 +2042,10 @@ function AbaEncomendas() {
         valor: enc.valor,
         valorPago: enc.valor_pago || 0,
         dataCombinada: enc.data_combinada as string | undefined,
+        // Lapis/lixeira acham a encomenda pelo id. Antes era pela data, e com
+        // duas encomendas no mesmo dia mexiam sempre na primeira.
+        encomenda: enc as Encomenda | undefined,
+        mov: undefined as MovHistorico | undefined,
       })),
       ...pagamentosHist.map(p => ({
         tipo: 'pagamento' as const,
@@ -1812,6 +2054,8 @@ function AbaEncomendas() {
         valor: p.valor,
         valorPago: 0,
         dataCombinada: undefined as string | undefined,
+        encomenda: undefined as Encomenda | undefined,
+        mov: p as MovHistorico | undefined,
       })),
     ].sort((a, b) => a.data.localeCompare(b.data))
 
@@ -1881,11 +2125,15 @@ function AbaEncomendas() {
                         {format(new Date(e.data + 'T00:00:00'), 'dd/MM/yyyy')}
                       </p>
                       {e.tipo === 'divida' && e.valorPago > 0 && (
-                        <p className="text-xs mt-0.5" style={{ color: '#854F0B' }}>
-                          Parcial: R$ {e.valorPago.toFixed(2).replace('.', ',')} pago
-                        </p>
+                        e.valorPago >= e.valor - 0.001 ? (
+                          <p className="text-xs mt-0.5 font-semibold" style={{ color: '#0F6E56' }}>✓ Pago</p>
+                        ) : (
+                          <p className="text-xs mt-0.5" style={{ color: '#854F0B' }}>
+                            Parcial: R$ {e.valorPago.toFixed(2).replace('.', ',')} pago
+                          </p>
+                        )
                       )}
-                      {e.tipo === 'divida' && e.dataCombinada && (
+                      {e.tipo === 'divida' && e.dataCombinada && e.valorPago < e.valor - 0.001 && (
                         <p className="text-xs mt-0.5" style={{ color: vencida ? '#A32D2D' : '#6b7280' }}>
                           {vencida ? '⚠️ Venceu: ' : 'Pagar até: '}
                           {format(new Date(e.dataCombinada + 'T00:00:00'), 'dd/MM/yyyy')}
@@ -1897,18 +2145,20 @@ function AbaEncomendas() {
                         style={{ color: e.tipo === 'divida' ? '#854F0B' : '#0F6E56' }}>
                         {e.tipo === 'divida' ? '+' : '−'} R$ {e.valor.toFixed(2).replace('.', ',')}
                       </p>
-                      {e.tipo === 'divida' && e.valorPago > 0 && (
+                      {e.tipo === 'divida' && e.valorPago > 0 && e.valorPago < e.valor - 0.001 && (
                         <p className="text-[10px] text-gray-400 mt-0.5">
                           saldo R$ {(e.valor - e.valorPago).toFixed(2).replace('.', ',')}
                         </p>
                       )}
-                      {e.tipo === 'divida' && (
-                        <div className="flex items-center gap-1.5 mt-0.5 justify-end">
-                          <button onClick={() => setEditEncomenda(pedidor.encomendas.find(x => (x.data_entrega ?? x.criado_em.substring(0, 10)) === e.data) || null)}
-                            className="text-xs opacity-30 active:opacity-100">✏️</button>
-                          <button onClick={() => setEncExcluindo(pedidor.encomendas.find(x => (x.data_entrega ?? x.criado_em.substring(0, 10)) === e.data) || null)}
-                            className="text-xs opacity-30 active:opacity-100">🗑️</button>
-                        </div>
+                      {e.tipo === 'divida' && e.encomenda && (
+                        <BotoesLinha rotulo={e.descricao}
+                          onEditar={() => setEditEncomenda(e.encomenda!)}
+                          onExcluir={() => setEncExcluindo(e.encomenda!)} />
+                      )}
+                      {e.tipo === 'pagamento' && e.mov && (
+                        <BotoesLinha rotulo={`pagamento de ${brl(e.valor)}`}
+                          onEditar={() => setPagamentoAcaoEnc({ pagamento: e.mov!, modo: 'editar' })}
+                          onExcluir={() => setPagamentoAcaoEnc({ pagamento: e.mov!, modo: 'excluir' })} />
                       )}
                     </div>
                   </div>
@@ -1949,6 +2199,20 @@ function AbaEncomendas() {
             encomenda={editEncomenda}
             onFechar={() => setEditEncomenda(null)}
             onSalvo={() => { setEditEncomenda(null); carregarEncomendas() }}
+          />
+        )}
+        {pagamentoAcaoEnc && (
+          <ModalPagamento
+            pagamento={pagamentoAcaoEnc.pagamento}
+            modo={pagamentoAcaoEnc.modo}
+            onFechar={() => setPagamentoAcaoEnc(null)}
+            onSalvo={() => {
+              const nome = clienteSelecionadoEnc!
+              invalidarHistoricoEnc(nome)
+              setPagamentoAcaoEnc(null)
+              carregarEncomendas()
+              carregarHistoricoEnc(nome)
+            }}
           />
         )}
         {encExcluindo && (
