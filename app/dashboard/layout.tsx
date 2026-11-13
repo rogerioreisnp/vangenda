@@ -364,6 +364,8 @@ function TelaBloqueio({ afid = null }: { afid?: string | null }) {
           <p className="text-sm text-gray-500">Escolha um plano para continuar usando o RotaGenda e não perder seus agendamentos!</p>
         </div>
 
+        <ContaConectada />
+
         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide text-center">Escolha seu plano</p>
 
         {PLANOS.map((plano) => (
@@ -462,7 +464,44 @@ function TelaBloqueioEmpresa() {
             A assinatura da sua empresa expirou. Entre em contato com o gestor para renovar o plano e recuperar o acesso.
           </p>
         </div>
+
+        <ContaConectada />
       </div>
+    </div>
+  )
+}
+
+// As telas de bloqueio nao tinham saida: o app guarda o login e abre direto na
+// ultima conta usada, entao quem entrou uma vez na conta errada ficava preso
+// nela (caso José Gonçalves 2026-11-13: preso no Gmail de um teste antigo,
+// com o plano pago no Hotmail). Mostra o e-mail conectado e deixa trocar.
+function ContaConectada() {
+  const router = useRouter()
+  const [email, setEmail] = useState<string | null>(null)
+  const [saindo, setSaindo] = useState(false)
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => setEmail(session?.user.email ?? null))
+  }, [])
+
+  async function sair() {
+    setSaindo(true)
+    await supabase.auth.signOut()
+    router.replace('/')
+  }
+
+  return (
+    <div className="bg-white rounded-2xl p-4 border border-gray-100 text-center">
+      {email && (
+        <p className="text-xs text-gray-500">
+          Você está conectado como <span className="font-semibold text-gray-700 break-all">{email}</span>
+        </p>
+      )}
+      <button type="button" onClick={sair} disabled={saindo}
+        className="mt-3 w-full py-2.5 rounded-xl text-sm font-semibold border disabled:opacity-50"
+        style={{ color: '#0F6E56', borderColor: '#9FE1CB' }}>
+        {saindo ? 'Saindo...' : 'Sair e entrar com outra conta'}
+      </button>
     </div>
   )
 }
