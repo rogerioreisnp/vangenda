@@ -1,9 +1,11 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { format, startOfMonth, endOfMonth } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import Link from 'next/link'
+import FotoPerfil from '@/components/FotoPerfil'
 
 export default function DashboardPage() {
   const hoje = new Date()
@@ -11,7 +13,13 @@ export default function DashboardPage() {
   const hojeStr = format(hoje, 'yyyy-MM-dd')
   const amanhaStr = format(amanha, 'yyyy-MM-dd')
 
-  const [motorista, setMotorista] = useState<{ nome: string } | null>(null)
+  const router = useRouter()
+  const [motorista, setMotorista] = useState<{ nome: string; foto_url?: string | null } | null>(null)
+  // Menu do circulo de perfil (topo). Antes o "Sair" so existia no fim da
+  // aba Config. e o cliente nao achava (2026-11-13).
+  const [menuPerfil, setMenuPerfil] = useState(false)
+  const [emailConta, setEmailConta] = useState('')
+  const [saindo, setSaindo] = useState(false)
   const [passageirosHoje, setPassageirosHoje] = useState(0)
   const [receitaHoje, setReceitaHoje] = useState(0)
   const [capacidade, setCapacidade] = useState(0)
@@ -36,9 +44,16 @@ export default function DashboardPage() {
 
   useEffect(() => { carregarDados() }, [])
 
+  async function sair() {
+    setSaindo(true)
+    await supabase.auth.signOut()
+    router.replace('/')
+  }
+
   async function carregarDados() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
+    setEmailConta(user.email || '')
 
     // 1) Verifica se é gestor de empresa
     const { data: gestorRow } = await supabase
@@ -113,7 +128,9 @@ export default function DashboardPage() {
       { data: agsMes },
       { data: fiadosAbertos },
     ] = await Promise.all([
-      supabase.from('motoristas').select('nome').eq('id', user.id).single(),
+      // '*' e nao 'nome, foto_url': a tela continua abrindo mesmo antes da
+      // migration da foto ter rodado.
+      supabase.from('motoristas').select('*').eq('id', user.id).single(),
       supabase.from('rotas').select('capacidade').eq('motorista_id', user.id).limit(1).single(),
       supabase.from('agendamentos').select('valor').eq('motorista_id', gestorIdParaQuery).eq('data_viagem', hojeStr).neq('status', 'cancelado'),
       supabase.from('agendamentos').select('id').eq('motorista_id', gestorIdParaQuery).eq('data_viagem', amanhaStr).neq('status', 'cancelado'),
@@ -172,8 +189,41 @@ export default function DashboardPage() {
               {motorista?.nome?.split(' ')[0] || '...'}
             </p>
           </div>
-          <span style={{ background: '#085041', color: '#5DCAA5' }}
-            className="text-xs px-3 py-1.5 rounded-lg capitalize">{diaSemana}</span>
+          <div className="flex items-center gap-2">
+            <span style={{ background: '#085041', color: '#5DCAA5' }}
+              className="text-xs px-3 py-1.5 rounded-lg capitalize">{diaSemana}</span>
+            <div className="relative">
+              <button type="button" onClick={() => setMenuPerfil(v => !v)}
+                aria-label="Abrir menu do perfil" aria-expanded={menuPerfil}
+                className="rounded-full block" style={{ border: '2px solid #5DCAA5', padding: 1 }}>
+                <FotoPerfil url={motorista?.foto_url} nome={motorista?.nome} tamanho={34} />
+              </button>
+              {menuPerfil && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setMenuPerfil(false)} />
+                  <div className="absolute right-0 mt-2 z-50 w-60 bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+                    <div className="px-4 py-3 flex items-center gap-3 border-b border-gray-100">
+                      <FotoPerfil url={motorista?.foto_url} nome={motorista?.nome} tamanho={40} />
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-gray-800 truncate">{motorista?.nome}</p>
+                        {emailConta && <p className="text-xs text-gray-400 truncate">{emailConta}</p>}
+                      </div>
+                    </div>
+                    <Link href={isGestor ? '/empresa/configuracoes' : '/dashboard/configuracoes'}
+                      onClick={() => setMenuPerfil(false)}
+                      className="block px-4 py-3 text-sm text-gray-700 active:bg-gray-50">
+                      👤 Meu perfil e configurações
+                    </Link>
+                    <button type="button" onClick={sair} disabled={saindo}
+                      className="w-full text-left px-4 py-3 text-sm font-semibold border-t border-gray-100 disabled:opacity-50"
+                      style={{ color: '#A32D2D' }}>
+                      {saindo ? 'Saindo...' : '↪ Sair da conta'}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Seletor de rota — visível apenas para motoristas de empresa */}

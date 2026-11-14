@@ -5,6 +5,7 @@ import { formatarTelefoneWhatsApp } from '@/lib/telefone'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import InstallBanner from '@/components/InstallBanner'
+import FotoPerfil from '@/components/FotoPerfil'
 import AgendamentoPublico from '@/app/empresa/components/AgendamentoPublico'
 
 function gerarPayloadPix(chave: string, nome: string, valor: number, cidade: string = 'Brasil'): string {
@@ -355,13 +356,21 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
     <div className="min-h-dvh" style={{ background: '#f0f0ec' }}>
       <InstallBanner />
       <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-6 text-center">
-        <svg width="64" height="64" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg" className="mb-2 mx-auto">
-          <rect width="192" height="192" rx="42" fill="#04342C"/>
-          <text x="96" y="148" fontFamily="Arial,sans-serif" fontSize="90" fontWeight="700" fill="white" textAnchor="middle">RG</text>
-          <ellipse cx="158" cy="38" rx="22" ry="22" fill="none" stroke="#5DCAA5" strokeWidth="8"/>
-          <ellipse cx="158" cy="33" rx="11" ry="11" fill="#5DCAA5"/>
-          <polygon points="145,56 171,56 158,76" fill="none" stroke="#5DCAA5" strokeWidth="8" strokeLinejoin="round"/>
-        </svg>
+        {/* Com foto, o passageiro ve o rosto de quem vai dirigir (passa
+            confianca pra reservar); sem foto, segue a logo do RotaGenda. */}
+        {motorista.foto_url ? (
+          <div className="mb-2 mx-auto w-fit rounded-full" style={{ border: '3px solid #5DCAA5' }}>
+            <FotoPerfil url={motorista.foto_url} nome={motorista.nome} tamanho={76} />
+          </div>
+        ) : (
+          <svg width="64" height="64" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg" className="mb-2 mx-auto">
+            <rect width="192" height="192" rx="42" fill="#04342C"/>
+            <text x="96" y="148" fontFamily="Arial,sans-serif" fontSize="90" fontWeight="700" fill="white" textAnchor="middle">RG</text>
+            <ellipse cx="158" cy="38" rx="22" ry="22" fill="none" stroke="#5DCAA5" strokeWidth="8"/>
+            <ellipse cx="158" cy="33" rx="11" ry="11" fill="#5DCAA5"/>
+            <polygon points="145,56 171,56 158,76" fill="none" stroke="#5DCAA5" strokeWidth="8" strokeLinejoin="round"/>
+          </svg>
+        )}
         <h1 style={{ color: '#E1F5EE' }} className="text-lg font-bold">RotaGenda</h1>
         <p style={{ color: '#9FE1CB' }} className="text-sm mt-1">Agendamento — {motorista.nome}</p>
         {rota && (
@@ -902,10 +911,15 @@ export default function AgendarPage({ params }: { params: { slug: string } }) {
 
               <div style={{ background: '#f0f0ec' }} className="rounded-xl p-4 text-left mb-4">
                 <p className="text-xs font-semibold text-gray-500 mb-2">Motorista</p>
-                <p className="text-sm font-semibold text-gray-800">🚗 {motorista.nome}</p>
-                {motorista.telefone && (
-                  <p className="text-sm text-gray-500 mt-0.5">📱 {motorista.telefone}</p>
-                )}
+                <div className="flex items-center gap-3">
+                  {motorista.foto_url && <FotoPerfil url={motorista.foto_url} nome={motorista.nome} tamanho={44} />}
+                  <div>
+                    <p className="text-sm font-semibold text-gray-800">🚗 {motorista.nome}</p>
+                    {motorista.telefone && (
+                      <p className="text-sm text-gray-500 mt-0.5">📱 {motorista.telefone}</p>
+                    )}
+                  </div>
+                </div>
               </div>
 
               {motorista.pagamento_obrigatorio ? (

@@ -3,6 +3,8 @@ import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import { QRCodeCanvas } from 'qrcode.react'
+import FotoPerfil from '@/components/FotoPerfil'
+import { BUCKET_FOTOS, reduzirImagem, caminhoNoBucket } from '@/lib/foto-perfil'
 
 function GuiaPage({ onFechar }: { onFechar: () => void }) {
   return (
@@ -256,8 +258,50 @@ export default function ConfiguracoesPage() {
   const dragOverIdx = useRef<number | null>(null)
   const diasTrabalhoExiste = useRef(false)
   const [draggingIdx, setDraggingIdx] = useState<number | null>(null)
+  const [enviandoFoto, setEnviandoFoto] = useState(false)
+  const [erroFoto, setErroFoto] = useState('')
 
   useEffect(() => { carregarDados() }, [])
+
+  // Foto de perfil: grava na hora (nao espera o "Salvar configuracoes") — o
+  // motorista ve o resultado no ato. A foto antiga e apagada depois que a nova
+  // ja esta salva; se falhar, sobra so um arquivo pequeno no bucket.
+  async function enviarFoto(file: File | undefined) {
+    if (!file || !motorista) return
+    if (!file.type.startsWith('image/')) { setErroFoto('Escolha uma imagem (foto da galeria ou da câmera).'); return }
+    setErroFoto('')
+    setEnviandoFoto(true)
+    try {
+      const imagem = await reduzirImagem(file)
+      const caminho = `${motorista.id}/${Date.now()}.jpg`
+      const { error: errUp } = await supabase.storage.from(BUCKET_FOTOS)
+        .upload(caminho, imagem, { contentType: 'image/jpeg', upsert: false })
+      if (errUp) throw errUp
+      const url = supabase.storage.from(BUCKET_FOTOS).getPublicUrl(caminho).data.publicUrl
+      const { error: errMot } = await supabase.from('motoristas').update({ foto_url: url }).eq('id', motorista.id)
+      if (errMot) throw errMot
+      const anterior = caminhoNoBucket(motorista.foto_url)
+      if (anterior) supabase.storage.from(BUCKET_FOTOS).remove([anterior])
+      setMotorista((m: any) => ({ ...m, foto_url: url }))
+    } catch (err) {
+      console.error('[foto perfil]', err)
+      setErroFoto('Não foi possível enviar a foto. Tente de novo.')
+    } finally {
+      setEnviandoFoto(false)
+    }
+  }
+
+  async function removerFoto() {
+    if (!motorista?.foto_url || !confirm('Remover sua foto de perfil?')) return
+    setErroFoto('')
+    setEnviandoFoto(true)
+    const { error } = await supabase.from('motoristas').update({ foto_url: null }).eq('id', motorista.id)
+    if (error) { setErroFoto('Não foi possível remover a foto. Tente de novo.'); setEnviandoFoto(false); return }
+    const anterior = caminhoNoBucket(motorista.foto_url)
+    if (anterior) supabase.storage.from(BUCKET_FOTOS).remove([anterior])
+    setMotorista((m: any) => ({ ...m, foto_url: null }))
+    setEnviandoFoto(false)
+  }
 
   async function carregarDados() {
     const { data: { user } } = await supabase.auth.getUser()
@@ -610,6 +654,30 @@ export default function ConfiguracoesPage() {
       <div className="px-4 py-4 flex flex-col gap-4">
 
         <Secao titulo="👤 Meu perfil">
+          <div className="flex items-center gap-4 mb-4">
+            <FotoPerfil url={motorista?.foto_url} nome={motorista?.nome} tamanho={72} />
+            <div className="flex flex-col gap-2 min-w-0">
+              <p className="text-sm font-semibold text-gray-800 truncate">{motorista?.nome}</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <label className={`px-3 py-2 rounded-xl text-xs font-semibold border ${enviandoFoto ? 'opacity-50 pointer-events-none' : 'cursor-pointer'}`}
+                  style={{ color: '#0F6E56', borderColor: '#9FE1CB', background: '#E1F5EE' }}>
+                  {enviandoFoto ? 'Enviando...' : motorista?.foto_url ? '📷 Trocar foto' : '📷 Adicionar foto'}
+                  <input type="file" accept="image/*" className="hidden" disabled={enviandoFoto}
+                    onChange={e => { enviarFoto(e.target.files?.[0]); e.target.value = '' }} />
+                </label>
+                {motorista?.foto_url && !enviandoFoto && (
+                  <button type="button" onClick={removerFoto}
+                    className="text-xs font-semibold underline text-gray-500">
+                    Remover
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+          {erroFoto && <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-xl mb-3">{erroFoto}</p>}
+          <p className="text-xs text-gray-400 mb-4">
+            A foto aparece no seu perfil e no link de agendamento que os passageiros recebem.
+          </p>
           <Campo label="WhatsApp / Telefone">
             <input
               value={motorista?.telefone || ''}
