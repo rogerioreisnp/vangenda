@@ -1903,7 +1903,7 @@ export default function AgendamentosPage() {
 // comercial da empresa (agência, hotel), e entregar esse contato permitiria o
 // motorista fechar direto por fora. Pro cliente, mostrar é inofensivo: é ele
 // mesmo. (Rogério, 2026-08-12: "tem coisa que é sigilosa".)
-function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'volta', paraMotorista = false): string {
+function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'volta', paraMotorista = false, veiculoOverride?: string): string {
     const motorista = motoristaInfo(c, motoristaId)
     const data = `${c.data_hora.slice(8,10)}/${c.data_hora.slice(5,7)}/${c.data_hora.slice(0,4)}`
     const hora = c.data_hora.slice(11,16)
@@ -1955,8 +1955,20 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
     if (c.numero_voo) msg += `\n\n✈️ *Voo:*\n${c.numero_voo}`
     if (motorista) {
       msg += `\n\n🚗 *Motorista:*\n${motorista.nome}`
-      if (motorista.veiculo) msg += `\n🚙 *Carro:*\n${motorista.veiculo}${motorista.cor ? ` - ${motorista.cor}` : ''}`
-      if (motorista.placa) msg += `\n🔢 *Placa:* ${motorista.placa}`
+      // Carro DESTE atendimento: o gestor pode trocar o veiculo na ficha
+      // (veiculo_atribuido), e a mensagem precisa refletir essa escolha — nao
+      // o veiculo principal do cadastro. Antes usava sempre o principal, entao
+      // trocar o carro na ficha nao mudava o WhatsApp (Julimar 2026-11-16).
+      // veiculoOverride = dropdown aberto na tela (vale mesmo sem salvar);
+      // senao o atribuido salvo; so entao o do cadastro. O atribuido ja vem
+      // "Veiculo · Cor · Placa" junto, por isso nao repete cor/placa.
+      const carroAtendimento = veiculoOverride || (c as any).veiculo_atribuido || ''
+      if (carroAtendimento) {
+        msg += `\n🚙 *Carro:*\n${carroAtendimento}`
+      } else {
+        if (motorista.veiculo) msg += `\n🚙 *Carro:*\n${motorista.veiculo}${motorista.cor ? ` - ${motorista.cor}` : ''}`
+        if (motorista.placa) msg += `\n🔢 *Placa:* ${motorista.placa}`
+      }
       if (motorista.telefone) msg += `\n📞 *Tel motorista:*\n${motorista.telefone}`
     }
     if (c.retorno_data) {
@@ -2036,19 +2048,19 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
     window.open(`https://wa.me/${telFmt}?text=${encodeURIComponent(msg)}`, '_blank')
   }
 
-  function enviarWhatsAppClienteComMotorista(c: Corrida, motoristaId: string, etapa?: 'ida' | 'volta') {
+  function enviarWhatsAppClienteComMotorista(c: Corrida, motoristaId: string, etapa?: 'ida' | 'volta', veiculoOverride?: string) {
     const telFmt = formatarTelefoneWhatsApp(c.cliente_telefone)
     if (!telFmt) { alert('Cliente não tem telefone cadastrado.'); return }
-    const msg = montarMsgDetalhada(c, motoristaId, etapa)
+    const msg = montarMsgDetalhada(c, motoristaId, etapa, false, veiculoOverride)
     window.open(`https://wa.me/${telFmt}?text=${encodeURIComponent(msg)}`, '_blank')
   }
 
-  function enviarWhatsAppMotorista(c: Corrida, motoristaId: string, etapa?: 'ida' | 'volta') {
+  function enviarWhatsAppMotorista(c: Corrida, motoristaId: string, etapa?: 'ida' | 'volta', veiculoOverride?: string) {
     const motorista = motoristaInfo(c, motoristaId)
     if (!motorista) return
     const telFmt = formatarTelefoneWhatsApp(motorista.telefone)
     if (!telFmt) { alert(`Motorista ${motorista.nome} não tem telefone cadastrado.`); return }
-    const msg = montarMsgDetalhada(c, motoristaId, etapa, true)
+    const msg = montarMsgDetalhada(c, motoristaId, etapa, true, veiculoOverride)
     window.open(`https://wa.me/${telFmt}?text=${encodeURIComponent(msg)}`, '_blank')
   }
 
@@ -4118,14 +4130,14 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
             {corridaFicha.status === 'confirmada' && (
               <div className="flex flex-col gap-2 mt-2">
                 <button
-                  onClick={() => enviarWhatsAppMotorista(corridaFicha, motoristaFicha, voltaDaFicha ? 'ida' : undefined)}
+                  onClick={() => enviarWhatsAppMotorista(corridaFicha, motoristaFicha, voltaDaFicha ? 'ida' : undefined, veiculoFicha)}
                   disabled={!motoristaFicha}
                   className="w-full py-4 rounded-2xl text-white text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-40"
                   style={{ background: '#25D366' }}>
                   💬 Enviar ficha ao motorista{voltaDaFicha ? ' (ida)' : ''}
                 </button>
                 <button
-                  onClick={() => enviarWhatsAppClienteComMotorista(corridaFicha, motoristaFicha, voltaDaFicha ? 'ida' : undefined)}
+                  onClick={() => enviarWhatsAppClienteComMotorista(corridaFicha, motoristaFicha, voltaDaFicha ? 'ida' : undefined, veiculoFicha)}
                   disabled={!motoristaFicha}
                   className="w-full py-3.5 rounded-2xl text-white text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-40"
                   style={{ background: '#128C7E' }}>
@@ -4179,14 +4191,14 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
             {corridaFicha.status === 'em_andamento' && (
               <div className="flex flex-col gap-2 mt-2">
                 <button
-                  onClick={() => enviarWhatsAppMotorista(corridaFicha, corridaFicha.motorista_id ?? '', voltaDaFicha ? 'ida' : undefined)}
+                  onClick={() => enviarWhatsAppMotorista(corridaFicha, corridaFicha.motorista_id ?? '', voltaDaFicha ? 'ida' : undefined, veiculoFicha)}
                   disabled={!corridaFicha.motorista_id}
                   className="w-full py-4 rounded-2xl text-white text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-40"
                   style={{ background: '#25D366' }}>
                   💬 Reenviar ficha ao motorista{voltaDaFicha ? ' (ida)' : ''}
                 </button>
                 <button
-                  onClick={() => enviarWhatsAppClienteComMotorista(corridaFicha, corridaFicha.motorista_id ?? '', voltaDaFicha ? 'ida' : undefined)}
+                  onClick={() => enviarWhatsAppClienteComMotorista(corridaFicha, corridaFicha.motorista_id ?? '', voltaDaFicha ? 'ida' : undefined, veiculoFicha)}
                   disabled={!corridaFicha.motorista_id}
                   className="w-full py-3.5 rounded-2xl text-white text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-40"
                   style={{ background: '#128C7E' }}>
@@ -4359,14 +4371,14 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                   {(v.status === 'confirmada' || v.status === 'em_andamento') && (
                     <div className="flex flex-col gap-2">
                       <button
-                        onClick={() => enviarWhatsAppMotorista(v, motoristaFichaVolta || (v.motorista_id ?? ''), 'volta')}
+                        onClick={() => enviarWhatsAppMotorista(v, motoristaFichaVolta || (v.motorista_id ?? ''), 'volta', veiculoFichaVolta)}
                         disabled={!motoristaFichaVolta && !v.motorista_id}
                         className="w-full py-3 rounded-xl text-white text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-40"
                         style={{ background: '#25D366' }}>
                         💬 {v.status === 'em_andamento' ? 'Reenviar' : 'Enviar'} ficha ao motorista (volta)
                       </button>
                       <button
-                        onClick={() => enviarWhatsAppClienteComMotorista(v, motoristaFichaVolta || (v.motorista_id ?? ''), 'volta')}
+                        onClick={() => enviarWhatsAppClienteComMotorista(v, motoristaFichaVolta || (v.motorista_id ?? ''), 'volta', veiculoFichaVolta)}
                         disabled={!motoristaFichaVolta && !v.motorista_id}
                         className="w-full py-2.5 rounded-xl text-white text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-40"
                         style={{ background: '#128C7E' }}>
