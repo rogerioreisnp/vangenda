@@ -49,6 +49,10 @@ type Corrida = {
   status: string
 }
 
+// Reembolso guarda a corrida de origem pra sumir junto quando o gestor
+// desmarca aquele atendimento. O PDF/Excel so leem os campos de LinhaReembolso.
+type ReembolsoCru = LinhaReembolso & { corrida_id: string | null }
+
 function fmt(iso: string): string {
   return iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : ''
 }
@@ -65,7 +69,11 @@ export default function RelatoriosPage() {
   const [empresaId, setEmpresaId] = useState<string | null>(null)
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [corridas, setCorridas] = useState<Corrida[]>([])
-  const [reembolsos, setReembolsos] = useState<LinhaReembolso[]>([])
+  const [reembolsos, setReembolsos] = useState<ReembolsoCru[]>([])
+  // Quais atendimentos entram no relatorio. Pedido Julimar 2026-11-18: tirar um
+  // atendimento (ex: o de R$ 850) pra cobrar separado. Começa com todos
+  // marcados; recarregar o filtro remarca todos.
+  const [selecionados, setSelecionados] = useState<Record<string, boolean>>({})
   const [clienteId, setClienteId] = useState<string>('')
   const [dataInicio, setDataInicio] = useState<string>(() => {
     const d = new Date(); d.setDate(1)
@@ -112,6 +120,7 @@ export default function RelatoriosPage() {
     const { data: cds } = await q
     const listaCorridas = (cds as Corrida[]) ?? []
     setCorridas(listaCorridas)
+    setSelecionados(Object.fromEntries(listaCorridas.map(c => [c.id, true])))
 
     // Reembolsos: despesas reembolsaveis A COBRAR (reembolsado_em IS NULL)
     // vinculadas as corridas do filtro. Filtro por cliente vem via corrida_id
@@ -135,6 +144,7 @@ export default function RelatoriosPage() {
       const c = r.corrida_id ? mapaCorridas[r.corrida_id] : null
       const num = c ? (c.numero_reserva ? String(c.numero_reserva) : c.id.slice(-5).toUpperCase()) : null
       return {
+        corrida_id: r.corrida_id ?? null,
         data: r.data,
         descricao: r.descricao || '(sem descrição)',
         categoria: r.categoria,
@@ -145,7 +155,10 @@ export default function RelatoriosPage() {
   }
 
   const cliente = clientes.find(c => c.id === clienteId) || null
-  const linhas: LinhaConsolidado[] = corridas.map(c => ({
+  // Só os atendimentos marcados entram no relatório (totais, PDF, Excel e nota).
+  const corridasSelecionadas = corridas.filter(c => selecionados[c.id])
+  const idsSelecionados = new Set(corridasSelecionadas.map(c => c.id))
+  const linhas: LinhaConsolidado[] = corridasSelecionadas.map(c => ({
     numero: c.numero_reserva ? String(c.numero_reserva) : c.id.slice(-5).toUpperCase(),
     data_hora: c.data_hora,
     origem: c.origem,
@@ -153,9 +166,20 @@ export default function RelatoriosPage() {
     passageiro: c.passageiro1_nome || null,
     valor: Number(c.valor) || 0,
   }))
+  // Reembolso só entra se o atendimento dele estiver marcado.
+  const reembolsosSelecionados = reembolsos.filter(r => r.corrida_id && idsSelecionados.has(r.corrida_id))
   const totalAtendimentos = linhas.reduce((s, l) => s + l.valor, 0)
-  const totalReembolsos = reembolsos.reduce((s, r) => s + r.valor, 0)
+  const totalReembolsos = reembolsosSelecionados.reduce((s, r) => s + r.valor, 0)
   const total = totalAtendimentos + totalReembolsos
+
+  const qtdSelecionados = corridasSelecionadas.length
+  const todosMarcados = corridas.length > 0 && qtdSelecionados === corridas.length
+  function alternarAtendimento(id: string) {
+    setSelecionados(p => ({ ...p, [id]: !p[id] }))
+  }
+  function marcarTodos(valor: boolean) {
+    setSelecionados(Object.fromEntries(corridas.map(c => [c.id, valor])))
+  }
 
   function montarClientePayload() {
     if (!cliente) {
@@ -186,7 +210,7 @@ export default function RelatoriosPage() {
           cliente={montarClientePayload()}
           periodo={{ inicio: dataInicio, fim: dataFim }}
           linhas={linhas}
-          reembolsos={reembolsos}
+          reembolsos={reembolsosSelecionados}
           modo={modo}
         />
       ).toBlob()
@@ -212,7 +236,7 @@ export default function RelatoriosPage() {
         cliente: montarClientePayload(),
         periodo: { inicio: dataInicio, fim: dataFim },
         linhas,
-        reembolsos,
+        reembolsos: reembolsosSelecionados,
       })
     } catch (e: any) {
       setErro(e?.message || 'Erro ao gerar Excel')
@@ -262,16 +286,18 @@ export default function RelatoriosPage() {
           <div className="flex flex-col gap-1">
             <div className="flex items-center justify-between">
               <p className="text-sm font-semibold text-gray-800">
-                {linhas.length} atendimento{linhas.length !== 1 ? 's' : ''}
+                {todosMarcados || corridas.length === 0
+                  ? `${qtdSelecionados} atendimento${qtdSelecionados !== 1 ? 's' : ''}`
+                  : `${qtdSelecionados} de ${corridas.length} selecionado${qtdSelecionados !== 1 ? 's' : ''}`}
               </p>
               <p className="text-sm text-gray-700">
                 R$ {totalAtendimentos.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </p>
             </div>
-            {reembolsos.length > 0 && (
+            {reembolsosSelecionados.length > 0 && (
               <div className="flex items-center justify-between">
                 <p className="text-xs" style={{ color: '#854F0B' }}>
-                  🔄 + {reembolsos.length} reembolso{reembolsos.length !== 1 ? 's' : ''} a cobrar
+                  🔄 + {reembolsosSelecionados.length} reembolso{reembolsosSelecionados.length !== 1 ? 's' : ''} a cobrar
                 </p>
                 <p className="text-xs" style={{ color: '#854F0B' }}>
                   R$ {totalReembolsos.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -287,31 +313,45 @@ export default function RelatoriosPage() {
           </div>
           {loading ? (
             <p className="text-xs text-gray-400 text-center py-6">Carregando...</p>
-          ) : linhas.length === 0 ? (
+          ) : corridas.length === 0 ? (
             <p className="text-xs text-gray-400 text-center py-6">
               Nenhum atendimento no filtro selecionado.
             </p>
           ) : (
-            <div className="flex flex-col divide-y divide-gray-50 max-h-64 overflow-y-auto">
-              {linhas.slice(0, 30).map((l, i) => (
-                <div key={i} className="flex items-center justify-between py-1.5 text-xs">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-gray-700 truncate">
-                      <span className="font-mono text-gray-400">{l.numero}</span>
-                      {' · '}{l.origem} → {l.destino}
-                    </p>
-                    <p className="text-[10px] text-gray-400">{fmt(l.data_hora)}{l.passageiro ? ` · ${l.passageiro}` : ''}</p>
-                  </div>
-                  <p className="font-semibold text-gray-700 flex-shrink-0 ml-2">
-                    R$ {l.valor.toFixed(2).replace('.', ',')}
-                  </p>
-                </div>
-              ))}
-              {linhas.length > 30 && (
-                <p className="text-[10px] text-gray-400 text-center py-2">
-                  + {linhas.length - 30} atendimento{linhas.length - 30 !== 1 ? 's' : ''} no relatório completo
-                </p>
-              )}
+            <div>
+              {/* Marque quais atendimentos entram. Desmarcar um tira ele (e o
+                  reembolso dele) do total e dos 3 downloads. Pedido Julimar. */}
+              <label className="flex items-center gap-2 pb-2 mb-1 cursor-pointer" style={{ borderBottom: '1px solid #f0f0f0' }}>
+                <input type="checkbox" checked={todosMarcados}
+                  onChange={e => marcarTodos(e.target.checked)}
+                  style={{ accentColor: '#0F6E56', width: 16, height: 16 }} />
+                <span className="text-xs font-semibold text-gray-600">
+                  {todosMarcados ? 'Desmarcar todos' : 'Selecionar todos'}
+                </span>
+              </label>
+              <div className="flex flex-col divide-y divide-gray-50 max-h-72 overflow-y-auto">
+                {corridas.map(c => {
+                  const numero = c.numero_reserva ? String(c.numero_reserva) : c.id.slice(-5).toUpperCase()
+                  const marcado = !!selecionados[c.id]
+                  return (
+                    <label key={c.id} className="flex items-center gap-2 py-2 text-xs cursor-pointer">
+                      <input type="checkbox" checked={marcado}
+                        onChange={() => alternarAtendimento(c.id)}
+                        style={{ accentColor: '#0F6E56', width: 16, height: 16, flexShrink: 0 }} />
+                      <div className="flex-1 min-w-0" style={{ opacity: marcado ? 1 : 0.4 }}>
+                        <p className="text-gray-700 truncate">
+                          <span className="font-mono text-gray-400">{numero}</span>
+                          {' · '}{c.origem} → {c.destino}
+                        </p>
+                        <p className="text-[10px] text-gray-400">{fmt(c.data_hora)}{c.passageiro1_nome ? ` · ${c.passageiro1_nome}` : ''}</p>
+                      </div>
+                      <p className="font-semibold text-gray-700 flex-shrink-0 ml-1" style={{ opacity: marcado ? 1 : 0.4 }}>
+                        R$ {(Number(c.valor) || 0).toFixed(2).replace('.', ',')}
+                      </p>
+                    </label>
+                  )
+                })}
+              </div>
             </div>
           )}
         </div>
