@@ -2,6 +2,8 @@
 import { useEffect, useState, useRef } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import { ordenarFavNome } from '@/lib/favoritos'
+import BotaoFavorito from '@/components/BotaoFavorito'
 
 type MotoristaOpcao = {
   id: string
@@ -16,6 +18,7 @@ type Rota = {
   preco: number
   motorista_id: string | null
   veiculo_placa: string | null
+  favorito?: boolean
 }
 
 type FormRota = {
@@ -46,6 +49,7 @@ type RotaRF = {
   acrescimo_deixar?: number | null
   oferece_carro_fechado?: boolean | null
   precos_carro_fechado?: FaixaCarroFechado[] | null
+  favorito?: boolean
 }
 
 // Preço do carro fechado por tamanho de grupo. Carro fechado é veículo
@@ -150,7 +154,7 @@ export default function RotasPage() {
         .single(),
       supabase
         .from('rotas_empresa')
-        .select('id, origem, destino, distancia_km, preco, motorista_id, veiculo_placa, nome, horario_ida, horario_volta, capacidade, ativa, dias_semana, modo_endereco, oferece_porta, acrescimo_buscar, acrescimo_deixar, oferece_carro_fechado, precos_carro_fechado')
+        .select('id, origem, destino, distancia_km, preco, motorista_id, veiculo_placa, nome, horario_ida, horario_volta, capacidade, ativa, dias_semana, modo_endereco, oferece_porta, acrescimo_buscar, acrescimo_deixar, oferece_carro_fechado, precos_carro_fechado, favorito')
         .eq('empresa_id', gestor.empresa_id)
         .order('created_at'),
       supabase
@@ -170,6 +174,19 @@ export default function RotasPage() {
     }
     if (mots) setMotoristasOpcoes(mots)
     setLoading(false)
+  }
+
+  // Favorito da empresa (rotas_empresa serve transfer e rota fixa). Atualiza os
+  // dois states — só o que tem o id muda — e reverte se o banco recusar.
+  async function toggleFavoritoRota(id: string, favoritoAtual: boolean) {
+    const novo = !favoritoAtual
+    setRotas(prev => prev.map(x => x.id === id ? { ...x, favorito: novo } : x))
+    setRotasRF(prev => prev.map(x => x.id === id ? { ...x, favorito: novo } : x))
+    const { error } = await supabase.from('rotas_empresa').update({ favorito: novo }).eq('id', id)
+    if (error) {
+      setRotas(prev => prev.map(x => x.id === id ? { ...x, favorito: favoritoAtual } : x))
+      setRotasRF(prev => prev.map(x => x.id === id ? { ...x, favorito: favoritoAtual } : x))
+    }
   }
 
   function abrirAdicionar() {
@@ -668,7 +685,7 @@ export default function RotasPage() {
             </div>
           ) : (
             <div className="flex flex-col gap-2">
-              {rotasRF.map(r => {
+              {ordenarFavNome(rotasRF, r => r.nome || `${r.origem ?? ''} ${r.destino ?? ''}`).map(r => {
                 const mot = motoristasOpcoes.find(m => m.id === r.motorista_id)
                 return (
                   <div key={r.id} className="bg-white rounded-2xl p-4 border border-gray-100">
@@ -691,7 +708,9 @@ export default function RotasPage() {
                       {/* Excluir por ultimo e separado — e a acao
                           irreversivel, nao pode ficar vizinha das que se
                           clica sem pensar. */}
-                      <div className="flex gap-2 flex-shrink-0">
+                      <div className="flex items-start gap-1 flex-shrink-0">
+                        <BotaoFavorito ativo={!!r.favorito} onToggle={() => toggleFavoritoRota(r.id, !!r.favorito)} />
+                        <div className="flex gap-2 flex-shrink-0">
                         <button onClick={() => abrirEditarRF(r)}
                           className="px-3 py-1.5 rounded-lg text-xs font-medium"
                           style={{ background: '#E1F5EE', color: '#0F6E56' }}>
@@ -708,6 +727,7 @@ export default function RotasPage() {
                           style={{ background: '#FCEBEB', color: '#A32D2D' }}>
                           Excluir
                         </button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1194,7 +1214,7 @@ export default function RotasPage() {
           </div>
         ) : (
           <div className="flex flex-col gap-2">
-            {rotas.map(r => (
+            {ordenarFavNome(rotas, r => `${r.origem} → ${r.destino}`).map(r => (
               <div key={r.id} className="bg-white rounded-2xl p-4 border border-gray-100">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
@@ -1210,7 +1230,9 @@ export default function RotasPage() {
                       )}
                     </div>
                   </div>
-                  <div className="flex gap-2 flex-shrink-0">
+                  <div className="flex items-start gap-1 flex-shrink-0">
+                    <BotaoFavorito ativo={!!r.favorito} onToggle={() => toggleFavoritoRota(r.id, !!r.favorito)} />
+                    <div className="flex gap-2 flex-shrink-0">
                     <button
                       onClick={() => abrirEditar(r)}
                       className="px-3 py-1.5 rounded-lg text-xs font-medium"
@@ -1223,6 +1245,7 @@ export default function RotasPage() {
                       style={{ background: '#FCEBEB', color: '#A32D2D' }}>
                       Excluir
                     </button>
+                    </div>
                   </div>
                 </div>
               </div>

@@ -2,6 +2,8 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import { ordenarFavNome } from '@/lib/favoritos'
+import BotaoFavorito from '@/components/BotaoFavorito'
 
 type Motorista = {
   id: string
@@ -12,6 +14,7 @@ type Motorista = {
   placa: string | null
   cor: string | null
   status: string
+  favorito: boolean
   percentual_repasse: number | null
   modo_repasse: 'percentual' | 'valor_fixo' | null
   valor_fixo_repasse: number | null
@@ -92,7 +95,7 @@ export default function MotoristasPage() {
 
     const { data: mots } = await supabase
       .from('motoristas_empresa')
-      .select('id, user_id, nome, telefone, veiculo, placa, cor, status, percentual_repasse, modo_repasse, valor_fixo_repasse, cnh_numero, cnh_vencimento, veiculos_motorista(id, veiculo, placa, cor, ordem)')
+      .select('id, user_id, nome, telefone, veiculo, placa, cor, status, favorito, percentual_repasse, modo_repasse, valor_fixo_repasse, cnh_numero, cnh_vencimento, veiculos_motorista(id, veiculo, placa, cor, ordem)')
       .eq('empresa_id', empresa.id)
       .order('created_at')
 
@@ -349,8 +352,17 @@ export default function MotoristasPage() {
     )
   }
 
-  const motAtivos = motoristas.filter(m => m.status === 'ativo')
-  const motInativos = motoristas.filter(m => m.status === 'inativo')
+  // Favorito da empresa: atualiza na hora e reverte se o banco recusar.
+  // So faz sentido pra ativo (inativo nao entra em atribuicao).
+  async function toggleFavorito(m: Motorista) {
+    const novo = !m.favorito
+    setMotoristas(prev => prev.map(x => x.id === m.id ? { ...x, favorito: novo } : x))
+    const { error } = await supabase.from('motoristas_empresa').update({ favorito: novo }).eq('id', m.id)
+    if (error) setMotoristas(prev => prev.map(x => x.id === m.id ? { ...x, favorito: !novo } : x))
+  }
+
+  const motAtivos = ordenarFavNome(motoristas.filter(m => m.status === 'ativo'), m => m.nome)
+  const motInativos = ordenarFavNome(motoristas.filter(m => m.status === 'inativo'), m => m.nome)
 
   return (
     <div>
@@ -421,19 +433,22 @@ export default function MotoristasPage() {
                       )
                     })()}
                   </div>
-                  <div className="flex gap-2 flex-shrink-0">
-                    <button
-                      onClick={() => abrirEditar(m)}
-                      className="px-3 py-1.5 rounded-lg text-xs font-medium"
-                      style={{ background: '#E1F5EE', color: '#0F6E56' }}>
-                      Editar
-                    </button>
-                    <button
-                      onClick={() => inativar(m.id)}
-                      className="px-3 py-1.5 rounded-lg text-xs font-medium"
-                      style={{ background: '#FCEBEB', color: '#A32D2D' }}>
-                      Inativar
-                    </button>
+                  <div className="flex items-start gap-1 flex-shrink-0">
+                    <BotaoFavorito ativo={!!m.favorito} onToggle={() => toggleFavorito(m)} />
+                    <div className="flex gap-2 flex-shrink-0">
+                      <button
+                        onClick={() => abrirEditar(m)}
+                        className="px-3 py-1.5 rounded-lg text-xs font-medium"
+                        style={{ background: '#E1F5EE', color: '#0F6E56' }}>
+                        Editar
+                      </button>
+                      <button
+                        onClick={() => inativar(m.id)}
+                        className="px-3 py-1.5 rounded-lg text-xs font-medium"
+                        style={{ background: '#FCEBEB', color: '#A32D2D' }}>
+                        Inativar
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>

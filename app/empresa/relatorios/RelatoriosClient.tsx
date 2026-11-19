@@ -16,10 +16,12 @@ import { pdf } from '@react-pdf/renderer'
 import { supabase } from '@/lib/supabase'
 import { ReciboConsolidadoPDF, type LinhaConsolidado, type LinhaReembolso } from '@/components/ReciboConsolidadoPDF'
 import { baixarRelatorioExcel } from '@/lib/gerar-relatorio-excel'
+import { agruparFavoritos } from '@/lib/favoritos'
 import type { VoucherEmpresa } from '@/components/VoucherPDF'
 
 type Cliente = {
   id: string
+  favorito?: boolean
   tipo: 'pj' | 'pf'
   razao_social: string | null
   nome_fantasia: string | null
@@ -260,11 +262,20 @@ export default function RelatoriosPage() {
             <select value={clienteId} onChange={e => setClienteId(e.target.value)}
               className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none bg-white focus:border-green-600">
               <option value="">Todos os clientes</option>
-              {clientes.map(c => (
-                <option key={c.id} value={c.id}>
-                  {c.tipo === 'pj' ? '🏢' : '👤'} {nomeExibicao(c)}
-                </option>
-              ))}
+              {(() => {
+                const renderOpt = (c: Cliente) => (
+                  <option key={c.id} value={c.id}>
+                    {c.tipo === 'pj' ? '🏢' : '👤'} {nomeExibicao(c)}
+                  </option>
+                )
+                const { favoritos, demais, temFavorito } = agruparFavoritos(clientes, nomeExibicao)
+                return temFavorito ? (
+                  <>
+                    <optgroup label="⭐ Favoritos">{favoritos.map(renderOpt)}</optgroup>
+                    <optgroup label="Todos">{demais.map(renderOpt)}</optgroup>
+                  </>
+                ) : demais.map(renderOpt)
+              })()}
             </select>
           </div>
           <div className="grid grid-cols-2 gap-2">

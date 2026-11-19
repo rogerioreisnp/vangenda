@@ -11,10 +11,13 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import { ordenarFavNome } from '@/lib/favoritos'
+import BotaoFavorito from '@/components/BotaoFavorito'
 
 type Cliente = {
   id: string
   empresa_id: string
+  favorito: boolean
   tipo: 'pj' | 'pf'
   razao_social: string | null
   nome_fantasia: string | null
@@ -37,7 +40,7 @@ type Cliente = {
   criado_em: string
 }
 
-const FORM_VAZIO: Omit<Cliente, 'id' | 'empresa_id' | 'criado_em'> = {
+const FORM_VAZIO: Omit<Cliente, 'id' | 'empresa_id' | 'criado_em' | 'favorito'> = {
   tipo: 'pj',
   razao_social: '',
   nome_fantasia: '',
@@ -198,7 +201,16 @@ export default function ClientesPage() {
     carregar()
   }
 
-  const filtrados = clientes.filter(c => {
+  // Favorito da empresa: atualiza na hora (otimista) e reverte se o banco
+  // recusar. Favoritos sobem pro topo da lista (ordenarFavNome).
+  async function toggleFavorito(c: Cliente) {
+    const novo = !c.favorito
+    setClientes(prev => prev.map(x => x.id === c.id ? { ...x, favorito: novo } : x))
+    const { error } = await supabase.from('clientes_empresa').update({ favorito: novo }).eq('id', c.id)
+    if (error) setClientes(prev => prev.map(x => x.id === c.id ? { ...x, favorito: !novo } : x))
+  }
+
+  const filtrados = ordenarFavNome(clientes.filter(c => {
     if (filtroTipo !== 'todos' && c.tipo !== filtroTipo) return false
     if (busca.trim()) {
       const q = busca.toLowerCase()
@@ -206,7 +218,7 @@ export default function ClientesPage() {
       if (!campos.includes(q)) return false
     }
     return true
-  })
+  }), nomeExibicao)
 
   return (
     <div>
@@ -284,6 +296,7 @@ export default function ClientesPage() {
                       </p>
                     )}
                   </div>
+                  <BotaoFavorito ativo={!!c.favorito} onToggle={() => toggleFavorito(c)} />
                   <div className="flex flex-col gap-1 flex-shrink-0">
                     <button onClick={() => abrirEditar(c)}
                       className="px-2 py-1 rounded-lg text-[10px] font-medium"

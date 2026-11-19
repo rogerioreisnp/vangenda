@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { formatarTelefoneWhatsApp } from '@/lib/telefone'
 import ModalListaPassageirosPDF from '@/components/ModalListaPassageirosPDF'
 import { dataHoraBrasilia } from '@/lib/data-hora'
+import { agruparFavoritos } from '@/lib/favoritos'
 
 // Modal do voucher usa @react-pdf/renderer no client — SSR pode explodir por
 // causa de font/canvas. Carregar dinamicamente sem SSR resolve.
@@ -21,6 +22,7 @@ type RotaOpcao = {
   destino: string | null
   preco: number
   motorista_id: string | null
+  favorito?: boolean
 }
 
 type MotoristaOpcao = {
@@ -36,6 +38,7 @@ type MotoristaOpcao = {
   valor_fixo_repasse: number | null
   veiculos: { id: string; veiculo: string | null; placa: string | null; cor: string | null }[]
   status?: string
+  favorito?: boolean
 }
 
 type Corrida = {
@@ -710,7 +713,7 @@ export default function AgendamentosPage() {
   // telefone). Antes a tela so carregava ativos e as fichas antigas pareciam
   // ter perdido o motorista (Julimar 2026-11-02).
   const [motoristasInativos, setMotoristasInativos] = useState<MotoristaOpcao[]>([])
-  const [clientesOpcoes, setClientesOpcoes] = useState<Array<{ id: string; tipo: 'pj'|'pf'; label: string; telefone: string | null; email: string | null; raw: any }>>([])
+  const [clientesOpcoes, setClientesOpcoes] = useState<Array<{ id: string; tipo: 'pj'|'pf'; label: string; telefone: string | null; email: string | null; favorito: boolean; raw: any }>>([])
   // Enderecos ja usados por esse telefone em atendimentos anteriores (ordenados
   // por frequencia) — evita redigitar embarque/desembarque de clientes
   // recorrentes (pedido Rogerio/Julimar 2026-08-01, "operacao escola": mesmo
@@ -867,17 +870,17 @@ export default function AgendamentosPage() {
         .single(),
       supabase
         .from('rotas_empresa')
-        .select('id, nome, origem, destino, preco, motorista_id')
+        .select('id, nome, origem, destino, preco, motorista_id, favorito')
         .eq('empresa_id', gestor.empresa_id)
         .order('created_at'),
       supabase
         .from('motoristas_empresa')
-        .select('id, nome, user_id, telefone, veiculo, placa, cor, status, percentual_repasse, modo_repasse, valor_fixo_repasse, veiculos_motorista(id, veiculo, placa, cor, ordem)')
+        .select('id, nome, user_id, telefone, veiculo, placa, cor, status, favorito, percentual_repasse, modo_repasse, valor_fixo_repasse, veiculos_motorista(id, veiculo, placa, cor, ordem)')
         .eq('empresa_id', gestor.empresa_id)
         .order('nome'),
       supabase
         .from('clientes_empresa')
-        .select('id, tipo, razao_social, nome_fantasia, cnpj, nome, cpf, telefone, email, endereco_rua, endereco_numero, endereco_bairro, endereco_cidade, endereco_estado, endereco_cep, endereco_complemento')
+        .select('id, tipo, razao_social, nome_fantasia, cnpj, nome, cpf, telefone, email, favorito, endereco_rua, endereco_numero, endereco_bairro, endereco_cidade, endereco_estado, endereco_cep, endereco_complemento')
         .eq('empresa_id', gestor.empresa_id)
         .eq('ativo', true)
         .order('atualizado_em', { ascending: false }),
@@ -937,6 +940,7 @@ export default function AgendamentosPage() {
         label: c.tipo === 'pj' ? (c.nome_fantasia || c.razao_social || 'Sem nome') : (c.nome || 'Sem nome'),
         telefone: c.telefone,
         email: c.email,
+        favorito: !!c.favorito,
         raw: c,
       })))
     }
@@ -1887,6 +1891,19 @@ export default function AgendamentosPage() {
   function opcaoMotoristaDesativado(motoristaId: string) {
     const m = motoristaId ? motoristasInativos.find(x => x.id === motoristaId) : null
     return m ? <option value={m.id}>{m.nome} (desativado)</option> : null
+  }
+
+  // Options de motorista (só nome) agrupadas: favoritos no topo, depois todos
+  // em ordem alfabética. Usada nos selects de atribuir motorista na ficha.
+  function optionsMotoristaAgrupadas() {
+    const renderOpt = (m: MotoristaOpcao) => <option key={m.id} value={m.id}>{m.nome}</option>
+    const { favoritos, demais, temFavorito } = agruparFavoritos(motoristasOpcoes, m => m.nome)
+    return temFavorito ? (
+      <>
+        <optgroup label="⭐ Favoritos">{favoritos.map(renderOpt)}</optgroup>
+        <optgroup label="Todos">{demais.map(renderOpt)}</optgroup>
+      </>
+    ) : <>{demais.map(renderOpt)}</>
   }
 
   function motoristaInfo(c: Corrida, motoristaId: string) {
@@ -3945,9 +3962,7 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                       className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 bg-white outline-none">
                       <option value="">Selecione o motorista...</option>
                       {opcaoMotoristaDesativado(motoristaFicha)}
-                      {motoristasOpcoes.map(m => (
-                        <option key={m.id} value={m.id}>{m.nome}</option>
-                      ))}
+                      {optionsMotoristaAgrupadas()}
                     </select>
                     {/* Veiculo — so aparece quando o motorista escolhido tem
                         algum cadastrado. Pedido do Julimar 2026-08-05:
@@ -4332,9 +4347,7 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                         style={{ borderColor: '#AFA9EC' }}>
                         <option value="">Selecione o motorista...</option>
                         {opcaoMotoristaDesativado(motoristaFichaVolta)}
-                        {motoristasOpcoes.map(m => (
-                          <option key={m.id} value={m.id}>{m.nome}</option>
-                        ))}
+                        {optionsMotoristaAgrupadas()}
                       </select>
                       {motoristaFichaVolta && veiculosDoMotorista(motoristaFichaVolta).length > 0 && (
                         <select
@@ -4593,13 +4606,22 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                 className="campo-input">
                 <option value="">A definir</option>
                 {opcaoMotoristaDesativado(form.motorista_id)}
-                {motoristasOpcoes.map(m => {
-                  const modo = m.modo_repasse ?? (m.percentual_repasse ? 'percentual' : null)
-                  const info = modo === 'percentual' && m.percentual_repasse ? ` · ${m.percentual_repasse}% repasse`
-                    : modo === 'valor_fixo' ? ` · valor combinado`
-                    : ''
-                  return <option key={m.id} value={m.id}>{m.nome}{info}</option>
-                })}
+                {(() => {
+                  const renderOpt = (m: MotoristaOpcao) => {
+                    const modo = m.modo_repasse ?? (m.percentual_repasse ? 'percentual' : null)
+                    const info = modo === 'percentual' && m.percentual_repasse ? ` · ${m.percentual_repasse}% repasse`
+                      : modo === 'valor_fixo' ? ` · valor combinado`
+                      : ''
+                    return <option key={m.id} value={m.id}>{m.nome}{info}</option>
+                  }
+                  const { favoritos, demais, temFavorito } = agruparFavoritos(motoristasOpcoes, m => m.nome)
+                  return temFavorito ? (
+                    <>
+                      <optgroup label="⭐ Favoritos">{favoritos.map(renderOpt)}</optgroup>
+                      <optgroup label="Todos">{demais.map(renderOpt)}</optgroup>
+                    </>
+                  ) : demais.map(renderOpt)
+                })()}
               </select>
             </Campo>
 
@@ -4640,11 +4662,20 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
               <Campo label="Rota">
                 <select value={form.rota_id} onChange={e => selecionarRota(e.target.value)} className="campo-input">
                   <option value="">Selecione uma rota...</option>
-                  {rotasOpcoes.map(r => (
-                    <option key={r.id} value={r.id}>
-                      {r.origem} → {r.destino} — R$ {Number(r.preco).toFixed(2).replace('.', ',')}
-                    </option>
-                  ))}
+                  {(() => {
+                    const renderOpt = (r: RotaOpcao) => (
+                      <option key={r.id} value={r.id}>
+                        {r.origem} → {r.destino} — R$ {Number(r.preco).toFixed(2).replace('.', ',')}
+                      </option>
+                    )
+                    const { favoritos, demais, temFavorito } = agruparFavoritos(rotasOpcoes, r => `${r.origem} → ${r.destino}`)
+                    return temFavorito ? (
+                      <>
+                        <optgroup label="⭐ Favoritas">{favoritos.map(renderOpt)}</optgroup>
+                        <optgroup label="Todas">{demais.map(renderOpt)}</optgroup>
+                      </>
+                    ) : demais.map(renderOpt)
+                  })()}
                   <option value="manual">✏️ Outra rota (digitar manualmente)</option>
                 </select>
               </Campo>
@@ -4918,11 +4949,20 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                   }}
                   className="campo-input">
                   <option value="">— Cliente avulso (digitar manualmente) —</option>
-                  {clientesOpcoes.map(c => (
-                    <option key={c.id} value={c.id}>
-                      {c.tipo === 'pj' ? '🏢' : '👤'} {c.label}
-                    </option>
-                  ))}
+                  {(() => {
+                    const renderOpt = (c: { id: string; tipo: 'pj'|'pf'; label: string; favorito: boolean }) => (
+                      <option key={c.id} value={c.id}>
+                        {c.tipo === 'pj' ? '🏢' : '👤'} {c.label}
+                      </option>
+                    )
+                    const { favoritos, demais, temFavorito } = agruparFavoritos(clientesOpcoes, c => c.label)
+                    return temFavorito ? (
+                      <>
+                        <optgroup label="⭐ Favoritos">{favoritos.map(renderOpt)}</optgroup>
+                        <optgroup label="Todos">{demais.map(renderOpt)}</optgroup>
+                      </>
+                    ) : demais.map(renderOpt)
+                  })()}
                 </select>
                 <p className="text-[10px] text-gray-400 mt-1">
                   Cadastre novos clientes em <a href="/empresa/clientes" className="underline" style={{ color: '#0F6E56' }}>Clientes</a>.
