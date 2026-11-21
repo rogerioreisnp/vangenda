@@ -8,6 +8,10 @@ import { formatarTelefoneWhatsApp } from '@/lib/telefone'
 import ModalListaPassageirosPDF from '@/components/ModalListaPassageirosPDF'
 import { dataHoraBrasilia } from '@/lib/data-hora'
 import { agruparFavoritos } from '@/lib/favoritos'
+import {
+  type Excedentes, type CondicoesExcedente,
+  temCondicoes, calcularExcedentes, aplicarNoAtendimento, formatarMinutos,
+} from '@/lib/excedentes'
 
 // Modal do voucher usa @react-pdf/renderer no client — SSR pode explodir por
 // causa de font/canvas. Carregar dinamicamente sem SSR resolve.
@@ -106,6 +110,12 @@ type Corrida = {
   km_final: number | null
   iniciado_em: string | null
   finalizado_em: string | null
+  // Excedentes (hora parada / hora extra / km excedente): condicoes da
+  // contratacao + o que ja foi lancado no valor. Minutos informados pelo
+  // motorista no app. Ver lib/excedentes.ts.
+  excedentes: Excedentes | null
+  minutos_parada: number | null
+  minutos_hora_extra: number | null
   numero_reserva: number | null
   quantidade_bagagem: number | null
   passageiros_adicionais: Array<{
@@ -221,6 +231,15 @@ type FormCorrida = {
   observacoes: string
   anexo_observacoes_url: string
   anexo_observacoes_volta_url: string
+  // Condicoes de excedente desta contratacao (mudam a cada contratacao).
+  // Tudo vazio = atendimento sem excedente; nada aparece pro motorista.
+  exc_franquia_horas: string
+  exc_franquia_km: string
+  exc_valor_hora_extra: string
+  exc_valor_km: string
+  exc_tolerancia_min: string
+  exc_valor_hora_parada: string
+  exc_pct_repasse: string
 }
 
 const FORM_VAZIO: FormCorrida = {
@@ -266,6 +285,8 @@ const FORM_VAZIO: FormCorrida = {
   observacoes: '',
   anexo_observacoes_url: '',
   anexo_observacoes_volta_url: '',
+  exc_franquia_horas: '', exc_franquia_km: '', exc_valor_hora_extra: '', exc_valor_km: '',
+  exc_tolerancia_min: '', exc_valor_hora_parada: '', exc_pct_repasse: '',
 }
 
 type FormAgPassageiro = {
@@ -348,6 +369,151 @@ function SeloPrevisao({ previsao }: { previsao: { texto: string; vencida: boolea
       style={previsao.vencida ? { background: '#FCEBEB', color: '#A32D2D' } : { background: '#EFF6FF', color: '#1D4ED8' }}>
       {previsao.texto}
     </span>
+  )
+}
+
+// Quadro de excedentes na ficha (ida ou volta). Mostra as condicoes da
+// contratacao, o que o motorista informou e o calculo; o gestor confere,
+// pode ajustar os minutos e o %, e lanca no atendimento. Relancar corrige
+// sem somar duas vezes (aplicarNoAtendimento). Julimar 2026-11-19.
+function QuadroExcedentes({ c, onPatch }: { c: Corrida; onPatch: (id: string, patch: Partial<Corrida>) => void }) {
+  const cond = c.excedentes?.condicoes ?? null
+  const aplicado = c.excedentes?.aplicado ?? null
+  const [minParada, setMinParada] = useState(c.minutos_parada != null ? String(c.minutos_parada) : '')
+  const [minExtra, setMinExtra] = useState(c.minutos_hora_extra != null ? String(c.minutos_hora_extra) : '')
+  const [pct, setPct] = useState(cond?.pct_repasse != null ? String(cond.pct_repasse) : '')
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState('')
+
+  if (!temCondicoes(cond)) return null
+
+  const lerNum = (s: string) => { const v = parseFloat(s.replace(',', '.')); return isNaN(v) || v < 0 ? null : v }
+  const kmRodado = c.km_inicial != null && c.km_final != null && c.km_final >= c.km_inicial ? c.km_final - c.km_inicial : null
+  const condCalc = { ...cond, pct_repasse: lerNum(pct) }
+  const calc = calcularExcedentes(condCalc, { minutos_parada: lerNum(minParada), minutos_hora_extra: lerNum(minExtra), km_rodado: kmRodado })
+  const brl = (v: number) => `R$ ${v.toFixed(2).replace('.', ',')}`
+  const usaParada = Number(cond?.valor_hora_parada) > 0
+  const usaExtra = Number(cond?.valor_hora_extra) > 0
+  const usaKm = Number(cond?.valor_km_excedente) > 0
+  const repasseJaPago = c.repasse_status === 'pago'
+  const repasseSobe = calc.repasse > (aplicado?.repasse || 0) + 0.001
+
+  async function lancar() {
+    setErro('')
+    setSalvando(true)
+    const novo = aplicarNoAtendimento(Number(c.valor) || 0, Number(c.valor_repasse_motorista) || 0, aplicado, calc)
+    const aplicadoNovo = calc.total > 0
+      ? { itens: calc.itens, total: calc.total, repasse: calc.repasse, em: new Date().toISOString() }
+      : null
+    const patch: Partial<Corrida> = {
+      valor: novo.valor,
+      valor_repasse_motorista: novo.repasse > 0 ? novo.repasse : null,
+      excedentes: { condicoes: condCalc, aplicado: aplicadoNovo },
+      minutos_parada: lerNum(minParada),
+      minutos_hora_extra: lerNum(minExtra),
+    }
+    // Ja estava recebido e o total subiu: a diferenca volta pro "A receber".
+    const recebido = Number(c.valor_recebido) || 0
+    if (c.status_pagamento === 'recebido' && recebido > 0 && novo.valor > recebido + 0.001) patch.status_pagamento = 'parcial'
+    const { error } = await supabase.from('corridas_empresa').update(patch).eq('id', c.id)
+    setSalvando(false)
+    if (error) { setErro('Não foi possível lançar: ' + error.message); return }
+    onPatch(c.id, patch)
+  }
+
+  const inputMin = (valor: string, set: (v: string) => void, rotulo: string) => {
+    const n = lerNum(valor)
+    return (
+      <div>
+        <p className="text-[11px] font-medium text-gray-600 mb-1">{rotulo}</p>
+        <div className="flex items-center gap-2">
+          <input type="number" min={0} step={1} inputMode="numeric" value={valor}
+            onChange={e => set(e.target.value)} placeholder="minutos"
+            className="w-24 px-2 py-1.5 rounded-lg border border-gray-200 text-base outline-none bg-white" />
+          <span className="text-xs text-gray-500">{n != null ? `= ${formatarMinutos(n)}` : 'min'}</span>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="rounded-2xl p-4 border flex flex-col gap-3" style={{ background: '#FFFBEB', borderColor: '#FDE68A' }}>
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#92400E' }}>⏱ Excedentes</p>
+        <p className="text-[11px] mt-1" style={{ color: '#92400E' }}>
+          {[
+            usaParada && `Tolerância ${formatarMinutos(Number(cond?.tolerancia_min) || 0)} · hora parada ${brl(Number(cond?.valor_hora_parada))}/h`,
+            cond?.franquia_horas != null && `Franquia ${cond.franquia_horas}h`,
+            usaExtra && `hora extra ${brl(Number(cond?.valor_hora_extra))}/h`,
+            cond?.franquia_km != null && `franquia ${cond.franquia_km} km`,
+            usaKm && `km excedente ${brl(Number(cond?.valor_km_excedente))}/km`,
+          ].filter(Boolean).join(' · ')}
+        </p>
+      </div>
+
+      {(usaParada && c.minutos_parada == null) || (usaExtra && c.minutos_hora_extra == null) ? (
+        <p className="text-[11px] text-gray-500">O motorista ainda não informou o tempo pelo app. Você pode preencher aqui.</p>
+      ) : null}
+
+      <div className="flex flex-wrap gap-4">
+        {usaParada && inputMin(minParada, setMinParada, 'Tempo total de espera')}
+        {usaExtra && inputMin(minExtra, setMinExtra, 'Horas extras')}
+      </div>
+      {usaKm && (
+        <p className="text-xs text-gray-600">
+          {kmRodado != null
+            ? <>KM rodado: <b>{kmRodado.toFixed(1).replace('.', ',')} km</b>{cond?.franquia_km != null ? ` (franquia ${cond.franquia_km} km)` : ' — defina a franquia de km na edição'}</>
+            : 'KM excedente: aguardando o KM inicial e final do atendimento.'}
+        </p>
+      )}
+
+      {calc.itens.length > 0 ? (
+        <div className="flex flex-col gap-1 rounded-xl bg-white p-3 border" style={{ borderColor: '#FDE68A' }}>
+          {calc.itens.map(i => (
+            <div key={i.tipo} className="flex justify-between gap-2 text-xs">
+              <span className="text-gray-700">{i.descricao}</span>
+              <span className="font-semibold text-gray-800 flex-shrink-0">{brl(i.total)}</span>
+            </div>
+          ))}
+          <div className="flex justify-between text-sm font-bold pt-1 mt-1" style={{ borderTop: '1px dashed #FDE68A', color: '#92400E' }}>
+            <span>Total excedentes</span><span>{brl(calc.total)}</span>
+          </div>
+        </div>
+      ) : (
+        <p className="text-xs text-gray-500">Nenhum excedente a cobrar com esses dados.</p>
+      )}
+
+      {c.motorista_id && (
+        <div className="flex items-end gap-2">
+          <div>
+            <p className="text-[11px] font-medium text-gray-600 mb-1">% para o motorista</p>
+            <input type="number" min={0} max={100} step="any" inputMode="decimal" value={pct}
+              onChange={e => setPct(e.target.value)} placeholder="Ex: 50"
+              className="w-20 px-2 py-1.5 rounded-lg border border-gray-200 text-base outline-none bg-white" />
+          </div>
+          <p className="text-xs text-gray-600 pb-2">Repasse dos excedentes: <b>{brl(calc.repasse)}</b></p>
+        </div>
+      )}
+
+      {repasseJaPago && repasseSobe && (
+        <p className="text-[11px] rounded-lg px-2 py-1.5" style={{ background: '#FEF3C7', color: '#92400E' }}>
+          O repasse deste atendimento já está marcado como pago. Depois de lançar, pague a diferença ao motorista.
+        </p>
+      )}
+
+      <button type="button" onClick={lancar} disabled={salvando || (calc.total === 0 && !aplicado)}
+        className="w-full py-2.5 rounded-xl text-sm font-bold text-white disabled:opacity-40"
+        style={{ background: '#B45309' }}>
+        {salvando ? 'Salvando...' : aplicado ? 'Atualizar lançamento' : `Lançar no atendimento${calc.total > 0 ? ` (+ ${brl(calc.total)})` : ''}`}
+      </button>
+      {aplicado && (
+        <p className="text-[11px] text-center" style={{ color: '#166534' }}>
+          ✓ Lançado em {aplicado.em.slice(8, 10)}/{aplicado.em.slice(5, 7)}: + {brl(aplicado.total)} no valor
+          {aplicado.repasse > 0 ? ` e + ${brl(aplicado.repasse)} no repasse` : ''}
+        </p>
+      )}
+      {erro && <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-xl">{erro}</p>}
+    </div>
   )
 }
 
@@ -860,7 +1026,7 @@ export default function AgendamentosPage() {
     //   2. FUTURAS (data_hora >= agora e status != em_andamento) — asc
     //   3. PASSADAS (data_hora < agora e status != em_andamento) — desc
     const agoraISO = new Date().toISOString()
-    const colsCorridas = 'id, rota_id, cliente_id, origem, destino, data_hora, created_at, cliente_nome, cliente_telefone, email_solicitante, passageiro1_nome, passageiro1_telefone, valor, status, motorista_id, tipo_servico, forma_pagamento, status_pagamento, valor_recebido, data_pagamento, data_prevista_pagamento, valor_repasse_motorista, repasse_status, repasse_data_pago, repasse_forma_pagamento, observacoes, motoristas_empresa(nome), numero_voo, nome_passageiro2, telefone_passageiro2, retorno_data, retorno_horario, retorno_origem, retorno_destino, numero_reserva, quantidade_bagagem, passageiros_adicionais, rua, numero, bairro, municipio, cep, referencia, complemento, rua_desembarque, numero_desembarque, bairro_desembarque, municipio_desembarque, cep_desembarque, referencia_desembarque, complemento_desembarque, data_hora_termino, trajetos, km_inicial, km_final, iniciado_em, finalizado_em, observacao_motorista, anexo_motorista_url, veiculo_atribuido, anexo_observacoes_url, par_id, quantidade_passageiros, motorista_visto_em, motorista_confirmado_em'
+    const colsCorridas = 'id, rota_id, cliente_id, origem, destino, data_hora, created_at, cliente_nome, cliente_telefone, email_solicitante, passageiro1_nome, passageiro1_telefone, valor, status, motorista_id, tipo_servico, forma_pagamento, status_pagamento, valor_recebido, data_pagamento, data_prevista_pagamento, valor_repasse_motorista, repasse_status, repasse_data_pago, repasse_forma_pagamento, observacoes, motoristas_empresa(nome), numero_voo, nome_passageiro2, telefone_passageiro2, retorno_data, retorno_horario, retorno_origem, retorno_destino, numero_reserva, quantidade_bagagem, passageiros_adicionais, rua, numero, bairro, municipio, cep, referencia, complemento, rua_desembarque, numero_desembarque, bairro_desembarque, municipio_desembarque, cep_desembarque, referencia_desembarque, complemento_desembarque, data_hora_termino, trajetos, km_inicial, km_final, iniciado_em, finalizado_em, observacao_motorista, anexo_motorista_url, veiculo_atribuido, anexo_observacoes_url, par_id, quantidade_passageiros, motorista_visto_em, motorista_confirmado_em, excedentes, minutos_parada, minutos_hora_extra'
 
     const [{ data: empresa }, { data: rts }, { data: mots }, { data: clientesData }, { data: emAndamento }, { data: futuras }, { data: passadas }] = await Promise.all([
       supabase
@@ -1021,6 +1187,18 @@ export default function AgendamentosPage() {
     const desVolta = volta && !idaTemDesembarqueVolta
       ? { rua: volta.rua_desembarque, numero: volta.numero_desembarque, bairro: volta.bairro_desembarque, municipio: volta.municipio_desembarque, cep: volta.cep_desembarque, referencia: volta.referencia_desembarque, complemento: volta.complemento_desembarque }
       : { rua: c.rua_retorno_desembarque, numero: c.numero_retorno_desembarque, bairro: c.bairro_retorno_desembarque, municipio: c.municipio_retorno_desembarque, cep: c.cep_retorno_desembarque, referencia: c.referencia_retorno_desembarque, complemento: c.complemento_retorno_desembarque }
+    // Valor e repasse gravados ja incluem os excedentes lancados. O form mostra
+    // a BASE (o contratado) e o salvar soma de volta o que estava lancado, pra
+    // editar outro campo nao apagar nem duplicar os excedentes.
+    const r2 = (n: number) => Math.round(n * 100) / 100
+    const excIda = c.excedentes?.aplicado
+    const excVolta = volta?.excedentes?.aplicado
+    const baseValor = r2((Number(c.valor) || 0) - (excIda?.total || 0))
+    const baseRepasse = c.valor_repasse_motorista != null ? r2(Number(c.valor_repasse_motorista) - (excIda?.repasse || 0)) : null
+    const baseValorVolta = volta ? r2((Number(volta.valor) || 0) - (excVolta?.total || 0)) : null
+    const baseRepasseVolta = volta && volta.valor_repasse_motorista != null ? r2(Number(volta.valor_repasse_motorista) - (excVolta?.repasse || 0)) : null
+    const cond = c.excedentes?.condicoes
+    const num = (n: number | null | undefined) => (n != null ? String(n) : '')
     setCorridaEditando(c)
     setVoltaIdEditando(voltaId ?? null)
     setDuplicandoDe(null)
@@ -1036,7 +1214,7 @@ export default function AgendamentosPage() {
       destino_volta: volta?.destino || c.retorno_destino || '',
       data_retorno: volta?.data_hora.slice(0, 10) || c.retorno_data || '',
       horario_retorno: volta?.data_hora.slice(11, 16) || (c.retorno_horario ? c.retorno_horario.slice(0, 5) : ''),
-      preco_volta: volta ? String(volta.valor) : '',
+      preco_volta: baseValorVolta != null ? String(baseValorVolta) : '',
       observacoes_volta: volta?.observacoes || '',
       motorista_id: c.motorista_id || '',
       cliente_id: c.cliente_id || '',
@@ -1078,16 +1256,22 @@ export default function AgendamentosPage() {
       valor_recebido: c.valor_recebido != null ? String(c.valor_recebido) : '',
       data_pagamento: c.data_pagamento || '',
       data_prevista_pagamento: c.data_prevista_pagamento || '',
-      preco: String(c.valor),
-      valor_repasse_motorista: c.valor_repasse_motorista != null ? String(c.valor_repasse_motorista) : '',
+      preco: String(baseValor),
+      valor_repasse_motorista: num(baseRepasse),
       // Repasse da volta sempre com o valor gravado nela. Antes ficava em
       // branco quando igual ao da ida e, no duplicar, parecia que nao tinha
       // copiado (Julimar 2026-11-05). Em branco so quando a volta nao tem.
-      valor_repasse_volta: volta && volta.valor_repasse_motorista != null
-        ? String(volta.valor_repasse_motorista) : '',
+      valor_repasse_volta: num(baseRepasseVolta),
       observacoes: c.observacoes || '',
       anexo_observacoes_url: c.anexo_observacoes_url || '',
       anexo_observacoes_volta_url: volta?.anexo_observacoes_url || '',
+      exc_franquia_horas: num(cond?.franquia_horas),
+      exc_franquia_km: num(cond?.franquia_km),
+      exc_valor_hora_extra: num(cond?.valor_hora_extra),
+      exc_valor_km: num(cond?.valor_km_excedente),
+      exc_tolerancia_min: num(cond?.tolerancia_min),
+      exc_valor_hora_parada: num(cond?.valor_hora_parada),
+      exc_pct_repasse: num(cond?.pct_repasse),
     })
     setEnderecosClienteForm([])
     const cliCad = c.cliente_id ? clientesOpcoes.find(x => x.id === c.cliente_id) : null
@@ -1243,8 +1427,10 @@ export default function AgendamentosPage() {
     setSalvando(true)
     setErro('')
 
+    // Recebido = o total do atendimento, incluindo excedentes ja lancados
+    // (o campo Preco do form mostra so a base contratada).
     const valorRecebido = form.status_pagamento === 'recebido'
-      ? preco
+      ? preco + (corridaEditando?.excedentes?.aplicado?.total || 0)
       : form.status_pagamento === 'parcial'
       ? (parseFloat(form.valor_recebido) || 0)
       : 0
@@ -1362,6 +1548,29 @@ export default function AgendamentosPage() {
       ? Math.max(0, parseFloat(repasseVoltaTrim.replace(',', '.'))) || null
       : camposComuns.valor_repasse_motorista
 
+    // Condicoes de excedente desta contratacao (Julimar 2026-11-19). Tudo vazio
+    // = atendimento sem excedente. O que ja foi lancado (aplicado) e preservado
+    // e continua somado no valor/repasse — o form trabalha com a base.
+    const r2 = (n: number) => Math.round(n * 100) / 100
+    const numOuNull = (s: string) => {
+      const t = s.trim().replace(',', '.')
+      if (!t) return null
+      const v = parseFloat(t)
+      return isNaN(v) || v < 0 ? null : v
+    }
+    const condicoesExc: CondicoesExcedente = {
+      franquia_horas: numOuNull(form.exc_franquia_horas),
+      franquia_km: numOuNull(form.exc_franquia_km),
+      valor_hora_extra: numOuNull(form.exc_valor_hora_extra),
+      valor_km_excedente: numOuNull(form.exc_valor_km),
+      tolerancia_min: numOuNull(form.exc_tolerancia_min),
+      valor_hora_parada: numOuNull(form.exc_valor_hora_parada),
+      pct_repasse: numOuNull(form.exc_pct_repasse),
+    }
+    const usaExcedente = Object.values(condicoesExc).some(v => v != null)
+    const montarExcedentes = (aplicado: Excedentes['aplicado']): Excedentes | null =>
+      usaExcedente || aplicado ? { condicoes: usaExcedente ? condicoesExc : null, aplicado: aplicado ?? null } : null
+
     // Endereços da VOLTA, mapeados pra linha da volta do par. O form guarda
     // o embarque/desembarque da volta nos campos *_retorno_*, que gravam nas
     // colunas retorno_* da linha da IDA — mas a ficha da volta e o app do
@@ -1397,6 +1606,13 @@ export default function AgendamentosPage() {
       const updateFields: Record<string, unknown> = {
         ...camposComuns,
         data_hora: novoDataHora,
+      }
+      // Excedentes ja lancados continuam somados (o form mostrou a base).
+      const aplicadoIda = corridaEditando.excedentes?.aplicado ?? null
+      updateFields.excedentes = montarExcedentes(aplicadoIda)
+      if (aplicadoIda) {
+        updateFields.valor = r2(preco + aplicadoIda.total)
+        updateFields.valor_repasse_motorista = r2((Number(camposComuns.valor_repasse_motorista) || 0) + aplicadoIda.repasse) || null
       }
       // Se o gestor moveu o horario pra FUTURO e a corrida estava 'em_andamento'
       // sem KM inicial preenchido (ou seja, so entrou em em_andamento pela
@@ -1510,6 +1726,15 @@ export default function AgendamentosPage() {
         updateVolta.observacoes = form.observacoes_volta.trim() || null
         updateVolta.anexo_observacoes_url = form.anexo_observacoes_volta_url.trim() || null
 
+        // Excedentes da volta: mesmas condicoes da contratacao; o que ja foi
+        // lancado na volta continua somado no valor/repasse dela.
+        const aplicadoVolta = corridas.find(x => x.id === voltaIdEditando)?.excedentes?.aplicado ?? null
+        updateVolta.excedentes = montarExcedentes(aplicadoVolta)
+        if (aplicadoVolta) {
+          if (typeof updateVolta.valor === 'number') updateVolta.valor = r2(updateVolta.valor + aplicadoVolta.total)
+          updateVolta.valor_repasse_motorista = r2((Number(updateVolta.valor_repasse_motorista) || 0) + aplicadoVolta.repasse) || null
+        }
+
         // Pagamento: o "Status do pagamento" do form vale pro atendimento
         // inteiro, mas so gravava na ida — a volta ficava "a receber" no
         // financeiro pra sempre (Julimar 2026-10-29). So propaga quando o
@@ -1561,7 +1786,9 @@ export default function AgendamentosPage() {
       const veiculoPadraoNovo = camposComuns.motorista_id
         ? (veiculosDoMotorista(camposComuns.motorista_id as string)[0] ?? null)
         : null
-      const base = { empresa_id: empresaId, status: 'confirmada', ...camposComuns, veiculo_atribuido: veiculoPadraoNovo }
+      // Atendimento novo (ou duplicado) leva so as condicoes de excedente —
+      // nada lancado ainda. A volta herda as mesmas condicoes pelo spread.
+      const base = { empresa_id: empresaId, status: 'confirmada', ...camposComuns, veiculo_atribuido: veiculoPadraoNovo, excedentes: montarExcedentes(null) }
       // Par ida-volta ganha um id compartilhado — é o que amarra as duas
       // linhas de verdade, em vez de deixar a tela adivinhar depois pelo
       // horário em que foram criadas (ver saoParIdaVolta).
@@ -1888,6 +2115,14 @@ export default function AgendamentosPage() {
   // listam ativos, e sem esta opcao o campo aparecia "Selecione o
   // motorista..." como se a ficha tivesse perdido o motorista. Mostra ele
   // marcado como desativado, sem oferecer pra atendimento novo.
+  // Aplica um patch de corrida na lista e na ficha aberta (ida ou volta),
+  // sem recarregar. Usado pelo quadro de excedentes.
+  function aplicarPatchCorrida(id: string, patch: Partial<Corrida>) {
+    setCorridas(prev => prev.map(x => x.id === id ? { ...x, ...patch } : x))
+    setCorridaFicha(prev => prev && prev.id === id ? { ...prev, ...patch } : prev)
+    setVoltaDaFicha(prev => prev && prev.id === id ? { ...prev, ...patch } : prev)
+  }
+
   function opcaoMotoristaDesativado(motoristaId: string) {
     const m = motoristaId ? motoristasInativos.find(x => x.id === motoristaId) : null
     return m ? <option value={m.id}>{m.nome} (desativado)</option> : null
@@ -3061,11 +3296,13 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
               descricao_servico: null,
               trajetos: (c.trajetos as any) || null,
               valor: Number(c.valor) || 0,
+              excedentes: (c.excedentes?.aplicado?.itens || []).map(i => ({ descricao: i.descricao, total: i.total })),
               volta: voltaDaFicha && voltaDaFicha.id !== c.id ? {
                 origem: voltaDaFicha.origem,
                 destino: voltaDaFicha.destino,
                 data_hora: voltaDaFicha.data_hora,
                 valor: Number(voltaDaFicha.valor) || 0,
+                excedentes: (voltaDaFicha.excedentes?.aplicado?.itens || []).map(i => ({ descricao: i.descricao, total: i.total })),
               } : null,
               reembolsos: (voucherAberto.reembolsos || []).map((r: any) => ({
                 descricao: r.descricao ?? null,
@@ -3594,6 +3831,10 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
               )}
             </div>
 
+            {/* Excedentes da ida (ou do atendimento simples). So aparece
+                quando a contratacao tem condicoes de excedente. */}
+            <QuadroExcedentes key={`exc-${corridaFicha.id}`} c={corridaFicha} onPatch={aplicarPatchCorrida} />
+
             {/* Volta (quando o agendamento foi feito como ida-e-volta) —
                 botoes proprios pra cancelar/reativar/excluir SO a volta, sem
                 mexer na ida. Antes so dava pra agir nas duas juntas (topo da
@@ -3739,6 +3980,12 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                     className="text-xs font-semibold mt-1 inline-block" style={{ color: '#3C3489' }}>
                     📎 Ver anexo
                   </a>
+                )}
+                {/* Excedentes da volta (espera da volta e propria). */}
+                {!vCancelada && temCondicoes(voltaDaFicha.excedentes?.condicoes) && (
+                  <div className="mt-3">
+                    <QuadroExcedentes key={`exc-${voltaDaFicha.id}`} c={voltaDaFicha} onPatch={aplicarPatchCorrida} />
+                  </div>
                 )}
               </div>
               )
@@ -4657,6 +4904,69 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                 </p>
               </Campo>
             )}
+
+            {/* Excedentes da contratacao (Julimar 2026-11-19): transfer cobra
+                hora parada passada a tolerancia; diaria/city tour cobra hora
+                extra e km acima da franquia. Valores mudam a cada contratacao.
+                O motorista informa o tempo no app; o gestor lanca na ficha. */}
+            {(form.tipo_servico === 'transfer' || form.tipo_servico === 'diaria' || form.tipo_servico === 'city_tour') && (() => {
+              const ehDiaria = form.tipo_servico === 'diaria' || form.tipo_servico === 'city_tour'
+              const algumPreenchido = [form.exc_franquia_horas, form.exc_franquia_km, form.exc_valor_hora_extra, form.exc_valor_km,
+                form.exc_tolerancia_min, form.exc_valor_hora_parada, form.exc_pct_repasse].some(v => v.trim())
+              const precoNum = parseFloat(form.preco.replace(',', '.'))
+              const repasseNum = parseFloat(form.valor_repasse_motorista.replace(',', '.'))
+              const pctBase = precoNum > 0 && repasseNum > 0 ? Math.round((repasseNum / precoNum) * 100) : null
+              const campo = (label: string, chave: keyof FormCorrida, placeholder: string) => (
+                <Campo label={label}>
+                  <input type="number" min={0} step="any" inputMode="decimal"
+                    value={form[chave] as string}
+                    onChange={e => setForm(f => ({ ...f, [chave]: e.target.value }))}
+                    placeholder={placeholder} className="campo-input" />
+                </Campo>
+              )
+              return (
+                <details open={algumPreenchido} className="rounded-xl px-3 py-2" style={{ background: '#FFFBEB', border: '1px solid #FDE68A' }}>
+                  <summary className="text-sm font-semibold cursor-pointer py-1" style={{ color: '#92400E' }}>
+                    ⏱ Excedentes {ehDiaria ? '(hora extra e km)' : '(hora parada)'} — opcional
+                  </summary>
+                  <div className="flex flex-col gap-3 mt-2 pb-1">
+                    <p className="text-[11px] leading-relaxed" style={{ color: '#92400E' }}>
+                      {ehDiaria
+                        ? 'Franquia contratada e quanto cobrar pelo que passar. O motorista informa as horas extras no app; o km excedente sai do KM inicial e final.'
+                        : 'Tolerância de espera e quanto cobrar pela hora parada depois dela. O motorista informa no app quanto tempo esperou.'}
+                    </p>
+                    {ehDiaria ? (
+                      <>
+                        <div className="grid grid-cols-2 gap-2">
+                          {campo('Franquia de horas', 'exc_franquia_horas', 'Ex: 10')}
+                          {campo('Franquia de km', 'exc_franquia_km', 'Ex: 100')}
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          {campo('Hora extra (R$/hora)', 'exc_valor_hora_extra', 'Ex: 80')}
+                          {campo('Km excedente (R$/km)', 'exc_valor_km', 'Ex: 2,50')}
+                        </div>
+                      </>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-2">
+                        {campo('Tolerância (minutos)', 'exc_tolerancia_min', 'Ex: 30')}
+                        {campo('Hora parada (R$/hora)', 'exc_valor_hora_parada', 'Ex: 60')}
+                      </div>
+                    )}
+                    {form.motorista_id && (
+                      <div>
+                        {campo('% dos excedentes para o motorista', 'exc_pct_repasse', pctBase != null ? `Ex: ${pctBase}` : 'Ex: 50')}
+                        {pctBase != null && (
+                          <button type="button" onClick={() => setForm(f => ({ ...f, exc_pct_repasse: String(pctBase) }))}
+                            className="text-[11px] font-semibold underline mt-1" style={{ color: '#92400E' }}>
+                            Usar o mesmo % do repasse deste atendimento ({pctBase}%)
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </details>
+              )
+            })()}
 
             {tipoOperacao !== 'rota_fixa' && (
               <Campo label="Rota">

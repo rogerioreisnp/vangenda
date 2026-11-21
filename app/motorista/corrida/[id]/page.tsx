@@ -7,6 +7,7 @@ import { formatarTelefoneWhatsApp } from '@/lib/telefone'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { dataHoraBrasilia } from '@/lib/data-hora'
+import { type Excedentes, temCondicoes, formatarMinutos } from '@/lib/excedentes'
 
 type PassageiroExtra = {
   nome: string; telefone: string; numero_voo?: string | null
@@ -61,6 +62,17 @@ type Corrida = {
   repasse_status: 'a_pagar' | 'pago' | null
   repasse_data_pago: string | null
   repasse_forma_pagamento: string | null
+  // Excedentes da contratacao (hora parada / hora extra). O motorista informa
+  // os tempos; o gestor confere e lanca. Ver lib/excedentes.ts.
+  excedentes: Excedentes | null
+  minutos_parada: number | null
+  minutos_hora_extra: number | null
+}
+
+// Minutos -> [horas, minutos] em texto pros dois campos do motorista.
+function separarMinutos(total: number | null | undefined): [string, string] {
+  if (total == null) return ['', '']
+  return [String(Math.floor(total / 60)), String(total % 60)]
 }
 
 // Só o rótulo em texto puro — a tela do motorista não mostra o valor
@@ -104,6 +116,17 @@ export default function CorridaFicha({ params }: { params: { id: string } }) {
   const [obsSalva, setObsSalva] = useState(false)
   const [confirmando, setConfirmando] = useState(false)
 
+  // Tempo de espera (transfer) e horas extras (diaria) informados pelo
+  // motorista — so aparece quando o gestor configurou excedentes nesta
+  // contratacao (Julimar 2026-11-19).
+  const [paradaH, setParadaH] = useState('')
+  const [paradaM, setParadaM] = useState('')
+  const [extraH, setExtraH] = useState('')
+  const [extraM, setExtraM] = useState('')
+  const [salvandoTempos, setSalvandoTempos] = useState(false)
+  const [temposSalvos, setTemposSalvos] = useState(false)
+  const [erroTempos, setErroTempos] = useState<string | null>(null)
+
   useEffect(() => { carregar() }, [params.id])
 
   async function carregar() {
@@ -122,6 +145,9 @@ export default function CorridaFicha({ params }: { params: { id: string } }) {
       const corrida = data as Corrida
       setC(corrida)
       setObservacaoMotorista(corrida.observacao_motorista || '')
+      const [ph, pm] = separarMinutos(corrida.minutos_parada)
+      const [eh, em] = separarMinutos(corrida.minutos_hora_extra)
+      setParadaH(ph); setParadaM(pm); setExtraH(eh); setExtraM(em)
 
       // Carimba a primeira abertura da ficha — só na corrida dele e só uma
       // vez. É o "abriu mas não confirmou" que o gestor precisa enxergar.
@@ -219,6 +245,26 @@ export default function CorridaFicha({ params }: { params: { id: string } }) {
     }
     setC({ ...c, trajetos: novos })
     setNovoTrajeto('')
+  }
+
+  async function salvarTempos() {
+    if (!c) return
+    const cond = c.excedentes?.condicoes
+    const minutos = (h: string, m: string) => (parseInt(h) || 0) * 60 + (parseInt(m) || 0)
+    const patch: { minutos_parada?: number; minutos_hora_extra?: number } = {}
+    if (Number(cond?.valor_hora_parada) > 0) patch.minutos_parada = minutos(paradaH, paradaM)
+    if (Number(cond?.valor_hora_extra) > 0) patch.minutos_hora_extra = minutos(extraH, extraM)
+    setSalvandoTempos(true)
+    setErroTempos(null)
+    setTemposSalvos(false)
+    const { data, error } = await supabase.from('corridas_empresa')
+      .update(patch).eq('id', c.id).select('id')
+    setSalvandoTempos(false)
+    if (error) { setErroTempos(`Erro ao salvar: ${error.message}`); return }
+    if (!data || data.length === 0) { setErroTempos('Sem permissão pra salvar neste atendimento.'); return }
+    setC({ ...c, ...patch })
+    setTemposSalvos(true)
+    setTimeout(() => setTemposSalvos(false), 3000)
   }
 
   async function salvarObservacaoMotorista() {
@@ -604,6 +650,62 @@ export default function CorridaFicha({ params }: { params: { id: string } }) {
             )}
           </div>
         )}
+
+        {/* Tempo de espera / horas extras — so quando o gestor configurou
+            excedentes nesta contratacao. O motorista NAO ve valores em R$
+            (informacao comercial da empresa), so a tolerancia/franquia. */}
+        {eDele && (c.status === 'em_andamento' || c.status === 'concluida') && temCondicoes(c.excedentes?.condicoes) && (() => {
+          const cond = c.excedentes!.condicoes!
+          const usaParada = Number(cond.valor_hora_parada) > 0
+          const usaExtra = Number(cond.valor_hora_extra) > 0
+          if (!usaParada && !usaExtra) return null
+          const duracao = c.iniciado_em && c.finalizado_em
+            ? Math.round((new Date(c.finalizado_em).getTime() - new Date(c.iniciado_em).getTime()) / 60000)
+            : null
+          const campos = (h: string, setH: (v: string) => void, m: string, setM: (v: string) => void) => (
+            <div className="flex items-center gap-2">
+              <input type="number" min={0} inputMode="numeric" value={h} onChange={e => setH(e.target.value)}
+                placeholder="0" className="campo-input" style={{ width: 72 }} />
+              <span className="text-sm text-gray-500">h</span>
+              <input type="number" min={0} max={59} inputMode="numeric" value={m} onChange={e => setM(e.target.value)}
+                placeholder="0" className="campo-input" style={{ width: 72 }} />
+              <span className="text-sm text-gray-500">min</span>
+            </div>
+          )
+          return (
+            <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: '#FFFBEB', border: '1px solid #FDE68A' }}>
+              <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#92400E' }}>⏱ Tempo extra deste atendimento</p>
+              {usaParada && (
+                <div className="flex flex-col gap-1.5">
+                  <p className="text-sm font-medium text-gray-700">Tempo total de espera (hora parada)</p>
+                  <p className="text-xs text-gray-500">
+                    Informe quanto tempo você esperou no total.
+                    {Number(cond.tolerancia_min) > 0 ? ` A tolerância desta contratação é de ${formatarMinutos(Number(cond.tolerancia_min))}.` : ''}
+                  </p>
+                  {campos(paradaH, setParadaH, paradaM, setParadaM)}
+                </div>
+              )}
+              {usaExtra && (
+                <div className="flex flex-col gap-1.5">
+                  <p className="text-sm font-medium text-gray-700">Horas extras</p>
+                  <p className="text-xs text-gray-500">
+                    Informe só o tempo que passou da franquia.
+                    {cond.franquia_horas != null ? ` Franquia contratada: ${cond.franquia_horas}h.` : ''}
+                    {duracao != null ? ` Duração registrada (início → fim): ${formatarMinutos(duracao)}.` : ''}
+                  </p>
+                  {campos(extraH, setExtraH, extraM, setExtraM)}
+                </div>
+              )}
+              {erroTempos && <p className="text-xs" style={{ color: '#DC2626' }}>⚠️ {erroTempos}</p>}
+              {temposSalvos && <p className="text-xs font-semibold" style={{ color: '#0F6E56' }}>✓ Salvo! O gestor confere e lança no atendimento.</p>}
+              <button onClick={salvarTempos} disabled={salvandoTempos}
+                className="w-full py-3 rounded-xl text-sm font-semibold disabled:opacity-40"
+                style={{ background: '#B45309', color: '#fff' }}>
+                {salvandoTempos ? 'Salvando…' : '✓ Salvar tempo'}
+              </button>
+            </div>
+          )
+        })()}
 
         {/* Botões de ação — só pra motorista atribuído */}
         {eDele && c.status === 'confirmada' && (() => {

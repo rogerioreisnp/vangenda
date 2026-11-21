@@ -75,10 +75,14 @@ export type VoucherAtendimento = {
   descricao_servico?: string | null // narrativa longa (ex: "Me pegar no hotel...")
   trajetos?: { origem?: string | null; destino?: string | null }[] | null
   valor: number
+  // Excedentes ja lancados (hora parada, hora extra, km excedente). O `valor`
+  // JA os inclui; o voucher mostra o servico pela base contratada e lista os
+  // excedentes a parte, com o mesmo total (Julimar 2026-11-19).
+  excedentes?: { descricao: string; total: number }[] | null
   // Corridas ida-volta sao gravadas como 2 linhas separadas em
   // corridas_empresa. Quando presente, o voucher mostra a volta tambem
   // (antes so gerava o voucher da ida, mesmo pra reservas ida-volta).
-  volta?: { origem: string; destino: string; data_hora: string; valor?: number | null } | null
+  volta?: { origem: string; destino: string; data_hora: string; valor?: number | null; excedentes?: { descricao: string; total: number }[] | null } | null
   // Despesas reembolsaveis vinculadas ao atendimento (estacionamento,
   // pedagio...). Entram como linhas de cobranca e somam no total — caso
   // Julimar 2026-09-16: lancou estacionamento "reembolso a cobrar" e ele
@@ -185,6 +189,13 @@ export function VoucherPDF({ empresa, cliente, atendimento, modo = 'voucher' }: 
   const reembolsos = (atendimento.reembolsos || []).filter(r => Number(r.valor) > 0)
   const totalReembolsos = reembolsos.reduce((s, r) => s + Number(r.valor), 0)
   const valorTotal = atendimento.valor + valorVolta + totalReembolsos
+  // Excedentes ja estao dentro do valor de cada trecho: a linha do servico
+  // mostra a base e a secao "Excedentes" mostra o resto. Total nao muda.
+  const excIda = (atendimento.excedentes || []).filter(e => Number(e.total) > 0)
+  const excVolta = (volta?.excedentes || []).filter(e => Number(e.total) > 0)
+  const somaExc = (l: { total: number }[]) => l.reduce((s, e) => s + Number(e.total), 0)
+  const baseIda = atendimento.valor - somaExc(excIda)
+  const baseVolta = valorVolta - somaExc(excVolta)
 
   return (
     <Document>
@@ -252,7 +263,7 @@ export function VoucherPDF({ empresa, cliente, atendimento, modo = 'voucher' }: 
             )}
             {atendimento.numero_voo && <Text style={s.valor}>Voo: {atendimento.numero_voo}</Text>}
           </View>
-          <Text style={s.valor}>R$ {fmtBRL(atendimento.valor)}</Text>
+          <Text style={s.valor}>R$ {fmtBRL(baseIda)}</Text>
         </View>
 
         {atendimento.descricao_servico && (
@@ -298,8 +309,30 @@ export function VoucherPDF({ empresa, cliente, atendimento, modo = 'voucher' }: 
                 <Text style={{ ...s.valor, marginTop: 2 }}>Data {fmtData(volta.data_hora)}</Text>
                 <Text style={s.valor}>Horário {fmtHora(volta.data_hora)}h</Text>
               </View>
-              {volta.valor != null && <Text style={s.valor}>R$ {fmtBRL(volta.valor)}</Text>}
+              {volta.valor != null && <Text style={s.valor}>R$ {fmtBRL(baseVolta)}</Text>}
             </View>
+          </>
+        )}
+
+        {/* Excedentes lancados (hora parada, hora extra, km) — ja somados no
+            total; aqui o cliente ve o que foi cobrado alem do contratado. */}
+        {(excIda.length > 0 || excVolta.length > 0) && (
+          <>
+            <View style={s.faixa}>
+              <View style={s.linha}>
+                <Text style={s.faixaTitulo}>Excedentes</Text>
+                <Text style={{ ...s.label, fontSize: 8 }}>Valor</Text>
+              </View>
+            </View>
+            {[
+              ...excIda.map(e => ({ ...e, trecho: volta ? 'Ida — ' : '' })),
+              ...excVolta.map(e => ({ ...e, trecho: 'Volta — ' })),
+            ].map((e, i) => (
+              <View key={i} style={s.linha}>
+                <Text style={s.valor}>{e.trecho}{e.descricao}</Text>
+                <Text style={s.valor}>R$ {fmtBRL(Number(e.total))}</Text>
+              </View>
+            ))}
           </>
         )}
 
