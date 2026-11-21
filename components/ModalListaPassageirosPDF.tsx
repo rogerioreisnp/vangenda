@@ -17,6 +17,8 @@ import { ptBR } from 'date-fns/locale'
 export type PassageiroLista = {
   id: string
   nome: string
+  // RG/CPF já salvo (lista do fretamento). Sem ele, o campo vem vazio.
+  documento?: string
 }
 
 export default function ModalListaPassageirosPDF({
@@ -27,6 +29,7 @@ export default function ModalListaPassageirosPDF({
   destinoSugerido = '',
   horarioSaidaSugerido = '',
   horarioVoltaSugerido = '',
+  dataVoltaSugerida = '',
   tituloEvento = 'FRETAMENTO',
   onFechar,
 }: {
@@ -37,6 +40,7 @@ export default function ModalListaPassageirosPDF({
   destinoSugerido?: string
   horarioSaidaSugerido?: string
   horarioVoltaSugerido?: string
+  dataVoltaSugerida?: string // yyyy-MM-dd
   tituloEvento?: string
   onFechar: () => void
 }) {
@@ -51,10 +55,14 @@ export default function ModalListaPassageirosPDF({
     horario_saida: horarioSaidaSugerido,
     horario_volta: horarioVoltaSugerido,
     data_saida: format(diaSelecionado, 'yyyy-MM-dd'),
-    data_volta: '',
+    data_volta: dataVoltaSugerida,
   })
   const [gerando, setGerando] = useState(false)
-  const [documentos, setDocumentos] = useState<Record<string, string>>({})
+  const [documentos, setDocumentos] = useState<Record<string, string>>(() => {
+    const inicial: Record<string, string> = {}
+    for (const p of passageiros) if (p.documento) inicial[p.id] = p.documento
+    return inicial
+  })
   const documentosRef = useRef(documentos)
   useEffect(() => { documentosRef.current = documentos }, [documentos])
 

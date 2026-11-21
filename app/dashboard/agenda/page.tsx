@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import ModalNovaEncomenda from '@/components/ModalNovaEncomenda'
 import ModalNovoFretamento from '@/components/ModalNovoFretamento'
+import ListaPassageirosFretamento from '@/components/ListaPassageirosFretamento'
 import { MODALIDADES_PORTA } from '@/app/empresa/components/AgendamentoPublico'
 
 type Agendamento = {
@@ -782,7 +783,7 @@ export default function AgendaPage() {
               <BlocoEncomendas encomendas={encomendasDoDia} onConcluir={concluirEncomenda} />
             )}
             {fretamentosDoDia.length > 0 && (
-              <BlocoFretamentos fretamentos={fretamentosDoDia} onAtualizar={() => carregarFretamentosDoDia(diaSelecionado)} />
+              <BlocoFretamentos fretamentos={fretamentosDoDia} nomeMotorista={nomeMotorista} onAtualizar={() => carregarFretamentosDoDia(diaSelecionado)} />
             )}
           </>
         )}
@@ -2505,11 +2506,23 @@ function BlocoEncomendas({ encomendas, onConcluir }: {
   )
 }
 
-function BlocoFretamentos({ fretamentos, onAtualizar }: {
+function BlocoFretamentos({ fretamentos, nomeMotorista, onAtualizar }: {
   fretamentos: Fretamento[]
+  nomeMotorista: string
   onAtualizar: () => void
 }) {
   const formaLabel: Record<string, string> = { dinheiro: 'Dinheiro', pix: 'Pix', cartao: 'Cartão' }
+  // Lista nominal do fretamento (igreja, empresa, excursão) — separada dos
+  // passageiros da rota do dia.
+  const [listaDe, setListaDe] = useState<Fretamento | null>(null)
+
+  const botaoLista = (f: Fretamento) => (
+    <button onClick={() => setListaDe(f)}
+      className="w-full mt-2 py-2 rounded-lg text-xs font-semibold"
+      style={{ background: '#E6F1FB', color: '#185FA5' }}>
+      📋 Lista de passageiros
+    </button>
+  )
 
   async function marcarPago(f: Fretamento) {
     if (!confirm(`Marcar fretamento "${f.cliente_nome}" como pago?`)) return
@@ -2548,34 +2561,37 @@ function BlocoFretamentos({ fretamentos, onAtualizar }: {
       </div>
 
       {pendentes.map(f => (
-        <div key={f.id} className="bg-white border border-gray-100 rounded-xl p-3 mb-2 flex items-center gap-3">
-          <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-base"
-            style={{ background: '#FEF3C7' }}>🚌</div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-gray-800 truncate">{f.cliente_nome}</p>
-            <p className="text-xs text-gray-500 truncate">{f.origem} → {f.destino}</p>
-            <p className="text-xs text-gray-400">
-              {f.horario_saida ? 'saída ' + f.horario_saida.slice(0, 5) + 'h · ' : ''}
-              {f.quantidade_pessoas ? f.quantidade_pessoas + ' pessoas · ' : ''}
-              {f.status_pagamento === 'pago' && f.forma_pagamento ? (formaLabel[f.forma_pagamento] || f.forma_pagamento) : 'A receber'}
-            </p>
-            {f.observacao && <p className="text-xs text-gray-400 mt-0.5 truncate">{f.observacao}</p>}
-          </div>
-          <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
-            <p className="text-sm font-bold" style={{ color: '#92400E' }}>R$ {f.valor.toFixed(0)}</p>
-            <div className="flex gap-1">
-              <button onClick={() => marcarPago(f)}
-                className="text-xs px-2 py-1 rounded-lg font-semibold"
-                style={{ background: '#E1F5EE', color: '#0F6E56' }}>
-                ✓ Pago
-              </button>
-              <button onClick={() => apagar(f)}
-                className="text-xs px-2 py-1 rounded-lg font-semibold"
-                style={{ background: '#FCEBEB', color: '#A32D2D' }}>
-                ✕
-              </button>
+        <div key={f.id} className="bg-white border border-gray-100 rounded-xl p-3 mb-2">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-base"
+              style={{ background: '#FEF3C7' }}>🚌</div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-gray-800 truncate">{f.cliente_nome}</p>
+              <p className="text-xs text-gray-500 truncate">{f.origem} → {f.destino}</p>
+              <p className="text-xs text-gray-400">
+                {f.horario_saida ? 'saída ' + f.horario_saida.slice(0, 5) + 'h · ' : ''}
+                {f.quantidade_pessoas ? f.quantidade_pessoas + ' pessoas · ' : ''}
+                {f.status_pagamento === 'pago' && f.forma_pagamento ? (formaLabel[f.forma_pagamento] || f.forma_pagamento) : 'A receber'}
+              </p>
+              {f.observacao && <p className="text-xs text-gray-400 mt-0.5 truncate">{f.observacao}</p>}
+            </div>
+            <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+              <p className="text-sm font-bold" style={{ color: '#92400E' }}>R$ {f.valor.toFixed(0)}</p>
+              <div className="flex gap-1">
+                <button onClick={() => marcarPago(f)}
+                  className="text-xs px-2 py-1 rounded-lg font-semibold"
+                  style={{ background: '#E1F5EE', color: '#0F6E56' }}>
+                  ✓ Pago
+                </button>
+                <button onClick={() => apagar(f)}
+                  className="text-xs px-2 py-1 rounded-lg font-semibold"
+                  style={{ background: '#FCEBEB', color: '#A32D2D' }}>
+                  ✕
+                </button>
+              </div>
             </div>
           </div>
+          {botaoLista(f)}
         </div>
       ))}
 
@@ -2583,22 +2599,46 @@ function BlocoFretamentos({ fretamentos, onAtualizar }: {
         <>
           <p className="text-xs font-medium text-gray-400 mt-3 mb-2 uppercase tracking-wide">Recebidos</p>
           {pagos.map(f => (
-            <div key={f.id} className="border border-gray-100 rounded-xl p-3 mb-2 flex items-center gap-3"
-              style={{ background: '#f7f7f7', opacity: 0.7 }}>
-              <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-base"
-                style={{ background: '#e5e5e5' }}>🚌</div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-500 truncate">{f.cliente_nome}</p>
-                <p className="text-xs text-gray-400 truncate">{f.origem} → {f.destino}</p>
+            <div key={f.id} className="border border-gray-100 rounded-xl p-3 mb-2"
+              style={{ background: '#f7f7f7' }}>
+              <div className="flex items-center gap-3" style={{ opacity: 0.7 }}>
+                <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-base"
+                  style={{ background: '#e5e5e5' }}>🚌</div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-500 truncate">{f.cliente_nome}</p>
+                  <p className="text-xs text-gray-400 truncate">{f.origem} → {f.destino}</p>
+                </div>
+                <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                  <p className="text-sm text-gray-400">R$ {f.valor.toFixed(0)}</p>
+                  <span className="text-[10px] px-2 py-0.5 rounded-md font-medium"
+                    style={{ background: '#E1F5EE', color: '#0F6E56' }}>✓ Recebido</span>
+                </div>
               </div>
-              <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                <p className="text-sm text-gray-400">R$ {f.valor.toFixed(0)}</p>
-                <span className="text-[10px] px-2 py-0.5 rounded-md font-medium"
-                  style={{ background: '#E1F5EE', color: '#0F6E56' }}>✓ Recebido</span>
-              </div>
+              {botaoLista(f)}
             </div>
           ))}
         </>
+      )}
+
+      {listaDe && (
+        <ListaPassageirosFretamento
+          tabela="fretamentos"
+          registroId={listaDe.id}
+          titulo={listaDe.cliente_nome}
+          subtitulo={`${listaDe.origem} → ${listaDe.destino}`}
+          pdf={{
+            dia: new Date(listaDe.data_saida + 'T00:00:00'),
+            motorista: nomeMotorista,
+            origem: listaDe.origem,
+            destino: listaDe.destino,
+            horarioSaida: listaDe.horario_saida?.slice(0, 5) || '',
+            horarioVolta: listaDe.horario_retorno_estimado?.slice(0, 5) || '',
+            // Retorno no mesmo dia é o caso comum; o gestor ajusta no PDF se não for.
+            dataVolta: listaDe.horario_retorno_estimado ? listaDe.data_saida : '',
+            tituloEvento: 'FRETAMENTO',
+          }}
+          onFechar={() => setListaDe(null)}
+        />
       )}
     </div>
   )

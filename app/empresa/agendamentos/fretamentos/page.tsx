@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { formatarTelefoneWhatsApp } from '@/lib/telefone'
 import ModalListaPassageirosPDF from '@/components/ModalListaPassageirosPDF'
+import ListaPassageirosFretamento from '@/components/ListaPassageirosFretamento'
 import { dataHoraBrasilia } from '@/lib/data-hora'
 import { agruparFavoritos } from '@/lib/favoritos'
 import {
@@ -933,6 +934,9 @@ export default function AgendamentosPage() {
   const [corridaFicha, setCorridaFicha] = useState<Corrida | null>(null)
   const [voltaDaFicha, setVoltaDaFicha] = useState<Corrida | null>(null)
   const [modalPDFAberto, setModalPDFAberto] = useState(false)
+  // Lista nominal de UM fretamento/excursão (rota fixa) — separada dos
+  // passageiros da rota do dia. No par ida-volta, a lista fica na ida.
+  const [listaFretamento, setListaFretamento] = useState<{ ida: Corrida; volta: Corrida | null } | null>(null)
   const [confirmandoFicha, setConfirmandoFicha] = useState(false)
   // Adicionar trajeto inline direto na ficha aberta (fluxo do Julimar dirigindo:
   // adiciona uma parada, salva na hora, sem entrar em modo de edição do form)
@@ -3038,6 +3042,13 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                         )}
                       </div>
                     </div>
+                    {tipoOperacao === 'rota_fixa' && (
+                      <button onClick={e => { e.stopPropagation(); setListaFretamento({ ida: c, volta: null }) }}
+                        className="w-full mt-2 py-2 rounded-lg text-xs font-semibold"
+                        style={{ background: '#E6F1FB', color: '#185FA5' }}>
+                        📋 Lista de passageiros
+                      </button>
+                    )}
                   </div>
                 )
               }
@@ -3154,6 +3165,13 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                       )}
                     </div>
                   </div>
+                  {tipoOperacao === 'rota_fixa' && (
+                    <button onClick={e => { e.stopPropagation(); setListaFretamento({ ida, volta }) }}
+                      className="w-full mt-2 py-2 rounded-lg text-xs font-semibold"
+                      style={{ background: '#E6F1FB', color: '#185FA5' }}>
+                      📋 Lista de passageiros
+                    </button>
+                  )}
                 </div>
               )
             })}
@@ -3245,6 +3263,33 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
             destinoSugerido={primeiraRota?.destino || ''}
             tituloEvento="ROTA FIXA"
             onFechar={() => setModalPDFAberto(false)}
+          />
+        )
+      })()}
+
+      {listaFretamento && (() => {
+        const { ida, volta } = listaFretamento
+        const dataIdaISO = ida.data_hora.slice(0, 10)
+        const titulo = ida.tipo_servico === 'excursao' ? 'EXCURSÃO'
+          : ida.tipo_servico === 'carro_fechado' ? 'CARRO FECHADO'
+          : 'FRETAMENTO'
+        return (
+          <ListaPassageirosFretamento
+            tabela="corridas_empresa"
+            registroId={ida.id}
+            titulo={ida.cliente_nome}
+            subtitulo={`${ida.origem} → ${ida.destino} · ${dataIdaISO.slice(8, 10)}/${dataIdaISO.slice(5, 7)}`}
+            pdf={{
+              dia: new Date(dataIdaISO + 'T00:00:00'),
+              motorista: ida.motoristas_empresa?.nome ?? volta?.motoristas_empresa?.nome ?? '',
+              origem: ida.origem,
+              destino: ida.destino,
+              horarioSaida: ida.data_hora.slice(11, 16),
+              horarioVolta: volta ? volta.data_hora.slice(11, 16) : (ida.retorno_horario?.slice(0, 5) || ''),
+              dataVolta: volta ? volta.data_hora.slice(0, 10) : (ida.retorno_data || ''),
+              tituloEvento: titulo,
+            }}
+            onFechar={() => setListaFretamento(null)}
           />
         )
       })()}
