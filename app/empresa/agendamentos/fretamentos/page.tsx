@@ -229,6 +229,11 @@ type FormCorrida = {
   valor_repasse_motorista: string
   // Repasse da VOLTA de um par ida-volta. Em branco = mesmo valor da ida.
   valor_repasse_volta: string
+  // Motorista da VOLTA de um par ida-volta. Em branco = mesmo motorista da ida.
+  // Antes a edicao propagava o motorista_id da ida pra volta; quando o par
+  // tinha motoristas diferentes, a volta era sobrescrita no save (relatado
+  // por cliente do 19 98124-0699, 2026-11-21).
+  motorista_id_volta: string
   observacoes: string
   anexo_observacoes_url: string
   anexo_observacoes_volta_url: string
@@ -283,6 +288,7 @@ const FORM_VAZIO: FormCorrida = {
   preco: '',
   valor_repasse_motorista: '',
   valor_repasse_volta: '',
+  motorista_id_volta: '',
   observacoes: '',
   anexo_observacoes_url: '',
   anexo_observacoes_volta_url: '',
@@ -1266,6 +1272,12 @@ export default function AgendamentosPage() {
       // branco quando igual ao da ida e, no duplicar, parecia que nao tinha
       // copiado (Julimar 2026-11-05). Em branco so quando a volta nao tem.
       valor_repasse_volta: num(baseRepasseVolta),
+      // Motorista da volta: enche se a linha da volta tiver um proprio e for
+      // diferente do da ida. Se for igual, fica em branco pra manter a logica
+      // "em branco = mesmo da ida". Link publico e uma linha so, nao tem.
+      motorista_id_volta: volta && volta.motorista_id && volta.motorista_id !== c.motorista_id
+        ? volta.motorista_id
+        : '',
       observacoes: c.observacoes || '',
       anexo_observacoes_url: c.anexo_observacoes_url || '',
       anexo_observacoes_volta_url: volta?.anexo_observacoes_url || '',
@@ -1694,6 +1706,13 @@ export default function AgendamentosPage() {
       // observacoes) quando o usuario editar eles no formulario.
       if (voltaIdEditando) {
         const precoVoltaNum = parseFloat(form.preco_volta)
+        // Motorista da volta: campo proprio no form; em branco = mesmo da ida.
+        // Antes a edicao SEMPRE sobrescrevia com o motorista da ida — par com
+        // motoristas diferentes ficava com um so apos o save (cliente do
+        // 19 98124-0699, 2026-11-21).
+        const motoristaVoltaId = (form.motorista_id_volta.trim() || (camposComuns.motorista_id as string | null) || null)
+        const voltaOriginal = corridas.find(x => x.id === voltaIdEditando)
+        const motoristaVoltaMudou = !!voltaOriginal && (motoristaVoltaId !== (voltaOriginal.motorista_id ?? null))
         // Dados de IDENTIDADE do atendimento — são os mesmos nas duas pontas
         // (é a mesma pessoa viajando) e a criação do par já copia todos eles
         // pra volta. A edição só propagava motorista/solicitante/forma de
@@ -1703,7 +1722,7 @@ export default function AgendamentosPage() {
         // (status/valor recebido/repasse), KM e observações continuam por
         // ponta — cada linha tem os seus.
         const updateVolta: Record<string, unknown> = {
-          motorista_id: camposComuns.motorista_id,
+          motorista_id: motoristaVoltaId,
           cliente_nome: camposComuns.cliente_nome,
           cliente_telefone: camposComuns.cliente_telefone,
           forma_pagamento: camposComuns.forma_pagamento,
@@ -1717,6 +1736,20 @@ export default function AgendamentosPage() {
           tipo_servico: camposComuns.tipo_servico,
           valor_repasse_motorista: repasseVolta,
           ...enderecosDaVoltaDoPar(),
+        }
+        // Se trocou o motorista da volta: a confirmacao do motorista anterior
+        // nao vale mais e o veiculo-padrao passa a ser o do motorista novo
+        // (so sobrescreve veiculo quando o motorista mudou OU a volta ainda
+        // nao tinha veiculo).
+        if (motoristaVoltaMudou) {
+          updateVolta.motorista_visto_em = null
+          updateVolta.motorista_confirmado_em = null
+          if (motoristaVoltaId) {
+            const padrao = veiculosDoMotorista(motoristaVoltaId)[0]
+            if (padrao) updateVolta.veiculo_atribuido = padrao
+          } else {
+            updateVolta.veiculo_atribuido = null
+          }
         }
         // Se o usuario alterou os dados da volta no form, propaga na volta
         if (form.origem_volta.trim()) updateVolta.origem = form.origem_volta.trim()
@@ -1778,6 +1811,21 @@ export default function AgendamentosPage() {
           setSalvando(false)
           return
         }
+
+        // Se o motorista da volta e DIFERENTE do da ida e mudou, notifica ele.
+        // Mesmo motorista pras duas pontas ja foi notificado na parte da ida
+        // (motoristaMudou), ou nao mudou e nao precisa de novo push.
+        if (motoristaVoltaMudou && motoristaVoltaId && motoristaVoltaId !== camposComuns.motorista_id) {
+          const dataHoraVolta = (updateVolta.data_hora as string) ?? voltaOriginal?.data_hora
+          notificarMotoristaAtribuido(
+            motoristaVoltaId,
+            voltaIdEditando,
+            (updateVolta.origem as string) ?? voltaOriginal?.origem ?? '',
+            (updateVolta.destino as string) ?? voltaOriginal?.destino ?? '',
+            dataHoraVolta ?? '',
+            camposComuns.tipo_servico as string | null,
+          )
+        }
       }
     } else {
       // Nova corrida nasce como 'confirmada'. Não amarra status ao pagamento
@@ -1804,6 +1852,13 @@ export default function AgendamentosPage() {
 
       if (criaPar) {
         const precoVolta = parseFloat(form.preco_volta)
+        // Motorista da volta na criacao: em branco = mesmo da ida; preenchido
+        // = motorista proprio da volta. Veiculo-padrao segue o motorista de
+        // cada ponta.
+        const motoristaVoltaId = form.motorista_id_volta.trim() || camposComuns.motorista_id || null
+        const veiculoPadraoVolta = motoristaVoltaId && motoristaVoltaId !== camposComuns.motorista_id
+          ? (veiculosDoMotorista(motoristaVoltaId as string)[0] ?? null)
+          : veiculoPadraoNovo
         registros.push({
           ...base,
           par_id: parId,
@@ -1811,6 +1866,8 @@ export default function AgendamentosPage() {
           origem: (form.origem_volta || form.destino).trim(),
           destino: (form.destino_volta || form.origem).trim(),
           valor: !isNaN(precoVolta) && form.preco_volta.trim() !== '' ? precoVolta : preco,
+          motorista_id: motoristaVoltaId,
+          veiculo_atribuido: veiculoPadraoVolta,
           valor_repasse_motorista: repasseVolta,
           observacoes: form.observacoes_volta.trim() || null,
           anexo_observacoes_url: form.anexo_observacoes_volta_url.trim() || null,
@@ -1830,9 +1887,10 @@ export default function AgendamentosPage() {
       }
 
       // Se criou já com motorista atribuído, notifica pra corrida da ida.
-      // Volta (segundo registro) não notifica separadamente — evita 2 pushes
-      // consecutivos do mesmo motorista.
+      // Volta (segundo registro) só notifica se o motorista dela é DIFERENTE —
+      // par com o mesmo motorista evita 2 pushes consecutivos do mesmo cara.
       const idaInserida = inseridos?.[0]
+      const voltaInserida = inseridos?.[1]
       if (idaInserida?.motorista_id) {
         notificarMotoristaAtribuido(
           idaInserida.motorista_id as string,
@@ -1841,6 +1899,16 @@ export default function AgendamentosPage() {
           idaInserida.destino as string,
           idaInserida.data_hora as string,
           idaInserida.tipo_servico as string | null,
+        )
+      }
+      if (voltaInserida?.motorista_id && voltaInserida.motorista_id !== idaInserida?.motorista_id) {
+        notificarMotoristaAtribuido(
+          voltaInserida.motorista_id as string,
+          voltaInserida.id as string,
+          voltaInserida.origem as string,
+          voltaInserida.destino as string,
+          voltaInserida.data_hora as string,
+          voltaInserida.tipo_servico as string | null,
         )
       }
       // Agenda lembrete pra cada registro criado (ida e, se houver, volta —
@@ -4916,6 +4984,58 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                 })()}
               </select>
             </Campo>
+
+            {/* Motorista da VOLTA — par ida-volta (criando ou editando o par).
+                Em branco = mesmo motorista da ida. Preenchido = motorista
+                proprio da volta. Antes a edicao SEMPRE forcava o mesmo
+                motorista pras duas pontas (cliente do 19 98124-0699,
+                2026-11-21). Link publico (ida_volta sem voltaIdEditando) e
+                uma linha so: nao aparece. */}
+            {form.motorista_id && form.ida_volta && (!corridaEditando || voltaIdEditando) && (
+              <Campo label="Motorista da volta">
+                <select value={form.motorista_id_volta}
+                  onChange={e => {
+                    const id = e.target.value
+                    const mot = motoristasOpcoes.find(m => m.id === id)
+                    // Auto-repasse da volta pelo % do motorista NOVO da volta.
+                    // So preenche se o campo de repasse da volta estiver vazio
+                    // (nao sobrescreve o que o gestor ja digitou).
+                    let repasseVoltaAuto = form.valor_repasse_volta
+                    const modo = mot ? (mot.modo_repasse ?? (mot.percentual_repasse ? 'percentual' : null)) : null
+                    const valorVoltaNum = parseFloat(form.preco_volta?.replace(',', '.') || '0')
+                    const valorIdaNum = parseFloat(form.preco?.replace(',', '.') || '0')
+                    const valorBase = valorVoltaNum > 0 ? valorVoltaNum : valorIdaNum
+                    if (!form.valor_repasse_volta && mot && modo === 'percentual'
+                      && mot.percentual_repasse && valorBase > 0) {
+                      repasseVoltaAuto = (valorBase * mot.percentual_repasse / 100).toFixed(2)
+                    }
+                    setForm(f => ({ ...f, motorista_id_volta: id, valor_repasse_volta: repasseVoltaAuto }))
+                  }}
+                  className="campo-input">
+                  <option value="">Mesmo da ida</option>
+                  {opcaoMotoristaDesativado(form.motorista_id_volta)}
+                  {(() => {
+                    const renderOpt = (m: MotoristaOpcao) => {
+                      const modo = m.modo_repasse ?? (m.percentual_repasse ? 'percentual' : null)
+                      const info = modo === 'percentual' && m.percentual_repasse ? ` · ${m.percentual_repasse}% repasse`
+                        : modo === 'valor_fixo' ? ` · valor combinado`
+                        : ''
+                      return <option key={m.id} value={m.id}>{m.nome}{info}</option>
+                    }
+                    const { favoritos, demais, temFavorito } = agruparFavoritos(motoristasOpcoes, m => m.nome)
+                    return temFavorito ? (
+                      <>
+                        <optgroup label="⭐ Favoritos">{favoritos.map(renderOpt)}</optgroup>
+                        <optgroup label="Todos">{demais.map(renderOpt)}</optgroup>
+                      </>
+                    ) : demais.map(renderOpt)
+                  })()}
+                </select>
+                <p className="text-[10px] text-gray-400 mt-1">
+                  Em branco, a volta fica com o mesmo motorista da ida.
+                </p>
+              </Campo>
+            )}
 
             {/* Repasse ao motorista parceiro. Aparece so quando tem motorista
                 atribuido. Autopreenchido pelo percentual padrao — gestor pode
