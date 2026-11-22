@@ -101,93 +101,125 @@ export default function ModalListaPassageirosPDF({
     const mg = 15
     const W = pageW - 2 * mg
 
-    function trunc(s: string, max = 30) { return s.length > max ? s.slice(0, max - 1) + '…' : s }
+    // Largura disponível pro texto da célula, em mm, no tamanho de fonte dado.
+    // Serve pra calcular até onde o valor pode escrever antes de estourar.
+    function larguraTexto(s: string, tamanho: number): number {
+      doc.setFontSize(tamanho)
+      return doc.getTextWidth(s)
+    }
+    // Encurta o texto pra caber dentro da coluna. Faz binary-search no tamanho
+    // em vez de supor "N caracteres" — nomes grandes (ex: "Carlos Henrique
+    // da Silva") agora cortam no ponto certo, independente da coluna.
+    function encurtar(s: string, maxMm: number, tamanho: number): string {
+      if (!s) return ''
+      if (larguraTexto(s, tamanho) <= maxMm) return s
+      let lo = 0, hi = s.length
+      while (lo < hi) {
+        const m = Math.floor((lo + hi + 1) / 2)
+        if (larguraTexto(s.slice(0, m) + '…', tamanho) <= maxMm) lo = m
+        else hi = m - 1
+      }
+      return s.slice(0, lo) + '…'
+    }
     function fmtDate(d: string) { return d ? new Date(d + 'T00:00:00').toLocaleDateString('pt-BR') : '—' }
 
+    // Célula compacta: rótulo em cima (6pt), valor embaixo (9pt), com altura
+    // variável. Antes era fixo em 14mm; agora costuma vir com 10mm, o que
+    // economiza ~16mm no cabeçalho inteiro.
     function cell(cx: number, cy: number, cw: number, ch: number, lbl: string, val: string) {
       doc.setDrawColor(0, 0, 0)
       doc.rect(cx, cy, cw, ch)
-      doc.setFontSize(6.5)
+      doc.setFontSize(6)
       doc.setFont('helvetica', 'bold')
       doc.setTextColor(120, 120, 120)
-      doc.text(lbl, cx + 2, cy + 4.5)
+      doc.text(lbl, cx + 1.8, cy + 3.2)
       doc.setFontSize(9)
       doc.setFont('helvetica', 'bold')
       doc.setTextColor(20, 20, 20)
-      doc.text(trunc(val || '—'), cx + 2, cy + 10.5)
+      doc.text(encurtar(val || '—', cw - 3.6, 9), cx + 1.8, cy + ch - 2.2)
     }
 
-    let y = 15
-
-    if (form.nome_empresa) {
-      doc.setFontSize(16)
-      doc.setFont('helvetica', 'bold')
-      doc.setTextColor(0, 0, 0)
-      doc.text(form.nome_empresa.toUpperCase(), pageW / 2, y, { align: 'center' })
-      y += 8
-    }
-
-    if (form.razao_social) {
-      doc.setFontSize(10)
-      doc.setFont('helvetica', 'normal')
-      doc.setTextColor(60, 60, 60)
-      doc.text(form.razao_social, pageW / 2, y, { align: 'center' })
-      y += 5
-    }
-
-    if (form.cnpj) {
-      doc.setFontSize(10)
-      doc.setFont('helvetica', 'normal')
-      doc.setTextColor(60, 60, 60)
-      doc.text(`CNPJ: ${form.cnpj}`, pageW / 2, y, { align: 'center' })
-      y += 5
-    }
-
-    if (form.nome_empresa || form.razao_social || form.cnpj) {
-      y += 10
-    }
-
-    doc.setFontSize(form.nome_empresa ? 10 : 12)
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(20, 20, 20)
-    doc.text(`LISTA DE PASSAGEIROS — ${tituloEvento.toUpperCase()}`, pageW / 2, y, { align: 'center' })
-    y += 9
-
-    const rowH = 14
+    const rowH = 10
     const half = W / 2
-    const third = W / 3
+    const col = W / 5
+    const hdrH = 6
+    const nameW = W * 0.68
 
-    cell(mg, y, half, rowH, 'PLACA', form.placa)
-    cell(mg + half, y, half, rowH, 'MOTORISTA', form.motorista)
-    y += rowH
+    // Desenha cabeçalho (empresa + título + células) no topo da página atual.
+    // Roda em TODA página pra que cada folha fique auto-contida — se o motorista
+    // só levar uma, a fiscalização ainda consegue identificar placa, motorista,
+    // trajeto e datas. Devolve o y onde o próximo elemento começa.
+    function desenharCabecalho(): number {
+      let y = 15
+      if (form.nome_empresa) {
+        doc.setFontSize(14)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(0, 0, 0)
+        doc.text(form.nome_empresa.toUpperCase(), pageW / 2, y, { align: 'center' })
+        y += 6
+      }
+      if (form.razao_social) {
+        doc.setFontSize(8.5)
+        doc.setFont('helvetica', 'normal')
+        doc.setTextColor(60, 60, 60)
+        doc.text(form.razao_social, pageW / 2, y, { align: 'center' })
+        y += 3.8
+      }
+      if (form.cnpj) {
+        doc.setFontSize(8.5)
+        doc.setFont('helvetica', 'normal')
+        doc.setTextColor(60, 60, 60)
+        doc.text(`CNPJ: ${form.cnpj}`, pageW / 2, y, { align: 'center' })
+        y += 3.8
+      }
+      if (form.nome_empresa || form.razao_social || form.cnpj) y += 3
 
-    cell(mg, y, half, rowH, 'ORIGEM DA VIAGEM', form.origem)
-    cell(mg + half, y, half, rowH, 'DESTINO', form.destino)
-    y += rowH
+      doc.setFontSize(form.nome_empresa ? 9.5 : 11)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(20, 20, 20)
+      doc.text(`LISTA DE PASSAGEIROS — ${tituloEvento.toUpperCase()}`, pageW / 2, y, { align: 'center' })
+      y += 5
 
-    cell(mg, y, third, rowH, 'HORÁRIO DE SAÍDA', form.horario_saida)
-    cell(mg + third, y, third, rowH, 'HORÁRIO DA VOLTA', form.horario_volta)
-    cell(mg + 2 * third, y, third, rowH, 'QUANTIDADE DE PASSAGEIROS', String(passageiros.length))
-    y += rowH
+      cell(mg, y, half, rowH, 'PLACA', form.placa)
+      cell(mg + half, y, half, rowH, 'MOTORISTA', form.motorista)
+      y += rowH
+      cell(mg, y, half, rowH, 'ORIGEM', form.origem)
+      cell(mg + half, y, half, rowH, 'DESTINO', form.destino)
+      y += rowH
+      cell(mg, y, col, rowH, 'SAÍDA', form.horario_saida)
+      cell(mg + col, y, col, rowH, 'VOLTA', form.horario_volta)
+      cell(mg + 2 * col, y, col, rowH, 'DATA SAÍDA', fmtDate(form.data_saida))
+      cell(mg + 3 * col, y, col, rowH, 'DATA VOLTA', fmtDate(form.data_volta))
+      cell(mg + 4 * col, y, col, rowH, 'Nº PASS.', String(passageiros.length))
+      y += rowH + 3
+      return y
+    }
 
-    cell(mg, y, half, rowH, 'DATA DA SAÍDA', fmtDate(form.data_saida))
-    cell(mg + half, y, half, rowH, 'DATA DA VOLTA', fmtDate(form.data_volta))
-    y += rowH + 7
+    // Faixa verde "PASSAGEIROS | DOCUMENTO DE PORTE" — também em toda página,
+    // pra que a tabela nunca apareça sem título.
+    function desenharCabecalhoTabela(y: number): number {
+      doc.setFillColor(15, 110, 86)
+      doc.rect(mg, y, W, hdrH, 'F')
+      doc.setTextColor(255, 255, 255)
+      doc.setFontSize(7.5)
+      doc.setFont('helvetica', 'bold')
+      doc.text('PASSAGEIROS', mg + 3, y + 4.1)
+      doc.text('DOCUMENTO DE PORTE', mg + nameW + 3, y + 4.1)
+      return y + hdrH
+    }
 
-    const hdrH = 8
-    const nameW = W * 0.65
-    doc.setFillColor(15, 110, 86)
-    doc.rect(mg, y, W, hdrH, 'F')
-    doc.setTextColor(255, 255, 255)
-    doc.setFontSize(8)
-    doc.setFont('helvetica', 'bold')
-    doc.text('PASSAGEIROS', mg + 3, y + 5.5)
-    doc.text('DOCUMENTO DE PORTE', mg + nameW + 3, y + 5.5)
-    y += hdrH
+    let y = desenharCabecalho()
+    y = desenharCabecalhoTabela(y)
 
-    const passH = 9
+    // Linha de passageiro: 7mm. Quando quebra página, redesenha o cabeçalho
+    // inteiro — custa alguns passageiros na folha nova, mas a folha vale sozinha.
+    const passH = 7
     passageiros.forEach((p, i) => {
-      if (y + passH > 280) { doc.addPage(); y = 20 }
+      if (y + passH > 285) {
+        doc.addPage()
+        y = desenharCabecalho()
+        y = desenharCabecalhoTabela(y)
+      }
       if (i % 2 === 1) { doc.setFillColor(245, 245, 245); doc.rect(mg, y, W, passH, 'F') }
       doc.setDrawColor(0, 0, 0)
       doc.rect(mg, y, W, passH)
@@ -195,26 +227,33 @@ export default function ModalListaPassageirosPDF({
       doc.setTextColor(30, 30, 30)
       doc.setFontSize(8.5)
       doc.setFont('helvetica', 'normal')
-      doc.text(`${i + 1}.  ${trunc(p.nome.replace(/\s*\(\d+\/\d+\)\s*$/, '').toUpperCase(), 40)}`, mg + 3, y + 6.2)
+      const nomePass = p.nome.replace(/\s*\(\d+\/\d+\)\s*$/, '').toUpperCase()
+      const prefixo = `${i + 1}.  `
+      const larguraPrefixo = larguraTexto(prefixo, 8.5)
+      doc.text(prefixo + encurtar(nomePass, nameW - 6 - larguraPrefixo, 8.5), mg + 3, y + 4.9)
       const docText = documentosRef.current[p.id] || ''
       if (docText) {
-        doc.text(trunc(docText, 25), mg + nameW + 3, y + 6.2)
+        doc.text(encurtar(docText, W - nameW - 6, 8.5), mg + nameW + 3, y + 4.9)
       } else {
         doc.setTextColor(180, 180, 180)
-        doc.text('RG/CPF', mg + nameW + 3, y + 6.2)
+        doc.text('RG/CPF', mg + nameW + 3, y + 4.9)
         doc.setTextColor(30, 30, 30)
       }
       y += passH
     })
 
-    y += 10
-    doc.setFontSize(7)
-    doc.setFont('helvetica', 'italic')
-    doc.setTextColor(150, 150, 150)
-    doc.text(
-      `Gerado em ${new Date().toLocaleDateString('pt-BR')} via RotaGenda`,
-      pageW / 2, y, { align: 'center' }
-    )
+    // Rodapé em TODA página: "Página X de Y" à esquerda (pra fiscalização saber
+    // que não falta folha) e "Gerado em ... via RotaGenda" à direita.
+    const totalPaginas = doc.getNumberOfPages()
+    const dataGeracao = new Date().toLocaleDateString('pt-BR')
+    for (let p = 1; p <= totalPaginas; p++) {
+      doc.setPage(p)
+      doc.setFontSize(7)
+      doc.setFont('helvetica', 'italic')
+      doc.setTextColor(150, 150, 150)
+      doc.text(`Página ${p} de ${totalPaginas}`, mg, 293)
+      doc.text(`Gerado em ${dataGeracao} via RotaGenda`, pageW - mg, 293, { align: 'right' })
+    }
 
     doc.save(`lista-passageiros-${format(diaSelecionado, 'dd-MM-yyyy')}.pdf`)
     setGerando(false)
