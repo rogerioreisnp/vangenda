@@ -9,6 +9,7 @@ import ModalListaPassageirosPDF from '@/components/ModalListaPassageirosPDF'
 import ListaPassageirosFretamento from '@/components/ListaPassageirosFretamento'
 import { dataHoraBrasilia } from '@/lib/data-hora'
 import { agruparFavoritos } from '@/lib/favoritos'
+import { listarAnexosMotorista } from '@/lib/anexos-motorista'
 import {
   type Excedentes, type CondicoesExcedente,
   temCondicoes, calcularExcedentes, aplicarNoAtendimento, formatarMinutos,
@@ -79,6 +80,7 @@ type Corrida = {
   anexo_observacoes_url: string | null
   observacao_motorista: string | null
   anexo_motorista_url: string | null
+  anexos_motorista_urls: string[] | null
   veiculo_atribuido: string | null
   // Tamanho do grupo no carro fechado. Reserva normal da rota não usa: lá
   // cada passageiro é uma linha própria (é assim que a lotação é contada).
@@ -1036,7 +1038,7 @@ export default function AgendamentosPage() {
     //   2. FUTURAS (data_hora >= agora e status != em_andamento) — asc
     //   3. PASSADAS (data_hora < agora e status != em_andamento) — desc
     const agoraISO = new Date().toISOString()
-    const colsCorridas = 'id, rota_id, cliente_id, origem, destino, data_hora, created_at, cliente_nome, cliente_telefone, email_solicitante, passageiro1_nome, passageiro1_telefone, valor, status, motorista_id, tipo_servico, forma_pagamento, status_pagamento, valor_recebido, data_pagamento, data_prevista_pagamento, valor_repasse_motorista, repasse_status, repasse_data_pago, repasse_forma_pagamento, observacoes, motoristas_empresa(nome), numero_voo, nome_passageiro2, telefone_passageiro2, retorno_data, retorno_horario, retorno_origem, retorno_destino, numero_reserva, quantidade_bagagem, passageiros_adicionais, rua, numero, bairro, municipio, cep, referencia, complemento, rua_desembarque, numero_desembarque, bairro_desembarque, municipio_desembarque, cep_desembarque, referencia_desembarque, complemento_desembarque, data_hora_termino, trajetos, km_inicial, km_final, iniciado_em, finalizado_em, observacao_motorista, anexo_motorista_url, veiculo_atribuido, anexo_observacoes_url, par_id, quantidade_passageiros, motorista_visto_em, motorista_confirmado_em, excedentes, minutos_parada, minutos_hora_extra'
+    const colsCorridas = 'id, rota_id, cliente_id, origem, destino, data_hora, created_at, cliente_nome, cliente_telefone, email_solicitante, passageiro1_nome, passageiro1_telefone, valor, status, motorista_id, tipo_servico, forma_pagamento, status_pagamento, valor_recebido, data_pagamento, data_prevista_pagamento, valor_repasse_motorista, repasse_status, repasse_data_pago, repasse_forma_pagamento, observacoes, motoristas_empresa(nome), numero_voo, nome_passageiro2, telefone_passageiro2, retorno_data, retorno_horario, retorno_origem, retorno_destino, numero_reserva, quantidade_bagagem, passageiros_adicionais, rua, numero, bairro, municipio, cep, referencia, complemento, rua_desembarque, numero_desembarque, bairro_desembarque, municipio_desembarque, cep_desembarque, referencia_desembarque, complemento_desembarque, data_hora_termino, trajetos, km_inicial, km_final, iniciado_em, finalizado_em, observacao_motorista, anexo_motorista_url, anexos_motorista_urls, veiculo_atribuido, anexo_observacoes_url, par_id, quantidade_passageiros, motorista_visto_em, motorista_confirmado_em, excedentes, minutos_parada, minutos_hora_extra'
 
     const [{ data: empresa }, { data: rts }, { data: mots }, { data: clientesData }, { data: emAndamento }, { data: futuras }, { data: passadas }] = await Promise.all([
       supabase
@@ -4244,20 +4246,30 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
             {/* Observacao que o MOTORISTA escreveu no app dele (separada da
                 observacoes acima, que e do gestor) — ex: pedido de reembolso
                 com nota anexada (Julimar, 2026-08-05). */}
-            {(corridaFicha.observacao_motorista || corridaFicha.anexo_motorista_url) && (
-              <div className="bg-white rounded-2xl p-4 border border-gray-100">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">🧾 Observação do motorista</p>
-                {corridaFicha.observacao_motorista && (
-                  <p className="text-sm text-gray-700 leading-relaxed">{corridaFicha.observacao_motorista}</p>
-                )}
-                {corridaFicha.anexo_motorista_url && (
-                  <a href={corridaFicha.anexo_motorista_url} target="_blank" rel="noopener noreferrer"
-                    className="text-xs font-semibold mt-1 inline-block" style={{ color: '#0F6E56' }}>
-                    📎 Ver anexo
-                  </a>
-                )}
-              </div>
-            )}
+            {(() => {
+              // Ate 2026-11-22 so uma url cabia no banco; a partir de agora o
+              // motorista acumula varios comprovantes (Julimar 2026-11-23).
+              const anexos = listarAnexosMotorista(corridaFicha)
+              if (!corridaFicha.observacao_motorista && anexos.length === 0) return null
+              return (
+                <div className="bg-white rounded-2xl p-4 border border-gray-100">
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">🧾 Observação do motorista</p>
+                  {corridaFicha.observacao_motorista && (
+                    <p className="text-sm text-gray-700 leading-relaxed">{corridaFicha.observacao_motorista}</p>
+                  )}
+                  {anexos.length > 0 && (
+                    <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1">
+                      {anexos.map((url, i) => (
+                        <a key={url} href={url} target="_blank" rel="noopener noreferrer"
+                          className="text-xs font-semibold inline-block" style={{ color: '#0F6E56' }}>
+                          📎 Anexo{anexos.length > 1 ? ` ${i + 1}` : ''}
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
 
             {/* Concluida: so leitura de quem fez o atendimento. O bloco de
                 atribuir (abaixo) so existe em confirmada/em_andamento, e o

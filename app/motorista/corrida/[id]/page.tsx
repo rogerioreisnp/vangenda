@@ -8,6 +8,7 @@ import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { dataHoraBrasilia } from '@/lib/data-hora'
 import { type Excedentes, temCondicoes, formatarMinutos } from '@/lib/excedentes'
+import { listarAnexosMotorista } from '@/lib/anexos-motorista'
 
 type PassageiroExtra = {
   nome: string; telefone: string; numero_voo?: string | null
@@ -39,6 +40,9 @@ type Corrida = {
   finalizado_em: string | null
   observacao_motorista: string | null
   anexo_motorista_url: string | null
+  // Varios anexos (estacionamento + pedagio + ...). JSONB no banco; a tela
+  // une a essa lista o `anexo_motorista_url` legacy (pedido Julimar 2026-11-23).
+  anexos_motorista_urls: string[] | null
   veiculo_atribuido: string | null
   // Prova de que a corrida chegou até o motorista. visto = ele abriu a
   // ficha; confirmado = ele tocou no botão assumindo. O gestor não fica
@@ -110,7 +114,10 @@ export default function CorridaFicha({ params }: { params: { id: string } }) {
   // pedido do Julimar 2026-08-05: motorista quer poder avisar de algo (ex:
   // pagou estacionamento, precisa de reembolso) e anexar a nota.
   const [observacaoMotorista, setObservacaoMotorista] = useState('')
-  const [anexoFile, setAnexoFile] = useState<File | null>(null)
+  // Anexos ja salvos no banco (legacy + array) e anexos NOVOS que o motorista
+  // selecionou agora e que ainda nao subiram. Salvar une os dois.
+  const [anexosExistentes, setAnexosExistentes] = useState<string[]>([])
+  const [anexosNovos, setAnexosNovos] = useState<File[]>([])
   const [salvandoObs, setSalvandoObs] = useState(false)
   const [erroObs, setErroObs] = useState<string | null>(null)
   const [obsSalva, setObsSalva] = useState(false)
@@ -145,6 +152,8 @@ export default function CorridaFicha({ params }: { params: { id: string } }) {
       const corrida = data as Corrida
       setC(corrida)
       setObservacaoMotorista(corrida.observacao_motorista || '')
+      setAnexosExistentes(listarAnexosMotorista(corrida))
+      setAnexosNovos([])
       const [ph, pm] = separarMinutos(corrida.minutos_parada)
       const [eh, em] = separarMinutos(corrida.minutos_hora_extra)
       setParadaH(ph); setParadaM(pm); setExtraH(eh); setExtraM(em)
@@ -272,33 +281,48 @@ export default function CorridaFicha({ params }: { params: { id: string } }) {
     setSalvandoObs(true)
     setErroObs(null)
     setObsSalva(false)
-    let anexoUrl = c.anexo_motorista_url
-    if (anexoFile) {
-      const ext = anexoFile.name.split('.').pop()?.toLowerCase() || 'jpg'
-      const path = `${c.id}/${Date.now()}.${ext}`
+
+    // Sobe os anexos NOVOS em paralelo. Cada arquivo vira uma url nova; a
+    // lista final e a juncao dos que ja estavam + os novos. Uploads novos
+    // nao sobrescrevem os antigos (Julimar 2026-11-23).
+    const uploads = await Promise.all(anexosNovos.map(async (file, i) => {
+      const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
+      // Date.now() + i pra garantir nome unico mesmo em cliques rapidos.
+      const path = `${c.id}/${Date.now()}-${i}.${ext}`
       const { error: errUp } = await supabase.storage
         .from('anexos-motorista')
-        .upload(path, anexoFile, { contentType: anexoFile.type, upsert: false })
-      if (errUp) {
-        setSalvandoObs(false)
-        setErroObs(`Erro ao enviar o anexo: ${errUp.message}`)
-        return
-      }
+        .upload(path, file, { contentType: file.type, upsert: false })
+      if (errUp) return { ok: false as const, err: errUp.message, nome: file.name }
       const { data: pub } = supabase.storage.from('anexos-motorista').getPublicUrl(path)
-      anexoUrl = pub.publicUrl
+      return { ok: true as const, url: pub.publicUrl }
+    }))
+    const falha = uploads.find(u => !u.ok)
+    if (falha && !falha.ok) {
+      setSalvandoObs(false)
+      setErroObs(`Erro ao enviar o anexo "${falha.nome}": ${falha.err}`)
+      return
+    }
+    const urlsNovas = uploads.filter((u): u is { ok: true; url: string } => u.ok).map(u => u.url)
+    const anexosFinais = [...anexosExistentes, ...urlsNovas]
+
+    // Sempre grava na coluna nova e zera a legacy. Se a coluna antiga tinha
+    // valor, ele ja esta dentro de `anexosExistentes` (via listarAnexos).
+    const patch = {
+      observacao_motorista: observacaoMotorista.trim() || null,
+      anexos_motorista_urls: anexosFinais.length > 0 ? anexosFinais : null,
+      anexo_motorista_url: null,
     }
     const { data, error } = await supabase.from('corridas_empresa')
-      .update({ observacao_motorista: observacaoMotorista.trim() || null, anexo_motorista_url: anexoUrl })
-      .eq('id', c.id)
-      .select('id')
+      .update(patch).eq('id', c.id).select('id')
     setSalvandoObs(false)
     if (error) { setErroObs(`Erro ao salvar: ${error.message}`); return }
     if (!data || data.length === 0) {
       setErroObs('Sem permissão pra salvar neste atendimento.')
       return
     }
-    setC({ ...c, observacao_motorista: observacaoMotorista.trim() || null, anexo_motorista_url: anexoUrl })
-    setAnexoFile(null)
+    setC({ ...c, ...patch })
+    setAnexosExistentes(anexosFinais)
+    setAnexosNovos([])
     setObsSalva(true)
     setTimeout(() => setObsSalva(false), 3000)
   }
@@ -592,17 +616,61 @@ export default function CorridaFicha({ params }: { params: { id: string } }) {
             <textarea value={observacaoMotorista} onChange={e => setObservacaoMotorista(e.target.value)}
               placeholder="Escreva aqui sua observação..."
               className="campo-input" rows={3} style={{ resize: 'vertical' }} />
-            {c.anexo_motorista_url && !anexoFile && (
-              <a href={c.anexo_motorista_url} target="_blank" rel="noopener noreferrer"
-                className="text-xs font-semibold" style={{ color: '#0F6E56' }}>
-                📎 Ver anexo enviado
-              </a>
+
+            {/* Anexos ja enviados — cada um com "Ver" e "Remover". O remover
+                nao apaga do bucket, so tira da lista; se precisar voltar, so
+                anexar de novo. Antes era UMA url so e cada upload novo
+                sobrescrevia (Julimar 2026-11-23: 2 estacionamentos no dia). */}
+            {anexosExistentes.length > 0 && (
+              <div className="flex flex-col gap-1.5">
+                <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Anexos enviados</p>
+                {anexosExistentes.map((url, i) => (
+                  <div key={url} className="flex items-center gap-2 rounded-xl px-3 py-2 border border-gray-200">
+                    <a href={url} target="_blank" rel="noopener noreferrer"
+                      className="flex-1 min-w-0 text-xs font-semibold truncate" style={{ color: '#0F6E56' }}>
+                      📎 Anexo {i + 1}
+                    </a>
+                    <button type="button"
+                      onClick={() => setAnexosExistentes(a => a.filter((_, j) => j !== i))}
+                      className="px-2 py-1 rounded-lg text-[11px] font-semibold"
+                      style={{ background: '#FCEBEB', color: '#A32D2D' }}>
+                      ✕ Remover
+                    </button>
+                  </div>
+                ))}
+              </div>
             )}
+
+            {/* Fila de anexos NOVOS (selecionados agora, antes de salvar). Dá
+                pra remover um da fila sem precisar recomeçar. */}
+            {anexosNovos.length > 0 && (
+              <div className="flex flex-col gap-1.5">
+                <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Novos (serão enviados ao salvar)</p>
+                {anexosNovos.map((file, i) => (
+                  <div key={i} className="flex items-center gap-2 rounded-xl px-3 py-2 border border-gray-200" style={{ background: '#F0FDF4' }}>
+                    <span className="flex-1 min-w-0 text-xs text-gray-700 truncate">📎 {file.name}</span>
+                    <button type="button"
+                      onClick={() => setAnexosNovos(a => a.filter((_, j) => j !== i))}
+                      className="px-2 py-1 rounded-lg text-[11px] font-semibold"
+                      style={{ background: '#FCEBEB', color: '#A32D2D' }}>
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Botao de adicionar: input multiple pra escolher varios de uma
+                vez. Cada clique ACUMULA na fila, nao substitui. */}
             <label className="flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-semibold border cursor-pointer"
               style={{ background: '#f9fafb', color: '#374151', borderColor: '#e5e7eb' }}>
-              📎 {anexoFile ? anexoFile.name : c.anexo_motorista_url ? 'Trocar anexo (foto ou PDF)' : 'Anexar foto ou PDF'}
-              <input type="file" accept="image/*,.pdf" className="hidden"
-                onChange={e => setAnexoFile(e.target.files?.[0] || null)} />
+              📎 {anexosExistentes.length + anexosNovos.length > 0 ? 'Adicionar outro anexo' : 'Anexar foto ou PDF'}
+              <input type="file" accept="image/*,.pdf" multiple className="hidden"
+                onChange={e => {
+                  const novos = Array.from(e.target.files || [])
+                  if (novos.length > 0) setAnexosNovos(a => [...a, ...novos])
+                  e.target.value = ''
+                }} />
             </label>
             {erroObs && <p className="text-xs" style={{ color: '#DC2626' }}>⚠️ {erroObs}</p>}
             {obsSalva && <p className="text-xs font-semibold" style={{ color: '#0F6E56' }}>✓ Salvo!</p>}
@@ -612,18 +680,22 @@ export default function CorridaFicha({ params }: { params: { id: string } }) {
               {salvandoObs ? 'Salvando…' : '✓ Salvar observação'}
             </button>
           </div>
-        ) : (c.observacao_motorista || c.anexo_motorista_url) && (
-          <div className="bg-white rounded-2xl p-4 border border-gray-100">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">🧾 Observação do motorista</p>
-            {c.observacao_motorista && <p className="text-sm text-gray-700 whitespace-pre-wrap">{c.observacao_motorista}</p>}
-            {c.anexo_motorista_url && (
-              <a href={c.anexo_motorista_url} target="_blank" rel="noopener noreferrer"
-                className="text-xs font-semibold mt-1 inline-block" style={{ color: '#0F6E56' }}>
-                📎 Ver anexo
-              </a>
-            )}
-          </div>
-        )}
+        ) : (() => {
+          const anexos = listarAnexosMotorista(c)
+          if (!c.observacao_motorista && anexos.length === 0) return null
+          return (
+            <div className="bg-white rounded-2xl p-4 border border-gray-100">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">🧾 Observação do motorista</p>
+              {c.observacao_motorista && <p className="text-sm text-gray-700 whitespace-pre-wrap">{c.observacao_motorista}</p>}
+              {anexos.map((url, i) => (
+                <a key={url} href={url} target="_blank" rel="noopener noreferrer"
+                  className="text-xs font-semibold mt-1 mr-3 inline-block" style={{ color: '#0F6E56' }}>
+                  📎 Anexo{anexos.length > 1 ? ` ${i + 1}` : ''}
+                </a>
+              ))}
+            </div>
+          )
+        })()}
 
         {/* KM inicial/final — bloco expostivo. Horario junto do KM e o
             horario REAL de quando o motorista apertou Iniciar/Finalizar
