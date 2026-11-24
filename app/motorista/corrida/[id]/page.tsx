@@ -9,6 +9,7 @@ import { ptBR } from 'date-fns/locale'
 import { dataHoraBrasilia } from '@/lib/data-hora'
 import { type Excedentes, temCondicoes, formatarMinutos } from '@/lib/excedentes'
 import { listarAnexosMotorista } from '@/lib/anexos-motorista'
+import { listarAnexosObservacoes } from '@/lib/anexos-observacoes'
 
 type PassageiroExtra = {
   nome: string; telefone: string; numero_voo?: string | null
@@ -31,6 +32,7 @@ type Corrida = {
   numero_voo: string | null
   observacoes: string | null
   anexo_observacoes_url: string | null
+  anexos_observacoes_urls: string[] | null
   status: string
   tipo_servico: string | null
   motorista_id: string | null
@@ -590,18 +592,22 @@ export default function CorridaFicha({ params }: { params: { id: string } }) {
           </div>
         )}
 
-        {(c.observacoes || c.anexo_observacoes_url) && (
-          <div className="bg-white rounded-2xl p-4 border border-gray-100">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">📝 Observações</p>
-            {c.observacoes && <p className="text-sm text-gray-700 whitespace-pre-wrap">{c.observacoes}</p>}
-            {c.anexo_observacoes_url && (
-              <a href={c.anexo_observacoes_url} target="_blank" rel="noopener noreferrer"
-                className="text-xs font-semibold mt-1 inline-block" style={{ color: '#0F6E56' }}>
-                📎 Ver anexo
-              </a>
-            )}
-          </div>
-        )}
+        {(() => {
+          const ax = listarAnexosObservacoes(c)
+          if (!c.observacoes && ax.length === 0) return null
+          return (
+            <div className="bg-white rounded-2xl p-4 border border-gray-100">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">📝 Observações</p>
+              {c.observacoes && <p className="text-sm text-gray-700 whitespace-pre-wrap">{c.observacoes}</p>}
+              {ax.map((url, i) => (
+                <a key={url} href={url} target="_blank" rel="noopener noreferrer"
+                  className="text-xs font-semibold mt-1 mr-3 inline-block" style={{ color: '#0F6E56' }}>
+                  📎 Anexo{ax.length > 1 ? ` ${i + 1}` : ''}
+                </a>
+              ))}
+            </div>
+          )
+        })()}
 
         {/* Observacao do motorista + anexo — separado da observacoes do
             gestor acima. Uso tipico: "paguei estacionamento, preciso de

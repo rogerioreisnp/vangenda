@@ -10,6 +10,7 @@ import ListaPassageirosFretamento from '@/components/ListaPassageirosFretamento'
 import { dataHoraBrasilia } from '@/lib/data-hora'
 import { agruparFavoritos } from '@/lib/favoritos'
 import { listarAnexosMotorista } from '@/lib/anexos-motorista'
+import { listarAnexosObservacoes } from '@/lib/anexos-observacoes'
 import {
   type Excedentes, type CondicoesExcedente,
   temCondicoes, calcularExcedentes, aplicarNoAtendimento, formatarMinutos,
@@ -78,6 +79,9 @@ type Corrida = {
   repasse_forma_pagamento: string | null
   observacoes: string | null
   anexo_observacoes_url: string | null
+  // Pedido Julimar 2026-11-24: o gestor tambem acumula varios anexos; a lista
+  // une a legacy com a nova (ver lib/anexos-observacoes.ts).
+  anexos_observacoes_urls: string[] | null
   observacao_motorista: string | null
   anexo_motorista_url: string | null
   anexos_motorista_urls: string[] | null
@@ -237,8 +241,12 @@ type FormCorrida = {
   // por cliente do 19 98124-0699, 2026-11-21).
   motorista_id_volta: string
   observacoes: string
-  anexo_observacoes_url: string
-  anexo_observacoes_volta_url: string
+  // Lista dos anexos JA ENVIADOS pra storage (array de URLs). O form sobe o
+  // arquivo na hora que o gestor seleciona e adiciona a URL a esta lista;
+  // "Remover" so tira daqui (o arquivo fica no bucket, sem referencia).
+  // Antes era uma URL so (`anexo_observacoes_url`). Pedido Julimar 2026-11-24.
+  anexos_observacoes_urls: string[]
+  anexos_observacoes_volta_urls: string[]
   // Condicoes de excedente desta contratacao (mudam a cada contratacao).
   // Tudo vazio = atendimento sem excedente; nada aparece pro motorista.
   exc_franquia_horas: string
@@ -292,8 +300,8 @@ const FORM_VAZIO: FormCorrida = {
   valor_repasse_volta: '',
   motorista_id_volta: '',
   observacoes: '',
-  anexo_observacoes_url: '',
-  anexo_observacoes_volta_url: '',
+  anexos_observacoes_urls: [],
+  anexos_observacoes_volta_urls: [],
   exc_franquia_horas: '', exc_franquia_km: '', exc_valor_hora_extra: '', exc_valor_km: '',
   exc_tolerancia_min: '', exc_valor_hora_parada: '', exc_pct_repasse: '',
 }
@@ -689,6 +697,12 @@ function agruparPares(corridas: Corrida[]): CorridaAgrupada[] {
   return resultado
 }
 
+// Colunas que a tela precisa de cada corrida. Fora do componente porque
+// a query inicial de carregarDados usa e o useEffect de "buscar passado
+// sob demanda" tambem — e tem que ser o mesmo string em ambos pra os
+// registros baterem.
+const COLS_CORRIDAS = 'id, rota_id, cliente_id, origem, destino, data_hora, created_at, cliente_nome, cliente_telefone, email_solicitante, passageiro1_nome, passageiro1_telefone, valor, status, motorista_id, tipo_servico, forma_pagamento, status_pagamento, valor_recebido, data_pagamento, data_prevista_pagamento, valor_repasse_motorista, repasse_status, repasse_data_pago, repasse_forma_pagamento, observacoes, motoristas_empresa(nome), numero_voo, nome_passageiro2, telefone_passageiro2, retorno_data, retorno_horario, retorno_origem, retorno_destino, numero_reserva, quantidade_bagagem, passageiros_adicionais, rua, numero, bairro, municipio, cep, referencia, complemento, rua_desembarque, numero_desembarque, bairro_desembarque, municipio_desembarque, cep_desembarque, referencia_desembarque, complemento_desembarque, data_hora_termino, trajetos, km_inicial, km_final, iniciado_em, finalizado_em, observacao_motorista, anexo_motorista_url, anexos_motorista_urls, veiculo_atribuido, anexo_observacoes_url, anexos_observacoes_urls, par_id, quantidade_passageiros, motorista_visto_em, motorista_confirmado_em, excedentes, minutos_parada, minutos_hora_extra'
+
 export default function AgendamentosPage() {
   const searchParams = useSearchParams()
   const [empresaId, setEmpresaId] = useState<string | null>(null)
@@ -1038,7 +1052,7 @@ export default function AgendamentosPage() {
     //   2. FUTURAS (data_hora >= agora e status != em_andamento) — asc
     //   3. PASSADAS (data_hora < agora e status != em_andamento) — desc
     const agoraISO = new Date().toISOString()
-    const colsCorridas = 'id, rota_id, cliente_id, origem, destino, data_hora, created_at, cliente_nome, cliente_telefone, email_solicitante, passageiro1_nome, passageiro1_telefone, valor, status, motorista_id, tipo_servico, forma_pagamento, status_pagamento, valor_recebido, data_pagamento, data_prevista_pagamento, valor_repasse_motorista, repasse_status, repasse_data_pago, repasse_forma_pagamento, observacoes, motoristas_empresa(nome), numero_voo, nome_passageiro2, telefone_passageiro2, retorno_data, retorno_horario, retorno_origem, retorno_destino, numero_reserva, quantidade_bagagem, passageiros_adicionais, rua, numero, bairro, municipio, cep, referencia, complemento, rua_desembarque, numero_desembarque, bairro_desembarque, municipio_desembarque, cep_desembarque, referencia_desembarque, complemento_desembarque, data_hora_termino, trajetos, km_inicial, km_final, iniciado_em, finalizado_em, observacao_motorista, anexo_motorista_url, anexos_motorista_urls, veiculo_atribuido, anexo_observacoes_url, par_id, quantidade_passageiros, motorista_visto_em, motorista_confirmado_em, excedentes, minutos_parada, minutos_hora_extra'
+    const colsCorridas = COLS_CORRIDAS
 
     const [{ data: empresa }, { data: rts }, { data: mots }, { data: clientesData }, { data: emAndamento }, { data: futuras }, { data: passadas }] = await Promise.all([
       supabase
@@ -1161,7 +1175,11 @@ export default function AgendamentosPage() {
         .upload(path, file, { contentType: file.type, upsert: false })
       if (errUp) throw errUp
       const { data } = supabase.storage.from('anexos-motorista').getPublicUrl(path)
-      setForm(f => volta ? { ...f, anexo_observacoes_volta_url: data.publicUrl } : { ...f, anexo_observacoes_url: data.publicUrl })
+      // Adiciona a url na lista do form; "Trocar" antigo virou "Adicionar
+      // outro" (Julimar 2026-11-24).
+      setForm(f => volta
+        ? { ...f, anexos_observacoes_volta_urls: [...f.anexos_observacoes_volta_urls, data.publicUrl] }
+        : { ...f, anexos_observacoes_urls: [...f.anexos_observacoes_urls, data.publicUrl] })
     } catch (err: any) {
       console.error('[anexo observacao]', err)
       setErro('Erro ao enviar o anexo: ' + (err.message || 'tente novamente'))
@@ -1281,8 +1299,8 @@ export default function AgendamentosPage() {
         ? volta.motorista_id
         : '',
       observacoes: c.observacoes || '',
-      anexo_observacoes_url: c.anexo_observacoes_url || '',
-      anexo_observacoes_volta_url: volta?.anexo_observacoes_url || '',
+      anexos_observacoes_urls: listarAnexosObservacoes(c),
+      anexos_observacoes_volta_urls: listarAnexosObservacoes(volta),
       exc_franquia_horas: num(cond?.franquia_horas),
       exc_franquia_km: num(cond?.franquia_km),
       exc_valor_hora_extra: num(cond?.valor_hora_extra),
@@ -1555,7 +1573,11 @@ export default function AgendamentosPage() {
         ? Math.max(0, parseFloat(form.valor_repasse_motorista.replace(',', '.'))) || null
         : null,
       observacoes: form.observacoes.trim() || null,
-      anexo_observacoes_url: form.anexo_observacoes_url.trim() || null,
+      // Lista nova de anexos (varios); legacy e zerada pra nao duplicar a
+      // referencia — o form ja carregou o valor da legacy pro array na
+      // edicao, entao nenhuma url se perde.
+      anexos_observacoes_urls: form.anexos_observacoes_urls.length > 0 ? form.anexos_observacoes_urls : null,
+      anexo_observacoes_url: null,
     }
 
     // Repasse da VOLTA do par: campo proprio no form; em branco = mesmo valor
@@ -1763,7 +1785,9 @@ export default function AgendamentosPage() {
           updateVolta.valor = precoVoltaNum
         }
         updateVolta.observacoes = form.observacoes_volta.trim() || null
-        updateVolta.anexo_observacoes_url = form.anexo_observacoes_volta_url.trim() || null
+        // Mesmo padrao do bloco da ida: grava o array e zera a legacy.
+        updateVolta.anexos_observacoes_urls = form.anexos_observacoes_volta_urls.length > 0 ? form.anexos_observacoes_volta_urls : null
+        updateVolta.anexo_observacoes_url = null
 
         // Excedentes da volta: mesmas condicoes da contratacao; o que ja foi
         // lancado na volta continua somado no valor/repasse dela.
@@ -1872,7 +1896,8 @@ export default function AgendamentosPage() {
           veiculo_atribuido: veiculoPadraoVolta,
           valor_repasse_motorista: repasseVolta,
           observacoes: form.observacoes_volta.trim() || null,
-          anexo_observacoes_url: form.anexo_observacoes_volta_url.trim() || null,
+          anexos_observacoes_urls: form.anexos_observacoes_volta_urls.length > 0 ? form.anexos_observacoes_volta_urls : null,
+          anexo_observacoes_url: null,
           // Endereço de embarque/desembarque da VOLTA na própria linha da
           // volta (antes ficava com o da ida, copiado do base).
           ...enderecosDaVoltaDoPar(),
@@ -4090,12 +4115,22 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                 {voltaDaFicha.observacoes && (
                   <p className="text-xs text-gray-500 mt-2">📝 {voltaDaFicha.observacoes}</p>
                 )}
-                {voltaDaFicha.anexo_observacoes_url && (
-                  <a href={voltaDaFicha.anexo_observacoes_url} target="_blank" rel="noopener noreferrer"
-                    className="text-xs font-semibold mt-1 inline-block" style={{ color: '#3C3489' }}>
-                    📎 Ver anexo
-                  </a>
-                )}
+                {(() => {
+                  // Ate 2026-11-23 so cabia uma url; agora os anexos acumulam
+                  // (ver lib/anexos-observacoes.ts).
+                  const ax = listarAnexosObservacoes(voltaDaFicha)
+                  if (ax.length === 0) return null
+                  return (
+                    <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1">
+                      {ax.map((url, i) => (
+                        <a key={url} href={url} target="_blank" rel="noopener noreferrer"
+                          className="text-xs font-semibold inline-block" style={{ color: '#3C3489' }}>
+                          📎 Anexo{ax.length > 1 ? ` ${i + 1}` : ''}
+                        </a>
+                      ))}
+                    </div>
+                  )
+                })()}
                 {/* Excedentes da volta (espera da volta e propria). */}
                 {!vCancelada && temCondicoes(voltaDaFicha.excedentes?.condicoes) && (
                   <div className="mt-3">
@@ -4228,20 +4263,28 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
             )}
 
             {/* Observações */}
-            {(corridaFicha.observacoes || corridaFicha.anexo_observacoes_url) && (
-              <div className="bg-white rounded-2xl p-4 border border-gray-100">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Observações</p>
-                {corridaFicha.observacoes && (
-                  <p className="text-sm text-gray-700 leading-relaxed">{corridaFicha.observacoes}</p>
-                )}
-                {corridaFicha.anexo_observacoes_url && (
-                  <a href={corridaFicha.anexo_observacoes_url} target="_blank" rel="noopener noreferrer"
-                    className="text-xs font-semibold mt-1 inline-block" style={{ color: '#0F6E56' }}>
-                    📎 Ver anexo
-                  </a>
-                )}
-              </div>
-            )}
+            {(() => {
+              const ax = listarAnexosObservacoes(corridaFicha)
+              if (!corridaFicha.observacoes && ax.length === 0) return null
+              return (
+                <div className="bg-white rounded-2xl p-4 border border-gray-100">
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Observações</p>
+                  {corridaFicha.observacoes && (
+                    <p className="text-sm text-gray-700 leading-relaxed">{corridaFicha.observacoes}</p>
+                  )}
+                  {ax.length > 0 && (
+                    <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1">
+                      {ax.map((url, i) => (
+                        <a key={url} href={url} target="_blank" rel="noopener noreferrer"
+                          className="text-xs font-semibold inline-block" style={{ color: '#0F6E56' }}>
+                          📎 Anexo{ax.length > 1 ? ` ${i + 1}` : ''}
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
 
             {/* Observacao que o MOTORISTA escreveu no app dele (separada da
                 observacoes acima, que e do gestor) — ex: pedido de reembolso
@@ -4913,7 +4956,7 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                       origem_volta: '', destino_volta: '',
                       data_retorno: '', horario_retorno: '',
                       preco_volta: '', observacoes_volta: '',
-                      anexo_observacoes_volta_url: '',
+                      anexos_observacoes_volta_urls: [],
                       km_inicial_volta: '', km_final_volta: '',
                       valor_repasse_volta: '',
                     }
@@ -6092,20 +6135,38 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                 style={{ resize: 'none' }} />
             </Campo>
 
-            {/* Anexo da observação — ex: plaquinha de identificação em PDF
-                pro receptivo no aeroporto (pedido Julimar 2026-08-05). */}
+            {/* Anexos da observacao — ex: plaquinha, voucher, cupons. Varios
+                arquivos (Julimar 2026-11-24). Cada clique sobe um e adiciona
+                a lista. "Remover" so tira da lista do form; o arquivo fica
+                no bucket, sem referencia. */}
             <div className="flex flex-col gap-1.5 -mt-2">
-              {form.anexo_observacoes_url && (
-                <a href={form.anexo_observacoes_url} target="_blank" rel="noopener noreferrer"
-                  className="text-xs font-semibold" style={{ color: '#0F6E56' }}>
-                  📎 Ver anexo enviado
-                </a>
-              )}
+              {form.anexos_observacoes_urls.map((url, i) => (
+                <div key={url} className="flex items-center gap-2 rounded-xl px-3 py-2 border border-gray-200">
+                  <a href={url} target="_blank" rel="noopener noreferrer"
+                    className="flex-1 min-w-0 text-xs font-semibold truncate" style={{ color: '#0F6E56' }}>
+                    📎 Anexo {i + 1}
+                  </a>
+                  <button type="button"
+                    onClick={() => setForm(f => ({ ...f, anexos_observacoes_urls: f.anexos_observacoes_urls.filter((_, j) => j !== i) }))}
+                    className="px-2 py-1 rounded-lg text-[11px] font-semibold"
+                    style={{ background: '#FCEBEB', color: '#A32D2D' }}>
+                    ✕ Remover
+                  </button>
+                </div>
+              ))}
               <label className="flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-semibold border cursor-pointer"
                 style={{ background: '#f9fafb', color: '#374151', borderColor: '#e5e7eb' }}>
-                {enviandoAnexoObs ? 'Enviando...' : form.anexo_observacoes_url ? '📎 Trocar anexo (ex: plaquinha em PDF)' : '📎 Anexar arquivo (ex: plaquinha em PDF)'}
+                {enviandoAnexoObs
+                  ? 'Enviando...'
+                  : form.anexos_observacoes_urls.length > 0
+                    ? '📎 Adicionar outro anexo'
+                    : '📎 Anexar arquivo (ex: plaquinha em PDF)'}
                 <input type="file" accept="image/*,.pdf" className="hidden" disabled={enviandoAnexoObs}
-                  onChange={e => { const f = e.target.files?.[0]; if (f) uploadAnexoObservacao(f, false) }} />
+                  onChange={e => {
+                    const f = e.target.files?.[0]
+                    if (f) uploadAnexoObservacao(f, false)
+                    e.target.value = ''
+                  }} />
               </label>
             </div>
 
@@ -6126,17 +6187,33 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
 
             {form.ida_volta && (!corridaEditando || voltaIdEditando) && (
               <div className="flex flex-col gap-1.5 -mt-2">
-                {form.anexo_observacoes_volta_url && (
-                  <a href={form.anexo_observacoes_volta_url} target="_blank" rel="noopener noreferrer"
-                    className="text-xs font-semibold" style={{ color: '#3C3489' }}>
-                    📎 Ver anexo enviado (volta)
-                  </a>
-                )}
+                {form.anexos_observacoes_volta_urls.map((url, i) => (
+                  <div key={url} className="flex items-center gap-2 rounded-xl px-3 py-2 border border-gray-200">
+                    <a href={url} target="_blank" rel="noopener noreferrer"
+                      className="flex-1 min-w-0 text-xs font-semibold truncate" style={{ color: '#3C3489' }}>
+                      📎 Anexo {i + 1} (volta)
+                    </a>
+                    <button type="button"
+                      onClick={() => setForm(f => ({ ...f, anexos_observacoes_volta_urls: f.anexos_observacoes_volta_urls.filter((_, j) => j !== i) }))}
+                      className="px-2 py-1 rounded-lg text-[11px] font-semibold"
+                      style={{ background: '#FCEBEB', color: '#A32D2D' }}>
+                      ✕ Remover
+                    </button>
+                  </div>
+                ))}
                 <label className="flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-semibold border cursor-pointer"
                   style={{ background: '#f9fafb', color: '#374151', borderColor: '#e5e7eb' }}>
-                  {enviandoAnexoObsVolta ? 'Enviando...' : form.anexo_observacoes_volta_url ? '📎 Trocar anexo da volta (ex: plaquinha em PDF)' : '📎 Anexar arquivo da volta (ex: plaquinha em PDF)'}
+                  {enviandoAnexoObsVolta
+                    ? 'Enviando...'
+                    : form.anexos_observacoes_volta_urls.length > 0
+                      ? '📎 Adicionar outro anexo da volta'
+                      : '📎 Anexar arquivo da volta (ex: plaquinha em PDF)'}
                   <input type="file" accept="image/*,.pdf" className="hidden" disabled={enviandoAnexoObsVolta}
-                    onChange={e => { const f = e.target.files?.[0]; if (f) uploadAnexoObservacao(f, true) }} />
+                    onChange={e => {
+                      const f = e.target.files?.[0]
+                      if (f) uploadAnexoObservacao(f, true)
+                      e.target.value = ''
+                    }} />
                 </label>
               </div>
             )}
