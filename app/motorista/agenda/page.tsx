@@ -113,14 +113,15 @@ export default function MotoristaAgenda() {
     { id: 'todas',        label: 'Todas' },
   ]
 
-  // Contadores por dia dos próximos 7 dias — atalho visual pra motorista
-  // ver rapidamente onde tem corrida (padrão de calendário compacto).
-  const proximosDias = Array.from({ length: 7 }, (_, i) => {
+  // Calendario compacto: 3 dias passados + hoje + 6 dias a frente. Antes so
+  // ia pra frente, e o motorista nao achava a corrida de ontem (Julimar
+  // 2026-11-24). Numero fixo pra caber na barra sem rolar muito.
+  const proximosDias = Array.from({ length: 10 }, (_, i) => {
     const d = new Date()
-    d.setDate(d.getDate() + i)
+    d.setDate(d.getDate() + (i - 3))
     const iso = d.toISOString().slice(0, 10)
     const qtd = corridas.filter(c => c.data_hora.slice(0, 10) === iso && c.status !== 'cancelada').length
-    return { iso, dia: d.getDate(), rotulo: format(d, 'EEE', { locale: ptBR }), qtd }
+    return { iso, dia: d.getDate(), rotulo: format(d, 'EEE', { locale: ptBR }), qtd, offset: i - 3 }
   })
 
   return (
@@ -130,12 +131,18 @@ export default function MotoristaAgenda() {
         <p style={{ color: '#E1F5EE' }} className="text-lg font-bold">Seus atendimentos</p>
       </div>
 
-      {/* Mini-calendário próximos 7 dias — atalho rápido pro motorista */}
+      {/* Mini-calendário: 3 dias passados + hoje + 6 a frente */}
       <div className="px-4 pt-3">
         <div className="flex gap-1.5 overflow-x-auto pb-2">
-          {proximosDias.map((d, i) => {
+          {proximosDias.map((d) => {
             const ativo = filtro === 'data' && dataSelecionada === d.iso
-            const eHoje = d.iso === hojeStr
+            const eHoje = d.offset === 0
+            const passado = d.offset < 0
+            const rotuloDia =
+              d.offset === -1 ? 'Ontem'
+              : d.offset === 0 ? 'Hoje'
+              : d.offset === 1 ? 'Amanhã'
+              : d.rotulo.slice(0, 3)
             return (
               <button key={d.iso} type="button"
                 onClick={() => { setDataSelecionada(d.iso); setFiltro('data') }}
@@ -144,12 +151,11 @@ export default function MotoristaAgenda() {
                   width: '52px',
                   padding: '6px 4px',
                   background: ativo ? '#0F6E56' : eHoje ? '#E1F5EE' : '#fff',
-                  color: ativo ? '#fff' : eHoje ? '#0F6E56' : '#333',
+                  color: ativo ? '#fff' : eHoje ? '#0F6E56' : passado ? '#6B7280' : '#333',
                   border: `1px solid ${ativo ? '#0F6E56' : eHoje ? '#9FE1CB' : '#e5e7eb'}`,
+                  opacity: ativo ? 1 : passado ? 0.75 : 1,
                 }}>
-                <span className="text-[9px] font-semibold uppercase leading-tight">
-                  {i === 0 ? 'Hoje' : i === 1 ? 'Amanhã' : d.rotulo.slice(0, 3)}
-                </span>
+                <span className="text-[9px] font-semibold uppercase leading-tight">{rotuloDia}</span>
                 <span className="text-lg font-bold leading-tight">{d.dia}</span>
                 {d.qtd > 0 && (
                   <span className="text-[9px] font-semibold leading-tight"

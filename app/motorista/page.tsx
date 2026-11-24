@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
-import { format, addDays } from 'date-fns'
+import { format, addDays, subDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
 type CorridaRes = {
@@ -32,6 +32,11 @@ export default function MotoristaHome() {
   const [motEmpresaId, setMotEmpresaId] = useState<string | null>(null)
   const [hoje, setHoje] = useState<CorridaRes[]>([])
   const [amanha, setAmanha] = useState<CorridaRes[]>([])
+  // Atendimentos de ontem — Julimar 2026-11-24: motorista reclamou que "nao
+  // da pra ver as do dia anterior". A HOME so tinha hoje/amanha, e o filtro
+  // padrao da agenda era "Proximas" (nao mostra passado). Agora aparecem
+  // aqui quando existem.
+  const [ontem, setOntem] = useState<CorridaRes[]>([])
   const [proxima, setProxima] = useState<CorridaRes | null>(null)
   const [emAndamento, setEmAndamento] = useState<CorridaRes | null>(null)
   const [loading, setLoading] = useState(true)
@@ -55,10 +60,17 @@ export default function MotoristaHome() {
     const agora = new Date()
     const hojeStr = format(agora, 'yyyy-MM-dd')
     const amanhaStr = format(addDays(agora, 1), 'yyyy-MM-dd')
+    const ontemStr = format(subDays(agora, 1), 'yyyy-MM-dd')
 
     const cols = 'id, origem, destino, data_hora, cliente_nome, passageiro1_nome, status, tipo_servico, data_hora_termino, valor_repasse_motorista, repasse_status'
 
-    const [{ data: dHoje }, { data: dAmanha }, { data: dProxima }, { data: dAndamento }] = await Promise.all([
+    const [{ data: dOntem }, { data: dHoje }, { data: dAmanha }, { data: dProxima }, { data: dAndamento }] = await Promise.all([
+      supabase.from('corridas_empresa').select(cols)
+        .eq('motorista_id', motEmp.id)
+        .gte('data_hora', `${ontemStr}T00:00:00`)
+        .lte('data_hora', `${ontemStr}T23:59:59`)
+        .neq('status', 'cancelada')
+        .order('data_hora', { ascending: true }),
       supabase.from('corridas_empresa').select(cols)
         .eq('motorista_id', motEmp.id)
         .gte('data_hora', `${hojeStr}T00:00:00`)
@@ -86,6 +98,7 @@ export default function MotoristaHome() {
         .maybeSingle(),
     ])
 
+    setOntem((dOntem || []) as CorridaRes[])
     setHoje((dHoje || []) as CorridaRes[])
     setAmanha((dAmanha || []) as CorridaRes[])
     setProxima((dProxima as CorridaRes | null) || null)
@@ -183,7 +196,12 @@ export default function MotoristaHome() {
 
         {amanha.length > 0 && <ListaResumo titulo="📆 Amanhã" items={amanha} />}
 
-        {!loading && hoje.length === 0 && amanha.length === 0 && !proxima && !emAndamento && (
+        {/* Bloco "Ontem" so aparece quando tem atendimento no dia anterior —
+            atalho pro motorista revisar o que fez (Julimar 2026-11-24). Pra
+            dias mais antigos, o link "Ver agenda completa" abaixo. */}
+        {ontem.length > 0 && <ListaResumo titulo="🕐 Ontem" items={ontem} />}
+
+        {!loading && hoje.length === 0 && amanha.length === 0 && ontem.length === 0 && !proxima && !emAndamento && (
           <div className="bg-white rounded-2xl p-6 border border-gray-100 text-center">
             <p className="text-3xl mb-2">😴</p>
             <p className="text-sm font-bold text-gray-800">Nenhum atendimento atribuído</p>
