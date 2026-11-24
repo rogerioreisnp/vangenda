@@ -706,6 +706,13 @@ const COLS_CORRIDAS = 'id, rota_id, cliente_id, origem, destino, data_hora, crea
 export default function AgendamentosPage() {
   const searchParams = useSearchParams()
   const [empresaId, setEmpresaId] = useState<string | null>(null)
+  // Menor data_hora de corrida ja no estado — enquanto o gestor ficar num
+  // periodo coberto, nada de rede. Quando pedir um range anterior (ex:
+  // "mes passado" numa empresa com muito volume), o useEffect abaixo busca
+  // o pedaco faltante e mescla. Antes o front filtrava so o que ja estava
+  // em memoria (150 passadas no load); o que caisse fora desaparecia.
+  const [corridasInicioCarregado, setCorridasInicioCarregado] = useState<string | null>(null)
+  const [carregandoMais, setCarregandoMais] = useState(false)
   const [empresaNome, setEmpresaNome] = useState<string>('')
   const [empresaDescricao, setEmpresaDescricao] = useState<string>('')
   const [empresaWhatsApp, setEmpresaWhatsApp] = useState<string>('')
@@ -1024,6 +1031,66 @@ export default function AgendamentosPage() {
     }
   }, [loading, searchParams])
 
+  // Carregar mais corridas passadas sob demanda.
+  //
+  // Load inicial traz so as 150 passadas mais recentes. Com o gestor pedindo
+  // "mes passado" ou um range personalizado antigo, o front antes filtrava
+  // vazio e parecia que nao tinha nada (Julimar 2026-11-24: "gestor tambem
+  // tem que ver as corridas passadas"). Agora, quando o inicio do range
+  // desejado for anterior ao ja carregado, busca o pedaco faltante.
+  useEffect(() => {
+    if (!empresaId || !corridasInicioCarregado || loading) return
+
+    // Inicio do periodo que o gestor esta pedindo. Em "dia_unico" ele
+    // pode estar vendo "hoje" (nao precisa buscar passado) ou um dia
+    // especifico. "verTodos" quer tudo — carrega o maximo (1 ano por vez).
+    let inicioDesejadoISO: string | null = null
+    if (verTodos) {
+      // Puxa tudo que ainda nao esta carregado. Data base do sistema e
+      // 2020-01-01 — antes do Vangenda existir. Com o limit de 1000 isso
+      // cobre anos de uma empresa com volume. Se o gestor tiver MUITO
+      // volume antigo, uma segunda chamada nao vai ajudar porque a query
+      // ja pega as mais recentes; nesse caso ele usa filtro por periodo.
+      inicioDesejadoISO = '2020-01-01T00:00:00.000Z'
+    } else if (periodoPreset === 'dia_unico') {
+      // Dia unico anterior ao carregado? Vale buscar aquele dia.
+      inicioDesejadoISO = `${filtroData}T00:00:00.000Z`
+    } else if (filtroInicio) {
+      inicioDesejadoISO = `${filtroInicio}T00:00:00.000Z`
+    }
+    if (!inicioDesejadoISO) return
+    // Ja coberto. Se o gestor so navega entre dias ja carregados, nao
+    // consome rede.
+    if (inicioDesejadoISO >= corridasInicioCarregado) return
+
+    let ativo = true
+    setCarregandoMais(true)
+    ;(async () => {
+      const { data, error } = await supabase
+        .from('corridas_empresa')
+        .select(COLS_CORRIDAS)
+        .eq('empresa_id', empresaId)
+        .gte('data_hora', inicioDesejadoISO)
+        .lt('data_hora', corridasInicioCarregado)
+        .order('data_hora', { ascending: false })
+        .limit(1000)
+      if (!ativo) return
+      if (error) {
+        console.error('[corridas passadas] falha:', error.message)
+      } else if (data && data.length > 0) {
+        setCorridas(prev => {
+          const ids = new Set(prev.map(c => c.id))
+          const novas = (data as any[]).filter(c => !ids.has(c.id))
+          return [...prev, ...novas]
+        })
+      }
+      setCorridasInicioCarregado(inicioDesejadoISO)
+      setCarregandoMais(false)
+    })()
+    return () => { ativo = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [empresaId, periodoPreset, filtroInicio, filtroFim, filtroData, verTodos, corridasInicioCarregado, loading])
+
   async function carregarDados() {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) return
@@ -1101,6 +1168,14 @@ export default function AgendamentosPage() {
         .limit(150),
     ])
     const corrds = [...(emAndamento || []), ...(futuras || []), ...(passadas || [])]
+    // Menor data_hora que o load inicial trouxe (so olhando passadas, ja
+    // que futuras/em_andamento sao do presente). Define ate onde o front
+    // tem informacao — abaixo disso, o useEffect dispara busca extra.
+    const menorPassada = (passadas || []).reduce<string | null>(
+      (m, c: any) => (!m || c.data_hora < m) ? c.data_hora : m,
+      null,
+    )
+    setCorridasInicioCarregado(menorPassada ?? agoraISO)
 
     if (empresa) {
       setTipoOperacao(empresa.tipo_operacao || 'transfer')
@@ -2976,8 +3051,16 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
           </button>
         )}
 
+        {/* Indicador — gestor pediu periodo anterior ao ja carregado e o
+            front esta buscando o pedaco que faltava no banco. */}
+        {carregandoMais && (
+          <div className="text-center py-2 text-[11px] text-gray-500">
+            ⏳ Carregando corridas anteriores...
+          </div>
+        )}
+
         {/* Lista de corridas e agendamentos */}
-        {corridasFiltradas.length === 0 && agendamentosFiltrados.length === 0 && (
+        {corridasFiltradas.length === 0 && agendamentosFiltrados.length === 0 && !carregandoMais && (
           <div className="bg-white rounded-2xl p-6 border border-gray-100 text-center">
             <p className="text-3xl mb-2">📋</p>
             {!verTodos && filtroData === HOJE ? (
