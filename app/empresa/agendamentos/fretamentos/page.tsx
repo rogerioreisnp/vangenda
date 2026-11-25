@@ -750,14 +750,40 @@ export default function AgendamentosPage() {
   const [baixaRepasseForma, setBaixaRepasseForma] = useState<'pix' | 'dinheiro' | 'transferencia' | 'cartao'>('pix')
   const [baixaRepasseSalvando, setBaixaRepasseSalvando] = useState(false)
   const [baixaRepasseIncluirVolta, setBaixaRepasseIncluirVolta] = useState(true)
+  // Reembolsos ao motorista pendentes do PAR (ida + volta), carregados quando
+  // o modal abre. Julimar 2026-11-24: o motorista pagou estacionamento e esse
+  // valor tem que entrar junto na baixa do repasse (empresa devolve pra ele).
+  type ReembolsoMotorista = { id: string; data: string; categoria: string; descricao: string | null; valor: number; corrida_id: string | null }
+  const [reembolsosMotoristaPend, setReembolsosMotoristaPend] = useState<ReembolsoMotorista[]>([])
+  const [baixaRepasseIncluirReembolsos, setBaixaRepasseIncluirReembolsos] = useState(true)
 
-  function abrirBaixaRepasse(c: Corrida) {
+  async function abrirBaixaRepasse(c: Corrida) {
     // Se ja tem baixa, pre-preenche pra edicao. Senao, sugere hoje + pix.
     const hoje = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` })()
     setBaixaRepasseData(c.repasse_data_pago || hoje)
     setBaixaRepasseForma((c.repasse_forma_pagamento as any) || 'pix')
     setBaixaRepasseIncluirVolta(true)
+    setBaixaRepasseIncluirReembolsos(true)
     setBaixaRepasseAberta(c)
+    // Busca despesas reembolsaveis pagas pelo motorista ainda nao reembolsadas
+    // pra esta corrida e, se tiver volta, pra ela tambem. Se o par usuario
+    // marca "incluir volta", o modal considera os reembolsos dos dois.
+    const volta = voltaRepassePendente(c)
+    const ids = [c.id, ...(volta ? [volta.id] : [])]
+    const { data, error } = await supabase
+      .from('despesas_empresa')
+      .select('id, data, categoria, descricao, valor, corrida_id')
+      .in('corrida_id', ids)
+      .eq('reembolsavel', true)
+      .eq('pago_por', 'motorista')
+      .is('motorista_reembolsado_em', null)
+      .order('data', { ascending: true })
+    if (error) {
+      console.error('[reembolso motorista] carregar:', error.message)
+      setReembolsosMotoristaPend([])
+    } else {
+      setReembolsosMotoristaPend((data || []) as ReembolsoMotorista[])
+    }
   }
 
   // Ida de um par com o repasse da volta ainda a pagar — o modal oferece dar
@@ -789,6 +815,27 @@ export default function AgendamentosPage() {
       if (erroVolta) alert('O repasse da ida foi marcado, mas deu erro na volta: ' + erroVolta.message)
       else voltaOk = true
     }
+
+    // Marca os reembolsos ao motorista como pagos. Filtra pelo que esta
+    // efetivamente sendo baixado agora — se a volta nao entrou, os reembolsos
+    // dela nao sao marcados (vao continuar aparecendo na proxima baixa).
+    if (baixaRepasseIncluirReembolsos && reembolsosMotoristaPend.length > 0) {
+      const idsCorridasBaixadas = new Set<string>([baixaRepasseAberta.id, ...(voltaOk && volta ? [volta.id] : [])])
+      const idsReemb = reembolsosMotoristaPend
+        .filter(r => r.corrida_id && idsCorridasBaixadas.has(r.corrida_id))
+        .map(r => r.id)
+      if (idsReemb.length > 0) {
+        // Timestamp ISO — a mesma data da baixa do repasse, pra o historico
+        // ficar coerente (quando digitou uma data manual).
+        const quando = baixaRepasseData
+          ? new Date(`${baixaRepasseData}T12:00:00`).toISOString()
+          : new Date().toISOString()
+        const { error: erroReemb } = await supabase.from('despesas_empresa')
+          .update({ motorista_reembolsado_em: quando })
+          .in('id', idsReemb)
+        if (erroReemb) alert('O repasse foi marcado, mas deu erro ao marcar os reembolsos do motorista como pagos: ' + erroReemb.message)
+      }
+    }
     setBaixaRepasseSalvando(false)
 
     // Atualiza estado local sem re-fetch — mesma pattern das outras acoes.
@@ -797,6 +844,7 @@ export default function AgendamentosPage() {
     setCorridas(prev => prev.map(aplicar))
     setCorridaFicha(prev => prev && aplicar(prev))
     setVoltaDaFicha(prev => prev && aplicar(prev))
+    setReembolsosMotoristaPend([])
     setBaixaRepasseAberta(null)
   }
 
@@ -3624,6 +3672,15 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
         const mot = motoristaInfo(c, c.motorista_id ?? '')
         const editando = c.repasse_status === 'pago'
         const voltaRepPend = voltaRepassePendente(c)
+        // Reembolsos ao motorista que vao entrar NESTA baixa — depende do
+        // checkbox de incluir volta (se tirar, os reembolsos dela nao somam).
+        const idsBaixar = new Set<string>([c.id, ...(baixaRepasseIncluirVolta && voltaRepPend ? [voltaRepPend.id] : [])])
+        const reembDaBaixa = reembolsosMotoristaPend.filter(r => r.corrida_id && idsBaixar.has(r.corrida_id))
+        const totalReembolsos = reembDaBaixa.reduce((s, r) => s + Number(r.valor), 0)
+        const repasseBase = Number(c.valor_repasse_motorista) || 0
+        const repasseVolta = baixaRepasseIncluirVolta && voltaRepPend ? Number(voltaRepPend.valor_repasse_motorista) || 0 : 0
+        const totalRepasse = repasseBase + repasseVolta + (baixaRepasseIncluirReembolsos ? totalReembolsos : 0)
+        const fmt = (n: number) => `R$ ${n.toFixed(2).replace('.', ',')}`
         return (
           <div className="fixed inset-0 z-[70] flex items-end justify-center" style={{ background: 'rgba(0,0,0,0.4)' }} onClick={() => setBaixaRepasseAberta(null)}>
             <div className="w-full max-w-md bg-white rounded-t-2xl p-5 pb-24 flex flex-col gap-3" style={{ maxHeight: '92dvh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
@@ -3638,9 +3695,27 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                 <p className="text-xs text-gray-500">
                   {mot?.nome || 'Motorista'} · {c.origem} → {c.destino}
                 </p>
-                <p className="text-sm font-semibold text-gray-800 mt-0.5">
-                  Repasse: R$ {(Number(c.valor_repasse_motorista) || 0).toFixed(2).replace('.', ',')}
-                </p>
+                {totalReembolsos > 0 && baixaRepasseIncluirReembolsos ? (
+                  <div className="mt-1 text-sm text-gray-800">
+                    <p>Repasse do atendimento: <span className="font-semibold">{fmt(repasseBase)}</span></p>
+                    {repasseVolta > 0 && (
+                      <p>Repasse da volta: <span className="font-semibold">{fmt(repasseVolta)}</span></p>
+                    )}
+                    {reembDaBaixa.map(r => (
+                      <p key={r.id} className="text-xs text-gray-600">
+                        + Reembolso {r.categoria}
+                        {r.descricao ? ` (${r.descricao})` : ''}: <span className="font-semibold">{fmt(Number(r.valor))}</span>
+                      </p>
+                    ))}
+                    <p className="mt-1 pt-1 text-sm font-bold" style={{ borderTop: '1px dashed #d1d5db', color: '#0F6E56' }}>
+                      Total ao motorista: {fmt(totalRepasse)}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm font-semibold text-gray-800 mt-0.5">
+                    Repasse: {fmt(repasseBase + repasseVolta)}
+                  </p>
+                )}
               </div>
 
               <Campo label="Data do pagamento">
@@ -3669,6 +3744,19 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                   <span className="text-xs" style={{ color: '#3C3489' }}>
                     <span className="font-bold">🔁 Incluir também o repasse da volta</span>
                     {' '}— R$ {(Number(voltaRepPend.valor_repasse_motorista) || 0).toFixed(2).replace('.', ',')}, mesma data e forma de pagamento
+                  </span>
+                </label>
+              )}
+
+              {reembDaBaixa.length > 0 && !editando && (
+                <label className="flex items-start gap-2 rounded-xl p-3 border cursor-pointer"
+                  style={{ background: '#FEF9E7', borderColor: '#FAC775' }}>
+                  <input type="checkbox" checked={baixaRepasseIncluirReembolsos}
+                    onChange={e => setBaixaRepasseIncluirReembolsos(e.target.checked)}
+                    className="mt-0.5" />
+                  <span className="text-xs" style={{ color: '#854F0B' }}>
+                    <span className="font-bold">💰 Incluir reembolso ao motorista</span>
+                    {' '}— {reembDaBaixa.length} despesa{reembDaBaixa.length > 1 ? 's' : ''} que ele pagou do bolso ({fmt(totalReembolsos)}). Ao confirmar, elas ficam marcadas como pagas ao motorista.
                   </span>
                 </label>
               )}

@@ -44,6 +44,11 @@ type Despesa = {
   corrida_id?: string | null
   reembolsavel?: boolean | null
   reembolsado_em?: string | null
+  // Julimar 2026-11-24: quando o MOTORISTA pagou do bolso, o valor vai pro
+  // repasse dele (empresa reembolsa o motorista). `motorista_reembolsado_em`
+  // fica NULL ate o Julimar dar baixa no repasse incluindo esta despesa.
+  pago_por?: 'empresa' | 'motorista' | null
+  motorista_reembolsado_em?: string | null
 }
 
 type Motorista = {
@@ -83,6 +88,8 @@ type FormDespesa = {
   pix_banco: string
   corrida_id: string
   reembolsavel: boolean
+  // 'empresa' (default) ou 'motorista' — define se a despesa vai pro repasse.
+  pago_por: 'empresa' | 'motorista'
 }
 
 const FORM_VAZIO: FormDespesa = {
@@ -100,6 +107,7 @@ const FORM_VAZIO: FormDespesa = {
   pix_banco: '',
   corrida_id: '',
   reembolsavel: false,
+  pago_por: 'empresa',
 }
 
 const CATEGORIAS = [
@@ -302,7 +310,7 @@ export default function FinanceiroPage() {
         .order('data_hora', { ascending: false }),
       supabase
         .from('despesas_empresa')
-        .select('id, motorista_id, veiculo, categoria, descricao, valor, km_odometro, data, tipo, forma_pagamento, cartao_banco, cartao_final, pix_banco, corrida_id, reembolsavel, reembolsado_em')
+        .select('id, motorista_id, veiculo, categoria, descricao, valor, km_odometro, data, tipo, forma_pagamento, cartao_banco, cartao_final, pix_banco, corrida_id, reembolsavel, reembolsado_em, pago_por, motorista_reembolsado_em')
         .eq('empresa_id', eid)
         .gte('data', inicio)
         .lte('data', fim)
@@ -378,6 +386,7 @@ export default function FinanceiroPage() {
       pix_banco:    (d as any).pix_banco    ?? '',
       corrida_id:   (d as any).corrida_id   ?? '',
       reembolsavel: !!(d as any).reembolsavel,
+      pago_por:     (d as any).pago_por === 'motorista' ? 'motorista' : 'empresa',
     })
     setErro('')
     setModalAberto(true)
@@ -411,6 +420,10 @@ export default function FinanceiroPage() {
       // Reembolsavel so faz sentido pra despesa vinculada a atendimento.
       // Sem corrida vinculada, nao tem cliente pra reembolsar.
       reembolsavel: (form.tipo === 'despesa' && form.corrida_id) ? !!form.reembolsavel : false,
+      // "Pago por motorista" so faz sentido quando e reembolsavel (= vinculada
+      // a corrida). Nos outros casos fica 'empresa'. Isso evita bagunca se
+      // a pessoa alternou os campos.
+      pago_por: (form.tipo === 'despesa' && form.corrida_id && form.reembolsavel) ? form.pago_por : 'empresa',
     }
 
     const { error } = editando
@@ -1394,6 +1407,36 @@ export default function FinanceiroPage() {
                   pedágio extra, etc). Ela vai aparecer no relatório consolidado do cliente
                   até você marcar como paga.
                 </p>
+
+                {/* Quem pagou (Julimar 2026-11-24): quando o motorista paga do
+                    bolso, o valor entra tambem no repasse pra devolver pra ele.
+                    Se "empresa" paga, segue o fluxo antigo (cliente reembolsa,
+                    dinheiro fica no caixa da empresa). */}
+                {form.reembolsavel && (
+                  <div className="flex flex-col gap-1 mt-1 pt-2" style={{ borderTop: '1px dashed #FAC775' }}>
+                    <p className="text-[11px] font-semibold" style={{ color: '#854F0B' }}>Quem pagou?</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {([
+                        { v: 'empresa',   label: '🏢 Empresa' },
+                        { v: 'motorista', label: '🚗 Motorista' },
+                      ] as const).map(op => (
+                        <button type="button" key={op.v}
+                          onClick={() => setForm(f => ({ ...f, pago_por: op.v }))}
+                          className="py-2 rounded-lg text-xs font-semibold border"
+                          style={form.pago_por === op.v
+                            ? { background: '#0F6E56', color: '#fff', borderColor: '#0F6E56' }
+                            : { background: '#fff', color: '#374151', borderColor: '#e5e7eb' }}>
+                          {op.label}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-[10px]" style={{ color: '#854F0B' }}>
+                      {form.pago_por === 'motorista'
+                        ? 'O valor também vai somar no repasse do motorista — ele é reembolsado quando você marcar o repasse como pago.'
+                        : 'A empresa pagou a despesa. O cliente devolve e o dinheiro fica no caixa.'}
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 
