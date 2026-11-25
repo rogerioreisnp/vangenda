@@ -756,6 +756,17 @@ export default function AgendamentosPage() {
   type ReembolsoMotorista = { id: string; data: string; categoria: string; descricao: string | null; valor: number; corrida_id: string | null }
   const [reembolsosMotoristaPend, setReembolsosMotoristaPend] = useState<ReembolsoMotorista[]>([])
   const [baixaRepasseIncluirReembolsos, setBaixaRepasseIncluirReembolsos] = useState(true)
+  // Mapa corrida_id -> soma dos reembolsos ao motorista pendentes. Usado pra
+  // mostrar na ficha "Reembolso motorista: + R$X" junto do repasse, pra o
+  // gestor ver o total antes de abrir a baixa (Julimar 2026-11-25: viu o
+  // botao mas o 36 real nao aparecia somando na ficha).
+  const [reembolsosMotoristaPorCorrida, setReembolsosMotoristaPorCorrida] = useState<Record<string, number>>({})
+
+  // Soma pendente de reembolso ao motorista de uma corrida.
+  function somaReembolsoPendente(corridaId: string | null | undefined): number {
+    if (!corridaId) return 0
+    return reembolsosMotoristaPorCorrida[corridaId] || 0
+  }
 
   async function abrirBaixaRepasse(c: Corrida) {
     // Se ja tem baixa, pre-preenche pra edicao. Senao, sugere hoje + pix.
@@ -819,8 +830,8 @@ export default function AgendamentosPage() {
     // Marca os reembolsos ao motorista como pagos. Filtra pelo que esta
     // efetivamente sendo baixado agora — se a volta nao entrou, os reembolsos
     // dela nao sao marcados (vao continuar aparecendo na proxima baixa).
+    const idsCorridasBaixadas = new Set<string>([baixaRepasseAberta.id, ...(voltaOk && volta ? [volta.id] : [])])
     if (baixaRepasseIncluirReembolsos && reembolsosMotoristaPend.length > 0) {
-      const idsCorridasBaixadas = new Set<string>([baixaRepasseAberta.id, ...(voltaOk && volta ? [volta.id] : [])])
       const idsReemb = reembolsosMotoristaPend
         .filter(r => r.corrida_id && idsCorridasBaixadas.has(r.corrida_id))
         .map(r => r.id)
@@ -834,6 +845,15 @@ export default function AgendamentosPage() {
           .update({ motorista_reembolsado_em: quando })
           .in('id', idsReemb)
         if (erroReemb) alert('O repasse foi marcado, mas deu erro ao marcar os reembolsos do motorista como pagos: ' + erroReemb.message)
+        else {
+          // Tira as corridas baixadas do mapa — ficha atualiza sem refetch.
+          setReembolsosMotoristaPorCorrida(prev => {
+            const n = { ...prev }
+            // Array.from pq o target es5 do projeto nao itera Set direto.
+            Array.from(idsCorridasBaixadas).forEach(id => { delete n[id] })
+            return n
+          })
+        }
       }
     }
     setBaixaRepasseSalvando(false)
@@ -1224,6 +1244,24 @@ export default function AgendamentosPage() {
       null,
     )
     setCorridasInicioCarregado(menorPassada ?? agoraISO)
+
+    // Reembolsos ao motorista pendentes em todas as corridas da empresa.
+    // Agrupa por corrida_id pra que a ficha mostre o total somado junto do
+    // repasse sem precisar query por ficha. Volume e baixo (so pendentes de
+    // reembolso ao motorista), entao o custo e aceitavel (Julimar 2026-11-25).
+    const { data: reembsPend } = await supabase
+      .from('despesas_empresa')
+      .select('corrida_id, valor')
+      .eq('empresa_id', gestor.empresa_id)
+      .eq('reembolsavel', true)
+      .eq('pago_por', 'motorista')
+      .is('motorista_reembolsado_em', null)
+      .not('corrida_id', 'is', null)
+    const mapa: Record<string, number> = {}
+    for (const r of (reembsPend || []) as { corrida_id: string; valor: number }[]) {
+      mapa[r.corrida_id] = (mapa[r.corrida_id] || 0) + Number(r.valor)
+    }
+    setReembolsosMotoristaPorCorrida(mapa)
 
     if (empresa) {
       setTipoOperacao(empresa.tipo_operacao || 'transfer')
@@ -2286,6 +2324,34 @@ export default function AgendamentosPage() {
     setVeiculoFicha(idaAtual.veiculo_atribuido ?? '')
     setVeiculoFichaVolta(voltaAtual?.veiculo_atribuido ?? '')
     setModalFichaAberto(true)
+
+    // Reload leve do mapa de reembolsos ao motorista, pra pegar despesas que
+    // o Julimar tenha lancado agora no financeiro entre a carga da tela de
+    // fretamentos e a abertura desta ficha. So para as corridas que estao
+    // abrindo (ida + volta).
+    const idsFicha = [idaAtual.id, ...(voltaAtual ? [voltaAtual.id] : [])]
+    supabase.from('despesas_empresa')
+      .select('corrida_id, valor')
+      .in('corrida_id', idsFicha)
+      .eq('reembolsavel', true)
+      .eq('pago_por', 'motorista')
+      .is('motorista_reembolsado_em', null)
+      .then(({ data }) => {
+        const patch: Record<string, number> = {}
+        for (const id of idsFicha) patch[id] = 0
+        for (const r of (data || []) as { corrida_id: string; valor: number }[]) {
+          patch[r.corrida_id] = (patch[r.corrida_id] || 0) + Number(r.valor)
+        }
+        setReembolsosMotoristaPorCorrida(prev => {
+          const n = { ...prev }
+          // So atualiza as da ficha; outras ficam como estavam.
+          for (const [id, v] of Object.entries(patch)) {
+            if (v > 0) n[id] = v
+            else delete n[id]
+          }
+          return n
+        })
+      })
   }
 
   // Lista de veiculos do motorista selecionado, pro gestor escolher qual vai
@@ -4081,22 +4147,46 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
               )}
               {/* Bloco de repasse/lucro — so aparece quando ha repasse a
                   motorista parceiro configurado. Nao mostra pro funcionario. */}
-              {Number(corridaFicha.valor_repasse_motorista) > 0 && (
-                <div className="mt-1.5 rounded-lg p-2" style={{ background: '#F5F6F8' }}>
-                  <div className="flex justify-between text-xs">
-                    <span style={{ color: '#6B7280' }}>Repasse motorista</span>
-                    <span style={{ color: '#A32D2D' }}>
-                      − R$ {Number(corridaFicha.valor_repasse_motorista).toFixed(2).replace('.', ',')}
-                    </span>
+              {Number(corridaFicha.valor_repasse_motorista) > 0 && (() => {
+                const repasse = Number(corridaFicha.valor_repasse_motorista)
+                // Reembolsos ao motorista pendentes somam aqui tambem — o
+                // valor que o motorista vai receber inclui o que ele pagou do
+                // bolso (Julimar 2026-11-25). Se ja foi reembolsado, nao entra.
+                const reembMot = somaReembolsoPendente(corridaFicha.id)
+                const lucro = Number(corridaFicha.valor) - repasse - reembMot
+                return (
+                  <div className="mt-1.5 rounded-lg p-2" style={{ background: '#F5F6F8' }}>
+                    <div className="flex justify-between text-xs">
+                      <span style={{ color: '#6B7280' }}>Repasse motorista</span>
+                      <span style={{ color: '#A32D2D' }}>
+                        − R$ {repasse.toFixed(2).replace('.', ',')}
+                      </span>
+                    </div>
+                    {reembMot > 0 && (
+                      <div className="flex justify-between text-xs mt-0.5">
+                        <span style={{ color: '#854F0B' }}>💰 Reembolso motorista</span>
+                        <span style={{ color: '#854F0B' }}>
+                          − R$ {reembMot.toFixed(2).replace('.', ',')}
+                        </span>
+                      </div>
+                    )}
+                    {reembMot > 0 && (
+                      <div className="flex justify-between text-xs mt-0.5">
+                        <span style={{ color: '#374151', fontWeight: 600 }}>Total ao motorista</span>
+                        <span style={{ color: '#A32D2D', fontWeight: 600 }}>
+                          R$ {(repasse + reembMot).toFixed(2).replace('.', ',')}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex justify-between text-xs font-semibold mt-1 pt-1" style={{ borderTop: '1px dashed #D9DCE3' }}>
+                      <span style={{ color: '#0F6E56' }}>Lucro real</span>
+                      <span style={{ color: '#0F6E56' }}>
+                        R$ {lucro.toFixed(2).replace('.', ',')}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex justify-between text-xs font-semibold mt-1 pt-1" style={{ borderTop: '1px dashed #D9DCE3' }}>
-                    <span style={{ color: '#0F6E56' }}>Lucro real</span>
-                    <span style={{ color: '#0F6E56' }}>
-                      R$ {(Number(corridaFicha.valor) - Number(corridaFicha.valor_repasse_motorista)).toFixed(2).replace('.', ',')}
-                    </span>
-                  </div>
-                </div>
-              )}
+                )
+              })()}
               {corridaFicha.status_pagamento !== 'recebido' && corridaFicha.data_prevista_pagamento && (
                 <p className="text-xs mt-1 text-gray-500">
                   🕐 Previsão de recebimento: {corridaFicha.data_prevista_pagamento.slice(8,10)}/{corridaFicha.data_prevista_pagamento.slice(5,7)}/{corridaFicha.data_prevista_pagamento.slice(0,4)}
@@ -4250,12 +4340,36 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                     onde dar baixa (Julimar 2026-11-01). */}
                 {Number(voltaDaFicha.valor_repasse_motorista) > 0 && !vCancelada && voltaDaFicha.status !== 'recusada' && (
                   <>
-                    <div className="flex justify-between text-xs mt-2 rounded-lg p-2" style={{ background: '#F5F6F8' }}>
-                      <span style={{ color: '#6B7280' }}>Repasse motorista (volta)</span>
-                      <span style={{ color: '#A32D2D' }}>
-                        − R$ {Number(voltaDaFicha.valor_repasse_motorista).toFixed(2).replace('.', ',')}
-                      </span>
-                    </div>
+                    {(() => {
+                      const repasseV = Number(voltaDaFicha.valor_repasse_motorista)
+                      const reembV = somaReembolsoPendente(voltaDaFicha.id)
+                      return (
+                        <div className="mt-2 rounded-lg p-2" style={{ background: '#F5F6F8' }}>
+                          <div className="flex justify-between text-xs">
+                            <span style={{ color: '#6B7280' }}>Repasse motorista (volta)</span>
+                            <span style={{ color: '#A32D2D' }}>
+                              − R$ {repasseV.toFixed(2).replace('.', ',')}
+                            </span>
+                          </div>
+                          {reembV > 0 && (
+                            <div className="flex justify-between text-xs mt-0.5">
+                              <span style={{ color: '#854F0B' }}>💰 Reembolso motorista</span>
+                              <span style={{ color: '#854F0B' }}>
+                                − R$ {reembV.toFixed(2).replace('.', ',')}
+                              </span>
+                            </div>
+                          )}
+                          {reembV > 0 && (
+                            <div className="flex justify-between text-xs mt-0.5">
+                              <span style={{ color: '#374151', fontWeight: 600 }}>Total ao motorista</span>
+                              <span style={{ color: '#A32D2D', fontWeight: 600 }}>
+                                R$ {(repasseV + reembV).toFixed(2).replace('.', ',')}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })()}
                     {voltaDaFicha.repasse_status === 'pago' ? (
                       <div className="w-full mt-2 py-2 px-3 rounded-xl text-xs border flex items-center justify-between gap-2"
                         style={{ background: '#F0FDF4', borderColor: '#BBF7D0' }}>
