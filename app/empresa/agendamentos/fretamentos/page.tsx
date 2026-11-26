@@ -573,6 +573,22 @@ function nomeParaDocumento(cli: any, nomeSolicitante: string): { nome: string; s
   return { nome: nomeCliente, solicitante: mesmoNome ? null : nomeSolicitante }
 }
 
+// Nome da empresa contratante pra mostrar no CARD da lista e na ficha, quando
+// a corrida tem cliente_id vinculado a PJ e o solicitante digitado e diferente
+// do nome da empresa. Cliente de Alternativa 2026-11-26: "coloco Fitec e
+// Solicitante mas na apresentacao so aparece Solicitante".
+function empresaDoCard(
+  clienteId: string | null | undefined,
+  clienteNome: string,
+  clientesOpcoes: { id: string; tipo: 'pj' | 'pf'; label: string }[],
+): string | null {
+  if (!clienteId) return null
+  const cli = clientesOpcoes.find(x => x.id === clienteId)
+  if (!cli || cli.tipo !== 'pj') return null
+  const mesmoNome = cli.label.trim().toLowerCase() === (clienteNome || '').trim().toLowerCase()
+  return mesmoNome ? null : cli.label
+}
+
 // Formata iniciado_em/finalizado_em (timestamptz gravado com new Date().
 // toISOString(), UTC de verdade — nao tem o bug de fuso do data_hora
 // agendado) no horario de Brasilia, sem precisar de date-fns nesse arquivo.
@@ -3290,6 +3306,12 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                     <div className="flex items-end justify-between gap-2"
                       style={{ borderTop: '1px solid #f5f5f5', paddingTop: '8px' }}>
                       <div className="min-w-0">
+                        {(() => {
+                          const empr = empresaDoCard(c.cliente_id, c.cliente_nome, clientesOpcoes)
+                          return empr ? (
+                            <p className="text-xs font-semibold text-gray-700 truncate">🏢 {empr}</p>
+                          ) : null
+                        })()}
                         <p className="text-[10px] text-gray-400">{tm.clienteLabel}</p>
                         <p className="text-xs font-medium text-gray-700 truncate">{c.cliente_nome}</p>
                         {c.cliente_telefone && (
@@ -3420,6 +3442,12 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                   <div className="flex items-end justify-between gap-2"
                     style={{ borderTop: '1px solid #f5f5f5', paddingTop: '8px' }}>
                     <div className="min-w-0">
+                      {(() => {
+                        const empr = empresaDoCard(ida.cliente_id, ida.cliente_nome, clientesOpcoes)
+                        return empr ? (
+                          <p className="text-xs font-semibold text-gray-700 truncate">🏢 {empr}</p>
+                        ) : null
+                      })()}
                       <p className="text-[10px] text-gray-400">{tmPar.clienteLabel}</p>
                       <p className="text-xs font-medium text-gray-700 truncate">{ida.cliente_nome}</p>
                       {ida.cliente_telefone && (
@@ -4428,16 +4456,30 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
 
             {/* Responsável pela solicitação */}
             <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-2">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
-                {tipoMeta(corridaFicha.tipo_servico).clienteLabel === 'Responsável' ? 'Responsável pela solicitação' : tipoMeta(corridaFicha.tipo_servico).clienteLabel}
-              </p>
-              <p className="text-sm font-semibold text-gray-800">👤 {corridaFicha.cliente_nome}</p>
-              {corridaFicha.cliente_telefone && (
-                <p className="text-sm text-gray-600">📞 {corridaFicha.cliente_telefone}</p>
-              )}
-              {corridaFicha.email_solicitante && (
-                <p className="text-sm text-gray-600">✉️ {corridaFicha.email_solicitante}</p>
-              )}
+              {(() => {
+                // Empresa contratante aparece em destaque, acima do nome da
+                // pessoa que solicitou — igual mostra no voucher (Cliente vs
+                // Solicitante). Cliente da Alternativa, 2026-11-26.
+                const empr = empresaDoCard(corridaFicha.cliente_id, corridaFicha.cliente_nome, clientesOpcoes)
+                return empr ? (
+                  <div>
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Empresa contratante</p>
+                    <p className="text-sm font-semibold text-gray-800">🏢 {empr}</p>
+                  </div>
+                ) : null
+              })()}
+              <div>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                  {tipoMeta(corridaFicha.tipo_servico).clienteLabel === 'Responsável' ? 'Responsável pela solicitação' : tipoMeta(corridaFicha.tipo_servico).clienteLabel}
+                </p>
+                <p className="text-sm font-semibold text-gray-800">👤 {corridaFicha.cliente_nome}</p>
+                {corridaFicha.cliente_telefone && (
+                  <p className="text-sm text-gray-600">📞 {corridaFicha.cliente_telefone}</p>
+                )}
+                {corridaFicha.email_solicitante && (
+                  <p className="text-sm text-gray-600">✉️ {corridaFicha.email_solicitante}</p>
+                )}
+              </div>
             </div>
 
             {/* Passageiro 1 — quem efetivamente viaja (pode ser diferente do responsável) */}
