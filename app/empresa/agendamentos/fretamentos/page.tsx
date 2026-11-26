@@ -5753,7 +5753,15 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                     setForm(f => ({
                       ...f,
                       cliente_id: id,
-                      cliente_nome: c ? c.label : f.cliente_nome,
+                      // PJ: nao autopreenche o solicitante. A empresa contratante
+                      // e uma, quem ligou pedindo a corrida pode variar a cada
+                      // atendimento (ex: Maria do RH hoje, Joao amanha). Deixa
+                      // vazio pra o gestor digitar. Pedido de cliente da Alternativa,
+                      // 2026-11-26. PF: continua autopreenchendo — a propria pessoa
+                      // e quem solicita.
+                      cliente_nome: c
+                        ? (c.tipo === 'pj' ? '' : c.label)
+                        : f.cliente_nome,
                       cliente_telefone: c?.telefone ? c.telefone : f.cliente_telefone,
                       email_solicitante: c?.email ? c.email : f.email_solicitante,
                     }))
@@ -5829,7 +5837,15 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                   if (match) carregarEnderecosCliente(match.telefone || '', match.raw)
                 }}
                 list="lista-clientes-solicitante"
-                placeholder="Nome completo" className="campo-input" />
+                placeholder={(() => {
+                  // Quando tem PJ selecionada, o solicitante e a pessoa que
+                  // ligou pedindo; placeholder aproxima a expectativa.
+                  const cliSel = form.cliente_id ? clientesOpcoes.find(x => x.id === form.cliente_id) : null
+                  return cliSel?.tipo === 'pj'
+                    ? 'Quem solicitou essa corrida (ex: Maria do RH)'
+                    : 'Nome completo'
+                })()}
+                className="campo-input" />
               {clientesOpcoes.length > 0 && (
                 <datalist id="lista-clientes-solicitante">
                   {clientesOpcoes.map(c => <option key={c.id} value={c.label} />)}
