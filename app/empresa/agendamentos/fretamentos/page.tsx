@@ -4601,6 +4601,49 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
               )
             })()}
 
+            {/* Lucro total do par ida+volta — Julimar 2026-11-28: queria ver
+                a soma na mesma tela, sem precisar ir no financeiro. So aparece
+                quando ha par (voltaDaFicha != null) E alguma ponta rende lucro
+                calculado (tem repasse ou gasto). Cancelada/recusada nao soma. */}
+            {voltaDaFicha && (() => {
+              const calcLucro = (c: Corrida): number | null => {
+                if (c.status === 'cancelada' || c.status === 'recusada') return null
+                const repasse = Number(c.valor_repasse_motorista) || 0
+                const reemb = somaReembolsoPendente(c.id)
+                const gastos = gastosFicha.filter(g => g.corrida_id === c.id)
+                const totalGastos = gastos.reduce((s, g) => s + Number(g.valor), 0)
+                if (repasse === 0 && totalGastos === 0) return null
+                return (Number(c.valor) || 0) - repasse - reemb - totalGastos
+              }
+              const lucroIda = calcLucro(corridaFicha)
+              const lucroVolta = calcLucro(voltaDaFicha)
+              if (lucroIda == null && lucroVolta == null) return null
+              const total = (lucroIda ?? 0) + (lucroVolta ?? 0)
+              return (
+                <div className="rounded-2xl p-4 border" style={{ background: '#F0FDF4', borderColor: '#BBF7D0' }}>
+                  <p className="text-xs font-semibold uppercase tracking-wide mb-1.5" style={{ color: '#166534' }}>
+                    💰 Lucro total do atendimento
+                  </p>
+                  {lucroIda != null && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Lucro ida</span>
+                      <span className="text-gray-800">R$ {lucroIda.toFixed(2).replace('.', ',')}</span>
+                    </div>
+                  )}
+                  {lucroVolta != null && (
+                    <div className="flex justify-between text-sm mt-0.5">
+                      <span className="text-gray-600">Lucro volta</span>
+                      <span className="text-gray-800">R$ {lucroVolta.toFixed(2).replace('.', ',')}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between mt-2 pt-2 text-base font-bold" style={{ borderTop: '1px dashed #86EFAC', color: '#166534' }}>
+                    <span>Total</span>
+                    <span>R$ {total.toFixed(2).replace('.', ',')}</span>
+                  </div>
+                </div>
+              )
+            })()}
+
             {/* Responsável pela solicitação */}
             <div className="bg-white rounded-2xl p-4 border border-gray-100 flex flex-col gap-2">
               {(() => {
