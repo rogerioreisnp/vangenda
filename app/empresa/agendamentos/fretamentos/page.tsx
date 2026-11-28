@@ -1985,6 +1985,11 @@ export default function AgendamentosPage() {
           passageiros_adicionais: camposComuns.passageiros_adicionais,
           tipo_servico: camposComuns.tipo_servico,
           valor_repasse_motorista: repasseVolta,
+          // Previsao de recebimento vale pro par inteiro (mesmo cliente pagando
+          // pelos dois trechos). Julimar 2026-11-28: as voltas ficaram sem o
+          // selo "Receber até ..." porque na criacao herdavam, mas na edicao
+          // ninguem propagava este campo pra volta.
+          data_prevista_pagamento: camposComuns.data_prevista_pagamento,
           ...enderecosDaVoltaDoPar(),
         }
         // Se trocou o motorista da volta: a confirmacao do motorista anterior
