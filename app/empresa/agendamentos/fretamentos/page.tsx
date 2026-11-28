@@ -906,15 +906,43 @@ export default function AgendamentosPage() {
   const [baixaPagamentoForma, setBaixaPagamentoForma] = useState<string>('pix')
   const [baixaPagamentoSalvando, setBaixaPagamentoSalvando] = useState(false)
   const [baixaIncluirVolta, setBaixaIncluirVolta] = useState(true)
+  // Reembolsos do CLIENTE pendentes do PAR (ida + volta), carregados quando o
+  // modal de baixa do pagamento abre. Julimar 2026-11-28: emitiu recibo e o
+  // reembolso de R$37 do estacionamento nao somou no total — o recibo so
+  // conta reembolsos com `reembolsado_em` preenchido, e o Julimar nao marcou.
+  // Agora a baixa do pagamento oferece marcar tudo junto.
+  type ReembolsoCliente = { id: string; data: string; categoria: string; descricao: string | null; valor: number; corrida_id: string | null }
+  const [reembolsosClientePend, setReembolsosClientePend] = useState<ReembolsoCliente[]>([])
+  const [baixaIncluirReembolsosCliente, setBaixaIncluirReembolsosCliente] = useState(true)
 
-  function abrirBaixaPagamento(c: Corrida) {
+  async function abrirBaixaPagamento(c: Corrida) {
     const hoje = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` })()
     setBaixaPagamentoData(c.data_pagamento || hoje)
     setBaixaPagamentoValor(String(Number(c.valor) || 0))
     // Ja tinha forma cadastrada? Reusa. Senao, sugere Pix (mais comum).
     setBaixaPagamentoForma(c.forma_pagamento && c.forma_pagamento !== 'a_definir' ? c.forma_pagamento : 'pix')
     setBaixaIncluirVolta(true)
+    setBaixaIncluirReembolsosCliente(true)
     setBaixaPagamentoAberta(c)
+    // Busca despesas reembolsaveis vinculadas ao par e ainda nao marcadas
+    // como "cliente pagou". Qualquer pago_por: o cliente reembolsa tanto a
+    // empresa quanto o motorista — a diferenca e so quem RECEBE o dinheiro
+    // de volta.
+    const volta = voltaPendenteDaBaixa(c)
+    const ids = [c.id, ...(volta ? [volta.id] : [])]
+    const { data, error } = await supabase
+      .from('despesas_empresa')
+      .select('id, data, categoria, descricao, valor, corrida_id')
+      .in('corrida_id', ids)
+      .eq('reembolsavel', true)
+      .is('reembolsado_em', null)
+      .order('data', { ascending: true })
+    if (error) {
+      console.error('[reembolso cliente] carregar:', error.message)
+      setReembolsosClientePend([])
+    } else {
+      setReembolsosClientePend((data || []) as ReembolsoCliente[])
+    }
   }
 
   // Ida de um par com a volta ainda a receber. Cada ponta tem o proprio
@@ -953,6 +981,26 @@ export default function AgendamentosPage() {
         patchVolta = null
       }
     }
+
+    // Marca os reembolsos pendentes do cliente nos atendimentos que estao
+    // sendo baixados agora. Reembolso com `reembolsado_em` preenchido entra
+    // no recibo do cliente (Julimar 2026-11-28: o R$37 do estacionamento nao
+    // somou no recibo porque ele nao marcou essa etapa).
+    const idsCorridasBaixadas = new Set<string>([baixaPagamentoAberta.id, ...(patchVolta && volta ? [volta.id] : [])])
+    if (baixaIncluirReembolsosCliente && reembolsosClientePend.length > 0) {
+      const idsReemb = reembolsosClientePend
+        .filter(r => r.corrida_id && idsCorridasBaixadas.has(r.corrida_id))
+        .map(r => r.id)
+      if (idsReemb.length > 0) {
+        const quando = baixaPagamentoData
+          ? new Date(`${baixaPagamentoData}T12:00:00`).toISOString()
+          : new Date().toISOString()
+        const { error: erroReemb } = await supabase.from('despesas_empresa')
+          .update({ reembolsado_em: quando })
+          .in('id', idsReemb)
+        if (erroReemb) alert('O pagamento foi marcado, mas deu erro ao marcar os reembolsos do cliente como pagos: ' + erroReemb.message)
+      }
+    }
     setBaixaPagamentoSalvando(false)
 
     const aplicar = <T extends Corrida>(x: T): T =>
@@ -962,6 +1010,7 @@ export default function AgendamentosPage() {
     setCorridas(prev => prev.map(aplicar))
     setCorridaFicha(prev => prev && aplicar(prev))
     setVoltaDaFicha(prev => prev && aplicar(prev))
+    setReembolsosClientePend([])
     setBaixaPagamentoAberta(null)
   }
 
@@ -3871,6 +3920,12 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
         const c = baixaPagamentoAberta
         const editando = c.status_pagamento === 'recebido'
         const voltaPend = voltaPendenteDaBaixa(c)
+        // Reembolsos que vao entrar NESTA baixa — depende do checkbox de
+        // incluir volta (se tirar, os reembolsos dela nao entram).
+        const idsBaixar = new Set<string>([c.id, ...(baixaIncluirVolta && voltaPend ? [voltaPend.id] : [])])
+        const reembDaBaixa = reembolsosClientePend.filter(r => r.corrida_id && idsBaixar.has(r.corrida_id))
+        const totalReembCliente = reembDaBaixa.reduce((s, r) => s + Number(r.valor), 0)
+        const fmtPag = (n: number) => `R$ ${n.toFixed(2).replace('.', ',')}`
         return (
           <div className="fixed inset-0 z-[70] flex items-end justify-center" style={{ background: 'rgba(0,0,0,0.4)' }} onClick={() => setBaixaPagamentoAberta(null)}>
             <div className="w-full max-w-md bg-white rounded-t-2xl p-5 pb-24 flex flex-col gap-3" style={{ maxHeight: '92dvh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
@@ -3885,9 +3940,24 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                 <p className="text-xs text-gray-500">
                   {c.cliente_nome} · {c.origem} → {c.destino}
                 </p>
-                <p className="text-sm font-semibold text-gray-800 mt-0.5">
-                  Valor do atendimento: R$ {(Number(c.valor) || 0).toFixed(2).replace('.', ',')}
-                </p>
+                {reembDaBaixa.length > 0 && baixaIncluirReembolsosCliente ? (
+                  <div className="mt-1 text-sm text-gray-800">
+                    <p>Valor do atendimento: <span className="font-semibold">{fmtPag(Number(c.valor) || 0)}</span></p>
+                    {reembDaBaixa.map(r => (
+                      <p key={r.id} className="text-xs text-gray-600">
+                        + Reembolso {r.categoria}
+                        {r.descricao ? ` (${r.descricao})` : ''}: <span className="font-semibold">{fmtPag(Number(r.valor))}</span>
+                      </p>
+                    ))}
+                    <p className="mt-1 pt-1 text-sm font-bold" style={{ borderTop: '1px dashed #d1d5db', color: '#0F6E56' }}>
+                      Total recebido do cliente: {fmtPag((Number(c.valor) || 0) + totalReembCliente)}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm font-semibold text-gray-800 mt-0.5">
+                    Valor do atendimento: {fmtPag(Number(c.valor) || 0)}
+                  </p>
+                )}
               </div>
 
               <Campo label="Data do recebimento">
@@ -3922,6 +3992,19 @@ function montarMsgDetalhada(c: Corrida, motoristaId: string, etapa?: 'ida' | 'vo
                   <span className="text-xs" style={{ color: '#3C3489' }}>
                     <span className="font-bold">🔁 Incluir também a volta</span>
                     {' '}— R$ {(Number(voltaPend.valor) || 0).toFixed(2).replace('.', ',')}, mesma data e forma de pagamento
+                  </span>
+                </label>
+              )}
+
+              {reembDaBaixa.length > 0 && !editando && (
+                <label className="flex items-start gap-2 rounded-xl p-3 border cursor-pointer"
+                  style={{ background: '#FEF9E7', borderColor: '#FAC775' }}>
+                  <input type="checkbox" checked={baixaIncluirReembolsosCliente}
+                    onChange={e => setBaixaIncluirReembolsosCliente(e.target.checked)}
+                    className="mt-0.5" />
+                  <span className="text-xs" style={{ color: '#854F0B' }}>
+                    <span className="font-bold">💰 Cliente pagou os reembolsos junto</span>
+                    {' '}— {reembDaBaixa.length} despesa{reembDaBaixa.length > 1 ? 's' : ''} reembolsável{reembDaBaixa.length > 1 ? 'is' : ''} ({fmtPag(totalReembCliente)}). Ao confirmar, entra no recibo do cliente.
                   </span>
                 </label>
               )}
