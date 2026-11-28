@@ -250,8 +250,8 @@ export default function RelatoriosPage() {
       <div style={{ background: '#0F6E56' }} className="px-4 pt-12 pb-4 flex items-center gap-3">
         <Link href="/empresa" style={{ color: '#9FE1CB' }} className="text-2xl leading-none flex-shrink-0">‹</Link>
         <div className="flex-1 min-w-0">
-          <p style={{ color: '#E1F5EE' }} className="text-base font-semibold">Relatórios</p>
-          <p style={{ color: '#5DCAA5' }} className="text-xs mt-0.5">Consolidado de atendimentos por cliente + período</p>
+          <p style={{ color: '#E1F5EE' }} className="text-base font-semibold">Relatórios / Fechamento</p>
+          <p style={{ color: '#5DCAA5' }} className="text-xs mt-0.5">Fechamento de atendimentos por cliente + período</p>
         </div>
       </div>
 

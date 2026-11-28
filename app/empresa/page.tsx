@@ -682,7 +682,7 @@ export default function EmpresaPage() {
               { emoji: '📋', label: 'Novo atendimento', href: '/empresa/agendamentos/fretamentos?nova=1' },
               { emoji: '🕐', label: 'A receber', href: '/empresa/financeiro?aba=receitas' },
               { emoji: '📇', label: 'Clientes', href: '/empresa/clientes' },
-              { emoji: '📊', label: 'Relatórios', href: '/empresa/relatorios' },
+              { emoji: '📊', label: 'Relatórios / Fechamento', href: '/empresa/relatorios' },
             ].map(item => (
               <Link key={item.href} href={item.href}
                 className="bg-white rounded-2xl flex flex-col items-center justify-center py-4 gap-1.5 active:opacity-75"
